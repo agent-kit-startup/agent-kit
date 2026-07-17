@@ -1,19 +1,17 @@
 # Agent Kit
 
-**Framework for AI-assisted development on long-running projects** (any IDE) — human-in-the-loop (HITL), not “the agent ships while you sleep.”
+**Framework for AI-assisted development on long-running projects** — human-in-the-loop by design, for any AI-assisted IDE.
 
-> AI accelerates. Agent Kit keeps that acceleration from turning into debt, leaks, or embarrassment on GitHub.
+Agent Kit gives coding agents a structural harness: plans with trackable to-dos, context handoff between sessions, a persistent memory loop, and a staged git workflow with explicit human confirmation before anything reaches production.
 
-| Promise | Anti-promise |
-|---------|----------------|
-| Compress calendar time with **defensible** quality | Fully autonomous delivery without review |
-| Code and docs a senior would **sign** | Slop a critic can dunk on |
-| Structural harness: plan → handoff → staging → prod | Lock-in to one PM tool, n8n, or someone’s stack |
-| Autonomy **inside the fence**; humans at gates | Skip `/git-prod` confirmation or paste chat into the repo |
+## Principles
 
-**Core Pack** = handoff, memory loop, hygiene, docs standard, git staging→prod. **Stack** (ClickUp, n8n, SQL, …) is on demand via `agent-kit add` — never `alwaysApply` product rules in core.
+- **Human-in-the-loop.** Agents automate inside the fence; humans approve at the gates. Production promotion (`/git-prod`) always requires explicit confirmation.
+- **Structure over improvisation.** Plan → handoff → staging → prod. Long conversations hand off state instead of losing it.
+- **Output hygiene.** Chat stays in chat: commits, docs, and memory carry technical facts only — no agent metalanguage, no session narrative.
+- **Structural core, opt-in stack.** The Core Pack covers handoff, memory loop, hygiene, docs standards, and the git workflow. Stack tooling (ClickUp, n8n, SQL, …) is installed on demand via `agent-kit add` — never as always-on rules.
 
-Install without nesting this monorepo: `npx @agent-kit/cli install` — see [docs/bootstrap.md](docs/bootstrap.md). Contribute upstream: `agent-kit contribute` — [docs/contribute-upstream.md](docs/contribute-upstream.md). Public launch checklist: [docs/public-launch.md](docs/public-launch.md).
+**Install** (without nesting this repo): `npx @agent-kit/cli install` — see [docs/bootstrap.md](docs/bootstrap.md). **Contribute upstream:** `agent-kit contribute` — [docs/contribute-upstream.md](docs/contribute-upstream.md).
 
 ---
 

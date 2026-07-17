@@ -8,6 +8,10 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+### Alterado
+
+- README: abertura reescrita em voz de produto (princípios HITL, estrutura, hygiene, core vs stack) — remove tabela de posicionamento interno e link para checklist de ops.
+
 ## [3.2.0] - 2026-07-17
 
 ### Adicionado
