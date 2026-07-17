@@ -1,0 +1,24 @@
+# Handoff — [Nome do plano]
+
+- **Plano:** [nome-do-arquivo.plan.md]
+- **Última atualização:** [YYYY-MM-DD HH:MM]
+- **Fase concluída:** [0 a 5]
+- **To-dos concluídos:** [lista de ids]
+- **Próxima fase:** [N]
+- **Próximos to-dos:** [ids]
+
+## Estado Atual
+[descrição breve do que foi feito]
+
+## Arquivos Tocados
+- [arquivo1] - [criado|modificado|deletado]
+- [arquivo2] - [criado|modificado|deletado]
+
+## Decisões Tomadas
+- [decisão 1] - [justificativa breve]
+
+## Problemas Encontrados
+- [problema] - [status: resolvido|pendente]
+
+## Instrução para o Próximo Agente
+[1-3 frases claras do que fazer a seguir]

@@ -11,6 +11,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 ### Alterado
 
 - README: abertura reescrita em voz de produto (princípios HITL, estrutura, hygiene, core vs stack) — remove tabela de posicionamento interno e link para checklist de ops.
+- Sync público: `install.md`, `categories.md`, `adicionar-skills.md` e `HANDOFF.md.example` incluídos no manifest — README público os referencia (links quebravam no espelho).
 
 ## [3.2.0] - 2026-07-17
 
