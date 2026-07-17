@@ -1,0 +1,46 @@
+---
+description: Regras CURSOR-SKILLS para APIs (REST, GraphQL, gRPC). OpenAPI, testes, versionamento.
+globs: "**/api/**/*,**/*-api*,**/swagger.*,**/openapi.*,**/*.graphql,**/*.proto"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – API
+
+Fonte: [cursor-skills/api](https://github.com/araguaci/cursor-skills/tree/main/api)
+
+## Setup CURSOR
+
+- REST Client, Thunder Client ou Postman; JSON Tools; gerador de docs; Swagger Viewer.
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── docs/   ├── schemas/
+├── swagger.yaml   └── .env
+```
+
+## Padrões
+
+- REST: verbos e recursos corretos; códigos HTTP; versionamento; JSON.
+- **GraphQL**: queries, mutations, subscriptions; schema; introspect; validação.
+- **gRPC**: services, métodos, Protocol Buffers; error handling.
+
+## Documentação
+
+- OpenAPI/Swagger; exemplos de request/response; códigos de erro; autenticação.
+- Ferramentas: Swagger/OpenAPI, Postman, Insomnia, ReDoc.
+
+## Segurança e qualidade
+
+- Validar inputs; auth; rate limit; CORS; HTTPS.
+- Prettier, ESLint; testes de endpoints (unit + integração); cobertura ≥ 80%.
+
+## Config REST Client (ex.)
+
+```json
+{
+  "editor.formatOnSave": true,
+  "rest-client.environmentVariables": { "baseUrl": "http://localhost:3000" }
+}
+```

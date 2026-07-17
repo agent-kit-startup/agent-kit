@@ -1,0 +1,664 @@
+#!/usr/bin/env sh
+# cursor-handoff - Context Memory System CLI
+# Comandos: new, update, status, handoff, archive, resume, list-projects
+# Uso: cursor-handoff <comando> [task-id|project]
+
+set -e
+
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+CONTEXT="$REPO_ROOT/.cursor/context"
+CURRENT="$CONTEXT/current"
+ARCHIVE="$CONTEXT/archive"
+TEMPLATES="$CONTEXT/templates"
+HANDOFF_FILE="$REPO_ROOT/.cursor/HANDOFF.md"
+PACK_TEMPLATE="$TEMPLATES/context-pack.md"
+HANDOFF_TEMPLATE="$TEMPLATES/handoff.md"
+
+now_iso() {
+  date '+%Y-%m-%d %H:%M'
+}
+now_ym() {
+  date '+%Y-%m'
+}
+
+get_current_task_id() {
+  for f in "$CURRENT"/*.md; do
+    [ -f "$f" ] || continue
+    basename "$f" .md
+    return 0
+  done
+  return 1
+}
+
+# Detecta pasta do projeto para handoff: .cursor/HANDOFF.md, Context Pack ativo, ou pergunta
+detect_project() {
+  DETECTED_PROJECT=""
+  if [ -f "$HANDOFF_FILE" ]; then
+    DETECTED_PROJECT=$(grep -m1 '^\-\s*\*\*Projeto:\*\*' "$HANDOFF_FILE" 2>/dev/null | sed 's/^-\s*\*\*Projeto:\*\*\s*//' | sed 's/\s*$//')
+  fi
+  if [ -z "$DETECTED_PROJECT" ]; then
+    task_id=$(get_current_task_id) || true
+    if [ -n "$task_id" ] && [ -f "$CURRENT/${task_id}.md" ]; then
+      DETECTED_PROJECT=$(grep -m1 '^\*\*Projeto:\*\*' "$CURRENT/${task_id}.md" 2>/dev/null | sed 's/^\*\*Projeto:\*\*\s*//' | sed 's/\s*$//')
+    fi
+  fi
+  if [ -z "$DETECTED_PROJECT" ]; then
+    echo ""
+    printf "Informe a pasta do projeto (ex: agente_incidentes): "
+    read -r DETECTED_PROJECT
+  fi
+}
+
+cmd_new() {
+  task_id="$1"
+  if [ -z "$task_id" ]; then
+    task_id="task-$(date +%Y%m%d%H%M)"
+  fi
+  if [ ! -f "$PACK_TEMPLATE" ]; then
+    echo "Template não encontrado: $PACK_TEMPLATE"
+    exit 2
+  fi
+  dest="$CURRENT/${task_id}.md"
+  mkdir -p "$CURRENT"
+  now=$(now_iso)
+  sed -e "s/\[TASK-ID\]/${task_id}/g" \
+      -e "s/\[YYYY-MM-DD HH:MM\]/${now}/g" \
+      -e "s/\[draft|active|review|done|archived\]/active/" \
+      "$PACK_TEMPLATE" > "$dest"
+  echo "Context Pack criado: $dest"
+  echo "Edite o arquivo para preencher estado e constraints."
+}
+
+cmd_update() {
+  task_id=$(get_current_task_id) || true
+  if [ -z "$task_id" ]; then
+    echo "Nenhuma tarefa ativa em $CURRENT"
+    echo "Use: cursor-handoff new [task-id]"
+    exit 1
+  fi
+  dest="$CURRENT/${task_id}.md"
+  now=$(now_iso)
+  if [ -f "$dest" ]; then
+    if sed -i.bak "s/\*\*Última atualização:\*\* .*/\*\*Última atualização:\*\* ${now}/" "$dest" 2>/dev/null; then
+      rm -f "${dest}.bak"
+    fi
+    echo "Context Pack atualizado: $dest (Última atualização: ${now})"
+  else
+    echo "Arquivo não encontrado: $dest"
+    exit 1
+  fi
+}
+
+cmd_status() {
+  PLANS_DIR="$REPO_ROOT/.cursor/plans"
+  
+  # 1. Context Pack ativo
+  task_id=$(get_current_task_id) || true
+  if [ -n "$task_id" ]; then
+    echo "Context Pack ativo: $task_id"
+    echo "  Arquivo: $CURRENT/${task_id}.md"
+    echo ""
+  fi
+  
+  # 2. Planos do Cursor (arquivos .plan.md)
+  plan_count=0
+  if [ -d "$PLANS_DIR" ]; then
+    for f in "$PLANS_DIR"/*.plan.md; do
+      [ -f "$f" ] || continue
+      plan_count=$((plan_count + 1))
+    done
+  fi
+  
+  if [ "$plan_count" -gt 0 ]; then
+    echo "Planos ativos ($plan_count):"
+    for f in "$PLANS_DIR"/*.plan.md; do
+      [ -f "$f" ] || continue
+      name=$(basename "$f" .plan.md)
+      # Extrair título do plano (primeira linha que começa com #)
+      title=$(grep -m1 '^# ' "$f" 2>/dev/null | sed 's/^# //' || echo "$name")
+      echo "  - $name"
+      echo "    $title"
+    done
+    echo ""
+  fi
+  
+  # 3. Mensagem se nada ativo
+  if [ -z "$task_id" ] && [ "$plan_count" -eq 0 ]; then
+    echo "Nenhuma tarefa ou plano ativo."
+    echo "Use: cursor-handoff new [task-id]"
+    echo ""
+  fi
+  
+  # 4. Handoffs por projeto
+  echo "Handoffs por projeto:"
+  project_handoff_count=0
+  for d in "$REPO_ROOT"/*/; do
+    [ -d "$d" ] || continue
+    [ -f "${d}HANDOFF.md" ] || continue
+    proj=$(basename "$d")
+    project_handoff_count=$((project_handoff_count + 1))
+    echo "  - $proj/HANDOFF.md"
+  done 2>/dev/null
+  if [ "$project_handoff_count" -eq 0 ]; then
+    echo "  (nenhum)"
+  fi
+  echo ""
+
+  # 5. Arquivados
+  echo "Arquivados (últimos):"
+  archived_count=0
+  for dir in "$ARCHIVE"/20*; do
+    [ -d "$dir" ] || continue
+    for f in "$dir"/*.md; do
+      [ -f "$f" ] || continue
+      archived_count=$((archived_count + 1))
+      echo "  - $(basename "$dir")/$(basename "$f" .md)"
+    done
+  done 2>/dev/null | tail -10
+  
+  if [ "$archived_count" -eq 0 ]; then
+    echo "  (nenhum)"
+  fi
+}
+
+cmd_handoff() {
+  project_arg="$1"
+  task_id=$(get_current_task_id) || true
+  if [ -z "$task_id" ]; then
+    echo "Nenhuma tarefa ativa. Use: cursor-handoff new [task-id]"
+    exit 1
+  fi
+  pack="$CURRENT/${task_id}.md"
+  if [ -n "$project_arg" ]; then
+    project="$project_arg"
+  else
+    detect_project
+    project="$DETECTED_PROJECT"
+  fi
+  [ -n "$project" ] || { echo "Projeto não informado."; exit 1; }
+  project_handoff="$REPO_ROOT/$project/HANDOFF.md"
+  mkdir -p "$(dirname "$project_handoff")" "$(dirname "$HANDOFF_FILE")"
+  now=$(now_iso)
+  {
+    echo "# Handoff — $task_id"
+    echo ""
+    echo "- **Projeto:** $project"
+    echo "- **Última atualização:** $now"
+    echo "- **Context Pack:** $pack"
+    echo ""
+    echo "## Estado (resumo do Context Pack)"
+    echo ""
+    sed -n '/## Estado Atual/,/## /p' "$pack" 2>/dev/null | head -20
+    echo ""
+    echo "## Instrução para o Próximo Agente"
+    echo ""
+    sed -n '/## Handoff Notes/,/^## /p' "$pack" 2>/dev/null | head -15
+  } > "$project_handoff"
+  cp "$project_handoff" "$HANDOFF_FILE"
+  echo "HANDOFF.md atualizado: $project_handoff (projeto)"
+  echo "HANDOFF.md espelho: $HANDOFF_FILE"
+  echo "Próximo agente: leia .cursor/HANDOFF.md ou <projeto>/HANDOFF.md e retome a partir da instrução acima."
+}
+
+cmd_list_projects() {
+  echo "Projetos com HANDOFF.md:"
+  count=0
+  for d in "$REPO_ROOT"/*/; do
+    [ -d "$d" ] || continue
+    [ -f "${d}HANDOFF.md" ] || continue
+    proj=$(basename "$d")
+    count=$((count + 1))
+    echo "  $proj"
+  done 2>/dev/null
+  if [ "$count" -eq 0 ]; then
+    echo "  (nenhum)"
+  fi
+}
+
+cmd_archive() {
+  task_id=$(get_current_task_id) || true
+  if [ -z "$task_id" ]; then
+    echo "Nenhuma tarefa ativa para arquivar."
+    exit 1
+  fi
+  cmd_handoff ""
+  ym=$(now_ym)
+  dest_dir="$ARCHIVE/$ym"
+  dest="$dest_dir/${task_id}.md"
+  mkdir -p "$dest_dir"
+  mv "$CURRENT/${task_id}.md" "$dest"
+  echo "Tarefa arquivada: $dest"
+}
+
+list_archived_tasks() {
+  i=0
+  for dir in "$ARCHIVE"/20*; do
+    [ -d "$dir" ] || continue
+    for f in "$dir"/*.md; do
+      [ -f "$f" ] || continue
+      i=$((i + 1))
+      task_name=$(basename "$f" .md)
+      month=$(basename "$dir")
+      echo "$i) $task_name ($month)"
+      eval "TASK_$i=\"$f\""
+      eval "TASKID_$i=\"$task_name\""
+    done
+  done 2>/dev/null
+  echo "$i"
+}
+
+cmd_resume() {
+  task_id="$1"
+  
+  # Modo interativo: se não passou task-id, listar e perguntar
+  if [ -z "$task_id" ]; then
+    echo "Tarefas arquivadas:"
+    echo ""
+    
+    # Coletar tarefas em arrays
+    count=0
+    for dir in "$ARCHIVE"/20*; do
+      [ -d "$dir" ] || continue
+      for f in "$dir"/*.md; do
+        [ -f "$f" ] || continue
+        count=$((count + 1))
+        task_name=$(basename "$f" .md)
+        month=$(basename "$dir")
+        echo "  $count) $task_name ($month)"
+        eval "TASK_PATH_$count=\"$f\""
+        eval "TASK_ID_$count=\"$task_name\""
+      done
+    done 2>/dev/null
+    
+    if [ "$count" -eq 0 ]; then
+      echo "  (nenhuma tarefa arquivada)"
+      echo ""
+      echo "Para retomar por projeto: cursor-handoff resume <nome-projeto>"
+      echo "  (list-projects mostra projetos com HANDOFF.md)"
+      exit 0
+    fi
+    
+    echo ""
+    printf "Qual tarefa retomar? (1-%d ou 'q' para sair): " "$count"
+    read -r choice
+    
+    if [ "$choice" = "q" ] || [ "$choice" = "Q" ]; then
+      echo "Cancelado."
+      exit 0
+    fi
+    
+    if ! echo "$choice" | grep -qE '^[0-9]+$' || [ "$choice" -lt 1 ] || [ "$choice" -gt "$count" ]; then
+      echo "Opção inválida: $choice"
+      exit 2
+    fi
+    
+    eval "found=\"\$TASK_PATH_$choice\""
+    eval "task_id=\"\$TASK_ID_$choice\""
+  else
+    # Modo com argumento: buscar pelo nome no archive
+    found=""
+    for dir in "$ARCHIVE"/20*; do
+      [ -d "$dir" ] || continue
+      if [ -f "$dir/${task_id}.md" ]; then
+        found="$dir/${task_id}.md"
+        break
+      fi
+    done
+    # Se não achou no archive, verificar se é um projeto (pasta com HANDOFF.md)
+    if [ -z "$found" ] && [ -f "$REPO_ROOT/${task_id}/HANDOFF.md" ]; then
+      mkdir -p "$(dirname "$HANDOFF_FILE")"
+      cp "$REPO_ROOT/${task_id}/HANDOFF.md" "$HANDOFF_FILE"
+      echo "Handoff do projeto carregado: $task_id/HANDOFF.md -> .cursor/HANDOFF.md"
+      echo "Próximo passo: abra uma nova conversa e use /continuar-plano (ou leia .cursor/HANDOFF.md)."
+      exit 0
+    fi
+    if [ -z "$found" ]; then
+      echo "Tarefa não encontrada no arquivo: $task_id"
+      echo "Dica: list-projects mostra projetos com HANDOFF; resume <id> retoma tarefa arquivada ou projeto."
+      exit 1
+    fi
+  fi
+  
+  mkdir -p "$CURRENT"
+  cp "$found" "$CURRENT/${task_id}.md"
+  echo "Tarefa retomada: $CURRENT/${task_id}.md (cópia de $found)"
+}
+
+cmd_list_skills() {
+  # Lista skills do registry. Uso: list [categoria]
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  if [ "$(basename "$SCRIPT_DIR")" = "agent-kit" ]; then
+    AGENT_KIT="$SCRIPT_DIR"
+  else
+    AGENT_KIT="$SCRIPT_DIR/agent-kit"
+  fi
+  REGISTRY="$AGENT_KIT/skills-registry.json"
+  FILTER_CAT="$1"
+
+  if [ ! -f "$REGISTRY" ]; then
+    echo "Registry não encontrado: $REGISTRY"
+    echo "Gere com: scripts/build-registry.sh <pasta-.cursor/skills> skills-registry.json"
+    echo "  (a partir da pasta do kit, ou: agent-kit/scripts/build-registry.sh .cursor/skills agent-kit/skills-registry.json a partir da raiz do projeto)"
+    exit 1
+  fi
+
+  # Extrair uma linha por skill (suporta JSON minificado ou pretty-printed)
+  list_skill_lines() {
+    sed 's/},{"/\n},{"/g' "$REGISTRY" | grep '"path":' | sed 's/^[[:space:]]*//;s/,$//'
+  }
+
+  print_skill() {
+    line="$1"
+    # Aceitar "key":"value" ou "key": "value"
+    name=$(echo "$line" | sed -n 's/.*"name": *"\([^"]*\)".*/\1/p')
+    path=$(echo "$line" | sed -n 's/.*"path": *"\([^"]*\)".*/\1/p')
+    cat=$(echo "$line" | sed -n 's/.*"category": *"\([^"]*\)".*/\1/p')
+    desc=$(echo "$line" | sed -n 's/.*"description": *"\([^"]*\)".*/\1/p')
+    # Truncar descrição (POSIX)
+    desc_len=$(printf '%s' "$desc" | wc -c | tr -d ' ')
+    if [ "$desc_len" -gt 60 ] 2>/dev/null; then
+      desc=$(printf '%.57s...' "$desc")
+    fi
+    printf "  %-20s %-14s %s\n" "$name" "($cat)" "$desc"
+  }
+
+  SKILLS_TMP=$(mktemp -t cursor-handoff-skills.XXXXXX) || exit 1
+  list_skill_lines > "$SKILLS_TMP"
+
+  # Grep aceita "category":"x" ou "category": "x" (com espaço)
+  match_cat() {
+    echo "$1" | grep -qE "\"category\": *\"$2\""
+  }
+  if [ -n "$FILTER_CAT" ]; then
+    echo "Skills — categoria: $FILTER_CAT"
+    echo ""
+    while read -r line; do
+      match_cat "$line" "$FILTER_CAT" && print_skill "$line"
+    done < "$SKILLS_TMP"
+  else
+    echo "Skills (por categoria)"
+    echo ""
+    for cat in dados docs integrações quality devops creation; do
+      need_header=1
+      while read -r line; do
+        if match_cat "$line" "$cat"; then
+          [ "$need_header" = 1 ] && echo "  [$cat]" && need_header=0
+          print_skill "$line"
+        fi
+      done < "$SKILLS_TMP"
+      [ "$need_header" = 0 ] && echo ""
+    done
+    while read -r line; do
+      if ! echo "$line" | grep -qE '"category": *"[^"]*"'; then
+        echo "  [sem categoria]"
+        print_skill "$line"
+      fi
+    done < "$SKILLS_TMP"
+  fi
+  rm -f "$SKILLS_TMP"
+}
+
+cmd_install() {
+  # Perfil: minimo | completo | custom. Sem arg = completo (comportamento anterior).
+  PROFILE="${1:-completo}"
+  case "$PROFILE" in
+    minimo|minimum) PROFILE=minimo ;;
+    completo|full)  PROFILE=completo ;;
+    custom)         PROFILE=custom ;;
+    *)
+      echo "Perfil inválido: $PROFILE"
+      echo "Use: cursor-handoff install [minimo|completo|custom]"
+      echo "  minimo   = handoff + context + git (sem rules, skills, agents)"
+      echo "  completo = tudo (padrão)"
+      echo "  custom   = perguntar categorias de skills"
+      exit 2
+      ;;
+  esac
+
+  # Detectar target: se estamos em agent-kit/, instalar no diretório pai
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  if [ "$(basename "$SCRIPT_DIR")" = "agent-kit" ]; then
+    TARGET="$(dirname "$SCRIPT_DIR")"
+    AGENT_KIT="$SCRIPT_DIR"
+  else
+    TARGET="$SCRIPT_DIR"
+    AGENT_KIT="$SCRIPT_DIR/agent-kit"
+  fi
+  
+  CURSOR_DIR="$TARGET/.cursor"
+  SRC="$AGENT_KIT/.cursor"
+  
+  echo "Instalando Agent Kit em: $TARGET (perfil: $PROFILE)"
+  echo ""
+  
+  # 0. Verificar Node.js (para hooks)
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Aviso: Node.js não encontrado. Hooks de validação JSON/n8n precisam de Node.js."
+    echo ""
+  fi
+  
+  # 1. Criar estrutura de diretórios
+  echo "Criando estrutura de diretórios..."
+  mkdir -p "$CURSOR_DIR/rules"
+  mkdir -p "$CURSOR_DIR/skills"
+  mkdir -p "$CURSOR_DIR/agents"
+  mkdir -p "$CURSOR_DIR/hooks/lib"
+  mkdir -p "$CURSOR_DIR/hooks/pre-edit"
+  mkdir -p "$CURSOR_DIR/hooks/post-edit"
+  mkdir -p "$CURSOR_DIR/hooks/pre-commit"
+  mkdir -p "$CURSOR_DIR/hooks/on-task-start"
+  mkdir -p "$CURSOR_DIR/hooks/on-task-end"
+  mkdir -p "$CURSOR_DIR/context/templates"
+  mkdir -p "$CURSOR_DIR/context/current"
+  mkdir -p "$CURSOR_DIR/context/archive"
+  mkdir -p "$CURSOR_DIR/context/backups"
+  mkdir -p "$CURSOR_DIR/context/decisions"
+  mkdir -p "$CURSOR_DIR/commands"
+  mkdir -p "$CURSOR_DIR/plans"
+  
+  for dir in current archive backups decisions; do
+    touch "$CURSOR_DIR/context/$dir/.gitkeep" 2>/dev/null || true
+  done
+  touch "$CURSOR_DIR/hooks/on-task-start/.gitkeep" 2>/dev/null || true
+  touch "$CURSOR_DIR/hooks/on-task-end/.gitkeep" 2>/dev/null || true
+  touch "$CURSOR_DIR/plans/.gitkeep" 2>/dev/null || true
+  
+  # 2. Copiar conforme perfil
+  if [ -d "$SRC" ]; then
+    echo "Copiando arquivos (perfil $PROFILE)..."
+    
+    # Handoff + context + commands: sempre (todos os perfis)
+    for f in "$SRC/context/templates"/*.md; do
+      [ -f "$f" ] && cp "$f" "$CURSOR_DIR/context/templates/" && echo "  + context/templates/$(basename "$f")"
+    done
+    for f in "$SRC"/commands/*.md; do
+      [ -f "$f" ] && cp "$f" "$CURSOR_DIR/commands/" && echo "  + commands/$(basename "$f")"
+    done
+    if [ ! -f "$CURSOR_DIR/HANDOFF.md" ]; then
+      if [ -f "$AGENT_KIT/HANDOFF.md.example" ]; then
+        cp "$AGENT_KIT/HANDOFF.md.example" "$CURSOR_DIR/HANDOFF.md"
+        echo "  + HANDOFF.md"
+        FIRST_INSTALL=true
+      fi
+    fi
+    
+    # Rules, skills, agents, hooks: apenas completo ou custom
+    if [ "$PROFILE" = "completo" ] || [ "$PROFILE" = "custom" ]; then
+      for f in "$SRC"/rules/*.mdc; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/rules/" && echo "  + rules/$(basename "$f")"
+      done
+      for f in "$SRC"/agents/*.md; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/agents/" && echo "  + agents/$(basename "$f")"
+      done
+      for f in "$SRC/hooks/lib"/*.js; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/hooks/lib/" && echo "  + hooks/lib/$(basename "$f")"
+      done
+      for f in "$SRC/hooks/pre-edit"/*.sh; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/hooks/pre-edit/" && chmod +x "$CURSOR_DIR/hooks/pre-edit/$(basename "$f")" && echo "  + hooks/pre-edit/$(basename "$f")"
+      done
+      for f in "$SRC/hooks/post-edit"/*.sh; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/hooks/post-edit/" && chmod +x "$CURSOR_DIR/hooks/post-edit/$(basename "$f")" && echo "  + hooks/post-edit/$(basename "$f")"
+      done
+      for f in "$SRC/hooks/pre-commit"/*; do
+        [ -f "$f" ] && cp "$f" "$CURSOR_DIR/hooks/pre-commit/" && chmod +x "$CURSOR_DIR/hooks/pre-commit/$(basename "$f")" 2>/dev/null || true && echo "  + hooks/pre-commit/$(basename "$f")"
+      done
+    fi
+    
+    # Skills: completo = todos; custom = por categoria (registry); minimo = nenhum
+    if [ "$PROFILE" = "completo" ]; then
+      for skill in ux-message-flows n8n-workflows json-data-config sql-postgres prompts-markdown; do
+        if [ -f "$SRC/skills/$skill/SKILL.md" ]; then
+          mkdir -p "$CURSOR_DIR/skills/$skill"
+          cp "$SRC/skills/$skill/SKILL.md" "$CURSOR_DIR/skills/$skill/"
+          echo "  + skills/$skill/SKILL.md"
+        fi
+      done
+    elif [ "$PROFILE" = "custom" ]; then
+      REGISTRY="$AGENT_KIT/skills-registry.json"
+      echo "  Skills (custom): 1) todos  2) nenhum  3) por categoria  4) por nome"
+      printf "  Escolha (1-4) [1]: "
+      read -r custom_choice
+      custom_choice="${custom_choice:-1}"
+      if [ "$custom_choice" = "2" ]; then
+        echo "  (nenhum skill instalado)"
+      elif [ "$custom_choice" = "3" ] && [ -f "$REGISTRY" ]; then
+        echo "  Categorias disponíveis: dados, docs, integrações, quality, devops, creation"
+        printf "  Categorias (vírgula) ou Enter=todos: "
+        read -r custom_cats
+        if [ -z "$custom_cats" ]; then
+          custom_cats="dados,docs,integrações,quality,devops,creation"
+        fi
+        for cat in $(echo "$custom_cats" | tr ',' ' '); do
+          cat=$(echo "$cat" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          sed 's/},{"/\n},{"/g' "$REGISTRY" | grep -E "\"category\": *\"$cat\"" | while read -r line; do
+            path=$(echo "$line" | sed -n 's/.*"path": *"\([^"]*\)".*/\1/p')
+            if [ -n "$path" ] && [ -f "$SRC/skills/$path/SKILL.md" ]; then
+              mkdir -p "$CURSOR_DIR/skills/$path"
+              cp "$SRC/skills/$path/SKILL.md" "$CURSOR_DIR/skills/$path/"
+              echo "  + skills/$path/SKILL.md"
+            fi
+          done
+        done
+      elif [ "$custom_choice" = "4" ] && [ -f "$REGISTRY" ]; then
+        echo "  Nomes: lista separada por vírgula (ex.: n8n-workflows,json-data-config). Use 'cursor-handoff list' para ver nomes."
+        printf "  Skills: "
+        read -r custom_names
+        for name in $(echo "$custom_names" | tr ',' ' '); do
+          name=$(echo "$name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          [ -z "$name" ] && continue
+          path=$(sed 's/},{"/\n},{"/g' "$REGISTRY" | grep -E "\"name\": *\"$name\"" | head -1 | sed -n 's/.*"path": *"\([^"]*\)".*/\1/p')
+          if [ -n "$path" ] && [ -f "$SRC/skills/$path/SKILL.md" ]; then
+            mkdir -p "$CURSOR_DIR/skills/$path"
+            cp "$SRC/skills/$path/SKILL.md" "$CURSOR_DIR/skills/$path/"
+            echo "  + skills/$path/SKILL.md"
+          else
+            echo "  (skill não encontrado ou sem SKILL.md: $name)"
+          fi
+        done
+      else
+        for skill in ux-message-flows n8n-workflows json-data-config sql-postgres prompts-markdown; do
+          if [ -f "$SRC/skills/$skill/SKILL.md" ]; then
+            mkdir -p "$CURSOR_DIR/skills/$skill"
+            cp "$SRC/skills/$skill/SKILL.md" "$CURSOR_DIR/skills/$skill/"
+            echo "  + skills/$skill/SKILL.md"
+          fi
+        done
+      fi
+    fi
+  fi
+  
+  # 2.5. Copiar autogit (se existir)
+  if [ -d "$AGENT_KIT/autogit" ]; then
+    mkdir -p "$TARGET/autogit"
+    cp "$AGENT_KIT/autogit/gitupdate.md" "$TARGET/autogit/"
+    echo "  + autogit/gitupdate.md"
+  fi
+  
+  # 3. Copiar cursor-handoff para raiz se não existir
+  if [ ! -f "$TARGET/cursor-handoff" ] && [ -f "$AGENT_KIT/cursor-handoff" ]; then
+    cp "$AGENT_KIT/cursor-handoff" "$TARGET/cursor-handoff"
+    chmod +x "$TARGET/cursor-handoff"
+    echo "  + cursor-handoff (CLI na raiz)"
+  fi
+  
+  if [ -f "$TARGET/cursor-handoff" ]; then
+    chmod +x "$TARGET/cursor-handoff"
+  fi
+  
+  echo ""
+  echo "Estrutura verificada!"
+  echo ""
+  
+  # 4. Git hooks (instrução e prepare-commit-msg opcional)
+  echo "Pre-commit hook (opcional): para validar JSON e detectar secrets antes de cada commit:"
+  echo "  cp .cursor/hooks/pre-commit/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit"
+  if [ -d "$TARGET/.git" ] && [ -f "$AGENT_KIT/git-hooks/prepare-commit-msg" ]; then
+    mkdir -p "$TARGET/.git/hooks"
+    cp "$AGENT_KIT/git-hooks/prepare-commit-msg" "$TARGET/.git/hooks/prepare-commit-msg"
+    chmod +x "$TARGET/.git/hooks/prepare-commit-msg"
+    echo "  + .git/hooks/prepare-commit-msg (remove Co-authored-by Cursor dos commits)"
+  else
+    echo "Prepare-commit-msg (opcional): remove 'Co-authored-by: Cursor' dos commits:"
+    echo "  cp agent-kit/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg"
+  fi
+  echo ""
+  
+  # 5. Mensagem de onboarding ou confirmação
+  if [ "${FIRST_INSTALL:-false}" = "true" ]; then
+    echo "E aí! Bem-vindo ao Agent Kit."
+    echo "Aqui você não perde mais o contexto quando a conversa fica longa."
+    echo ""
+    echo "Funciona assim: quando o contexto encher, a gente salva o estado"
+    echo "e você continua numa nova conversa. Skills: n8n, JSON, SQL, prompts, UX."
+    echo "Comandos: /iniciar-projeto, /handoff, /continuar-plano, /context-status,"
+    echo "  /resumo, /git-staging, /git-prod."
+    echo ""
+    echo "Próximo passo: manda /iniciar-projeto no chat do Cursor!"
+  else
+    echo "Comandos disponíveis:"
+    echo "  /iniciar-projeto  — começar ou retomar projeto"
+    echo "  /handoff          — salvar estado para continuar depois"
+    echo "  /continuar-plano  — retomar de onde parou"
+    echo "  /context-status   — ver estado atual"
+    echo "  /resumo           — resumo rápido"
+    echo "  /git-staging      — levar alterações para staging"
+    echo "  /git-prod         — promover staging para produção"
+    echo ""
+    echo "CLI: ./cursor-handoff <new|status|handoff|archive|resume|list-projects|install>"
+  fi
+}
+
+case "${1:-}" in
+  new)     cmd_new "$2" ;;
+  update)  cmd_update ;;
+  status)  cmd_status ;;
+  handoff) cmd_handoff "$2" ;;
+  archive) cmd_archive ;;
+  resume)  cmd_resume "$2" ;;
+  list-projects) cmd_list_projects ;;
+  list)    cmd_list_skills "$2" ;;
+  install) cmd_install "$2" ;;
+  help|-h|--help)
+    echo "cursor-handoff - Context Memory System CLI"
+    echo ""
+    echo "Uso: cursor-handoff [comando] [task-id|project]"
+    echo ""
+    echo "Comandos:"
+    echo "  new [task-id]       Cria novo Context Pack em .cursor/context/current/"
+    echo "  update             Atualiza data no Context Pack atual"
+    echo "  status             Mostra tarefa ativa, handoffs por projeto e arquivados"
+    echo "  handoff [project]  Gera HANDOFF em <project>/HANDOFF.md e .cursor/HANDOFF.md"
+    echo "  list-projects      Lista pastas que têm HANDOFF.md"
+    echo "  list [categoria]   Lista skills do registry (opcional: filtrar por categoria)"
+    echo "  archive            Arquiva tarefa atual em .cursor/context/archive/YYYY-MM/"
+    echo "  resume [id]        Retoma tarefa arquivada ou projeto com HANDOFF (interativo se sem id)"
+    echo "  install [perfil]   Instala Agent Kit (perfil: minimo|completo|custom)"
+    ;;
+  *)
+    echo "Uso: cursor-handoff <comando> [task-id|project]"
+    echo ""
+    echo "Comandos: new, update, status, handoff [project], list-projects, list [categoria], archive, resume [id], install [minimo|completo|custom]"
+    echo "Use 'cursor-handoff help' para ver a lista completa."
+    exit 2
+    ;;
+esac

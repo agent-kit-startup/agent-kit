@@ -1,0 +1,47 @@
+# Agent Kit - .gitignore
+
+# Handoff local (não versionar estado do usuário)
+.cursor/HANDOFF.md
+
+# Config de preferências do usuário
+.cursor/context/config.json
+
+# Context Packs ativos (são locais)
+.cursor/context/current/*.md
+!.cursor/context/current/.gitkeep
+
+# Backups locais
+.cursor/context/backups/*.md
+!.cursor/context/backups/.gitkeep
+
+# Orquestrador shell do plano (scripts/plan-loop.sh) — logs e flag de stop
+.cursor/loop-logs/
+.cursor/loop.stop
+
+# Planos do Cursor (locais; qualquer subpasta, ex. archive/)
+.cursor/plans/**/*.plan.md
+!.cursor/plans/.gitkeep
+
+# MCP config (pode conter tokens/keys)
+.cursor/mcp.json
+
+# IDE settings (local)
+.vscode/
+
+# Secrets e credenciais
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Monorepo artifacts
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo

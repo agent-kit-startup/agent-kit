@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "quality",
+  "title": "Quality",
+  "description": "Testing conventions, QA routines, and review checklists — not language runtimes.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "rule",
+      "id": "cursor-skills-testing",
+      "source": ".cursor/rules/cursor-skills-testing.mdc"
+    },
+    {
+      "kind": "agent",
+      "id": "testes-roteiros",
+      "source": ".cursor/agents/testes-roteiros.md"
+    }
+  ],
+  "excludes": []
+}

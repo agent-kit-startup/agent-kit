@@ -1,0 +1,41 @@
+---
+description: Regras CURSOR-SKILLS para Node.js (Express, NestJS, Next.js). ESLint, Prettier, testes.
+globs: "**/*.js,**/*.ts,**/*.tsx,**/*.mjs,**/*.cjs"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Node.js
+
+Fonte: [cursor-skills/node](https://github.com/araguaci/cursor-skills/tree/main/node)
+
+## Setup CURSOR
+
+- ES6 snippets, Node Extension Pack, npm Intellisense, Prettier, ESLint, Thunder Client / REST Client.
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── docs/   ├── node_modules/
+├── package.json   ├── package-lock.json   └── .env
+```
+
+## Pacotes
+
+- npm ou yarn; `package-lock.json`/`yarn.lock`; deps de dev separadas; semver; scripts em `package.json`.
+
+## Por framework
+
+- **Express**: middleware, rotas, error handling; `source.fixAll.eslint`, format on save.
+- **NestJS**: modules, services, controllers, DI; TypeScript, ESLint.
+- **Next.js**: pages, App Router, API routes, SSR/SSG/ISR; Emmet para `javascriptreact`.
+
+## Código
+
+- ES6+; TypeScript quando fizer sentido; error handling; JSDoc; padronização (Prettier, ESLint).
+- **Testes**: Jest ou Mocha; cobertura ≥ 80%.
+
+## Segurança, DB e APIs
+
+- Validar inputs; OWASP; hashing; HTTPS. Sequelize/TypeORM; evitar N+1; transações.
+- REST: códigos HTTP, versionamento, JSON; auth, rate limit, CORS.

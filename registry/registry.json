@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 2,
+  "skills": {
+    "core": [
+      {
+        "id": "clean-code",
+        "title": "clean-code",
+        "description": "Remove AI code slop (redundant comments, noisy try/catch, any casts, deep nesting). Alias: code-deslop. Use after AI sessions or before review.",
+        "path": "registry/skills/core/clean-code",
+        "version": "0.1.0",
+        "category": "quality"
+      },
+      {
+        "id": "docs-repo",
+        "title": "Docs & Repo",
+        "description": "Docs & Repo skill.",
+        "path": "registry/skills/core/docs-repo",
+        "version": "0.1.0",
+        "category": "core"
+      },
+      {
+        "id": "git-workflow",
+        "title": "Git Workflow",
+        "description": "Git Workflow skill.",
+        "path": "registry/skills/core/git-workflow",
+        "version": "0.1.0",
+        "category": "core"
+      },
+      {
+        "id": "ide-guide",
+        "title": "IDE Guide",
+        "description": "IDE Guide skill.",
+        "path": "registry/skills/core/ide-guide",
+        "version": "0.1.0",
+        "category": "core"
+      },
+      {
+        "id": "security-review",
+        "title": "Security Review",
+        "description": "Security Review skill.",
+        "path": "registry/skills/core/security-review",
+        "version": "0.1.0",
+        "category": "core"
+      }
+    ],
+    "community": [
+      {
+        "id": "clickup",
+        "title": "clickup",
+        "description": "Create and update ClickUp tasks via MCP. Optional — only if the project uses ClickUp. Not part of Core Pack.",
+        "path": "registry/skills/community/clickup",
+        "version": "0.1.0",
+        "category": "pm"
+      },
+      {
+        "id": "jira",
+        "title": "Jira",
+        "description": "Jira skill.",
+        "path": "registry/skills/community/jira",
+        "version": "0.1.0",
+        "category": "community"
+      },
+      {
+        "id": "json-data-config",
+        "title": "json-data-config",
+        "description": "Validate, format, and manipulate JSON (configs, payloads, n8n workflows, AI responses).",
+        "path": "registry/skills/community/json-data-config",
+        "version": "0.1.0",
+        "category": "dados"
+      },
+      {
+        "id": "n8n-workflows",
+        "title": "n8n-workflows",
+        "description": "Workflows n8n — only when the project uses n8n (stack, not Core Pack). Edit workflow JSON or when the user mentions n8n.",
+        "path": "registry/skills/community/n8n-workflows",
+        "version": "0.1.0",
+        "category": "integrations"
+      },
+      {
+        "id": "prompts-markdown",
+        "title": "prompts-markdown",
+        "description": "Create and edit agent prompts in Markdown (structure, system/user, versioning).",
+        "path": "registry/skills/community/prompts-markdown",
+        "version": "0.1.0",
+        "category": "prompts"
+      },
+      {
+        "id": "sql-postgres",
+        "title": "sql-postgres",
+        "description": "Write and review Postgres SQL (DDL, DML, indexes, constraints). Use for .sql, schemas, or Postgres mentions.",
+        "path": "registry/skills/community/sql-postgres",
+        "version": "0.1.0",
+        "category": "dados"
+      },
+      {
+        "id": "ux-message-flows",
+        "title": "ux-message-flows",
+        "description": "Conversational UX for chat agents (short messages, tone, confirmations, handoff).",
+        "path": "registry/skills/community/ux-message-flows",
+        "version": "0.1.0",
+        "category": "ux"
+      }
+    ]
+  },
+  "packs": [
+    {
+      "id": "clean-code",
+      "title": "Clean code",
+      "description": "Deslop, simplicity, and surgical refactors for AI-assisted codebases.",
+      "version": "0.1.0",
+      "path": "registry/packs/clean-code"
+    },
+    {
+      "id": "cybersec",
+      "title": "Cybersecurity",
+      "description": "Security review, secrets/PII awareness, and pre-merge hardening — discipline pack, not language-specific.",
+      "version": "0.1.0",
+      "path": "registry/packs/cybersec"
+    },
+    {
+      "id": "devops",
+      "title": "DevOps",
+      "description": "CI/CD, containers, and infra-as-code patterns beyond the structural git staging→prod spine.",
+      "version": "0.1.0",
+      "path": "registry/packs/devops"
+    },
+    {
+      "id": "engenharia-arquitetura",
+      "title": "Engineering & architecture",
+      "description": "ADRs, technology tradeoffs, and tech-lead style decisions — stack-agnostic.",
+      "version": "0.1.0",
+      "path": "registry/packs/engenharia-arquitetura"
+    },
+    {
+      "id": "gestao-contexto",
+      "title": "Context management",
+      "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian + memory-loop.",
+      "version": "0.1.0",
+      "path": "registry/packs/gestao-contexto"
+    },
+    {
+      "id": "gestao-projeto",
+      "title": "Project management",
+      "description": "Optional PM-tool adapters and project sizing helpers. Structural plan/handoff stays in L0.",
+      "version": "0.1.0",
+      "path": "registry/packs/gestao-projeto"
+    },
+    {
+      "id": "quality",
+      "title": "Quality",
+      "description": "Testing conventions, QA routines, and review checklists — not language runtimes.",
+      "version": "0.1.0",
+      "path": "registry/packs/quality"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "agent",
+      "id": "cleancode-refactor",
+      "path": ".cursor/agents/cleancode-refactor.md",
+      "pack": "clean-code",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "clickup-tasks",
+      "path": ".cursor/agents/clickup-tasks.md",
+      "pack": "gestao-projeto",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "context-librarian",
+      "path": ".cursor/agents/context-librarian.md",
+      "pack": "gestao-contexto",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "memory-extractor",
+      "path": ".cursor/agents/memory-extractor.md",
+      "pack": "gestao-contexto",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "security-reviewer",
+      "path": ".cursor/agents/security-reviewer.md",
+      "pack": "cybersec",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "tech-lead",
+      "path": ".cursor/agents/tech-lead.md",
+      "pack": "engenharia-arquitetura",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "testes-roteiros",
+      "path": ".cursor/agents/testes-roteiros.md",
+      "pack": "quality",
+      "layer": "L1"
+    },
+    {
+      "kind": "command",
+      "id": "context-status",
+      "path": ".cursor/commands/context-status.md",
+      "pack": "gestao-contexto",
+      "layer": "L1"
+    },
+    {
+      "kind": "rule",
+      "id": "cursor-skills-clickup",
+      "path": ".cursor/rules/cursor-skills-clickup.mdc",
+      "pack": "gestao-projeto",
+      "layer": "L1"
+    },
+    {
+      "kind": "rule",
+      "id": "cursor-skills-devops",
+      "path": ".cursor/rules/cursor-skills-devops.mdc",
+      "pack": "devops",
+      "layer": "L1"
+    },
+    {
+      "kind": "rule",
+      "id": "cursor-skills-testing",
+      "path": ".cursor/rules/cursor-skills-testing.mdc",
+      "pack": "quality",
+      "layer": "L1"
+    },
+    {
+      "kind": "skill",
+      "id": "clean-code",
+      "path": "registry/skills/core/clean-code",
+      "pack": "clean-code",
+      "layer": "L1"
+    },
+    {
+      "kind": "skill",
+      "id": "clickup",
+      "path": "registry/skills/community/clickup",
+      "pack": "gestao-projeto",
+      "layer": "L1"
+    },
+    {
+      "kind": "skill",
+      "id": "docs-repo",
+      "path": "registry/skills/core/docs-repo",
+      "pack": "engenharia-arquitetura",
+      "layer": "L1"
+    },
+    {
+      "kind": "skill",
+      "id": "jira",
+      "path": "registry/skills/community/jira",
+      "pack": "gestao-projeto",
+      "layer": "L1"
+    },
+    {
+      "kind": "skill",
+      "id": "security-review",
+      "path": "registry/skills/core/security-review",
+      "pack": "cybersec",
+      "layer": "L1"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Pre-commit hook: check-secrets + validate-all-json
+# Instalar: cp .cursor/hooks/pre-commit/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# O hook chama os scripts em .cursor/hooks/pre-commit/ (repo root = parent of .git)
+
+set -e
+
+GIT_HOOKS="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$GIT_HOOKS/../.." && pwd)"
+PRE_COMMIT_DIR="$REPO_ROOT/.cursor/hooks/pre-commit"
+
+if [ -d "$PRE_COMMIT_DIR" ]; then
+  "$PRE_COMMIT_DIR/validate-all-json.sh" || exit 1
+  "$PRE_COMMIT_DIR/check-secrets.sh" || exit 1
+fi
+
+exit 0

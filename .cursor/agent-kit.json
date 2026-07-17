@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "version": "3.0.0",
+  "protected": [
+    ".cursor/HANDOFF.md",
+    ".cursor/plans/**",
+    ".cursor/memory/**",
+    ".cursor/context/**"
+  ],
+  "profile": "default",
+  "skills": [
+    "clean-code",
+    "clickup",
+    "json-data-config",
+    "n8n-workflows",
+    "prompts-markdown",
+    "sql-postgres",
+    "ux-message-flows"
+  ],
+  "registry": {
+    "url": "https://github.com/agent-kit-startup/agent-kit-dev",
+    "ref": "staging"
+  },
+  "installedAt": "2026-07-16T18:34:33.749Z"
+}

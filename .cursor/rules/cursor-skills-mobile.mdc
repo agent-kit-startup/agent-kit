@@ -1,0 +1,39 @@
+---
+description: Regras CURSOR-SKILLS para mobile (React Native, Flutter, Expo). Plataforma, performance, testes.
+globs: "**/*.dart,**/android/**/*,**/ios/**/*,**/App.tsx,**/app.json"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Mobile
+
+Fonte: [cursor-skills/mobile](https://github.com/araguaci/cursor-skills/tree/main/mobile)
+
+## Setup CURSOR
+
+- React Native Tools, Flutter, Dart, Expo Tools; em projetos nativos: Android Studio / Xcode conforme a stack.
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── assets/   ├── android/   ├── ios/
+└── .env
+```
+
+## Por framework
+
+- **React Native**: componentes, navegação, APIs nativas; ESLint; performance (listas, memo, lazy).
+- **Flutter**: widgets, state management; `dart.flutterSdkPath` se necessário; testes Flutter.
+- **Expo**: expo-cli / expo-dev-client; APIs e componentes Expo; `expo.toolsPath` se necessário.
+
+## Plataforma
+
+- Diferenças iOS/Android; código específico quando necessário; design responsivo; guidelines de cada OS.
+
+## Performance e qualidade
+
+- Otimizar imagens e assets; renderização e memória; Prettier, ESLint; testes (unit, integração, E2E); cobertura ≥ 80%.
+
+## Segurança
+
+- Validar inputs; auth; dados sensíveis; HTTPS; OWASP mobile.

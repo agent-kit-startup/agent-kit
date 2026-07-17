@@ -1,0 +1,14 @@
+{
+  "version": "1",
+  "categories": ["dados","docs","integrações","quality","devops","creation"],
+  "skills": [
+  {"name": "clickup-project-mgmt", "description": "Cria e atualiza tasks no ClickUp via MCP seguindo convenções do workspace (títulos, descrições, status, prioridade, subtarefas). Use ao criar/editar tarefas, planejar sprints ou fazer breakdown de features.", "category": "integrações", "path": "clickup-project-mgmt"},
+  {"name": "json-data-config", "description": "Valida, formata e manipula JSON (configs, payloads, workflows n8n, respostas de IA). Use ao editar .json, configs, código que parseia JSON ou quando o usuário mencionar JSON, payload, schema.", "category": "dados", "path": "json-data-config"},
+  {"name": "n8n-workflows", "description": "Cria, edita e documenta workflows n8n (nodes, webhooks, Execute Workflow, credenciais, import/export JSON). Use ao trabalhar com n8n, workflows de automação ou quando o usuário mencionar n8n.", "category": "integrações", "path": "n8n-workflows"},
+  {"name": "prompts-markdown", "description": "Cria e edita prompts de agentes em Markdown (estrutura, sistema/usuário, versionamento). Use ao editar prompt-*.md, prompts/*.md ou quando o usuário mencionar prompt de agente, instruções de IA.", "category": "docs", "path": "prompts-markdown"},
+  {"name": "sql-postgres", "description": "Escreve e revisa SQL para Postgres (DDL, DML, índices, constraints). Use ao editar .sql, schemas para n8n ou quando o usuário mencionar tabelas, migrations, Postgres.", "category": "dados", "path": "sql-postgres"},
+  {"name": "ux-message-flows", "description": "Boas práticas para fluxos conversacionais em agentes de chat (mensagens curtas, tom, confirmações, handoff). Use ao criar prompts de chat, WhatsApp, Telegram ou revisar fluxos de atendimento.", "category": "quality", "path": "ux-message-flows"},
+  {"name": "code-deslop", "description": "Remove AI-generated code slop (redundant comments, unnecessary try/catch, any casts, deep nesting). Use after AI-assisted coding sessions or before code review to clean up machine-generated patterns.", "category": "quality", "path": "code-deslop"}
+]
+}
+

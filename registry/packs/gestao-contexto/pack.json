@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "gestao-contexto",
+  "title": "Context management",
+  "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian + memory-loop.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "agent",
+      "id": "context-librarian",
+      "source": ".cursor/agents/context-librarian.md"
+    },
+    {
+      "kind": "agent",
+      "id": "memory-extractor",
+      "source": ".cursor/agents/memory-extractor.md"
+    },
+    {
+      "kind": "command",
+      "id": "context-status",
+      "source": ".cursor/commands/context-status.md"
+    }
+  ],
+  "excludes": [
+    "context-guardian.mdc",
+    "memory-loop.mdc",
+    "HANDOFF.md"
+  ]
+}

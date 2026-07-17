@@ -1,0 +1,39 @@
+---
+description: Regras CURSOR-SKILLS para Web (HTML, CSS, JS, React, Vue, Angular). A11y, BEM, responsivo.
+globs: "**/*.html,**/*.css,**/*.scss,**/*.vue,**/*.jsx,**/*.svelte"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Web Design
+
+Fonte: [cursor-skills/webdesign](https://github.com/araguaci/cursor-skills/tree/main/webdesign)
+
+## Setup CURSOR
+
+- HTML CSS Support, ES6 snippets, Auto Rename Tag, Prettier, Live Server, Emmet.
+- React: React DevTools, ES7+ snippets. Vue: Vetur/Volar, Vue 3 Snippets. Angular: Angular Language Service, CLI.
+
+## HTML
+
+- HTML5 semântico; acessibilidade (ARIA, alt, hierarquia de headings, teclado); W3C; responsivo.
+
+## CSS
+
+- CSS3, responsivo, BEM, custom properties, especificidade controlada.
+- CSS modules ou styled-components; mobile-first; grids flexíveis; imagens responsivas.
+
+## JavaScript / Frameworks
+
+- ES6+; TypeScript quando adequado; error handling.
+- **React**: componentes funcionais, hooks, state management.
+- **Vue**: Composition API, reatividade, convenções.
+- **Angular**: TypeScript, services, DI.
+
+## Testes e ferramentas
+
+- Jest (unit), Cypress (E2E), Storybook, Lighthouse, Axe (a11y).
+- Build: bundling, env vars, cache, CDN para assets.
+
+## A11y e segurança
+
+- Semântica, ARIA, teclado, leitores de tela; validar/sanitizar inputs; CSP; CORS; HTTPS.

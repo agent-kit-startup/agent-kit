@@ -1,0 +1,66 @@
+---
+description: Regras gerais do CURSOR-SKILLS (boas práticas, setup, qualidade). Fonte: cursor-skills.vercel.app
+alwaysApply: true
+---
+
+# CURSOR-SKILLS – Regras Gerais
+
+Base: [CURSOR-SKILLS](https://github.com/araguaci/cursor-skills) • Aplicar convenções do repositório em qualquer ambiente.
+
+## Princípios
+
+- **Setup**: Usar extensões, lint e formatação adequados ao ambiente; integração com Git e debug.
+- **Estrutura**: Seguir convenções do ambiente, nomes consistentes, separação de responsabilidades.
+- **Qualidade**: Código legível, error handling, comentários úteis, testes.
+- **Workflow**: Git, testes, CI/CD, documentação e revisão de código.
+- **Documentação**: Padrão profissional e herdável (`docs-professional-standard`) — voz do projeto, sem pessoas, projetos alheios ou contexto de sessão. Higiene chat≠repo (`agent-output-hygiene`).
+
+## Coding Guidelines
+
+- **Think Before Coding:** Não assumir; deixar claro quando houver dúvida; mostrar tradeoffs; perguntar quando o requisito for ambíguo.
+- **Simplicity First:** Mínimo código que resolve o problema; sem features não pedidas; sem abstração para uso único; perguntar “um sênior acharia isso complicado demais?”.
+- **Surgical Changes:** Tocar só o necessário; não “melhorar” código adjacente sem pedido; manter estilo existente; remover apenas o que as nossas alterações deixaram órfão.
+- **Goal-Driven Execution:** Definir critérios de sucesso antes de implementar; iterar até verificar que o objetivo foi atingido.
+
+## Git
+
+Fluxo recomendado: **nunca** fazer commit direto em `main`. Sempre promover via staging quando o projeto adotar esse fluxo.
+
+1. **Desenvolvimento local** → `origin/staging` com **`git staging`** (commit em branch de trabalho, MR para staging, merge).
+2. **Staging aprovada** → `origin/main` (produção) com **`git prod`** (merge staging → main, push main).
+
+- ❌ **BLOQUEADO** (quando aplicável): Commit/push direto em `main`; merge direto para `main`.
+- ✅ **PERMITIDO**: Apenas promoção `origin/staging` → `origin/main` via `git prod`.
+
+Mensagens de commit: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Detalhes e prompts técnicos em `autogit/gitupdate.md` quando existir.
+
+## Configuração recomendada (JSON)
+
+```json
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": { "source.fixAll": true },
+  "files.autoSave": "afterDelay",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true
+}
+```
+
+## Atalhos
+
+- `Ctrl+Shift+P` – Command Palette
+- `Ctrl+` – Terminal
+- `F5` – Debug
+- `Ctrl+Shift+F` – Find in Files
+
+## QA e Revisão
+
+- [ ] Código segue padrões do ambiente
+- [ ] Error handling e documentação
+- [ ] Testes (unit, integração, E2E conforme o caso)
+- [ ] Performance e segurança consideradas
+
+## Evitar
+
+- ❌ Ambiente mal configurado, lint ignorado, estrutura confusa, falta de docs/testes.
+- ✅ Configurar o IDE, formatar, tratar erros, testar e documentar.

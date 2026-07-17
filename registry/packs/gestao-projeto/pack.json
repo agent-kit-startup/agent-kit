@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "gestao-projeto",
+  "title": "Project management",
+  "description": "Optional PM-tool adapters and project sizing helpers. Structural plan/handoff stays in L0.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "rule",
+      "id": "cursor-skills-clickup",
+      "source": ".cursor/rules/cursor-skills-clickup.mdc"
+    },
+    {
+      "kind": "skill",
+      "id": "clickup",
+      "source": "registry/skills/community/clickup"
+    },
+    {
+      "kind": "skill",
+      "id": "jira",
+      "source": "registry/skills/community/jira"
+    },
+    {
+      "kind": "agent",
+      "id": "clickup-tasks",
+      "source": ".cursor/agents/clickup-tasks.md"
+    }
+  ],
+  "excludes": [
+    "cursor-plan-handoff.mdc",
+    "iniciar-projeto.md",
+    "continuar-plano.md",
+    "handoff.md",
+    "plan-routine.md"
+  ]
+}

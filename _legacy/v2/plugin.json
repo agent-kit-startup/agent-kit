@@ -1,0 +1,70 @@
+{
+  "name": "agent-kit",
+  "version": "2.0.0",
+  "displayName": "Agent Kit",
+  "description": "Context memory, handoff between agents, Git homolog/prod workflow, skills, rules, and hooks for Cursor.",
+  "skills": [
+    ".cursor/skills/clickup-project-mgmt/SKILL.md",
+    ".cursor/skills/code-deslop/SKILL.md",
+    ".cursor/skills/json-data-config/SKILL.md",
+    ".cursor/skills/n8n-workflows/SKILL.md",
+    ".cursor/skills/prompts-markdown/SKILL.md",
+    ".cursor/skills/sql-postgres/SKILL.md",
+    ".cursor/skills/ux-message-flows/SKILL.md"
+  ],
+  "subagents": [
+    ".cursor/agents/clickup-tasks.md",
+    ".cursor/agents/cleancode-refactor.md",
+    ".cursor/agents/context-librarian.md",
+    ".cursor/agents/docs-repo.md",
+    ".cursor/agents/git-autogit.md",
+    ".cursor/agents/json-guardian.md",
+    ".cursor/agents/n8n-workflows.md",
+    ".cursor/agents/prompts-agents.md",
+    ".cursor/agents/security-reviewer.md",
+    ".cursor/agents/sql-schema.md",
+    ".cursor/agents/tech-lead.md",
+    ".cursor/agents/testes-roteiros.md"
+  ],
+  "rules": [
+    ".cursor/rules/context-guardian.mdc",
+    ".cursor/rules/cursor-plan-handoff.mdc",
+    ".cursor/rules/cursor-skills-api.mdc",
+    ".cursor/rules/cursor-skills-clickup.mdc",
+    ".cursor/rules/cursor-skills-devops.mdc",
+    ".cursor/rules/cursor-skills-general.mdc",
+    ".cursor/rules/cursor-skills-git-workflow.mdc",
+    ".cursor/rules/cursor-skills-groovy.mdc",
+    ".cursor/rules/cursor-skills-integrations.mdc",
+    ".cursor/rules/cursor-skills-json.mdc",
+    ".cursor/rules/cursor-skills-mobile.mdc",
+    ".cursor/rules/cursor-skills-n8n.mdc",
+    ".cursor/rules/cursor-skills-node.mdc",
+    ".cursor/rules/cursor-skills-php.mdc",
+    ".cursor/rules/cursor-skills-prompts.mdc",
+    ".cursor/rules/cursor-skills-python.mdc",
+    ".cursor/rules/cursor-skills-sql.mdc",
+    ".cursor/rules/cursor-skills-testing.mdc",
+    ".cursor/rules/cursor-skills-webdesign.mdc",
+    ".cursor/rules/ux-tone.mdc"
+  ],
+  "hooks": [
+    ".cursor/hooks/lib/json-validator.js",
+    ".cursor/hooks/lib/n8n-checker.js",
+    ".cursor/hooks/post-edit/validate-n8n.sh",
+    ".cursor/hooks/pre-commit/check-secrets.sh",
+    ".cursor/hooks/pre-commit/pre-commit",
+    ".cursor/hooks/pre-commit/validate-all-json.sh",
+    ".cursor/hooks/pre-edit/validate-json.sh"
+  ],
+  "commands": [
+    ".cursor/commands/continuar-plano.md",
+    ".cursor/commands/context-status.md",
+    ".cursor/commands/dicas.md",
+    ".cursor/commands/git-homolog.md",
+    ".cursor/commands/git-prod.md",
+    ".cursor/commands/handoff.md",
+    ".cursor/commands/iniciar-projeto.md",
+    ".cursor/commands/resumo.md"
+  ]
+}

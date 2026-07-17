@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/schemas/agent-kit.pack.schema.json",
+  "title": "Agent Kit domain pack (L1)",
+  "description": "Membership manifest for a discipline pack. Installs as a unit via agent-kit add <pack-id> (Phase 2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "title", "version", "members"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Pack id (kebab-case). Listed in agent-kit.json packs[]."
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["rule", "skill", "agent", "command", "hook"]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable id (skill id, rule basename without .mdc, agent basename without .md, etc.)."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Repo-relative path of the SoT artifact until the pack ships bundled copies."
+          }
+        }
+      }
+    },
+    "excludes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Artifact ids intentionally left in L0 or L2 (documentation for reviewers)."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+---
+description: Regras para JSON (validação, formatação, parsing, configs). Alinhado à skill json-data-config.
+globs: "**/*.json"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – JSON
+
+Alinhado à skill [.cursor/skills/community/json-data-config/SKILL.md](.cursor/skills/community/json-data-config/SKILL.md).
+
+## JSON válido
+
+- Aspas duplas; vírgulas entre itens; sem vírgula final; escapamento correto. JSON não suporta comentários.
+
+## Padrões recomendados
+
+- **Parse de resposta de IA:** remover `` ```json ``/`` ``` ``, extrair `{ ... }`, try/catch, mensagem de erro clara.
+- **Configs:** estruturas consistentes; mapeamentos em pastas dedicadas quando aplicável.
+- **Workflows n8n:** nodes, connections, settings; manter legível no repo.
+
+## Boas práticas
+
+- Validar sintaxe antes de salvar; em código que parseia: try/catch e retorno de erro com trecho relevante.
+- Preferir JSON legível (indentação) no repositório para diff e revisão.

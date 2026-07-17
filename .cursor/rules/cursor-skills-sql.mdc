@@ -1,0 +1,24 @@
+---
+description: Regras para SQL Postgres (DDL, DML, índices, constraints). Alinhado à skill sql-postgres.
+globs: "**/*.sql"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – SQL (Postgres)
+
+Alinhado à skill [.cursor/skills/community/sql-postgres/SKILL.md](.cursor/skills/community/sql-postgres/SKILL.md).
+
+## DDL e convenções
+
+- CREATE TABLE com `IF NOT EXISTS`; chave primária explícita; tipos adequados (UUID, TEXT, TIMESTAMPTZ, JSONB).
+- Nomes em snake_case; COMMENT ON TABLE/COLUMN quando ajudar manutenção.
+
+## Padrões recomendados
+
+- Scripts de tabelas: ex. 001_create_tables.sql, 002_indexes_constraints.sql.
+- DDL para integrações (logs, eventos, filtros) em pastas dedicadas (db/, scripts/, code/).
+
+## Boas práticas
+
+- Scripts idempotentes; TIMESTAMPTZ para datas; UUID quando aplicável.
+- Documentar alterações de schema em docs ou README do módulo.

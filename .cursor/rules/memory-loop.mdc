@@ -1,0 +1,68 @@
+---
+description: Loop CHECK → ACT → WRITE em .cursor/memory/ — consultar memória antes de diagnosticar erros ou decisões; gravar após incidentes significativos e atualizar o índice.
+alwaysApply: true
+---
+
+# Memory Loop — Aprendizado entre chats
+
+## Objetivo
+
+Persistir **erros resolvidos** e **decisões com tradeoffs** em `.cursor/memory/` para o próximo chat reutilizar em segundos (grep, títulos, tags).
+
+## Fluxo
+
+1. **CHECK** — Antes de investigar um erro sério ou propor decisão arquitetural relevante, buscar em `.cursor/memory/errors/` e `.cursor/memory/decisions/` (glob, grep em títulos, linhas `**Tags:**`, sintomas).
+2. **ACT** — Se houver entrada aplicável, **reusar** a solução ou alinhar com a decisão documentada; senão, resolver normalmente.
+3. **WRITE** — Depois de fechar o caso, se couber nos critérios abaixo, criar arquivo novo e **atualizar** `.cursor/memory/_index.md`.
+
+## Onde gravar
+
+| Tipo | Pasta | Nome do arquivo |
+|------|--------|------------------|
+| Erro + causa + fix | `.cursor/memory/errors/` | `YYYY-MM-DD_slug-descritivo.md` |
+| Decisão (ADR-lite) | `.cursor/memory/decisions/` | `YYYY-MM-DD_slug-descritivo.md` |
+
+## Critérios de escrita (WRITE)
+
+**Não** salvar: typo, import óbvio, ajuste trivial de formatação.
+
+**Salvar** quando pelo menos um for verdadeiro:
+
+- (a) O erro exigiu investigação (logs, repro, tentativas).
+- (b) A solução **não** era óbvia de primeira.
+- (c) Houve **escolha** entre alternativas (tradeoffs).
+- (d) Um `/git-staging` ou `/git-prod` **fechou** um incidente ou decisão que ainda não estava em `.cursor/memory/` — o promote é um bom momento de WRITE (amarrado ao spine DevOps).
+
+## Formato — Erros (`errors/*.md`)
+
+Título H1 = resumo curto. Corpo compacto:
+
+- **Data:** YYYY-MM-DD
+- **Erro:** sintoma / mensagem / contexto
+- **Causa:** raiz
+- **Solução:** o que fazer
+- **Arquivos:** paths tocados (opcional)
+- **Tags:** palavras-chave minúsculas, separadas por vírgula
+
+## Formato — Decisões (`decisions/*.md`)
+
+- **Data:** YYYY-MM-DD
+- **Contexto:** 1–2 frases
+- **Decisão:** o que foi escolhido
+- **Alternativa descartada:** breve
+- **Tags:**
+
+## Índice
+
+Após cada nova entrada, acrescentar linha em `.cursor/memory/_index.md` com: título (link relativo), data, tags.
+
+## O que **não** fazer
+
+- Não processar transcripts JSONL como fonte principal do loop.
+- Não introduzir embeddings, vector DB ou serviço externo só para isso.
+- Não duplicar preferências de estilo já cobertas por outras rules.
+- Não inflar a memória com ruído; preferir poucas entradas **úteis**.
+
+## Subagente opcional
+
+Para sessões longas, deduplicação ou reindexação em lote, usar o agente **memory-extractor** (`.cursor/agents/memory-extractor.md`).

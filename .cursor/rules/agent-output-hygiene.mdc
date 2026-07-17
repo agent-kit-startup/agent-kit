@@ -1,0 +1,52 @@
+---
+description: Higiene de saída do agente — chat ≠ artefato versionado. Proíbe metalinguagem, raciocínio interno, fofoca e contexto pessoal em commits, docs, HANDOFF, memory e código. Docs de produto: ver também docs-professional-standard.
+alwaysApply: true
+---
+
+# Higiene de saída — chat vs repositório
+
+Agentes juniores misturam **conversa** com **artefato**. Isso gera slop, quebra confiança e pode vazar conteúdo inadequado.
+
+## Regra de ouro
+
+| Superfície | Pode | Não pode |
+|------------|------|----------|
+| **Chat** (resposta ao usuário) | Tom leve, humor, ecoar urgência do usuário | — |
+| **Repo** (commit, PR, README, docs, HANDOFF, memory, comments, CHANGELOG) | Fato técnico, decisão, próximo passo | Metalinguagem, fofoca, motivação pessoal, “o agente pensou…” |
+
+Documentação de produto (README, `docs/`, ADRs, runbooks): além desta rule, seguir **[docs-professional-standard.mdc](docs-professional-standard.mdc)** — padrão profissional, herdável, sem referências transitórias (pessoas, projetos alheios, sessão).
+
+Se o usuário trouxer urgência ou contexto pessoal no chat:
+
+- **Chat:** ok reconhecer (“bora, priorizo isso”).
+- **Commit / HANDOFF / doc / memory:** só o profissional e **do projeto**. Nunca repetir insulto, política de pessoas ou drama.
+
+## Proibido em qualquer artefato versionado
+
+1. **Metalinguagem de agente** — “como IA…”, “no meu raciocínio…”, “vou usar a tool…”, “contexto do chat…”.
+2. **Raciocínio interno** colado em markdown, comentários de código ou commits.
+3. **Fofoca, insultos, política de pessoas.**
+4. **Desabafo ou motivação emocional** como justificativa técnica.
+5. **Referências transitórias** — pessoas, projetos que não são este repo, orgs alheias ao produto, IDs de workspace de cliente. Preferir omitir ou termo genérico do domínio do software.
+6. **Commits que narram o chat.**
+
+## Obrigatório
+
+- Conventional Commits com porquê **técnico**.
+- HANDOFF: fase, to-dos, instrução operacional.
+- Memory: sintoma, causa, solução, tradeoff — sem nomes de pessoas.
+- Comentários de código: invariantes, não conversa.
+- Docs de produto: voz do projeto, atemporal, herdável (`docs-professional-standard`).
+
+## Teste rápido
+
+> “Se um desconhecido abrir isto no GitHub amanhã — ou um maintainer daqui a um ano — fica constrangedor ou inútil sem o chat?”
+
+Se sim → reescrever.
+
+## Relação com outras rules
+
+- **docs-professional-standard** — padrão de documentação herdável do projeto.
+- **code-deslop / clean-code** — slop de código.
+- **ux-tone** — tom leve só no chat.
+- **security-review** — secrets.

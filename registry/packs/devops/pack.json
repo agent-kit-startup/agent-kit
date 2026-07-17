@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "devops",
+  "title": "DevOps",
+  "description": "CI/CD, containers, and infra-as-code patterns beyond the structural git staging→prod spine.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "rule",
+      "id": "cursor-skills-devops",
+      "source": ".cursor/rules/cursor-skills-devops.mdc"
+    }
+  ],
+  "excludes": [
+    "cursor-skills-git-workflow.mdc",
+    "git-workflow",
+    "git-autogit",
+    "git-staging.md",
+    "git-prod.md"
+  ]
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Remove Co-authored-by trailer added by Cursor from commit message.
+# Install: cp agent-kit/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+COMMIT_MSG_FILE=$1
+if [ -f "$COMMIT_MSG_FILE" ]; then
+  grep -v '^Co-authored-by: Cursor <cursoragent@cursor\.com>' "$COMMIT_MSG_FILE" > "${COMMIT_MSG_FILE}.tmp" && mv "${COMMIT_MSG_FILE}.tmp" "$COMMIT_MSG_FILE"
+fi
+exit 0

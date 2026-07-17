@@ -1,0 +1,46 @@
+---
+description: Regras CURSOR-SKILLS para Python (Django, Flask, FastAPI, Data Science). PEP, venv, testes.
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Python
+
+Fonte: [cursor-skills/python](https://github.com/araguaci/cursor-skills/tree/main/python)
+
+## Setup CURSOR
+
+- Python, Pylance, Python Debugger, Docstring Generator, Python Indent, Test Explorer, Jupyter (se aplicável).
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── docs/
+├── requirements.txt   ├── requirements-dev.txt   ├── pyproject.toml   └── .env
+```
+
+## Padrões obrigatórios
+
+- **PEP**: 8 (estilo), 257 (docstrings), 484 (type hints), 526 (anotações).
+- **Ambiente**: sempre venv ou conda; `requirements.txt`; pip-tools; deps dev separadas.
+- **Ferramentas**: Black, isort, flake8, mypy, pytest.
+
+## Por framework
+
+- **Django**: MVT, ORM, admin, forms; `python.formatting.provider: "black"`.
+- **Flask**: blueprints, app factory; flake8, Black.
+- **FastAPI**: DI, Pydantic, OpenAPI; async; Pylint, Black.
+
+## Data Science
+
+- Jupyter: células claras, validação, versionamento, limpar antes de compartilhar.
+- Pandas, NumPy, matplotlib/seaborn; scikit-learn; validação e documentação de modelos.
+
+## Código e documentação
+
+- Docstrings e type hints em funções/classes; comentários em lógica complexa; README e docs de API.
+
+## Segurança e DB
+
+- Validar inputs; OWASP; hashing; HTTPS. ORM (Django/SQLAlchemy); evitar N+1; transações.

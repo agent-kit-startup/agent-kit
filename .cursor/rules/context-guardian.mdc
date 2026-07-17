@@ -1,0 +1,77 @@
+---
+description: Aviso proativo quando contexto enchendo (heurística). Oferecer handoff automático/manual e orientar nova conversa com /continuar-plano.
+alwaysApply: true
+---
+
+# Context Guardian — Aviso de Janela e Handoff Automático
+
+## Monitorar Janela de Contexto
+
+Monitorar o tamanho do contexto durante a conversa (heurística: contagem de mensagens, estimativa de tokens, indicador do sistema se disponível).
+
+## Aviso Proativo (~80% do limite)
+
+Quando detectar que a janela está próxima do limite:
+
+1. **Avisar o usuário:**
+   > "Heads up: contexto quase cheio. Bora fazer handoff pra não perder nada?"
+
+2. **Oferecer opções:**
+   - "Handoff automático (salvo tudo e você cola o comando na nova conversa)."
+   - "Handoff manual (você decide o que incluir)."
+
+## Preferências do Usuário
+
+- **Na primeira vez:** sempre perguntar ao usuário qual preferência.
+- **Salvar preferência:** se o usuário escolher automático, salvar em `.cursor/context/config.json`:
+  ```json
+  { "autoHandoff": true }
+  ```
+- **Nas próximas vezes:** seguir a preferência sem perguntar (mas sempre avisar antes de fazer).
+
+## Executar Handoff
+
+Ao fazer handoff (automático ou manual):
+
+1. **Atualizar `.cursor/HANDOFF.md`** com estado atual, fase, to-dos, instrução.
+
+2. **Copiar comando para clipboard:**
+   ```bash
+   # macOS
+   echo '/continuar-plano' | pbcopy
+   # Linux (xclip)
+   echo '/continuar-plano' | xclip -selection clipboard
+   # Windows (PowerShell)
+   echo '/continuar-plano' | clip
+   ```
+
+3. **Informar ao usuário:**
+   > "Pronto! `/continuar-plano` tá no clipboard. Abre uma nova conversa e cola (Cmd+V / Ctrl+V)."
+
+## Detecção de OS
+
+Tentar detectar o OS (via variável de ambiente ou comando `uname`):
+- macOS: usar `pbcopy`
+- Linux: tentar `xclip -selection clipboard` ou `xsel --clipboard --input`
+- Windows: usar `clip`
+
+Se falhar, apenas informar o comando ao usuário sem copiar.
+
+## Onboarding (Primeira Instalação)
+
+Quando o usuário arrasta `install.md` e **é a primeira instalação** (não existe `.cursor/HANDOFF.md`):
+
+1. **Boas-vindas:**
+   > "E aí! Bem-vindo ao **Agent Kit**. Aqui você não perde mais o contexto quando a conversa fica longa."
+
+2. **Explicação rápida (máx 2 frases):**
+   > "Funciona assim: quando o contexto encher, a gente salva o estado e você continua numa nova conversa. Comandos: `/iniciar-projeto`, `/handoff`, `/continuar-plano`."
+
+3. **Próximo passo:**
+   > "Bora criar seu primeiro plano? (sim/não)"
+   - Se **sim:** guiar para criar plano com to-dos.
+   - Se **não:** "Show! Estrutura pronta. Quando quiser começar, manda `/iniciar-projeto`."
+
+## Errar para o Lado Seguro
+
+A heurística de detecção de limite pode não ser 100% precisa. Sempre errar para o lado seguro: **avisar cedo demais é melhor que tarde demais**.

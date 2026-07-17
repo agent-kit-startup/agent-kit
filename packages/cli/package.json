@@ -1,0 +1,33 @@
+{
+  "name": "@agent-kit/cli",
+  "version": "3.0.0",
+  "description": "Agent Kit CLI — bootstraps AI-assisted IDEs with project-aware rules, skills, and context management",
+  "type": "module",
+  "bin": {
+    "agent-kit": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "lint": "biome check src",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.8.2",
+    "citty": "^0.1.6",
+    "kolorist": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "vitest": "^3.1.1"
+  }
+}

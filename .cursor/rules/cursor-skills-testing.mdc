@@ -1,0 +1,41 @@
+---
+description: Regras CURSOR-SKILLS para testes (unit, integração, E2E). Jest, Cypress, fixtures, mocks.
+globs: "**/*.test.*,**/*.spec.*,**/tests/**/*,**/__tests__/**/*,**/e2e/**/*,**/cypress/**/*"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Testing
+
+Fonte: [cursor-skills/testing](https://github.com/araguaci/cursor-skills/tree/main/testing)
+
+## Setup CURSOR
+
+- Jest, Cypress, Testing Library, Coverage Gutters, Test Explorer, Mocha (conforme o projeto).
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── coverage/   ├── fixtures/   ├── mocks/
+└── .env
+```
+
+## Unit
+
+- Testes isolados e rápidos; assertions claras; mocks para deps externas; nomes descritivos; `jest.autoRun: "off"` se preferir.
+
+## Integração
+
+- Interação entre componentes e fluxo de dados; DB de teste e serviços externos mockados ou reais controlados; setup/teardown; `testing.autoRun: "off"` se preferir.
+
+## E2E
+
+- Jornadas de usuário; Cypress ou similar; page objects; dados de teste e limpeza; `cypress.autoRun: "off"` se preferir.
+
+## Organização e dados
+
+- Agrupar por feature; nomes que descrevem o cenário; fixtures para dados; mocks consistentes; cobertura ≥ 80% onde fizer sentido.
+
+## Ferramentas
+
+- Prettier, ESLint; relatórios de cobertura; docs de casos de teste e troubleshooting.

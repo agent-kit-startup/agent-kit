@@ -1,0 +1,18 @@
+{
+  "name": "agent-kit",
+  "displayName": "Agent Kit",
+  "author": "agent-kit-startup",
+  "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
+  "keywords": [
+    "agents",
+    "hitl",
+    "handoff",
+    "git-staging",
+    "context",
+    "multi-ide",
+    "anti-slop"
+  ],
+  "license": "MIT",
+  "version": "3.0.0",
+  "repository": "https://github.com/agent-kit-startup/agent-kit"
+}

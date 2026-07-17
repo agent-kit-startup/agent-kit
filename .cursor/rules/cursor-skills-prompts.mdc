@@ -1,0 +1,23 @@
+---
+description: Regras para prompts de agentes em Markdown (estrutura, .system/.user, versionamento). Alinhado à skill prompts-markdown.
+globs: "**/prompt*.md,**/prompts/**/*.md,**/modelo-guest.md"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Prompts (Markdown)
+
+Alinhado à skill [.cursor/skills/community/prompts-markdown/SKILL.md](.cursor/skills/community/prompts-markdown/SKILL.md).
+
+## Estrutura
+
+- Objetivo, instruções gerais, classificação (quando aplicável), ações/ferramentas.
+- Pares .system/.user para extração e formatação quando aplicável.
+
+## Padrões recomendados
+
+- **Modelo base:** manter um modelo de referência para novos prompts (ex.: modelo-guest.md).
+- Nomenclatura: prompt-{nome}-{contexto}.md ou prompt-principal.md; versionamento V1/V2 em subpastas.
+
+## Boas práticas
+
+- Linguagem clara; exemplos de saída (JSON ou texto) quando estruturada; referência a tools/base de conhecimento quando existir.

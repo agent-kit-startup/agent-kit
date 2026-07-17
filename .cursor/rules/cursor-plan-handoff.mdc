@@ -1,0 +1,63 @@
+---
+description: Handoff entre agentes (planos com fases). Atualizar HANDOFF.md ao fim de fase ou quando contexto cheio; em nova conversa ler HANDOFF e retomar.
+alwaysApply: true
+---
+
+# Handoff entre agentes (planos com fases)
+
+Ao trabalhar a partir de um **plano** (arquivo em `.cursor/plans/` ou referência a plano com to-dos):
+
+0. **Plano primeiro:** se não houver plano com to-dos, criar/atualizar via plan-routine ou `/iniciar-projeto` antes de implementar. Durante a execução, manter `status` dos to-dos atualizado (`pending` → `in_progress` → `completed`) para o humano acompanhar no painel.
+
+1. **Executar to-dos por fase** conforme a seção "Fases e to-dos por contexto" do plano (quando existir). Respeitar a ordem Fase 0 → 1 → 2 → 3 → 4 → 5.
+
+2. **Ao fim de cada fase:** criar ou atualizar `.cursor/HANDOFF.md` com:
+   - Nome do plano (arquivo)
+   - Última atualização (timestamp)
+   - Fase concluída (0 a 5)
+   - To-dos concluídos (ids)
+   - Próxima fase
+   - Próximos to-dos (ids)
+   - Instrução para o próximo agente (1–3 frases)
+   - Modo **manual:** se a fase gerou código commitável, **sugerir** `/git-staging` (não executar sem pedido). Produção só via `/git-prod`.
+   - Modo **loop** (`/executar-plano-loop`): executar `/git-staging` ao fim do tick se houver diff; marcar to-dos no plano a cada tick; **nunca** `/git-prod` no loop.
+   - Modo **orquestrado** (`/executar-plano-orquestrado`): a janela principal **não implementa** — despacha Task/worker, confere summary, HANDOFF e `/git-staging` se houver diff; **nunca** `/git-prod`. Sem Task: degradar para loop ou manual.
+
+3. **Se o contexto estiver ficando cheio** antes de terminar a fase (modo manual):
+   - Atualizar `.cursor/HANDOFF.md` com o estado atual (fase, último to-do concluído, próximo to-do, instrução clara).
+   - **Acionar o fluxo de handoff:** informar ao usuário que deve **abrir uma nova conversa** (novo agente com contexto fresco) e, nela, dizer algo como: *"Continuar o plano"* ou *"Leia .cursor/HANDOFF.md e retome a partir do próximo to-do"*.
+   - Mensagem sugerida: *"Contexto próximo do limite. HANDOFF.md atualizado. Abra uma **nova conversa** e diga: 'Continuar o plano' ou '@.cursor/HANDOFF.md retomar a partir do próximo to-do'. O próximo agente terá contexto novo e deve ler HANDOFF.md primeiro."*
+   - Em **loop contínuo**, preferir HANDOFF + parar/rearmar conforme o comando; se a janela estiver crítica, parar o loop e pedir nova conversa.
+
+4. **Em nova conversa** (novo agente com contexto fresco), se o usuário disser *"continuar o plano"* ou abrir o plano: **ler `.cursor/HANDOFF.md` primeiro** e retomar a partir da próxima fase/to-do indicada. Não recomeçar do zero.
+
+5. **Planos sempre com to-dos:** ao criar planos no modo planner, **sempre incluir to-dos** no frontmatter (template: `.cursor/context/templates/plan.md`). Se detectar plano sem to-dos, avisar: "Opa, esse plano tá sem to-dos. Quer que eu crie baseado nas seções?"
+
+6. **Budget de contexto (opcional por to-do):** `read_scope` (globs), `worker_contract` (formato do retorno), `max_ticks` (limite antes de HANDOFF forçado). Documentado em `autogit/plan-routine.md`. Em orquestrado, passar ao worker; se `max_ticks` estourar → HANDOFF + nova conversa.
+
+7. **Modos de execução:** ver `autogit/plan-routine.md` — manual (`/continuar-plano`), loop (`/executar-plano-loop`), orquestrado (`/executar-plano-orquestrado`).
+
+## Template HANDOFF.md
+
+```markdown
+# Handoff — [Nome do plano]
+
+- **Plano:** [nome-do-arquivo.plan.md]
+- **Última atualização:** [YYYY-MM-DD HH:MM]
+- **Fase concluída:** [0 a 5]
+- **To-dos concluídos:** [lista de ids]
+- **Próxima fase:** [N]
+- **Próximos to-dos:** [ids]
+- **Instrução para o próximo agente:** [1–3 frases]
+```
+
+O arquivo `.cursor/HANDOFF.md` pode ser adicionado ao `.gitignore` se não quiser versioná-lo.
+
+## Context Memory System
+
+Para tarefas longas ou com múltiplas fases, usar o **Context Memory System**:
+- **Context Pack:** `.cursor/context/current/[task-id].md` — estado, decisões, constraints, checklists.
+- **Templates:** `.cursor/context/templates/` — plan.md, context-pack.md, task-brief.md, handoff.md, adr.md.
+- **CLI:** `./cursor-handoff new|update|status|handoff|archive|resume` — cria/atualiza Context Pack e HANDOFF.md.
+- **Arquivar:** ao concluir tarefa, `cursor-handoff archive` move o Context Pack para `.cursor/context/archive/YYYY-MM/`.
+- Em nova conversa: ler `.cursor/HANDOFF.md` e, se existir, o Context Pack em `current/` ou `archive/` para retomar.

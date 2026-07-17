@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "packs": [
+    { "id": "cybersec", "path": "registry/packs/cybersec" },
+    { "id": "devops", "path": "registry/packs/devops" },
+    { "id": "engenharia-arquitetura", "path": "registry/packs/engenharia-arquitetura" },
+    { "id": "clean-code", "path": "registry/packs/clean-code" },
+    { "id": "gestao-projeto", "path": "registry/packs/gestao-projeto" },
+    { "id": "gestao-contexto", "path": "registry/packs/gestao-contexto" },
+    { "id": "quality", "path": "registry/packs/quality" }
+  ]
+}

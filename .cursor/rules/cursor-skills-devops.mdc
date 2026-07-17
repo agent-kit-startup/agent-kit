@@ -1,0 +1,42 @@
+---
+description: Regras CURSOR-SKILLS para DevOps (Docker, Kubernetes, CI/CD, Terraform, IaC).
+globs: "**/Dockerfile,**/docker-compose*.{yml,yaml},**/.github/**/*.yml,**/.gitlab-ci.yml,**/*.yml,**/k8s/**/*,**/*.tf,**/*.tfvars"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – DevOps
+
+Fonte: [cursor-skills/devops](https://github.com/araguaci/cursor-skills/tree/main/devops)
+
+## Setup CURSOR
+
+- Docker, Kubernetes, GitLens, Remote Development, YAML, Terraform.
+
+## Estrutura típica
+
+```
+project/
+├── docker/   ├── k8s/   ├── terraform/   ├── .github/
+└── .env
+```
+
+## Docker
+
+- Dockerfile e docker-compose; multi-stage builds; cache de layers; segurança (usuário não-root, imagens mínimas).
+
+## Kubernetes
+
+- Pods, Services, Deployments; ConfigMaps e Secrets; recursos e limites; health checks; convenções de nome.
+
+## CI/CD
+
+- Pipelines (GitHub Actions, GitLab CI, etc.); estágios (lint, test, build, deploy); triggers; notificações; rollback.
+- Quando o projeto adotar fluxo Git staging → produção: usar `git staging` e `git prod`; nunca commit direto em `main`. Ver regra [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
+
+## IaC (Terraform)
+
+- Módulos; versionamento; state remoto; `terraform fmt`; documentação de recursos e variáveis.
+
+## Boas práticas
+
+- Logs, env vars, secrets fora do código; testes de infra quando possível; docs de deploy e troubleshooting.

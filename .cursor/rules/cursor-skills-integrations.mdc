@@ -1,0 +1,41 @@
+---
+description: Regras CURSOR-SKILLS para integrações (webhooks, microserviços, DBs, filas).
+globs: "**/integrations/**/*,**/webhooks/**/*,**/microservices/**/*"
+alwaysApply: false
+---
+
+# CURSOR-SKILLS – Integrações
+
+Fonte: [cursor-skills/integrations](https://github.com/araguaci/cursor-skills/tree/main/integrations)
+
+## Setup CURSOR
+
+- Docker, Kubernetes, GitLens, Remote Development, Database Client, REST Client.
+
+## Estrutura típica
+
+```
+project/
+├── src/   ├── tests/   ├── configs/   ├── docker/   ├── k8s/
+└── .env
+```
+
+## Princípios
+
+- Microserviços; error handling e logging; comunicação segura; retries e idempotência quando aplicável.
+
+## Webhooks
+
+- Eventos e payloads padronizados; validação (ex. assinatura); retry; segurança.
+
+## Microserviços
+
+- APIs consistentes; discovery; load balancing; health checks; testes de comunicação.
+
+## Banco de dados
+
+- Connection pooling; transações; índices; prepared statements; evitar N+1; convenções de nome.
+
+## Comunicação
+
+- HTTP, gRPC ou WebSocket conforme o caso; tratamento de erros; filas (RabbitMQ, Kafka, etc.) quando fizer sentido.

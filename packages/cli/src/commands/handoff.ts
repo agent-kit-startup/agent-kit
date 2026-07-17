@@ -1,0 +1,229 @@
+import { spawn } from "node:child_process";
+import { readFile, readdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { defineCommand } from "citty";
+import type { ProjectProfile } from "../types.js";
+import { PM_TOOL_LABELS } from "../types.js";
+import { ensureDir, fileExists, readJson } from "../utils/fs.js";
+import { logger } from "../utils/logger.js";
+
+interface PlanFrontmatter {
+  name?: string;
+  todos?: { id: string; content: string; status: string }[];
+}
+
+function parsePlanFrontmatter(raw: string): PlanFrontmatter | null {
+  const match = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!match?.[1]) return null;
+  const block = match[1];
+  const name = block.match(/^name:\s*(.+)$/m)?.[1]?.trim();
+  const todos: PlanFrontmatter["todos"] = [];
+  const todoBlocks = block.matchAll(/- id:\s*(\S+)\s*\n\s*content:\s*(.+)\n\s*status:\s*(\S+)/g);
+  for (const m of todoBlocks) {
+    if (m[1] && m[2] && m[3]) {
+      todos.push({ id: m[1], content: m[2].replace(/^["']|["']$/g, ""), status: m[3] });
+    }
+  }
+  return { name, todos };
+}
+
+async function findActivePlan(plansDir: string): Promise<{ file: string; raw: string } | null> {
+  if (!(await fileExists(plansDir))) return null;
+  const files = (await readdir(plansDir))
+    .filter((f) => f.endsWith(".plan.md"))
+    .sort()
+    .reverse();
+  for (const file of files) {
+    const raw = await readFile(path.join(plansDir, file), "utf8");
+    const fm = parsePlanFrontmatter(raw);
+    if (fm?.todos?.some((t) => t.status !== "completed" && t.status !== "cancelled")) {
+      return { file, raw };
+    }
+  }
+  return files[0]
+    ? { file: files[0], raw: await readFile(path.join(plansDir, files[0]), "utf8") }
+    : null;
+}
+
+function now(): string {
+  return new Date().toISOString().replace("T", " ").slice(0, 16);
+}
+
+async function loadProfile(rootDir: string): Promise<ProjectProfile | null> {
+  const configPath = path.join(rootDir, ".cursor", "agent-kit.config.json");
+  try {
+    return await readJson<ProjectProfile>(configPath);
+  } catch {
+    return null;
+  }
+}
+
+function buildRoutines(profile: ProjectProfile | null): string[] {
+  const lines: string[] = [];
+  const workflow = profile?.git.workflow;
+  if (workflow === "homolog-prod") {
+    lines.push("- [ ] `git staging` — levar alterações para staging");
+    lines.push("- [ ] `git prod` — promover para produção (após aprovação)");
+  } else {
+    lines.push("- [ ] Commit, push e abrir PR/MR");
+  }
+
+  const pmTools = profile?.services.projectManagement;
+  if (pmTools && pmTools.length > 0) {
+    const labels = pmTools.map((t) => PM_TOOL_LABELS[t]).join(", ");
+    lines.push(`- [ ] Atualizar tasks em ${labels} (se aplicável)`);
+  }
+
+  lines.push("- [ ] Revisar CHANGELOG");
+  return lines;
+}
+
+function closingInstruction(profile: ProjectProfile | null): string {
+  const pmTools = profile?.services.projectManagement;
+  if (pmTools && pmTools.length > 0) {
+    const labels = pmTools.map((t) => PM_TOOL_LABELS[t]).join(", ");
+    return `Todos os to-dos concluídos. Verificar git staging/prod e atualizar ${labels} se aplicável.`;
+  }
+  return "Todos os to-dos concluídos. Verificar commit/push e PR/MR.";
+}
+
+function buildHandoff(
+  planFile: string,
+  fm: PlanFrontmatter,
+  profile: ProjectProfile | null,
+): string {
+  const completed = fm.todos?.filter((t) => t.status === "completed") ?? [];
+  const pending = fm.todos?.filter((t) => t.status === "pending") ?? [];
+  const inProgress = fm.todos?.filter((t) => t.status === "in_progress") ?? [];
+  const nextTodo = inProgress[0] ?? pending[0];
+
+  const completedPhase = completed.length;
+  const totalPhases = fm.todos?.length ?? 0;
+  const routines = buildRoutines(profile);
+
+  return [
+    `# Handoff — ${fm.name ?? planFile}`,
+    "",
+    `- **Plano:** ${planFile}`,
+    `- **Última atualização:** ${now()}`,
+    `- **Progresso:** ${completedPhase}/${totalPhases} to-dos concluídos`,
+    "",
+    "## Concluído",
+    ...(completed.length > 0
+      ? completed.map((t) => `- [x] \`${t.id}\`: ${t.content}`)
+      : ["- (nenhum)"]),
+    "",
+    "## Em progresso",
+    ...(inProgress.length > 0
+      ? inProgress.map((t) => `- [ ] \`${t.id}\`: ${t.content}`)
+      : ["- (nenhum)"]),
+    "",
+    "## Pendente",
+    ...(pending.length > 0
+      ? pending.map((t) => `- [ ] \`${t.id}\`: ${t.content}`)
+      : ["- (nenhum)"]),
+    "",
+    "## Instrução para o Próximo Agente",
+    "",
+    nextTodo
+      ? `Continuar a partir do to-do \`${nextTodo.id}\`: ${nextTodo.content}.`
+      : closingInstruction(profile),
+    "",
+    "## Rotinas sugeridas",
+    "",
+    ...routines,
+    "",
+    "---",
+    "*Gerado por `agent-kit handoff`. Para retomar: abra nova conversa e diga `/continuar-plano`.*",
+    "",
+  ].join("\n");
+}
+
+function printV3Guidance(): void {
+  logger.info("Sem plano em .cursor/plans/ e sem ./cursor-handoff neste diretório.");
+  logger.info(
+    "Crie um plano com to-dos ou atualize .cursor/HANDOFF.md manualmente (comando /handoff no Cursor).",
+  );
+  logger.info("Retomada na IDE: /resume, summaries e transcripts.");
+}
+
+function runCursorHandoff(scriptPath: string, cwd: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("sh", [scriptPath, "handoff"], {
+      cwd,
+      stdio: "inherit",
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
+export const handoffCommand = defineCommand({
+  meta: {
+    name: "handoff",
+    description:
+      "Write .cursor/HANDOFF.md from the active Cursor plan, or run ./cursor-handoff handoff when no plan exists.",
+  },
+  args: {
+    cwd: {
+      type: "string",
+      description: "Project root directory",
+      default: process.cwd(),
+    },
+  },
+  async run({ args }) {
+    const profile = await loadProfile(args.cwd);
+    const plansDir = path.join(args.cwd, ".cursor", "plans");
+    const handoffPath = path.join(args.cwd, ".cursor", "HANDOFF.md");
+
+    const plan = await findActivePlan(plansDir);
+    if (plan) {
+      const fm = parsePlanFrontmatter(plan.raw);
+      if (fm) {
+        await ensureDir(path.join(args.cwd, ".cursor"));
+        const content = buildHandoff(plan.file, fm, profile);
+        await writeFile(handoffPath, content, "utf8");
+
+        logger.success("HANDOFF.md atualizado: .cursor/HANDOFF.md");
+        logger.info(
+          `Plano: ${plan.file} (${fm.todos?.filter((t) => t.status === "completed").length}/${fm.todos?.length} concluídos)`,
+        );
+        logger.info("");
+        logger.info("Próximos passos sugeridos:");
+        let n = 1;
+        for (const line of buildRoutines(profile)) {
+          logger.info(`  ${n}. ${line.replace(/^- \[ \] /, "")}`);
+          n += 1;
+        }
+        logger.info("");
+        logger.info("Para retomar: abra nova conversa e diga /continuar-plano");
+        return;
+      }
+      logger.warn(`Plano ${plan.file} sem frontmatter válido; tentando fluxo legado.`);
+    }
+
+    const scriptPath = path.join(args.cwd, "cursor-handoff");
+    if (!(await fileExists(scriptPath))) {
+      printV3Guidance();
+      return;
+    }
+
+    if (process.platform === "win32") {
+      logger.warn(
+        "cursor-handoff é um script shell. No Windows, rode no Git Bash ou WSL: sh cursor-handoff handoff",
+      );
+      printV3Guidance();
+      return;
+    }
+
+    try {
+      const code = await runCursorHandoff(scriptPath, args.cwd);
+      if (code !== 0) {
+        process.exitCode = code;
+      }
+    } catch (err) {
+      logger.warn(`Falha ao executar cursor-handoff: ${String(err)}`);
+      printV3Guidance();
+    }
+  },
+});

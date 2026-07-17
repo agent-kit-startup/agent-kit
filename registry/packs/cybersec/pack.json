@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "cybersec",
+  "title": "Cybersecurity",
+  "description": "Security review, secrets/PII awareness, and pre-merge hardening — discipline pack, not language-specific.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "skill",
+      "id": "security-review",
+      "source": "registry/skills/core/security-review"
+    },
+    {
+      "kind": "agent",
+      "id": "security-reviewer",
+      "source": ".cursor/agents/security-reviewer.md"
+    }
+  ],
+  "excludes": [
+    "pre-commit/check-secrets.sh",
+    "memory-loop.mdc"
+  ]
+}

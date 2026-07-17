@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "engenharia-arquitetura",
+  "title": "Engineering & architecture",
+  "description": "ADRs, technology tradeoffs, and tech-lead style decisions — stack-agnostic.",
+  "version": "0.1.0",
+  "members": [
+    {
+      "kind": "agent",
+      "id": "tech-lead",
+      "source": ".cursor/agents/tech-lead.md"
+    },
+    {
+      "kind": "skill",
+      "id": "docs-repo",
+      "source": "registry/skills/core/docs-repo"
+    }
+  ],
+  "excludes": [
+    "docs-professional-standard.mdc"
+  ]
+}
