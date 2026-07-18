@@ -2,7 +2,7 @@
 # Dispara o job sync-public no GitHub Actions (workflow_dispatch) após git prod.
 # Uso: bash scripts/trigger-public-sync-after-prod.sh
 # Requisitos: remote "public" (espelho), origin no GitHub, gh autenticado.
-# Secret PUBLIC_REPO_URL deve existir no repositório origin (ex.: agent-kit-dev).
+# Secret PUBLIC_REPO_TOKEN deve existir no repositório origin (ex.: agent-kit-dev).
 
 set -euo pipefail
 

@@ -4,7 +4,7 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 
 ## Verdict
 
-**Pass with residuals.** The plan’s implementable to-dos are done. Dogfood continues (`dogfood-poc`). Open items are **ops/HITL**, not product contradictions.
+**Pass with residuals.** The plan’s implementable to-dos are done. Dogfood continues. Open items are **ops/HITL**, not product contradictions.
 
 ## Checklist
 
@@ -24,21 +24,21 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 
 ## Residuals (not blockers for plan close)
 
-1. **`PUBLIC_REPO_URL`** on private CI — required for live public sync ([public-launch.md](public-launch.md)).
+1. **`PUBLIC_REPO_TOKEN`** on private CI — required for PR-based public sync ([public-launch.md](public-launch.md)).
 2. **Phase B cutover** — stop mirroring `registry/**` when contribution-on-public goes live.
 3. **Cursor Marketplace submission** — publisher HITL.
 4. **Paid MCP implementation** — blocked until marketplace gate green.
-5. **Corporate WAM repos** — out of scope per plan.
+5. **Private consumer workspaces** — out of scope for this pass.
 
 ## Contradictions found
 
-None that reverse HITL, hygiene, or structural-vs-stack. Plan body still mentions legacy “force-push snapshot” in one narrative paragraph under “Repo público”; behavior code/docs already append-only — optional cleanup later.
+None that reverse HITL, hygiene, or structural-vs-stack. Public sync behavior is append-only by default ([public-launch.md](public-launch.md)).
 
 ## Recommend next human actions
 
-1. Review staging commits from this loop (PRs #23–#30 area).
+1. Review the staging branch before promotion.
 2. When ready: **`/git-prod`** with explicit confirmation (staging → main + public sync if secret set).
-3. Keep `dogfood-poc` alive on the next plan / day-to-day.
+3. Keep dogfooding the kit on day-to-day work.
 
 ## Acceptance
 

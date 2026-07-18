@@ -18,9 +18,9 @@ O handoff em arquivo (`.cursor/HANDOFF.md`) é a **fonte da verdade** para conti
 | `/best-of-n` | Comparar abordagens lado a lado | Para decisões de arquitetura |
 | Plans | Planos nativos do Cursor | Agent Kit gera planos com to-dos no frontmatter; HANDOFF referencia o plano ativo |
 
-## MCP, hooks e SDK (sem OpenClaw)
+## MCP, hooks e SDK
 
-**OpenClaw não faz parte do stack do Agent Kit** — não documentamos, não versionamos config para isso e não dependemos de gateways paralelos ao Cursor.
+**Gateways de agente paralelos ao Cursor não fazem parte do stack do Agent Kit** — não documentamos nem versionamos config para isso.
 
 Para extensões e automação, use o que o próprio Cursor oferece:
 
