@@ -1,34 +1,34 @@
 # GitHub — About (copy-paste)
 
-Use **Settings → General** (repo root on GitHub): preencher **Description**, **Website** (se houver), **Topics**.
+Use **Settings → General** (repo root on GitHub): fill **Description**, **Website** (if any), **Topics**.
 
-## Description (English — alinhado ao README)
-
-```
-Developer bootstrapper for AI-assisted IDEs — understands your project, finds what's missing, and generates tailored setup for Cursor, VS Code, and Windsurf. Then helps you develop without losing context.
-```
-
-**Versão mais curta** (se couber melhor no layout):
+## Description (English — aligned with README)
 
 ```
-Developer bootstrapper for AI-assisted IDEs: project-aware setup for Cursor, VS Code & Windsurf with file-based handoff and a skill registry.
+Human-in-the-loop harness for AI-assisted IDEs — plans, context handoff, memory loop, and staging→prod git workflow with explicit confirmation before production.
 ```
 
-## Description (Português — opcional)
+**Shorter** (if the layout fits better):
 
 ```
-Bootstrapper para IDEs com IA: entende seu projeto, encontra o que falta e gera setup sob medida para Cursor, VS Code e Windsurf — depois ajuda a desenvolver sem perder contexto.
+HITL framework for AI-assisted IDEs: plan → handoff → staging → prod, with a skill registry and opt-in stack packs.
 ```
 
-## Topics (cole na caixa **Topics**)
+## Description (Português — optional)
 
-`ai-assisted-development` `cursor` `vscode` `windsurf` `developer-tools` `cli` `monorepo` `agent-kit` `prompt-engineering` `skills` `templates` `handoff` `context-management` `ide-bootstrapper`
+```
+Harness human-in-the-loop para IDEs com IA: planos, handoff de contexto, memory loop e fluxo git staging→prod com confirmação explícita antes de produção.
+```
+
+## Topics
+
+`ai-assisted-development` `cursor` `vscode` `windsurf` `developer-tools` `cli` `monorepo` `agent-kit` `prompt-engineering` `skills` `templates` `handoff` `context-management` `human-in-the-loop`
 
 ## Website
 
-- Repo público: deixe em branco ou use a URL de docs/deploy quando existir.
-- Se publicar site do projeto: `https://…`
+- Public repo: leave blank or use the docs/deploy URL when it exists.
+- If a project site is published: `https://…`
 
 ## Social preview
 
-GitHub usa o **README** ou imagem em **Settings → General → Social preview**. Não é necessário duplicar o About aqui; mantenha o README como narrativa principal.
+GitHub uses the **README** or an image under **Settings → General → Social preview**. Keep the README as the main narrative; do not duplicate the About text there.

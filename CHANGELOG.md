@@ -8,10 +8,27 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-07-18
+
+### Alterado
+
+- README: rewrite slim em inglês — pitch HITL, install L0, fluxo, CLI lifecycle e links; remove inventário de stack (ClickUp/n8n/SQL…) e seção PT duplicada; L0 alinhado a `packages/cli/src/lifecycle/l0.ts`.
+- `docs/github-about.md`: Description alinhada à tese HITL (deixa de usar “developer bootstrapper”).
+- `docs/public-launch.md` e `docs/repository-boundaries.md`: `PUBLIC_REPO_TOKEN` documenta também `Workflows: write` (sync com `.github/workflows/`).
+
+## [3.3.0] - 2026-07-18
+
 ### Alterado
 
 - README: abertura reescrita em voz de produto (princípios HITL, estrutura, hygiene, core vs stack) — remove tabela de posicionamento interno e link para checklist de ops.
 - Sync público: `install.md`, `categories.md`, `adicionar-skills.md` e `HANDOFF.md.example` incluídos no manifest — README público os referencia (links quebravam no espelho).
+- Política do repositório público: sync passa a abrir PR contra `main` por padrão; CI usa `PUBLIC_REPO_TOKEN`; `main` permanece como única branch longa e recebe ruleset com review + check `build`.
+- `docs/CONTRIBUTING.md` e `docs/cursor-3-features.md`: guideline de tooling Cursor-native reescrita em termos genéricos (sem citar gateway específico).
+- Hygiene no conjunto público: `docs/review-camadas.md` sem nome de org privada, números de PR e ids de sessão; `docs/cursor-native-audit.md` e `docs/public-launch.md` sem referências a paths privados (`.cursor/plans/`, `.cursor/memory/`); denylist do sync ganha `\bWAM\b` e `\bSofia\b` (guard estrutural).
+
+### Removido
+
+- `docs/CONTRIBUTING.md`: seção **GitHub CLI (`gh`)** — troubleshooting de autenticação local (PAT fine-grained, keyring da máquina) não é guideline de contribuição; conteúdo já coberto em `.cursor/memory/errors/` e `autogit/gitupdate.md` (troubleshooting).
 
 ## [3.2.0] - 2026-07-17
 

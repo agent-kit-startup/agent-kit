@@ -232,5 +232,4 @@ These are acceptable for private SoT during Fase 0–1; Fase 2 Core Pack should 
 
 - [Cursor 3.0 Features](cursor-3-features.md)
 - [Coherence inventory](coherence-inventory.md)
-- Plan: `.cursor/plans/agent_kit_public_harness.plan.md` — `f0-audit-native`, `f1-coherence-*`, `f2-hooks-native`
-- Decision: `.cursor/memory/decisions/2026-07-09_structural-harness-vs-stack.md`
+- Decision: structural harness vs stack (maintainers' decision log, private repo)

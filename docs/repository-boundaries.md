@@ -16,15 +16,15 @@ Agent Kit separates session state from product code. Local development state (pl
 
 1. **`git staging`** — PR para `staging` no **privado** (`agent-kit-dev`). Tudo que for commitado vai para o privado.
 2. **`git prod`** — `staging` → `main` no **privado**; push `origin main`.
-3. **Espelho público (integrado ao `git prod`)** — Com remote `public` apontando ao repositório GitHub público e `gh` autenticado, após o push de `main` roda-se **`pnpm git:trigger-public-sync`** (ou `bash scripts/trigger-public-sync-after-prod.sh`): dispara o workflow **CI** no **origin** com *Sync to public repo* → CI executa **build** e depois **sync-public** (requer secret `PUBLIC_REPO_URL` no privado). Ver passo 12 do "Prompt: git prod" em `autogit/gitupdate.md`.
+3. **Espelho público (integrado ao `git prod`)** — Com remote `public` apontando ao repositório GitHub público e `gh` autenticado, após o push de `main` roda-se **`pnpm git:trigger-public-sync`** (ou `bash scripts/trigger-public-sync-after-prod.sh`): dispara o workflow **CI** no **origin** com *Sync to public repo* → CI executa **build** e abre um PR de sync no público (requer secret `PUBLIC_REPO_TOKEN` no privado). Ver passo 12 do "Prompt: git prod" em `autogit/gitupdate.md`.
 4. **Alternativas** (release ou fallback): tag SemVer `v*` no privado; *workflow_dispatch* manual no Actions; `node scripts/sync-public.mjs` com URL/token no ambiente.
 
-Sem `PUBLIC_REPO_URL` configurado no GitHub do **privado**, o job de sync não empurra nada — o restante do CI segue normal.
+Sem `PUBLIC_REPO_TOKEN` configurado no GitHub do **privado**, o job de sync não empurra nada — o restante do CI segue normal.
 
 ### Public launch checklist
 
 1. Garantir o repositório público vazio (sem README inicial se quiser histórico só a partir do primeiro sync).
-2. Token com push **somente** no repositório público; guardar como `PUBLIC_REPO_URL` (HTTPS com token embutido; ver tabela abaixo).
+2. Criar um fine-grained token limitado ao repositório público, com `Contents: write`, `Pull requests: write` e `Workflows: write`; guardar como `PUBLIC_REPO_TOKEN`.
 3. Opcional: `git remote add public https://github.com/agent-kit-startup/agent-kit.git` no clone para testes locais.
 4. Rodar sync: tag `v*` ou *workflow_dispatch* conforme o workflow.
 5. README, licença e política de PRs no repositório **público** (issues/PRs externos; patches sensíveis só no dev).
@@ -60,15 +60,17 @@ Phase B: Local → agent-kit-dev → sync-public → agent-kit (excl. registry)
 ### How sync works
 
 1. **Manifest** — `scripts/public-sync.manifest` lists allowed globs (positive allowlist).
-2. **Script** — `scripts/sync-public.mjs` reads the manifest, filters `git ls-files`, checks no forbidden path slipped through, and pushes an **append-only** commit on the public branch (default). Use `--force-snapshot` only to rewrite public history. See [public-launch.md](public-launch.md).
+2. **Script** — `scripts/sync-public.mjs` reads the manifest, filters `git ls-files`, checks no forbidden path slipped through, and opens an append-only PR against public `main` (default). `--direct` is migration-only; `--force-snapshot` rewrites public history. See [public-launch.md](public-launch.md).
 3. **CI** — the `sync-public` job in `.github/workflows/ci.yml` runs the script on `v*` tags or via `workflow_dispatch`.
 
 ### Required CI secrets (no repositório privado `agent-kit-dev`)
 
 | Secret | Purpose |
 |--------|---------|
-| `PUBLIC_REPO_URL` | Public repo URL with embedded token (e.g. `https://x-access-token:TOKEN@github.com/agent-kit-startup/agent-kit.git`) |
+| `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, and `Workflows: write` (required when the sync tree includes `.github/workflows/`) |
 | `NPM_TOKEN` | Token to publish to the npm registry |
+
+Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git URL without embedding credentials.
 
 ### External contributions
 
