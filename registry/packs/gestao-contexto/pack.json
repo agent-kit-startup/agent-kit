@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "gestao-contexto",
   "title": "Context management",
-  "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian + memory-loop.",
+  "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
   "version": "0.1.0",
   "members": [
     {
@@ -24,6 +24,10 @@
   "excludes": [
     "context-guardian.mdc",
     "memory-loop.mdc",
+    "hooks.json",
+    "session-plan-guard.py",
+    "stop-phase-guard.py",
+    "precompact-handoff.py",
     "HANDOFF.md"
   ]
 }

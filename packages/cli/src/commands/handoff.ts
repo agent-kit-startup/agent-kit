@@ -134,7 +134,7 @@ function buildHandoff(
     ...routines,
     "",
     "---",
-    "*Gerado por `agent-kit handoff`. Para retomar: abra nova conversa e diga `/continuar-plano`.*",
+    "*Gerado por `agent-kit handoff`. Para retomar: abra nova conversa e diga `/continue-plan`.*",
     "",
   ].join("\n");
 }
@@ -196,7 +196,7 @@ export const handoffCommand = defineCommand({
           n += 1;
         }
         logger.info("");
-        logger.info("Para retomar: abra nova conversa e diga /continuar-plano");
+        logger.info("Para retomar: abra nova conversa e diga /continue-plan");
         return;
       }
       logger.warn(`Plano ${plan.file} sem frontmatter válido; tentando fluxo legado.`);

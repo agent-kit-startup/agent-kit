@@ -1,77 +1,85 @@
 ---
-description: Aviso proativo quando contexto enchendo (heurística). Oferecer handoff automático/manual e orientar nova conversa com /continuar-plano.
+description: Proactive warning when context is filling up (heuristic). Offer automatic/manual handoff and point to a new conversation with /continue-plan.
 alwaysApply: true
 ---
 
-# Context Guardian — Aviso de Janela e Handoff Automático
+# Context Guardian - Window Warning and Automatic Handoff
 
-## Monitorar Janela de Contexto
+## Monitor the Context Window
 
-Monitorar o tamanho do contexto durante a conversa (heurística: contagem de mensagens, estimativa de tokens, indicador do sistema se disponível).
+Monitor context size during the conversation (heuristic: message count, token estimate, system indicator if available). Native hooks also help: `sessionStart` injects HANDOFF + hard rules; `preCompact` warns on compaction; `stop` reminds phase boundaries.
 
-## Aviso Proativo (~80% do limite)
+## When the user asks about context
 
-Quando detectar que a janela está próxima do limite:
+If the user asks about context / contexto / window / "are we full?":
 
-1. **Avisar o usuário:**
-   > "Heads up: contexto quase cheio. Bora fazer handoff pra não perder nada?"
+1. **Do not dismiss.** Never answer only "it's fine" / "tá de boa" and keep implementing.
+2. **Give a real status:** phase, how many to-dos done this chat, rough window pressure (messages / tools / files touched).
+3. **Offer handoff** if anything non-trivial is in flight, even below 80%.
 
-2. **Oferecer opções:**
-   - "Handoff automático (salvo tudo e você cola o comando na nova conversa)."
-   - "Handoff manual (você decide o que incluir)."
+## Proactive Warning (~80% of the limit)
 
-## Preferências do Usuário
+When the window looks close to the limit:
 
-- **Na primeira vez:** sempre perguntar ao usuário qual preferência.
-- **Salvar preferência:** se o usuário escolher automático, salvar em `.cursor/context/config.json`:
+1. **Warn the user:**
+   > "Heads up: context is almost full. Want to do a handoff so we don't lose anything?"
+
+2. **Offer options:**
+   - "Automatic handoff (everything gets saved, you paste the command in the new conversation)."
+   - "Manual handoff (you decide what to include)."
+
+## User Preferences
+
+- **First time:** always ask the user which they prefer.
+- **Save the preference:** if the user picks automatic, save it in `.cursor/context/config.json`:
   ```json
   { "autoHandoff": true }
   ```
-- **Nas próximas vezes:** seguir a preferência sem perguntar (mas sempre avisar antes de fazer).
+- **Next times:** follow the saved preference without asking (but always announce it before acting).
 
-## Executar Handoff
+## Running a Handoff
 
-Ao fazer handoff (automático ou manual):
+When doing a handoff (automatic or manual):
 
-1. **Atualizar `.cursor/HANDOFF.md`** com estado atual, fase, to-dos, instrução.
+1. **Update `.cursor/HANDOFF.md`** with current state, phase, to-dos, instruction.
 
-2. **Copiar comando para clipboard:**
+2. **Copy the command to the clipboard:**
    ```bash
    # macOS
-   echo '/continuar-plano' | pbcopy
+   echo '/continue-plan' | pbcopy
    # Linux (xclip)
-   echo '/continuar-plano' | xclip -selection clipboard
+   echo '/continue-plan' | xclip -selection clipboard
    # Windows (PowerShell)
-   echo '/continuar-plano' | clip
+   echo '/continue-plan' | clip
    ```
 
-3. **Informar ao usuário:**
-   > "Pronto! `/continuar-plano` tá no clipboard. Abre uma nova conversa e cola (Cmd+V / Ctrl+V)."
+3. **Tell the user:**
+   > "Done! `/continue-plan` is on your clipboard. Open a new conversation and paste it (Cmd+V / Ctrl+V)."
 
-## Detecção de OS
+## OS Detection
 
-Tentar detectar o OS (via variável de ambiente ou comando `uname`):
-- macOS: usar `pbcopy`
-- Linux: tentar `xclip -selection clipboard` ou `xsel --clipboard --input`
-- Windows: usar `clip`
+Try to detect the OS (via environment variable or the `uname` command):
+- macOS: use `pbcopy`
+- Linux: try `xclip -selection clipboard` or `xsel --clipboard --input`
+- Windows: use `clip`
 
-Se falhar, apenas informar o comando ao usuário sem copiar.
+If detection fails, just tell the user the command without copying it.
 
-## Onboarding (Primeira Instalação)
+## Onboarding (First Install)
 
-Quando o usuário arrasta `install.md` e **é a primeira instalação** (não existe `.cursor/HANDOFF.md`):
+When the user drags in `install.md` and **this is the first install** (no `.cursor/HANDOFF.md` exists yet):
 
-1. **Boas-vindas:**
-   > "E aí! Bem-vindo ao **Agent Kit**. Aqui você não perde mais o contexto quando a conversa fica longa."
+1. **Welcome:**
+   > "Hey! Welcome to **Agent Kit**. You won't lose context anymore when the conversation gets long."
 
-2. **Explicação rápida (máx 2 frases):**
-   > "Funciona assim: quando o contexto encher, a gente salva o estado e você continua numa nova conversa. Comandos: `/iniciar-projeto`, `/handoff`, `/continuar-plano`."
+2. **Quick explanation (max 2 sentences):**
+   > "Here's how it works: when context fills up, we save the state and you continue in a new conversation. Commands: `/start-project`, `/handoff`, `/continue-plan`."
 
-3. **Próximo passo:**
-   > "Bora criar seu primeiro plano? (sim/não)"
-   - Se **sim:** guiar para criar plano com to-dos.
-   - Se **não:** "Show! Estrutura pronta. Quando quiser começar, manda `/iniciar-projeto`."
+3. **Next step:**
+   > "Want to create your first plan? (yes/no)"
+   - If **yes:** guide them through creating a plan with to-dos.
+   - If **no:** "All set! Structure is ready. When you want to start, send `/start-project`."
 
-## Errar para o Lado Seguro
+## Err on the Safe Side
 
-A heurística de detecção de limite pode não ser 100% precisa. Sempre errar para o lado seguro: **avisar cedo demais é melhor que tarde demais**.
+The limit-detection heuristic may not be 100% accurate. Always err on the safe side: **warning too early is better than too late**.

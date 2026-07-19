@@ -9,7 +9,7 @@ Generic runbook for any project to migrate from nested `agent-kit/` folder to th
 
 ## Steps
 
-1. **Snapshot L3** — copy hashes or backups of domain rules and `HANDOFF.md` before install.
+1. **Snapshot L3** - copy hashes or backups of domain rules and `HANDOFF.md` before install.
 2. **Install from registry** (project root):
 
 ```bash
@@ -19,7 +19,7 @@ pnpm --filter @agent-kit/cli start -- install \
   --pack gestao-contexto,clean-code
 ```
 
-3. **Protect L3** — extend `.cursor/agent-kit.json` `protected` (and optional `overrides`) with domain paths, e.g.:
+3. **Protect L3** - extend `.cursor/agent-kit.json` `protected` (and optional `overrides`) with domain paths, e.g.:
 
 ```text
 .cursor/rules/YOUR_PROJECT-context.mdc
@@ -48,13 +48,13 @@ Expect: L3 files unchanged; `diff` shows protected skips, not destructive drift 
 
 6. **Delete** the nested `agent-kit/` directory (including templates/`node_modules` if present).
 
-7. **Validate orchestration surface** — confirm L0 commands exist:
+7. **Validate orchestration surface** - confirm L0 commands exist:
 
-- `.cursor/commands/executar-plano-loop.md`
-- `.cursor/commands/executar-plano-orquestrado.md`
+- `.cursor/commands/run-plan-loop.md`
+- `.cursor/commands/run-plan-orchestrated.md`
 - `autogit/plan-routine.md`
 
-Against a **real** plan in `.cursor/plans/`: next implementable to-do can be run with `/executar-plano-orquestrado` (or loop). Do not run `/git-prod` from orchestrated modes.
+Against a **real** plan in `.cursor/plans/`: next implementable to-do can be run with `/run-plan-orchestrated` (or loop). Do not run `/git-prod` from orchestrated modes.
 
 ## Acceptance checks
 
@@ -67,5 +67,5 @@ After migration, verify:
 | L3 preserved after `update` | Domain rules, session files (`HANDOFF.md`), and unique commands/skills unchanged |
 | Registry skills added | Skills previously copied from the kit now installed via registry |
 | Local-only skills kept | Project-unique skills not in registry preserved |
-| Orchestration commands | `.cursor/commands/executar-plano-orquestrado.md` and `executar-plano-loop.md` available |
+| Orchestration commands | `.cursor/commands/run-plan-orchestrated.md` and `run-plan-loop.md` available |
 | `diff` clean | No unexpected changes; `protected` paths properly skipped |

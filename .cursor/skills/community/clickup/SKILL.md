@@ -1,11 +1,11 @@
 ---
 name: clickup
-description: Create and update ClickUp tasks via MCP. Optional — only if the project uses ClickUp. Not part of Core Pack.
+description: Create and update ClickUp tasks via MCP. Optional - only if the project uses ClickUp. Not part of Core Pack.
 version: 0.1.0
 category: pm
 ---
 
-# ClickUp — Gestão de tarefas (stack opcional)
+# ClickUp - Gestão de tarefas (stack opcional)
 
 **Não faz parte do Core Pack.** Instalar/usar só quando o repositório integrar ClickUp. Alinhado à rule [cursor-skills-clickup.mdc](.cursor/rules/cursor-skills-clickup.mdc) (`alwaysApply: false`).
 
@@ -20,7 +20,7 @@ category: pm
 
 1. **Definir lista:** usar `clickup_get_list` com `list_name` (ou `list_id` se conhecido).
 2. **Título:** seguir padrão `[Projeto/Módulo] Verbo + Objeto`.
-3. **Descrição:** preencher em Markdown — Objetivo, Escopo, Critérios de aceite, Referências.
+3. **Descrição:** preencher em Markdown - Objetivo, Escopo, Critérios de aceite, Referências.
 4. **Status:** iniciar em `backlog` ou `escopo refinado` conforme maturidade.
 5. **Prioridade:** sempre definir (`urgent`, `high`, `normal`, `low`).
 6. **Responsável:** definir assignee(s); para subtarefas, herdar ou especificar.
@@ -32,8 +32,8 @@ category: pm
 
 ### Títulos
 
-- Task: `[Projeto/Módulo] Verbo + Objeto` — ex.: "Checkout - Integrar solicitação de reserva".
-- Subtask: verbo no imperativo + objeto — ex.: "Validar fluxo de reserva no n8n", "Atualizar prompt com regras de validação".
+- Task: `[Projeto/Módulo] Verbo + Objeto` - ex.: "Checkout - Integrar solicitação de reserva".
+- Subtask: verbo no imperativo + objeto - ex.: "Validar fluxo de reserva no n8n", "Atualizar prompt com regras de validação".
 
 ### Descrição (template Markdown)
 

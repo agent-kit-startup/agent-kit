@@ -1,4 +1,4 @@
-# Upstream contribute — `agent-kit contribute`
+# Upstream contribute - `agent-kit contribute`
 
 Return channel from a **consumer project** back to the Agent Kit registry. Complements [migrate-consumer.md](migrate-consumer.md), [layers-spec.md](layers-spec.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -6,7 +6,7 @@ Return channel from a **consumer project** back to the Agent Kit registry. Compl
 
 - You edited an installed L0 / pack / skill file and the change should be shared (not kept as a silent fork).
 - You authored a new skill under `.cursor/skills/...` that belongs in `registry/skills/`.
-- Golden rule from layers-spec: do **not** hand-edit kit files as a permanent project fix — override via L3 **or** contribute upstream.
+- Golden rule from layers-spec: do **not** hand-edit kit files as a permanent project fix - override via L3 **or** contribute upstream.
 
 ## Flow
 
@@ -62,14 +62,14 @@ Rejected when any of these apply:
 | L0 / pack member targets | Same relative path (or pack `source`) |
 | `.cursor/skills/<cat>/<id>/SKILL.md` | `registry/skills/<cat>/<id>/SKILL.md` (guessed when not in manifest) |
 
-New skills still need a `registry/registry.json` entry (and pack membership if applicable) — update those in the PR.
+New skills still need a `registry/registry.json` entry (and pack membership if applicable) - update those in the PR.
 
 ## Target repo (today vs Fase 7)
 
 | Phase | PR target |
 |-------|-----------|
 | Phase A (now) | Prefer public `agent-kit` when contributing registry paths; if writing into a private checkout, promote to public before the next sync |
-| Phase B (cutover) | **Only** public `agent-kit` — registry is canonical there ([topology-private-public.md](topology-private-public.md)) |
+| Phase B (cutover) | **Only** public `agent-kit` - registry is canonical there ([topology-private-public.md](topology-private-public.md)) |
 
 ## Acceptance (`f5-upstream-flow`)
 

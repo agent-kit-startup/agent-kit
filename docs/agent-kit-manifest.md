@@ -1,42 +1,33 @@
-# Agent Kit manifest (`agent-kit.json`)
+# The manifest (`.cursor/agent-kit.json`)
 
-Canonical project manifest for Agent Kit distribution. Complements [layers-spec.md](layers-spec.md) (L0–L3 model) and [registry-schema.md](../registry-schema.md) (skills catalog format).
+Every project that installs Agent Kit gets a small file at `.cursor/agent-kit.json`. It's the kit's memory of what it did to your project: which version it installed, which packs and skills you added, and which of your files it must never touch. Without it, an update would be guesswork - the kit wouldn't know what it put there or what's safe to overwrite.
 
-**Path:** `.cursor/agent-kit.json`  
-**Machine schema:** [schemas/agent-kit.manifest.schema.json](../schemas/agent-kit.manifest.schema.json)
+The commands read it directly: `update` uses it to refresh the right files, `diff` uses it to compare against the latest, `status` prints it back to you.
 
-## Purpose
-
-Record what the project has installed so `agent-kit update` / `diff` / `status` can:
-
-1. Know the **kit version** in use.
-2. Re-apply **L1 packs** and **L2 skills** without guessing.
-3. **Never overwrite** L3 / session paths listed as protected.
-
-Without a manifest, every workspace is a one-shot folder copy (see [drift-inventory.md](drift-inventory.md)).
+**Machine-readable schema:** [schemas/agent-kit.manifest.schema.json](../schemas/agent-kit.manifest.schema.json). Layer model behind the fields: [layers-spec.md](layers-spec.md).
 
 ## Two files under `.cursor/`
 
 | File | Role | Written by |
 |------|------|------------|
-| **`agent-kit.json`** | Distribution manifest (this doc) | `install` / `add` / `update` (Phase 2); bootstrap / `@install.md` |
-| **`agent-kit.config.json`** | CLI scan + wizard **profile** (stack, IDE, git workflow) | `agent-kit init` today |
+| **`agent-kit.json`** | The manifest (this doc): what's installed | `install` / `add` / `update`; bootstrap / `@install.md` |
+| **`agent-kit.config.json`** | Guided-setup **profile** (stack, IDE, git workflow) | `agent-kit init` |
 
-Do not merge them casually: the profile drives generators; the manifest drives lifecycle against the registry. Phase 2 may teach `status` to show both.
+They're separate on purpose: the profile drives the guided setup; the manifest drives updates against the kit's source.
 
 ## Fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `schemaVersion` | yes | Manifest format integer. Current: `1`. |
-| `version` | yes | Installed product version (semver), aligned with kit releases. |
-| `profile` | no | Bootstrap profile id (`default`, `lean`, …). |
-| `packs` | no | L1 pack ids (see layers-spec). Empty until packs are chosen. |
-| `skills` | no | L2 registry skill ids installed on demand. |
-| `protected` | no | Globs (project-relative) that `update` must skip. |
-| `overrides` | no | Explicit L3 overrides (`path`, optional `replaces`, `note`). |
+| `schemaVersion` | yes | Manifest format version. Current: `1`. |
+| `version` | yes | Installed kit version (semver). |
+| `profile` | no | Guided-setup profile id (`default`, `lean`, …). |
+| `packs` | no | Installed pack ids (see [domain packs](domain-packs.md)). Empty if none. |
+| `skills` | no | Installed on-demand skill ids. |
+| `protected` | no | File patterns (project-relative) that `update` must skip. |
+| `overrides` | no | Your local replacements for kit files (`path`, optional `replaces`, `note`). |
 | `registry` | no | `{ url, ref }` used for the last install/update. |
-| `installedAt` | no | ISO-8601 time of last successful write. |
+| `installedAt` | no | ISO-8601 time of the last successful write. |
 
 JSON Schema enforces types, semver pattern on `version`, and kebab-case ids for packs/skills.
 
@@ -51,7 +42,7 @@ Every install should protect session and project-unique state (also gitignored w
 .cursor/context/**
 ```
 
-Add project-unique rules/skills/commands as extra globs or `overrides` entries. Never list kit L0 paths as protected to “keep a local edit” — that is an illegal in-place edit; use an L3 override or contribute upstream.
+Add your project's own rules/skills/commands as extra patterns or `overrides` entries. Don't list a kit file as protected just to keep a local edit - that quietly forks it. Use an override or contribute the change upstream instead.
 
 ## Example
 
@@ -83,11 +74,4 @@ Add project-unique rules/skills/commands as extra globs or `overrides` entries. 
 
 ## Precedence reminder
 
-**L3 > L2 > L1 > L0.** Protected + overrides are how L3 wins without silent mutation of installed kit files.
-
-## Acceptance (Phase 1 — `f1-manifest`)
-
-- [x] JSON Schema published under `schemas/`
-- [x] This doc describes fields and relation to `agent-kit.config.json`
-- [x] Dogfood: this repo ships `.cursor/agent-kit.json`
-- [x] CLI `install`/`update`/`diff` consume the schema (Phase 2 — `f2-cli-lifecycle`)
+When files overlap, more specific wins: **L3 > L2 > L1 > L0.** `protected` and `overrides` are how your own files take priority without silently editing an installed kit file. See [layers-spec.md](layers-spec.md).

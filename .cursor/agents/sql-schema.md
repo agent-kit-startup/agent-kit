@@ -1,6 +1,6 @@
 ---
 name: sql-schema
-description: Cria e altera schemas SQL (Postgres) para n8n e agentes. Use para DDL, migrations, índices e documentação de tabelas.
+description: Cria e altera schemas SQL (Postgres) para n8n e agentes. Demoted (skill-first): prefer sql-postgres skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:

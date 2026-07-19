@@ -1,6 +1,6 @@
 ---
 name: json-guardian
-description: Validação e normalização de JSON; schemas; parsing robusto; mensagens de erro claras. Use ao editar .json, configs, workflows n8n ou código que parseia JSON.
+description: Validação e normalização de JSON; schemas; parsing robusto; mensagens de erro claras. Demoted (skill-first): prefer json-data-config skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:

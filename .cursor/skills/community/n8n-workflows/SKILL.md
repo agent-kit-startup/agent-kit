@@ -1,6 +1,6 @@
 ---
 name: n8n-workflows
-description: Workflows n8n — only when the project uses n8n (stack, not Core Pack). Edit workflow JSON or when the user mentions n8n.
+description: Workflows n8n - only when the project uses n8n (stack, not Core Pack). Edit workflow JSON or when the user mentions n8n.
 version: 0.1.0
 category: integrations
 ---

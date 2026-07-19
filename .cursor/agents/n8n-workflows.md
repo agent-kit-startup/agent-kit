@@ -1,6 +1,6 @@
 ---
 name: n8n-workflows
-description: Edita e documenta workflows n8n (JSON), setup, credenciais e docs em docs/context/ e docs/n8n-manual-update-*.md. Use para alterações em workflows, novos workflows, atualização manual e README n8n.
+description: Edita e documenta workflows n8n (JSON), setup, credenciais e docs em docs/context/ e docs/n8n-manual-update-*.md. Demoted (skill-first): prefer n8n-workflows skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:
