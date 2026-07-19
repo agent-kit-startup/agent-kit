@@ -7,6 +7,8 @@ category: dados
 
 # JSON - Config and payloads
 
+**Routing:** small, in-scope JSON change: apply this skill in the main window. Large or isolated batch (or when it needs its own context): hand to the `json-guardian` Task subagent (demoted, dogfood-only). Docs work routes to the `docs-repo` agent; security review of payloads to `security-reviewer`.
+
 ## Valid JSON
 
 - Double quotes on keys and strings; commas between items; no trailing comma; correct escaping (`\"`, `\n`).

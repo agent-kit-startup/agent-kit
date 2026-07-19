@@ -50,11 +50,11 @@ Expect: L3 files unchanged; `diff` shows protected skips, not destructive drift 
 
 7. **Validate orchestration surface** - confirm L0 commands exist:
 
-- `.cursor/commands/run-plan-loop.md`
-- `.cursor/commands/run-plan-orchestrated.md`
+- `.cursor/commands/run-plan.md`
+- `.cursor/commands/run-plan-loop.md` / `run-plan-orchestrated.md` (deprecated aliases)
 - `autogit/plan-routine.md`
 
-Against a **real** plan in `.cursor/plans/`: next implementable to-do can be run with `/run-plan-orchestrated` (or loop). Do not run `/git-prod` from orchestrated modes.
+Against a **real** plan in `.cursor/plans/`: next implementable to-do can be run with `/run-plan`. Do not run `/git-prod` from continuous mode.
 
 ## Acceptance checks
 
@@ -67,5 +67,5 @@ After migration, verify:
 | L3 preserved after `update` | Domain rules, session files (`HANDOFF.md`), and unique commands/skills unchanged |
 | Registry skills added | Skills previously copied from the kit now installed via registry |
 | Local-only skills kept | Project-unique skills not in registry preserved |
-| Orchestration commands | `.cursor/commands/run-plan-orchestrated.md` and `run-plan-loop.md` available |
+| Orchestration commands | `.cursor/commands/run-plan.md` available (plus deprecated aliases) |
 | `diff` clean | No unexpected changes; `protected` paths properly skipped |

@@ -9,6 +9,8 @@ category: integrations
 
 **Not part of the Core Pack.** Use only when the repository contains or requires n8n workflows.
 
+**Routing:** small, in-scope workflow edit: apply this skill in the main window. Large or isolated batch (or when it needs its own context): hand to the `n8n-workflows` Task subagent (demoted, dogfood-only). Docs work routes to the `docs-repo` agent; security review to `security-reviewer`.
+
 ## Workflow JSON structure
 
 - **nodes:** array of nodes (Webhook, HTTP Request, Code, Postgres, Switch, IF, Execute Workflow, Respond Webhook, etc.).

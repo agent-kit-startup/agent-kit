@@ -9,7 +9,7 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
 
 0. **Plan first:** if there is no plan with to-dos, create/update one via plan-routine or `/start-project` before implementing. During execution, keep the to-dos' `status` up to date (`pending` -> `in_progress` -> `completed`) so the human can follow along in the panel.
 
-0b. **Manual mode hard stop (default):** unless the user explicitly ran `/run-plan-loop` or `/run-plan-orchestrated`, treat **one phase ≈ one chat**. After finishing the current phase (or one heavy to-do), update HANDOFF, **stop coding**, and ask before the next phase. Burning an entire multi-phase plan in one window is a kit failure, not "being helpful".
+0b. **Manual mode hard stop (default):** unless the user explicitly ran `/run-plan` (or a deprecated alias `/run-plan-loop` / `/run-plan-orchestrated`), treat **one phase ≈ one chat**. After finishing the current phase (or one heavy to-do), update HANDOFF, **stop coding**, and ask before the next phase. Burning an entire multi-phase plan in one window is a kit failure, not "being helpful".
 
 0c. **`/start-project` two gates (HITL):** Gate A = propose + write `.cursor/plans/*.plan.md` only (no product edits). Gate B = after an explicit second yes, run one unit only. Active HANDOFF/plan → ask continue vs start new first. Goal in the same slash message is not execute permission. Merging "create plan and start Phase 1" in one turn is a kit failure.
 
@@ -24,8 +24,7 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
    - Next to-dos (ids)
    - Instruction for the next agent (1-3 sentences)
    - **Manual mode:** if the phase produced commitable code, **suggest** `/git-staging` (do not run without being asked). Production only via `/git-prod`.
-   - **Loop mode** (`/run-plan-loop`): run `/git-staging` at the end of the tick if there is a diff; update to-do status in the plan every tick; **never** `/git-prod` in the loop.
-   - **Orchestrated mode** (`/run-plan-orchestrated`): the main window **does not implement** - it dispatches a Task/worker, reviews the summary, writes the HANDOFF, and runs `/git-staging` if there is a diff; **never** `/git-prod`. No Task: degrade to loop or manual.
+ - **Continuous mode** (`/run-plan`): run `/git-staging` at the end of the tick if there is a diff; update to-do status in the plan every tick; **never** `/git-prod`. In the orchestrated strategy the main window does not implement: it dispatches a Task/worker, reviews the summary, writes the HANDOFF, and stages. No Task: in-session loop strategy.
 
 3. **If context is getting full** before the phase is done (manual mode):
    - Update `.cursor/HANDOFF.md` with the current state (phase, last completed to-do, next to-do, clear instruction).
@@ -39,7 +38,7 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
 
 6. **Context budget (optional per to-do):** `read_scope` (globs), `worker_contract` (return format), `max_ticks` (limit before a forced HANDOFF). Documented in `autogit/plan-routine.md`. In orchestrated mode, pass it to the worker; if `max_ticks` is exceeded, HANDOFF + new conversation.
 
-7. **Execution modes:** see `autogit/plan-routine.md` - manual (`/continue-plan`), loop (`/run-plan-loop`), orchestrated (`/run-plan-orchestrated`).
+7. **Execution modes:** see `autogit/plan-routine.md` - manual (`/continue-plan`) or continuous (`/run-plan`, strategy auto-selected).
 
 ## HANDOFF.md template
 

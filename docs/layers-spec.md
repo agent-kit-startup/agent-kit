@@ -85,9 +85,9 @@ Use with [coherence-inventory.md](coherence-inventory.md):
 | Pack (L1) | `packs/<pack-id>/` in registry | Cohesive set of rules+skills+agents+commands+hooks |
 | Manifest | `.cursor/agent-kit.json` | Version, packs, L2 list, protected L3 paths |
 
-**Pack ids (initial L1 set):**
+**Pack ids (L1 set):**
 
-`cybersec` · `devops` · `architecture` · `clean-code` · `project-management` · `context-management` · `quality`
+`cybersec` · `devops` · `engineering-architecture` · `clean-code` · `project-management` · `context-management` · `quality`
 
 ## L0 - the base install (always installed)
 
@@ -105,6 +105,7 @@ The minimum structural set every install ships with:
 | `agent-output-hygiene.mdc` | Chat ≠ versioned artifact |
 | `docs-professional-standard.mdc` | Inheritable product docs |
 | `memory-loop.mdc` | CHECK → ACT → WRITE learnings |
+| `git-secrets-safety.mdc` | Never commit without `.gitignore` + secrets checklist (also a cybersec pack member) |
 
 ### Commands
 
@@ -112,8 +113,8 @@ The minimum structural set every install ships with:
 |----------|------|
 | `start-project.md` | Onboarding |
 | `continue-plan.md` | Resume from HANDOFF (manual mode: one phase per chat) |
-| `run-plan-loop.md` | Continuous ticks; status on plan panel; staging per tick |
-| `run-plan-orchestrated.md` | Thin orchestrator + Task workers; fallback → loop/manual |
+| `run-plan.md` | Continuous mode; auto strategy (orchestrated workers / in-session loop / headless); staging per tick |
+| `run-plan-loop.md` / `run-plan-orchestrated.md` | Deprecated aliases of `run-plan.md` (forced strategy) |
 | `handoff.md` | Persist state |
 | `summary.md` / `context-status.md` | Orientation |
 | `git-staging.md` | Promote to staging (canonical) |
@@ -161,12 +162,12 @@ Membership (members, excludes, SoT paths): **[domain-packs.md](domain-packs.md)*
 
 | Pack | Typical contents |
 |------|------------------|
-| `cybersec` | Security review skill + security-reviewer agent |
-| `devops` | CI/CD / infra rule (`cursor-skills-devops`); git spine stays L0 |
-| `architecture` | tech-lead agent + docs-repo skill and agent |
+| `cybersec` | Security review skill + security-reviewer agent + `git-secrets-safety` (dual with L0) |
+| `devops` | CI/CD / infra rule + CODEOWNERS and GitLab CI templates; git spine stays L0 |
+| `engineering-architecture` | tech-lead agent + docs-repo skill and agent + ADR / task-brief templates |
 | `clean-code` | clean-code skill + cleancode-refactor agent |
 | `project-management` | Optional PM adapters (ClickUp/Jira); plan/handoff stays L0 |
-| `context-management` | context-librarian, memory-extractor, context-status |
+| `context-management` | context-librarian, memory-extractor, context-status, context-pack template |
 | `quality` | testing rule + test-suites agent |
 
 Language/SaaS artifacts are **L2**, not pack members (n8n, SQL, Node, …).

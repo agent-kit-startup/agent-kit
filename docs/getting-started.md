@@ -53,8 +53,9 @@ The idea is simple: work against a plan, save your place before a conversation g
 
 ### Less babysitting
 
-- **`/run-plan-loop`** - the agent keeps working through the plan in the same chat, checking off to-dos and pushing to staging when there's something to commit. It never promotes to production on its own.
-- **`/run-plan-orchestrated`** - for big plans: a lightweight main chat hands each to-do to a separate worker, keeping the main conversation from filling up. If your setup has no worker support, it falls back to the loop or manual mode.
+- **`/run-plan`** - the agent works through the plan to the end, checking off to-dos and pushing to staging when there's something to commit. It picks the best execution strategy itself: worker delegation when your setup supports it (keeps the main chat from filling up), a same-chat loop otherwise. It never promotes to production on its own. The old `/run-plan-loop` and `/run-plan-orchestrated` still work as deprecated aliases.
+
+> **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
 
 The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit. Native hooks are listed in [layers-spec.md](layers-spec.md) (L0).
 

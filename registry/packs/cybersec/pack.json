@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "cybersec",
   "title": "Cybersecurity",
-  "description": "Security review, secrets/PII awareness, and pre-merge hardening — discipline pack, not language-specific.",
-  "version": "0.1.0",
+  "description": "Security review, secrets/PII awareness, and pre-merge hardening. Includes git-secrets-safety as a pack double-check (also L0 always-on).",
+  "version": "0.2.0",
   "members": [
     {
       "kind": "skill",
@@ -14,6 +14,11 @@
       "kind": "agent",
       "id": "security-reviewer",
       "source": ".cursor/agents/security-reviewer.md"
+    },
+    {
+      "kind": "rule",
+      "id": "git-secrets-safety",
+      "source": "registry/rules/git-secrets-safety.mdc"
     }
   ],
   "excludes": [

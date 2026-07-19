@@ -52,13 +52,14 @@ If there's no PM tool: skip. Plans + HANDOFF + Git are sufficient for the struct
 
 ---
 
-## 5. Three execution modes
+## 5. Two execution modes
 
 | Mode | Command | Behavior |
 |------|---------|----------|
-| **Manual** | `/continue-plan` | 1 phase ≈ 1 chat; suggests `/git-staging`; handoff if context full |
-| **Loop** | `/run-plan-loop` | Ticks in same session; plan status each tick; automatic `/git-staging` if diff exists; **never** `/git-prod` |
-| **Orchestrated** | `/run-plan-orchestrated` | Lean main window + workers (Task); automatic staging if diff exists; **never** `/git-prod`. No Task/subagents: degrade to loop or manual |
+| **Manual** | `/continue-plan` | You drive: 1 phase ≈ 1 chat; suggests `/git-staging`; handoff if context full |
+| **Continuous** | `/run-plan` | It drives: runs the plan to the end; picks the strategy itself (orchestrated workers when Task exists, in-session loop otherwise, `agent-kit run-plan` / `scripts/plan-loop.sh` for headless); plan status each tick; automatic `/git-staging` if diff exists; **never** `/git-prod` |
+
+`/run-plan-loop` and `/run-plan-orchestrated` are deprecated aliases of `/run-plan` (forced strategy).
 
 In **any** mode: plan first → update to-dos → HANDOFF → staging. The plan panel is the scoreboard for the human to follow.
 
@@ -73,9 +74,9 @@ Each `todos` item in frontmatter can include **budget** fields (besides `id`, `c
 | Field | Type | Semantics |
 |-------|------|-----------|
 | `read_scope` | list of globs/paths | Worker reading scope; outside this, only HANDOFF + plan + strictly necessary |
-| `worker_contract` | string | Return format (de facto standard: `summary + staging-ready` — see `/run-plan-orchestrated`) |
+| `worker_contract` | string | Return format (de facto standard: `summary + staging-ready` — see `/run-plan`) |
 | `max_ticks` | integer ≥ 1 | Ticks in this to-do before forced HANDOFF + new conversation |
-| `worker_type` | string | Preferred Task `subagent_type` for orchestrated mode (e.g. `docs-repo`, `cleancode-refactor`). Omit = orchestrator picks from the routing table in `/run-plan-orchestrated` |
+| `worker_type` | string | Preferred Task `subagent_type` for the orchestrated strategy (e.g. `docs-repo`, `cleancode-refactor`). Omit = orchestrator picks from the routing table in `/run-plan` |
 
 Example:
 
@@ -93,9 +94,9 @@ todos:
 **Rules:**
 
 - Fields are **optional**. Omit = no explicit budget (legacy).
-- In **orchestrated**: main copies fields to worker prompt; worker respects `read_scope` and returns in `worker_contract`.
-- `worker_type` overrides the signal table when set. If that agent is not installed, fall back to `generalPurpose` + the matching skill (same rule as `/run-plan-orchestrated`).
-- In **loop** / **manual**: `read_scope` and `max_ticks` still apply as guide; if `max_ticks` reached → HANDOFF + ask for new conversation (even in loop). `worker_type` is informational only (no Task).
+- In the **orchestrated strategy**: main copies fields to worker prompt; worker respects `read_scope` and returns in `worker_contract`.
+- `worker_type` overrides the signal table when set. If that agent is not installed, fall back to `generalPurpose` + the matching skill (same rule as `/run-plan`).
+- In the **in-session loop strategy** / **manual**: `read_scope` and `max_ticks` still apply as guide; if `max_ticks` reached → HANDOFF + ask for new conversation (even mid-run). `worker_type` is informational only (no Task).
 - `max_ticks` exceeded does **not** authorize `/git-prod`.
 
 When creating plans (`/start-project` or planner): prefer template; fill budget for long or multi-file to-dos.
@@ -109,8 +110,7 @@ According to [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc):
 - Record completed phase, completed to-dos, next phase.
 - Include instruction for the next agent.
 - **Manual** mode: if phase generated committable code, **suggest** `/git-staging` (don't execute without request).
-- **Loop** mode: execute `/git-staging` at end of tick if diff exists (authorized by command).
-- **Orchestrated** mode: same staging rule; main only dispatches/checks (doesn't implement).
+- **Continuous** mode (`/run-plan`, any strategy): execute `/git-staging` at end of tick if diff exists (authorized by command); in the orchestrated strategy the main window stages, never the worker.
 - Production only via `/git-prod` with explicit confirmation.
 - If PM tool tasks were updated, mention in HANDOFF.
 
@@ -147,6 +147,5 @@ Without staging/prod, handoff describes work that Git doesn't "remember" yet.
 - [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc)
 - [cursor-skills-git-workflow.mdc](.cursor/rules/cursor-skills-git-workflow.mdc)
 - [autogit/gitupdate.md](autogit/gitupdate.md) (`git staging`, `git prod`)
-- [`.cursor/commands/run-plan-loop.md`](../.cursor/commands/run-plan-loop.md)
-- [`.cursor/commands/run-plan-orchestrated.md`](../.cursor/commands/run-plan-orchestrated.md)
+- [`.cursor/commands/run-plan.md`](../.cursor/commands/run-plan.md) (continuous; `/run-plan-loop` and `/run-plan-orchestrated` are deprecated aliases)
 - PM tools (ClickUp, Jira, …): **optional** skills/rules — only if project requires it

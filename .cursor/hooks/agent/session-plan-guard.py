@@ -12,7 +12,7 @@ HARD_RULES = """
 # Agent Kit — session hard rules (manual mode default)
 
 1. **One phase per chat.** Finish the current phase (or one to-do if the phase is huge), update `.cursor/HANDOFF.md`, then STOP and ask the user before starting the next phase.
-2. **Do not burn the window.** Never run an entire multi-phase plan in one conversation unless the user explicitly ran `/run-plan-loop` or `/run-plan-orchestrated`.
+2. **Do not burn the window.** Never run an entire multi-phase plan in one conversation unless the user explicitly ran `/run-plan` (or a deprecated alias `/run-plan-loop` / `/run-plan-orchestrated`).
 3. **Context questions are not optional.** If the user asks about context / contexto / window size, run the context-guardian protocol: warn, offer handoff, do NOT dismiss with "it's fine" and keep coding.
 4. **Read HANDOFF first** when resuming. Do not restart the plan from scratch.
 5. **Git:** suggest `/git-staging` after a phase with a diff; never `/git-prod` without explicit confirmation.

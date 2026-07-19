@@ -76,8 +76,9 @@ function guessRegistryPath(projectRel: string): string | null {
       return path.posix.join("registry/skills", rest);
     }
     // Legacy flat: .cursor/skills/<id>/SKILL.md → community by default
-    if (parts.length === 2) {
-      return path.posix.join("registry/skills", "community", parts[0], "SKILL.md");
+    const skillId = parts[0];
+    if (parts.length === 2 && skillId) {
+      return path.posix.join("registry/skills", "community", skillId, "SKILL.md");
     }
   }
   if (p.startsWith(".cursor/rules/")) {

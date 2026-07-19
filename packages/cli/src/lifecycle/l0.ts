@@ -37,6 +37,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/rules/docs-professional-standard.mdc",
   },
   { source: ".cursor/rules/memory-loop.mdc", target: ".cursor/rules/memory-loop.mdc" },
+  {
+    source: "registry/rules/git-secrets-safety.mdc",
+    target: ".cursor/rules/git-secrets-safety.mdc",
+  },
   // Commands
   {
     source: ".cursor/commands/start-project.md",
@@ -46,6 +50,11 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/commands/continue-plan.md",
     target: ".cursor/commands/continue-plan.md",
   },
+  {
+    source: ".cursor/commands/run-plan.md",
+    target: ".cursor/commands/run-plan.md",
+  },
+  // Deprecated aliases of /run-plan (kept so existing references keep working)
   {
     source: ".cursor/commands/run-plan-loop.md",
     target: ".cursor/commands/run-plan-loop.md",

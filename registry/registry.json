@@ -53,6 +53,70 @@
         "category": "pm"
       },
       {
+        "id": "cursor-skills-api",
+        "title": "cursor-skills-api",
+        "description": "CURSOR-SKILLS rules for APIs (REST, GraphQL, gRPC). OpenAPI, tests, versioning.",
+        "path": "registry/skills/community/cursor-skills-api",
+        "version": "0.1.0",
+        "category": "api"
+      },
+      {
+        "id": "cursor-skills-groovy",
+        "title": "cursor-skills-groovy",
+        "description": "Rules for Groovy (syntax, filter scripts, and integration).",
+        "path": "registry/skills/community/cursor-skills-groovy",
+        "version": "0.1.0",
+        "category": "language"
+      },
+      {
+        "id": "cursor-skills-integrations",
+        "title": "cursor-skills-integrations",
+        "description": "CURSOR-SKILLS rules for integrations (webhooks, microservices, DBs, queues).",
+        "path": "registry/skills/community/cursor-skills-integrations",
+        "version": "0.1.0",
+        "category": "integrations"
+      },
+      {
+        "id": "cursor-skills-mobile",
+        "title": "cursor-skills-mobile",
+        "description": "CURSOR-SKILLS rules for mobile (React Native, Flutter, Expo). Platform, performance, tests.",
+        "path": "registry/skills/community/cursor-skills-mobile",
+        "version": "0.1.0",
+        "category": "mobile"
+      },
+      {
+        "id": "cursor-skills-node",
+        "title": "cursor-skills-node",
+        "description": "CURSOR-SKILLS rules for Node.js (Express, NestJS, Next.js). ESLint, Prettier, tests.",
+        "path": "registry/skills/community/cursor-skills-node",
+        "version": "0.1.0",
+        "category": "language"
+      },
+      {
+        "id": "cursor-skills-php",
+        "title": "cursor-skills-php",
+        "description": "CURSOR-SKILLS rules for PHP (Laravel, Symfony, WordPress). PSR, Composer, security.",
+        "path": "registry/skills/community/cursor-skills-php",
+        "version": "0.1.0",
+        "category": "language"
+      },
+      {
+        "id": "cursor-skills-python",
+        "title": "cursor-skills-python",
+        "description": "CURSOR-SKILLS rules for Python (Django, Flask, FastAPI, Data Science). PEP, venv, tests.",
+        "path": "registry/skills/community/cursor-skills-python",
+        "version": "0.1.0",
+        "category": "language"
+      },
+      {
+        "id": "cursor-skills-webdesign",
+        "title": "cursor-skills-webdesign",
+        "description": "CURSOR-SKILLS rules for Web (HTML, CSS, JS, React, Vue, Angular). A11y, BEM, responsive.",
+        "path": "registry/skills/community/cursor-skills-webdesign",
+        "version": "0.1.0",
+        "category": "web"
+      },
+      {
         "id": "jira",
         "title": "Jira",
         "description": "Jira skill.",
@@ -114,28 +178,28 @@
       "id": "context-management",
       "title": "Context management",
       "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "path": "registry/packs/context-management"
     },
     {
       "id": "cybersec",
       "title": "Cybersecurity",
-      "description": "Security review, secrets/PII awareness, and pre-merge hardening — discipline pack, not language-specific.",
-      "version": "0.1.0",
+      "description": "Security review, secrets/PII awareness, and pre-merge hardening. Includes git-secrets-safety as a pack double-check (also L0 always-on).",
+      "version": "0.2.0",
       "path": "registry/packs/cybersec"
     },
     {
       "id": "devops",
       "title": "DevOps",
-      "description": "CI/CD, containers, and infra-as-code patterns beyond the structural git staging→prod spine.",
-      "version": "0.1.0",
+      "description": "CI/CD scaffolding templates and infra guidance beyond the structural git staging→prod spine.",
+      "version": "0.2.0",
       "path": "registry/packs/devops"
     },
     {
       "id": "engineering-architecture",
       "title": "Engineering and architecture",
-      "description": "ADRs, technology tradeoffs, and tech-lead style decisions - stack-agnostic.",
-      "version": "0.1.0",
+      "description": "ADRs, technology tradeoffs, docs honesty, and tech-lead style decisions - stack-agnostic.",
+      "version": "0.2.0",
       "path": "registry/packs/engineering-architecture"
     },
     {
@@ -154,6 +218,169 @@
     }
   ],
   "artifacts": [
+    {
+      "kind": "rule",
+      "id": "cursor-plan-handoff",
+      "path": ".cursor/rules/cursor-plan-handoff.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "context-guardian",
+      "path": ".cursor/rules/context-guardian.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "cursor-skills-git-workflow",
+      "path": ".cursor/rules/cursor-skills-git-workflow.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "cursor-skills-general",
+      "path": ".cursor/rules/cursor-skills-general.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "ux-tone",
+      "path": ".cursor/rules/ux-tone.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "agent-output-hygiene",
+      "path": ".cursor/rules/agent-output-hygiene.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "docs-professional-standard",
+      "path": ".cursor/rules/docs-professional-standard.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "memory-loop",
+      "path": ".cursor/rules/memory-loop.mdc",
+      "layer": "L0"
+    },
+    {
+      "kind": "rule",
+      "id": "git-secrets-safety",
+      "path": "registry/rules/git-secrets-safety.mdc",
+      "layer": "L0",
+      "pack": "cybersec"
+    },
+    {
+      "kind": "command",
+      "id": "start-project",
+      "path": ".cursor/commands/start-project.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "continue-plan",
+      "path": ".cursor/commands/continue-plan.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "run-plan",
+      "path": ".cursor/commands/run-plan.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "run-plan-loop",
+      "path": ".cursor/commands/run-plan-loop.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "run-plan-orchestrated",
+      "path": ".cursor/commands/run-plan-orchestrated.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "handoff",
+      "path": ".cursor/commands/handoff.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "summary",
+      "path": ".cursor/commands/summary.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "tips",
+      "path": ".cursor/commands/tips.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "git-staging",
+      "path": ".cursor/commands/git-staging.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "command",
+      "id": "git-prod",
+      "path": ".cursor/commands/git-prod.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "hook",
+      "id": "hooks.json",
+      "path": ".cursor/hooks.json",
+      "layer": "L0"
+    },
+    {
+      "kind": "hook",
+      "id": "session-plan-guard",
+      "path": ".cursor/hooks/agent/session-plan-guard.py",
+      "layer": "L0"
+    },
+    {
+      "kind": "hook",
+      "id": "precompact-handoff",
+      "path": ".cursor/hooks/agent/precompact-handoff.py",
+      "layer": "L0"
+    },
+    {
+      "kind": "hook",
+      "id": "check-secrets",
+      "path": ".cursor/hooks/pre-commit/check-secrets.sh",
+      "layer": "L0"
+    },
+    {
+      "kind": "skill",
+      "id": "git-workflow",
+      "path": "registry/skills/core/git-workflow",
+      "layer": "L0"
+    },
+    {
+      "kind": "skill",
+      "id": "ide-guide",
+      "path": "registry/skills/core/ide-guide",
+      "layer": "L0"
+    },
+    {
+      "kind": "template",
+      "id": "plan",
+      "path": ".cursor/context/templates/plan.md",
+      "layer": "L0"
+    },
+    {
+      "kind": "template",
+      "id": "handoff",
+      "path": ".cursor/context/templates/handoff.md",
+      "layer": "L0"
+    },
     {
       "kind": "agent",
       "id": "cleancode-refactor",
@@ -239,6 +466,13 @@
       "layer": "L1"
     },
     {
+      "kind": "rule",
+      "id": "git-secrets-safety",
+      "path": "registry/rules/git-secrets-safety.mdc",
+      "pack": "cybersec",
+      "layer": "L1"
+    },
+    {
       "kind": "skill",
       "id": "clean-code",
       "path": "registry/skills/core/clean-code",
@@ -271,6 +505,55 @@
       "id": "security-review",
       "path": "registry/skills/core/security-review",
       "pack": "cybersec",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "adr",
+      "path": "registry/packs/engineering-architecture/templates/adr.md",
+      "pack": "engineering-architecture",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "codeowners",
+      "path": "registry/packs/devops/templates/CODEOWNERS",
+      "pack": "devops",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "context-pack",
+      "path": "registry/packs/context-management/templates/context-pack.md",
+      "pack": "context-management",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-content",
+      "path": "registry/packs/devops/templates/gitlab-ci-content.yml",
+      "pack": "devops",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-docker",
+      "path": "registry/packs/devops/templates/gitlab-ci-docker.yml",
+      "pack": "devops",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-firebase",
+      "path": "registry/packs/devops/templates/gitlab-ci-firebase.yml",
+      "pack": "devops",
+      "layer": "L1"
+    },
+    {
+      "kind": "template",
+      "id": "task-brief",
+      "path": "registry/packs/engineering-architecture/templates/task-brief.md",
+      "pack": "engineering-architecture",
       "layer": "L1"
     }
   ]

@@ -20,7 +20,7 @@ These are non-negotiable in manual mode:
 4. **Two gates, two user "yes" answers:**
    - **Gate A (approve plan):** propose phases/to-dos → write the plan file → stop and ask.
    - **Gate B (approve first unit):** only after Gate A is accepted → run **one** phase or one heavy to-do → update HANDOFF → stop again.
-5. **Forbidden phrasing / behavior:** "I'll create a plan and start Phase 1", chaining Gate A+B in one turn, or running the whole plan unless the user explicitly used `/run-plan-loop` or `/run-plan-orchestrated`.
+5. **Forbidden phrasing / behavior:** "I'll create a plan and start Phase 1", chaining Gate A+B in one turn, or running the whole plan unless the user explicitly used `/run-plan`.
 
 ## What to Do
 
@@ -43,7 +43,7 @@ These are non-negotiable in manual mode:
    > "I can write this plan to `.cursor/plans/[name].plan.md` (to-dos in frontmatter, no coding yet). OK?"
 4. On yes: create the plan file. Update HANDOFF: active plan name, phase completed none / awaiting Gate B, next to-do id, instruction = wait for user to approve first unit.
 5. Stop. Ask:
-   > "Plan ready: `[path]`. First unit would be `[to-do-id]` only (manual = one phase per chat). Start that unit, switch to `/run-plan-loop` / `/run-plan-orchestrated`, or edit the plan first?"
+   > "Plan ready: `[path]`. First unit would be `[to-do-id]` only (manual = one phase per chat). Start that unit, switch to `/run-plan` (continuous), or edit the plan first?"
 
 #### Gate B: first unit only (after explicit yes)
 
@@ -80,4 +80,4 @@ Agent: Scanning... creating plan and starting Phase 1... [edits files]
 If the user is unsure:
 > "Not sure yet? Tell me a bit about what you want to build and we'll figure it out together."
 
-Manual mode default: one phase per chat after Gate B. Multi-phase in one window requires `/run-plan-loop` or `/run-plan-orchestrated`.
+Manual mode default: one phase per chat after Gate B. Multi-phase in one window requires `/run-plan`.

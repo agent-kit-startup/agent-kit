@@ -36,7 +36,7 @@ After staging or prod: update `.cursor/HANDOFF.md`. If the promote closed an inc
 Updates the `origin/staging` branch with local changes.
 
 **What it does:**
-- ✅ Security validation (blocks direct commits to `main`)
+- ✅ Security validation (blocks direct commits to `main`; local pre-commit hooks scan for secrets as a tripwire, but comprehensive secret protection requires additional CI-wide guards)
 - ✅ Checks and updates `CHANGELOG.md` if necessary (bullets only in `[Unreleased]`)
 - ✅ Syncs with `origin/staging`
 - ✅ Creates working branch (`update/<scope>` or `feature/<name>`)
@@ -180,7 +180,7 @@ or
 
 **Flow rule:**
 - **`git staging`:** add bullets only in `[Unreleased]`.
-- **`git prod`:** before merging `staging → main`, **close the release** - move everything from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today) or SemVer version and leave `[Unreleased]` empty. Never promote with Unreleased full.
+- **`git prod`:** before merging `staging → main`, **close the release** - move everything from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today) or SemVer version and leave `[Unreleased]` empty. Set root and `packages/cli` `package.json` `"version"` to that same SemVer. Never promote with Unreleased full.
 
 ---
 
@@ -328,8 +328,9 @@ This section contains the detailed prompts that should be followed when commands
    - **Close release (mandatory if `[Unreleased]` has content):**
      1. Move all bullets from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today's date) or SemVer version. If today's section already exists, **merge** into it.
      2. Leave `[Unreleased]` empty (heading only).
-     3. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
-   - If Unreleased is already empty and today's release reflects what's in staging, proceed.
+     3. **Bump package versions:** set `"version"` in root `package.json` and `packages/cli/package.json` to the same SemVer as the closed CHANGELOG section (keep both files in sync). npm publish uses these fields; drifting them under-labels a breaking CLI.
+     4. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
+   - If Unreleased is already empty and today's release reflects what's in staging, still verify root + CLI `package.json` versions match the latest closed CHANGELOG version; bump and commit if they do not.
 
 #### 3. **Sync branches**  
    - Run `git fetch --prune` to update remote references.

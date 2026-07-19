@@ -30,7 +30,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": ["rule", "skill", "agent", "command", "hook"]
+            "enum": ["rule", "skill", "agent", "command", "hook", "template"]
           },
           "id": {
             "type": "string",

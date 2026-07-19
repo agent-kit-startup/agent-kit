@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "3.0.0",
+  "version": "4.1.0",
   "description": "Developer bootstrapper for AI-assisted IDEs — understands your project, generates tailored setup for Cursor/VS Code/Windsurf, and helps you develop without losing context.",
   "private": true,
   "license": "MIT",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "turbo": "^2.5.0",
+    "turbo": "^2.9.14",
     "typescript": "^5.8.3"
   }
 }
