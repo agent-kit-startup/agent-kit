@@ -103,10 +103,23 @@ Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git 
 - **Phase A (legacy):** external PRs on public; maintainers merge and, if needed, promote-back into private before the next sync overwrites registry paths. ⚠️ **Being phased out**
 - **Phase B (complete):** registry PRs must target public; private registry sync no longer publishes; contribute surfaces are public-first.
 
-## Why
+## FAQ: Private vs Public roles
 
-- Plans and handoff are **session state** - they change per conversation and agent; versioning them on the public remote clutters history and can leak internal drafts.
-- Memory (`.cursor/memory/`) holds decisions and fixes. On **this** private repo it is dogfood history (tracked, never synced). On consumer projects it stays local. It never belongs on the public mirror.
+**Q: Why keep private `agent-kit-dev` when public looks like a complete monorepo?**
+
+**A:** Private is the **factory**; public is the **storefront**. Even after Phase B, private still handles:
+- CLI development and packaging (`packages/cli`)
+- Sync tooling and scripts (`scripts/sync-public.mjs`)
+- Denylist patterns and git workflow enforcement
+- Dogfood session memory (`.cursor/memory/`)
+
+Public is the **registry source of truth** plus allowlisted product files for URL installation. The sync preserves public-owned `registry/**` when replacing the allowlist tree.
+
+**Q: What about plans, handoff, and session state?**
+
+**A:** Session state stays local-only:
+- Plans and handoff change per conversation; versioning them clutters history and can leak internal drafts.
+- Memory (`.cursor/memory/`) holds decisions and fixes. On **this** private repo it is dogfood history (tracked, never synced). On consumer projects it stays local.
 - CI fails if `.cursor/HANDOFF.md` or `.cursor/plans/**/*.plan.md` are tracked (guard in `.github/workflows/ci.yml`).
 - Relying only on `.gitignore` + human review is fragile (`git add -f`, new paths, old history). The **positive allowlist** is the main defense.
 

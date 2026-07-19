@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-07-19
+
+### Fixed
+
+- Sync: append-only public sync preserves public-owned `registry/**` across allowlist replace (Phase B SoT no longer wiped when excluded from the private→public manifest)
+
+### Changed
+
+- Docs: topology + boundaries updated for Phase B invariant (sync preserves public-owned registry; private remains factory for CLI/sync/dogfood even after public storefront + registry SoT)
+
 ## [4.2.0] - 2026-07-19
 
 ### Fixed
