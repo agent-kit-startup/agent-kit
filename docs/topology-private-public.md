@@ -21,19 +21,23 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
 
 ## Phases
 
-### Phase A - today (mirror)
+### Phase A - legacy (mirror) ⚠️ DEPRECATED
 
 - Registry **authored** in private; `scripts/sync-public.mjs` copies allowlist (including `registry/**`) to public with **append-only** history.
 - Fleet may already resolve remote registry via public URL (`DEFAULT_REGISTRY_URL` → `agent-kit`).
 - Community PRs on public are possible but can be overwritten if private re-syncs the same paths - treat public registry edits as needing a **promote-back** into private until Phase B.
 
-### Phase B - registry-canonical public (cutover)
+**Status:** Phase A is deprecated. Manifest no longer includes `registry/**`; private registry writes do not publish.
 
-1. **Stop** syncing `registry/**` from private → public (manifest exclusion).
-2. Public `registry/**` becomes the only write path for skills/packs (PRs + maintainers).
+### Phase B - registry-canonical public (cutover) 🚀 IN PROGRESS
+
+1. [x] **Stop** syncing `registry/**` from private → public (manifest exclusion landed: include removed, `!registry/**` present).
+2. Public `registry/**` is the only write path for skills/packs (PRs + maintainers).
 3. Private **consumes** public registry like any consumer (`--url` / cache) when developing CLI; optional local `registry/` checkout for offline tests only (not SoT).
 4. Promote flow for new artifacts invented in private: open PR **to public** (same gate as `agent-kit contribute`).
 5. Sync allowlist keeps CLI, docs, templates, L0 samples - product code still ships private → public without carrying registry mutations.
+
+**Status:** Phase B complete. Private `registry/` is out of the outbound sync set; public is SoT for registry; contribute is public-first; leak audit + public-URL install/update dogfood passed (2026-07-19).
 
 ### Phase C - marketplace + paid
 
@@ -48,7 +52,9 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
 | `packages/**`, `docs/**`, L0 `.cursor/**` samples | included | included |
 | Session paths | always excluded | always excluded |
 
-Cutover checklist lives in the “Phase B cutover” section of [repository-boundaries.md](repository-boundaries.md). Until cutover, keep `registry/**` in `scripts/public-sync.manifest` (Phase A).
+Cutover checklist lives in the “Phase B cutover” section of [repository-boundaries.md](repository-boundaries.md). `scripts/public-sync.manifest` excludes `registry/**` (`!registry/**`); do not re-add the include.
+
+**Manifest exclude landed:** Private registry edits no longer publish via sync. Author registry changes on public only.
 
 ## Promote mature artifact (runbook)
 
@@ -58,7 +64,7 @@ When a skill/pack/rule is ready to leave private experiments:
 2. Prefer `agent-kit contribute --write` from a consumer **or** copy into a branch that targets **public** `agent-kit`.
 3. Open PR → `main` (public) with Conventional Commits; update `registry/registry.json` via `node scripts/build-registry.mjs` in that tree.
 4. Tag / release on public as needed for fleet pins.
-5. Private dogfood: `agent-kit update --url https://github.com/agent-kit-startup/agent-kit --ref <tag>`.
+5. Private dogfood: `agent-kit update --url https://github.com/agent-kit-startup/agent-kit --ref <tag>` (or `@ main` until a release tag).
 
 Do **not** `/git-prod` as part of promote; private prod remains HITL for CLI releases.
 
@@ -72,4 +78,5 @@ Do **not** `/git-prod` as part of promote; private prod remains HITL for CLI rel
 - [x] Target topology documented (this file + boundaries)
 - [x] Phase A vs B sync rules for `registry/**` explicit
 - [x] Promote runbook written
-- [ ] Phase B cutover executed (ops: exclude `registry/**` from manifest + first public-only registry PR) - tracked as follow-up when launching contribution
+- [x] Phase B manifest exclude executed (`registry/**` removed from private→public sync)
+- [x] Contribute surface repoint + leak audit + public-URL install dogfood (Phase B phase4–5)

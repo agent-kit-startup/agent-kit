@@ -17,7 +17,14 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 Run this in your project root (don't clone this repo into it):
 
 ```bash
+# once @agent-kit/cli is on npm
 npx @agent-kit/cli install
+
+# until then: from a kit checkout, pull the public registry
+pnpm --filter @agent-kit/cli start -- install \
+  --cwd /path/to/your-project \
+  --url https://github.com/agent-kit-startup/agent-kit \
+  --ref main
 ```
 
 Prefer chat? Open your project in the IDE, drag in [`install.md`](install.md), and ask the agent to set it up - same result.
@@ -54,6 +61,13 @@ Full routine: `autogit/gitupdate.md` after install.
 
 ## For maintainers
 
-This repo (`agent-kit-dev`) is the private factory and dogfood workspace. Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never this whole repo.
+Two GitHub repos, one product:
 
-**Three layers:** local scratch (HANDOFF/plans, gitignored) · private Git (this repo) · public storefront ([agent-kit](https://github.com/agent-kit-startup/agent-kit), allowlist sync). Full cheat sheet: [docs/repository-boundaries.md](docs/repository-boundaries.md#cheat-sheet-three-layers).
+| Repo | Role |
+|------|------|
+| [agent-kit-dev](https://github.com/agent-kit-startup/agent-kit-dev) (private) | Factory: CLI, sync tooling, dogfood. Daily flow: `git staging` → `git prod` → allowlist sync. |
+| [agent-kit](https://github.com/agent-kit-startup/agent-kit) (public) | Storefront and **canonical registry** (`registry/**`). Consumers install from here; registry PRs land here. |
+
+Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never the whole monorepo.
+
+**Three layers:** local scratch (HANDOFF/plans, gitignored) · private Git (factory) · public (storefront + registry SoT). Full cheat sheet: [docs/repository-boundaries.md](docs/repository-boundaries.md#cheat-sheet-three-layers).

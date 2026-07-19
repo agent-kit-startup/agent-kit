@@ -40,8 +40,14 @@ From your project's root:
 npx @agent-kit/cli install
 npx @agent-kit/cli install --pack clean-code,context-management
 
-# or straight from a local checkout of the kit
-pnpm --filter @agent-kit/cli start install --cwd /path/to/your-project
+# until then: local CLI + public registry URL
+pnpm --filter @agent-kit/cli start -- install \
+  --cwd /path/to/your-project \
+  --url https://github.com/agent-kit-startup/agent-kit \
+  --ref main
+
+# or install from a local kit checkout as the registry source
+pnpm --filter @agent-kit/cli start -- install --cwd /path/to/your-project --registry /path/to/agent-kit
 ```
 
 What `install` does:
