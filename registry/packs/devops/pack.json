@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "devops",
+  "title": "DevOps",
+  "description": "CI/CD scaffolding templates and infra guidance beyond the structural git staging→prod spine.",
+  "version": "0.2.0",
+  "members": [
+    {
+      "kind": "rule",
+      "id": "cursor-skills-devops",
+      "source": ".cursor/rules/cursor-skills-devops.mdc"
+    },
+    {
+      "kind": "template",
+      "id": "codeowners",
+      "source": "registry/packs/devops/templates/CODEOWNERS"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-docker",
+      "source": "registry/packs/devops/templates/gitlab-ci-docker.yml"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-firebase",
+      "source": "registry/packs/devops/templates/gitlab-ci-firebase.yml"
+    },
+    {
+      "kind": "template",
+      "id": "gitlab-ci-content",
+      "source": "registry/packs/devops/templates/gitlab-ci-content.yml"
+    }
+  ],
+  "excludes": [
+    "cursor-skills-git-workflow.mdc",
+    "git-workflow",
+    "git-autogit",
+    "git-staging.md",
+    "git-prod.md",
+    "git-secrets-safety.mdc"
+  ]
+}
