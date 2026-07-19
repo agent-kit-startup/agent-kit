@@ -1,40 +1,40 @@
-# Handoff — [Nome da Tarefa]
+# Handoff — [Task Name]
 
-- **Plano:** [arquivo.plan.md]
-- **Última atualização:** [YYYY-MM-DD HH:MM]
-- **Fase concluída:** [N]
-- **Próxima fase:** [N+1]
+- **Plan:** [file.plan.md]
+- **Last updated:** [YYYY-MM-DD HH:MM]
+- **Phase completed:** [N]
+- **Next phase:** [N+1]
 
-## Estado do trabalho
+## Work Status
 
-- **Concluído:** [lista de to-dos ou itens feitos]
-- **Em progresso:** [o que está sendo feito agora]
-- **Pending:** [próximos passos ou itens ainda não iniciados]
-- **Blockers:** [impedimentos, dependências ou decisões pendentes — deixar vazio se não houver]
+- **Completed:** [list of todos or items done]
+- **In progress:** [what is being worked on now]
+- **Pending:** [next steps or items not yet started]
+- **Blockers:** [impediments, dependencies or pending decisions — leave empty if none]
 
-## Contexto de sessão
+## Session Context
 
-- **Branch:** [nome da branch atual]
-- **Uncommitted:** [resumo do que não foi commitado, ex.: "2 arquivos modificados em docs/"]
-- **Referências:** [links para STATE.md, Context Pack ou arquivos críticos, ex.: `arquivo:linha`]
+- **Branch:** [current branch name]
+- **Uncommitted:** [summary of what was not committed, e.g.: "2 files modified in docs/"]
+- **References:** [links to STATE.md, Context Pack or critical files, e.g.: `file:line`]
 
-## Arquivos Tocados
+## Files Touched
 
-- [arquivo1] - [ação]
-- [arquivo2] - [ação]
+- [file1] - [action]
+- [file2] - [action]
 
-## Decisões Tomadas
+## Decisions Made
 
-- [decisão 1] - [justificativa]
+- [decision 1] - [rationale]
 
-## Problemas Encontrados
+## Issues Found
 
-- [problema] - [status: resolvido|pendente]
+- [issue] - [status: resolved|pending]
 
-## Instrução para o Próximo Agente
+## Instruction for Next Agent
 
-[1–3 frases claras do que fazer a seguir]
+[1–3 clear sentences describing what to do next]
 
 ---
 
-*Manter handoff enxuto (~500 tokens) quando possível; priorizar informação acionável e referências arquivo:linha.*
+*Keep handoff concise (~500 tokens) when possible; prioritize actionable information and file:line references.*

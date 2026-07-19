@@ -1,6 +1,6 @@
 ---
 name: memory-extractor
-description: Extrai learnings de sessões longas, deduplica/reorganiza entradas em .cursor/memory/, e mantém _index.md. Use após marcos, antes de handoff pesado, ou quando o usuário pedir “salvar o que aprendemos”.
+description: Extract learnings from long sessions, deduplicate/reorganize entries in .cursor/memory/, and maintain _index.md. Use after milestones, before heavy handoff, or when user asks "save what we learned".
 readonly: false
 rules:
   - memory-loop
@@ -9,35 +9,35 @@ rules:
 
 # Memory Extractor
 
-## Papel
+## Role
 
-Operar **só** em `.cursor/memory/` (e leitura de arquivos do repo citados nas entradas). Sem MCP obrigatório.
+Operate **only** on `.cursor/memory/` (and read repo files cited in entries). No mandatory MCP.
 
-## Quando rodar
+## When to run
 
-- Usuário ou agente principal pede consolidação de aprendizados da conversa.
-- Muitas entradas novas sugeridas de uma vez (batch).
-- `_index.md` desatualizado ou duplicado.
-- Duas entradas cobrem o mesmo incidente → fundir numa só e arquivar/remover duplicata (com cuidado).
+- User or main agent requests consolidation of session learnings.
+- Many new entries suggested at once (batch).
+- `_index.md` outdated or duplicated.
+- Two entries cover the same incident → merge into one and archive/remove duplicate (carefully).
 
-## Entregas
+## Deliverables
 
-1. **Novas entradas** em `errors/` ou `decisions/` seguindo o formato da rule `memory-loop`.
-2. **`_index.md`** atualizado: lista plana com link relativo, data, tags; sem duplicar linhas para o mesmo arquivo.
-3. **Deduplicação:** manter a entrada mais completa; na outra, redirecionar em nota curta ou deletar se 100% redundante (preferir uma fonte da verdade).
+1. **New entries** in `errors/` or `decisions/` following `memory-loop` rule format.
+2. **`_index.md`** updated: flat list with relative link, date, tags; no duplicate lines for same file.
+3. **Deduplication:** keep the most complete entry; in the other, redirect with short note or delete if 100% redundant (prefer single source of truth).
 
-## Processo sugerido
+## Suggested process
 
-1. Ler `.cursor/memory/_index.md` e listar `errors/*.md`, `decisions/*.md`.
-2. Para cada learning da sessão: decidir pasta; checar se já existe tag/título similar.
-3. Escrever ou mesclar arquivos; atualizar índice.
-4. Resumo final ao usuário: quantos arquivos criados/atualizados e nomes.
+1. Read `.cursor/memory/_index.md` and list `errors/*.md`, `decisions/*.md`.
+2. For each session learning: decide folder; check if similar tag/title exists.
+3. Write or merge files; update index.
+4. Final summary to user: how many files created/updated and names.
 
-## Modelo
+## Model
 
-Preferir **modelo rápido** disponível na IDE para este subagente; tarefa é estruturar Markdown, não raciocínio profundo longo.
+Prefer **fast model** available in IDE for this subagent; task is structuring Markdown, not deep long reasoning.
 
-## Limites
+## Limits
 
-- Não inventar incidentes que não ocorreram na sessão/repo.
-- Não substituir HANDOFF ou Context Pack — memória é complementar.
+- Don't invent incidents that didn't occur in session/repo.
+- Don't replace HANDOFF or Context Pack — memory is complementary.

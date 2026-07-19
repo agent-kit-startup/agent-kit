@@ -1,8 +1,8 @@
 # Drift inventory - workspaces × Agent Kit
 
-Snapshot of how Agent Kit (or a folder copy) appears across local workspaces. Used as input to the layer model (L0–L3), manifest, and CLI lifecycle. Counts are from a filesystem scan on 2026-07-16; they will drift again until distribution stops being “copy the folder”.
+Snapshot of how Agent Kit (or a folder copy) appears across local workspaces. Used as input to the layer model (L0–L3), manifest, and CLI lifecycle. Counts are from a filesystem scan on **2026-07-19**; they will drift again until distribution stops being “copy the folder”.
 
-**Source of truth (SoT):** Agent Kit monorepo at this repo (package version `3.0.0` in `package.json`; product release notes at `3.1.0`).
+**Source of truth (SoT):** Agent Kit monorepo at this repo. **Product release:** **3.5.1** on `main` per [CHANGELOG.md](../CHANGELOG.md). **`package.json` / plugin manifest** still declare `3.0.0` (known drift until the next semver bump). Staging is **18 commits ahead** of `main` with EN sweep + breaking L1 pack id rename in `[Unreleased]`.
 
 ## Summary
 
@@ -21,7 +21,7 @@ Snapshot of how Agent Kit (or a folder copy) appears across local workspaces. Us
 
 | Workspace | `.cursor` | Rules | Cmds | Skills | Hooks | Agents | `agent-kit/` copy | Heavy copy | Kit version | Notes |
 |-----------|-----------|------:|-----:|-------:|------:|-------:|-------------------|------------|-------------|-------|
-| agent-kit (SoT) | yes | 23 | 9 | 7 | 4 | 13 | no | - | 3.0.0 | memory + plans; dogfood of the registry system |
+| agent-kit (SoT) | yes | 23 | 10 | 7 | 4 | 13 | no | - | 3.0.0 pkg / **3.5.1** product | memory + plans; dogfood of the registry system |
 | consumer-1 | yes | L0+L3 | L0+1 | mixed | 1 | pack agents | **no** (migrated) | - | 3.0.0 via manifest | Registry installation; orchestration commands available |
 | consumer-2 | yes | L0+L3 | L0+ | mixed | yes | pack | **no** | - | 3.0.0 via manifest | Migrated `f4-migrar-frota`; L3 strong |
 | consumer-3 | yes | L0+L3 | L0+ | mixed | yes | pack | **no** | - | 3.0.0 via manifest | Nested ~118M removed; pack `cybersec` |
@@ -47,7 +47,7 @@ Present in **≥10 / 13** non-SoT workspaces that have `.cursor` (structural loo
 | `ux-tone.mdc` | 12/13 | L0 (tone for chat) |
 | `cursor-skills-general.mdc` | 11/13 | L0 spine / merge with hygiene |
 | `cursor-skills-git-workflow.mdc` | 11/13 | L0 |
-| `context-guardian.mdc` | 11/13 | L0 / gestao-contexto |
+| `context-guardian.mdc` | 11/13 | L0 / context-management |
 | `continue-plan.md`, `handoff.md`, `start-project.md`, `summary.md`, `context-status.md` | 12/13 | L0 commands |
 | `git-prod.md` | 13/13 | L0 |
 | `git-staging.md` | 5/13 | L0 (canonical; legacy homolog alias removed) |
@@ -93,13 +93,15 @@ Examples worth preserving on migrate (`f4-*`):
 | `/run-plan-loop` | Registry installations | Promoted to L0 - available via core pack |
 | Nested full monorepo under `agent-kit/` | consumer-3 | Delete copy; install via CLI/manifest only |
 
-## Implications for next phases
+## Implications for registry cutover (Phase B)
 
-1. **`f0-spec-camadas`** - encode the L0 list above; mark stack rules as L1/L2; L3 = basename not in registry.
-2. **`f1-manifest`** - every project needs `agent-kit.json` with version + packs + protected L3 paths.
-3. **`f2-kill-folder-copy`** - **done** as install contract ([bootstrap.md](bootstrap.md)); fleet nested copies removed in `f4-migrar-frota`.
-4. **Migration runbook** - **documented** in [migrate-consumer.md](migrate-consumer.md) as generic process for any project; applied to development fleet.
-5. **Staging-first** - fleet still split homolog/staging; migration is part of dogfood, not a separate product.
+Historical layer-model todos (`f0`–`f4`) are **done** for the development fleet. Remaining operational work:
+
+1. **Registry-canonical public** - resume `phase_b_registry_canonical_public.plan.md` phases 1–5 after coherence fix (+ optional `/git-prod` for EN sweep).
+2. **Manifest everywhere** - every project needs `agent-kit.json` with version + packs + protected L3 paths (EN pack ids after rename).
+3. **Folder-copy install** - **done** as install contract ([bootstrap.md](bootstrap.md)); fleet nested copies removed.
+4. **Migration runbook** - documented in [migrate-consumer.md](migrate-consumer.md); re-run when pack ids or L0 set changes.
+5. **Staging-first** - canonical `/git-staging` + `/git-prod`; legacy homolog alias removed from live docs and registry.
 
 ## How to refresh
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-# Valida todos os arquivos JSON alterados (staged). Bloqueia commit se JSON inválido.
-# Uso: chamado por pre-commit; ou validate-all-json.sh [file.json ...]
-# Exit: 0 ok, 1 erro de validação, 2 uso
+# Validates all staged JSON files. Blocks commit if JSON is invalid.
+# Usage: called by pre-commit; or validate-all-json.sh [file.json ...]
+# Exit: 0 ok, 1 validation error, 2 usage
 
 set -e
 
@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 VALIDATOR="$SCRIPT_DIR/../lib/json-validator.js"
 
 if [ ! -f "$VALIDATOR" ]; then
-  echo "Validador não encontrado: $VALIDATOR"
+  echo "Validator not found: $VALIDATOR"
   exit 2
 fi
 

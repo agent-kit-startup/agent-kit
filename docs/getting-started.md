@@ -46,7 +46,7 @@ npx @agent-kit/cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-1. **`/start-project`** - the agent turns your goal into a plan with checkable to-dos. Everything starts from a plan; that panel is how you both track what's done and what's next.
+1. **`/start-project`** - two gates: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you say yes, it runs the **first** unit. If a plan is already in progress, it asks continue vs start new. Goal text in the same message is not a green light to edit the repo.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Soft rules plus **native Cursor hooks** (`sessionStart` / `preCompact`) reinforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
 4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project.

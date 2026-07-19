@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
-# Detecta padrões de secrets em arquivos staged. Bloqueia commit se encontrar.
-# Uso: chamado por pre-commit; ou check-secrets.sh [file ...]
-# Exit: 0 ok, 1 secret detectado, 2 uso
+# Detects secret patterns in staged files. Blocks commit if found.
+# Usage: called by pre-commit; or check-secrets.sh [file ...]
+# Exit: 0 ok, 1 secret detected, 2 usage
 
 set -e
 
-# Arquivos a verificar: argumentos ou staged
+# Files to check: arguments or staged
 if [ $# -gt 0 ]; then
   files="$*"
 else
@@ -21,9 +21,9 @@ for f in $files; do
   [ -f "$f" ] || continue
   case "$f" in
     *.json|*.js|*.ts|*.env)
-      # Padrões: chave sensível com valor longo (possível secret)
+      # Patterns: sensitive key with long value (possible secret)
       if grep -E '"(password|apiKey|api_key|secret|token|auth)"\s*:\s*"[^"]{12,}"' "$f" 2>/dev/null; then
-        echo "Possível secret em: $f"
+        echo "Possible secret in: $f"
         found=1
       fi
       ;;
@@ -31,7 +31,7 @@ for f in $files; do
 done
 
 if [ $found -eq 1 ]; then
-  echo "Remova secrets antes de commitar. Use variáveis de ambiente ou Credentials."
+  echo "Remove secrets before committing. Use environment variables or Credentials."
   exit 1
 fi
 exit 0

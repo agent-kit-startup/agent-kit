@@ -1,18 +1,18 @@
 ---
-description: Regras CURSOR-SKILLS para Python (Django, Flask, FastAPI, Data Science). PEP, venv, testes.
+description: CURSOR-SKILLS rules for Python (Django, Flask, FastAPI, Data Science). PEP, venv, tests.
 globs: "**/*.py"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Python
+# CURSOR-SKILLS - Python
 
-Fonte: [cursor-skills/python](https://github.com/araguaci/cursor-skills/tree/main/python)
+Source: [cursor-skills/python](https://github.com/araguaci/cursor-skills/tree/main/python)
 
-## Setup CURSOR
+## CURSOR setup
 
-- Python, Pylance, Python Debugger, Docstring Generator, Python Indent, Test Explorer, Jupyter (se aplicável).
+- Python, Pylance, Python Debugger, Docstring Generator, Python Indent, Test Explorer, Jupyter (if applicable).
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -20,13 +20,13 @@ project/
 ├── requirements.txt   ├── requirements-dev.txt   ├── pyproject.toml   └── .env
 ```
 
-## Padrões obrigatórios
+## Required standards
 
-- **PEP**: 8 (estilo), 257 (docstrings), 484 (type hints), 526 (anotações).
-- **Ambiente**: sempre venv ou conda; `requirements.txt`; pip-tools; deps dev separadas.
-- **Ferramentas**: Black, isort, flake8, mypy, pytest.
+- **PEP**: 8 (style), 257 (docstrings), 484 (type hints), 526 (annotations).
+- **Environment**: always venv or conda; `requirements.txt`; pip-tools; separate dev deps.
+- **Tools**: Black, isort, flake8, mypy, pytest.
 
-## Por framework
+## By framework
 
 - **Django**: MVT, ORM, admin, forms; `python.formatting.provider: "black"`.
 - **Flask**: blueprints, app factory; flake8, Black.
@@ -34,13 +34,13 @@ project/
 
 ## Data Science
 
-- Jupyter: células claras, validação, versionamento, limpar antes de compartilhar.
-- Pandas, NumPy, matplotlib/seaborn; scikit-learn; validação e documentação de modelos.
+- Jupyter: clear cells, validation, versioning, clean before sharing.
+- Pandas, NumPy, matplotlib/seaborn; scikit-learn; model validation and documentation.
 
-## Código e documentação
+## Code and documentation
 
-- Docstrings e type hints em funções/classes; comentários em lógica complexa; README e docs de API.
+- Docstrings and type hints on functions/classes; comments on complex logic; README and API docs.
 
-## Segurança e DB
+## Security and DB
 
-- Validar inputs; OWASP; hashing; HTTPS. ORM (Django/SQLAlchemy); evitar N+1; transações.
+- Validate inputs; OWASP; hashing; HTTPS. ORM (Django/SQLAlchemy); avoid N+1; transactions.

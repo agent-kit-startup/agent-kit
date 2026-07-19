@@ -1,26 +1,26 @@
-# Categorias de skills - Agent Kit
+# Skill categories - Agent Kit
 
-Lista oficial de categorias para metadata dos skills. Usada no frontmatter (`category`) e como base para registry e listagem.
+Official list of categories for skill metadata. Used in frontmatter (`category`) and as base for registry and listing.
 
-| Categoria    | Descrição |
+| Category    | Description |
 |-------------|-----------|
-| integrações | Automação, APIs, n8n, webhooks, ferramentas externas |
-| dados       | SQL, JSON, schemas, migrations, persistência |
-| docs        | README, documentação, prompts, guias, ADRs |
-| devops      | CI/CD, deploy, infra, scripts de ambiente |
-| quality     | Testes, acessibilidade, UX, revisão de código |
-| creation    | Criação de skills, rules, agents; geradores; design técnico |
+| integrations | Automation, APIs, n8n, webhooks, external tools |
+| data       | SQL, JSON, schemas, migrations, persistence |
+| docs        | README, documentation, prompts, guides, ADRs |
+| devops      | CI/CD, deploy, infra, environment scripts |
+| quality     | Tests, accessibility, UX, code review |
+| creation    | Creation of skills, rules, agents; generators; technical design |
 
-## Uso no frontmatter
+## Usage in frontmatter
 
-Em cada `SKILL.md`:
+In each `SKILL.md`:
 
 ```yaml
 ---
-name: meu-skill
+name: my-skill
 description: ...
-category: dados
+category: data
 ---
 ```
 
-Valor de `category` deve ser um dos itens da tabela (ex.: `integrações`, `dados`, `docs`, `devops`, `quality`, `creation`).
+Value of `category` must be one of the table items (ex.: `integrations`, `data`, `docs`, `devops`, `quality`, `creation`).

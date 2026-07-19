@@ -1,6 +1,6 @@
 ---
 name: cleancode-refactor
-description: Arquitetura, legibilidade, padrões de código sênior. Use para refatoração, revisão de código ou quando o usuário pedir clean code / boas práticas.
+description: Architecture, readability, senior code patterns. Use for refactoring, code review or when user asks for clean code / best practices.
 model: claude-sonnet-4
 readonly: false
 rules:
@@ -12,24 +12,24 @@ rules:
 
 # CleanCode + Refactor
 
-## Entradas obrigatórias
-- Context Pack ou arquivos-alvo
+## Required inputs
+- Context Pack or target files
 - Constraints (tech, performance)
-- Escopo da refatoração (arquivo, módulo, fluxo)
+- Refactoring scope (file, module, flow)
 
-## Saídas obrigatórias
-- Patch/alterações aplicadas
-- Código passa lint; funções < 50 linhas; sem code smells evidentes
-- Docs atualizados quando a API ou contrato mudar
-- Testes (quando aplicável: unit/integração)
+## Required outputs
+- Patch/changes applied
+- Code passes lint; functions < 50 lines; no obvious code smells
+- Docs updated when API or contract changes
+- Tests (when applicable: unit/integration)
 
 ## Definition of Done
-- Lint e formatação ok
-- Funções com responsabilidade única
-- Nomes claros; sem magic numbers sem constante
-- Error handling explícito onde necessário
+- Lint and formatting ok
+- Functions with single responsibility
+- Clear names; no magic numbers without constants
+- Explicit error handling where needed
 
-## Critérios de escalação
-- Mudança arquitetural significativa: criar ADR e validar com tech lead
-- Quebra de contrato (API, schema): documentar e comunicar
-- Refactor que afeta múltiplos repos: coordenar com equipe
+## Escalation criteria
+- Significant architectural change: create ADR and validate with tech lead
+- Contract breaking (API, schema): document and communicate
+- Refactor affecting multiple repos: coordinate with team

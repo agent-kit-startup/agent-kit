@@ -3,10 +3,10 @@
   "packs": [
     { "id": "cybersec", "path": "registry/packs/cybersec" },
     { "id": "devops", "path": "registry/packs/devops" },
-    { "id": "engenharia-arquitetura", "path": "registry/packs/engenharia-arquitetura" },
+    { "id": "engineering-architecture", "path": "registry/packs/engineering-architecture" },
     { "id": "clean-code", "path": "registry/packs/clean-code" },
-    { "id": "gestao-projeto", "path": "registry/packs/gestao-projeto" },
-    { "id": "gestao-contexto", "path": "registry/packs/gestao-contexto" },
+    { "id": "project-management", "path": "registry/packs/project-management" },
+    { "id": "context-management", "path": "registry/packs/context-management" },
     { "id": "quality", "path": "registry/packs/quality" }
   ]
 }

@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * n8n Workflow Checker - Valida integridade de workflows n8n (nodes, connections, credentials).
- * Uso: node n8n-checker.js <workflow.json> [workflow2.json ...]
- * Ou importar: const { validateN8nWorkflow } = require('./n8n-checker.js');
+ * n8n Workflow Checker - Validates n8n workflow integrity (nodes, connections, credentials).
+ * Usage: node n8n-checker.js <workflow.json> [workflow2.json ...]
+ * Or import: const { validateN8nWorkflow } = require('./n8n-checker.js');
  */
 
 const fs = require('fs');
 const path = require('path');
 
 /**
- * Valida um objeto de workflow n8n.
- * @param {object} workflow - Objeto workflow (nodes, connections, etc.)
+ * Validates an n8n workflow object.
+ * @param {object} workflow - Workflow object (nodes, connections, etc.)
  * @returns {{ errors: string[], warnings: string[] }}
  */
 function validateN8nWorkflow(workflow) {
@@ -41,13 +41,13 @@ function validateN8nWorkflow(workflow) {
       node.type !== 'n8n-nodes-base.webhook' &&
       node.type !== 'n8n-nodes-base.respondToWebhook'
     ) {
-      warnings.push(`Node órfão: ${node.name}`);
+      warnings.push(`Orphan node: ${node.name}`);
     }
   });
 
   Object.entries(connections).forEach(([from, outputs]) => {
     if (!nodeNames.has(from)) {
-      errors.push(`Connection de node inexistente: ${from}`);
+      errors.push(`Connection from non-existent node: ${from}`);
     }
     const main = outputs.main;
     if (Array.isArray(main)) {
@@ -55,7 +55,7 @@ function validateN8nWorkflow(workflow) {
         if (Array.isArray(arr)) {
           arr.forEach((c) => {
             if (c && typeof c.node === 'string' && !nodeNames.has(c.node)) {
-              errors.push(`Connection para node inexistente: ${c.node}`);
+              errors.push(`Connection to non-existent node: ${c.node}`);
             }
           });
         }
@@ -68,7 +68,7 @@ function validateN8nWorkflow(workflow) {
       const params = node.parameters || {};
       const wfId = params.workflowId?.value ?? params.workflowId;
       if (!wfId) {
-        errors.push(`Execute Workflow sem ID: ${node.name}`);
+        errors.push(`Execute Workflow without ID: ${node.name}`);
       }
     }
   });
@@ -83,7 +83,7 @@ function validateN8nWorkflow(workflow) {
 
   secretPatterns.forEach((pattern) => {
     if (pattern.test(jsonStr)) {
-      errors.push('Possível secret hardcoded detectado no workflow');
+      errors.push('Possible hardcoded secret detected in workflow');
     }
   });
 
@@ -91,8 +91,8 @@ function validateN8nWorkflow(workflow) {
 }
 
 /**
- * Valida um arquivo de workflow n8n.
- * @param {string} filePath - Caminho do arquivo JSON
+ * Validates an n8n workflow file.
+ * @param {string} filePath - Path to JSON file
  * @returns {{ valid: boolean, errors: string[], warnings: string[] }}
  */
 function validateN8nFile(filePath) {
@@ -100,14 +100,14 @@ function validateN8nFile(filePath) {
   try {
     content = fs.readFileSync(filePath, 'utf8');
   } catch (e) {
-    return { valid: false, errors: [`Não foi possível ler o arquivo: ${e.message}`], warnings: [] };
+    return { valid: false, errors: [`Could not read file: ${e.message}`], warnings: [] };
   }
 
   let workflow;
   try {
     workflow = JSON.parse(content);
   } catch (e) {
-    return { valid: false, errors: [`JSON inválido: ${e.message}`], warnings: [] };
+    return { valid: false, errors: [`Invalid JSON: ${e.message}`], warnings: [] };
   }
 
   const hasNodes = Array.isArray(workflow.nodes) && workflow.nodes.length > 0;
@@ -116,7 +116,7 @@ function validateN8nFile(filePath) {
     return {
       valid: true,
       errors: [],
-      warnings: ['Arquivo não parece ser um workflow n8n (sem nodes/connections)']
+      warnings: ['File does not appear to be an n8n workflow (no nodes/connections)']
     };
   }
 
@@ -131,7 +131,7 @@ function validateN8nFile(filePath) {
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('Uso: node n8n-checker.js <workflow.json> [workflow2.json ...]');
+    console.error('Usage: node n8n-checker.js <workflow.json> [workflow2.json ...]');
     process.exit(2);
   }
 
@@ -140,7 +140,7 @@ function main() {
   for (const file of args) {
     const resolved = path.resolve(file);
     if (!fs.existsSync(resolved)) {
-      console.error(`Arquivo não encontrado: ${file}`);
+      console.error(`File not found: ${file}`);
       hasError = true;
       continue;
     }

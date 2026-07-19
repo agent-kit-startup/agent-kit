@@ -1,12 +1,42 @@
 # Changelog - Agent Kit
 
-Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
+All notable changes to this project are documented in this file.
 
-O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/) e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
 ## [Unreleased]
+
+## [4.0.1] - 2026-07-19
+
+### Fixed
+
+- CLI: Biome format in `handoff.ts` pending todo spread (unblocks CI lint and public sync after v4.0.0).
+
+## [4.0.0] - 2026-07-19
+
+### Added
+
+- Docs: three-layer cheat sheet (local scratch / private factory / public storefront) in `docs/repository-boundaries.md`, linked from root README and docs index.
+- Skills: translated community and core skills to English (n8n-workflows, json-data-config, clickup, ux-message-flows, prompts-markdown, clean-code, sql-postgres) with registry mirrors updated.
+
+### Fixed
+
+- Public sync allowlist includes `.cursor/hooks.json` (sibling of `.cursor/hooks/**`). Without it, consumer `agent-kit install` from public `main` warned `Missing in registry` and skipped Cursor-native hook wiring.
+- `/start-project` HITL: two gates (approve plan file, then approve first unit); active HANDOFF asks continue vs start new; goal-in-same-message is not execute permission. Aligned `/continue-plan`, `sessionStart` hard rules, `cursor-plan-handoff`, `plan-routine`, getting-started, README.
+
+### Changed
+
+- **Breaking:** L1 pack ids renamed to English: `gestao-projeto` → `project-management`, `gestao-contexto` → `context-management`, `engenharia-arquitetura` → `engineering-architecture` (dirs + `registry/packs/index.json` + regenerated `registry/registry.json` + CLI `DOMAIN_PACK_IDS`). Update consumer manifests that still list the old ids.
+- Docs inventories refreshed post EN sweep: `coherence-inventory`, `drift-inventory`, `cursor-native-audit` aligned to 3.5.x release notes, 10 commands, EN pack ids, and Phase B cutover (removed stale EN-thesis / Fase labels).
+- CHANGELOG header translated to English (body history unchanged).
+- Public surface EN sweep close: `HANDOFF.md.example`, context templates, `cursor-handoff` messages, `.cursor/hooks/**` user strings, and sync-allowlisted residue translated; optional PT blurb kept only in `docs/github-about.md`.
+- Root/docs and CLI user-facing strings: `adicionar-skills.md` renamed to `add-skills.md` (EN body); `categories.md`, `install.md` comments, `docs/repository-boundaries.md` flow section, and related docs residue translated; CLI prompts in `prompts.ts`, `handoff.ts`, `init.ts`.
+- Stack rules under `.cursor/rules/cursor-skills-*.mdc`: remaining Portuguese bodies translated to English (api, clickup, devops, groovy, integrations, json, mobile, n8n, node, php, prompts, python, sql, testing, webdesign); frontmatter globs preserved. `general` and `git-workflow` were already EN.
+- Agents under `.cursor/agents/`: bodies translated to English; `testes-roteiros` renamed to `test-suites` (pack + regenerated `registry/registry.json`); docs inventories updated.
+- Public sync PR heads use semantic names (`sync/vX.Y.Z-<shortsha>`) instead of `sync/private-<run_id>`; re-runs update the same head and close superseded `sync/*` PRs. CI no longer overrides `PUBLIC_SYNC_BRANCH`.
+- Public `Protect main` ruleset: Repository Admin bypass (`always`) so solo maintainer can merge sync PRs without a second reviewer (avoids self-approval deadlock).
 
 ## [3.5.1] - 2026-07-19
 
@@ -31,7 +61,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 - Orchestrated routing: worker signal → `subagent_type` table and fallback in `/run-plan-orchestrated`; optional plan todo `worker_type` in `autogit/plan-routine.md` and plan template.
 - Agent install orphans: `docs-repo` agent added to L1 `engenharia-arquitetura` (skill + agent, clean-code pattern); `git-autogit` and thin stack agents (`json-guardian`, `prompts-agents`, `n8n-workflows`, `sql-schema`) documented as dogfood-only / skill-first in `docs/domain-packs.md` and `docs/coherence-inventory.md`. Registry regenerated.
 - README: reescrito para versão lean em inglês (~54 linhas), focado no valor principal (contexto persistente + git seguro) e fluxo básico, removendo detalhes internos para aumentar adesão inicial.
-- Docs sweep: command names and CLI examples aligned to English (`/start-project`, `/continue-plan`, `agent-kit`, pack ids like `context-management`) across `docs/`, `adicionar-skills.md`, and `.cursor/context/templates/plan.md`.
+- Docs sweep: command names and CLI examples aligned to English (`/start-project`, `/continue-plan`, `agent-kit`, pack ids like `context-management`) across `docs/`, `add-skills.md`, and `.cursor/context/templates/plan.md`.
 - Modo manual endurecido: `/start-project` e `/continue-plan` (e rules `cursor-plan-handoff` / `context-guardian`) param após uma fase e não dispensam perguntas de contexto. Multi-fase na mesma janela só via `/run-plan-loop` ou `/run-plan-orchestrated`.
 - README: abertura ampliada de "memória de contexto + git seguro" para o escopo real - harness do workflow completo (bootstrap personalizado, plano → execução, integração de PM/automação/infra e DevOps staging-first estruturado que faz os agentes lerem o estado real do projeto). "Why you'd want it" ganha bullets de loop completo e DevOps; produção segue exigindo confirmação.
 - Anti-slop: política que elimina o caractere travessão (em dash) de mensagens de commit, textos e docs, mantendo-o apenas em citação literal obrigatória. Novo padrão no skill `clean-code` e reforço nas rules `agent-output-hygiene`, `docs-professional-standard` e `ux-tone`. Scrub aplicado nas rules, skills e docs de face (README, CHANGELOG, `install.md`, `docs/`).
@@ -66,7 +96,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 ### Alterado
 
 - README: abertura reescrita em voz de produto (princípios HITL, estrutura, hygiene, core vs stack) - remove tabela de posicionamento interno e link para checklist de ops.
-- Sync público: `install.md`, `categories.md`, `adicionar-skills.md` e `HANDOFF.md.example` incluídos no manifest - README público os referencia (links quebravam no espelho).
+- Sync público: `install.md`, `categories.md`, `add-skills.md` e `HANDOFF.md.example` incluídos no manifest - README público os referencia (links quebravam no espelho).
 - Política do repositório público: sync passa a abrir PR contra `main` por padrão; CI usa `PUBLIC_REPO_TOKEN`; `main` permanece como única branch longa e recebe ruleset com review + check `build`.
 - `docs/CONTRIBUTING.md` e `docs/cursor-3-features.md`: guideline de tooling Cursor-native reescrita em termos genéricos (sem citar gateway específico).
 - Hygiene no conjunto público: `docs/review-camadas.md` sem nome de org privada, números de PR e ids de sessão; `docs/cursor-native-audit.md` e `docs/public-launch.md` sem referências a paths privados (`.cursor/plans/`, `.cursor/memory/`); denylist do sync ganha `\bWAM\b` e `\bSofia\b` (guard estrutural).
@@ -158,7 +188,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 - Rules **`agent-output-hygiene.mdc`** (chat ≠ artefato versionado) e **`docs-professional-standard.mdc`** (documentação herdável, sem contexto transitório).
 - Comando **`/git-staging`** (alias de `git homolog`) em `.cursor/commands/git-staging.md`.
 - Decisões em `.cursor/memory/decisions/`: framework HITL (contra autonomia sem revisão), harness estrutural vs stack, output hygiene, docs professional standard.
-- `adicionar-skills.md`, `install.md`, `categories.md`, `registry-schema.md`, `skills-registry.json`, scripts `build-registry.sh` e `new-skill.sh`, `HANDOFF.md.example`.
+- `add-skills.md`, `install.md`, `categories.md`, `registry-schema.md`, `skills-registry.json`, scripts `build-registry.sh` e `new-skill.sh`, `HANDOFF.md.example`.
 
 ### Alterado
 
@@ -225,7 +255,8 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
-[Unreleased]: https://github.com/agent-kit-startup/agent-kit/compare/v3.5.1...HEAD
+[Unreleased]: https://github.com/agent-kit-startup/agent-kit/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/agent-kit-startup/agent-kit/compare/v3.5.1...v4.0.0
 [3.5.1]: https://github.com/agent-kit-startup/agent-kit/compare/v3.5.0...v3.5.1
 [3.5.0]: https://github.com/agent-kit-startup/agent-kit/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/agent-kit-startup/agent-kit/compare/v3.3.1...v3.4.0

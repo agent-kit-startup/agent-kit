@@ -1,4 +1,4 @@
-# Review - camadas & orquestração (`review-camadas`)
+# Review - layers and orchestration (`review-camadas`)
 
 Final coherence pass against the active plan thesis (HITL, hygiene, structural vs stack, public go/no-go). Date: 2026-07-16.
 
@@ -11,7 +11,7 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 | Criterion | Result | Evidence |
 |-----------|--------|----------|
 | HITL: prod only with explicit confirmation | ✅ | `git-prod.md`, `autogit/gitupdate.md`; loop/orquestrado forbid `/git-prod` |
-| Loop/orquestrado never promote to main | ✅ | command docs + plan-routine |
+| Loop/orchestrated never promote to main | ✅ | command docs + plan-routine |
 | Core structural; no stack `alwaysApply: true` | ✅ | scan of `.cursor/rules/*.mdc` |
 | Registry SoT for skills; workspace = install | ✅ | `f6-coherence`, `docs/coherence-inventory.md` |
 | Contribute gate anti-slop | ✅ | `agent-kit contribute` + CONTRIBUTING |

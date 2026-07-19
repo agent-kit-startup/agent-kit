@@ -1,24 +1,24 @@
 ---
-description: Regras para JSON (validação, formatação, parsing, configs). Alinhado à skill json-data-config.
+description: Rules for JSON (validation, formatting, parsing, configs). Aligned with the json-data-config skill.
 globs: "**/*.json"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – JSON
+# CURSOR-SKILLS - JSON
 
-Alinhado à skill [.cursor/skills/community/json-data-config/SKILL.md](.cursor/skills/community/json-data-config/SKILL.md).
+Aligned with skill [.cursor/skills/community/json-data-config/SKILL.md](.cursor/skills/community/json-data-config/SKILL.md).
 
-## JSON válido
+## Valid JSON
 
-- Aspas duplas; vírgulas entre itens; sem vírgula final; escapamento correto. JSON não suporta comentários.
+- Double quotes; commas between items; no trailing comma; correct escaping. JSON does not support comments.
 
-## Padrões recomendados
+## Recommended patterns
 
-- **Parse de resposta de IA:** remover `` ```json ``/`` ``` ``, extrair `{ ... }`, try/catch, mensagem de erro clara.
-- **Configs:** estruturas consistentes; mapeamentos em pastas dedicadas quando aplicável.
-- **Workflows n8n:** nodes, connections, settings; manter legível no repo.
+- **Parse AI response:** strip `` ```json ``/`` ``` ``, extract `{ ... }`, try/catch, clear error message.
+- **Configs:** consistent structures; mappings in dedicated folders when applicable.
+- **n8n workflows:** nodes, connections, settings; keep readable in the repo.
 
-## Boas práticas
+## Best practices
 
-- Validar sintaxe antes de salvar; em código que parseia: try/catch e retorno de erro com trecho relevante.
-- Preferir JSON legível (indentação) no repositório para diff e revisão.
+- Validate syntax before saving; in parsing code: try/catch and error return with a relevant snippet.
+- Prefer readable JSON (indentation) in the repository for diff and review.

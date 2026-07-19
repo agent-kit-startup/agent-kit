@@ -1,39 +1,39 @@
 ---
-description: Regras CURSOR-SKILLS para Web (HTML, CSS, JS, React, Vue, Angular). A11y, BEM, responsivo.
+description: CURSOR-SKILLS rules for Web (HTML, CSS, JS, React, Vue, Angular). A11y, BEM, responsive.
 globs: "**/*.html,**/*.css,**/*.scss,**/*.vue,**/*.jsx,**/*.svelte"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Web Design
+# CURSOR-SKILLS - Web Design
 
-Fonte: [cursor-skills/webdesign](https://github.com/araguaci/cursor-skills/tree/main/webdesign)
+Source: [cursor-skills/webdesign](https://github.com/araguaci/cursor-skills/tree/main/webdesign)
 
-## Setup CURSOR
+## CURSOR setup
 
 - HTML CSS Support, ES6 snippets, Auto Rename Tag, Prettier, Live Server, Emmet.
 - React: React DevTools, ES7+ snippets. Vue: Vetur/Volar, Vue 3 Snippets. Angular: Angular Language Service, CLI.
 
 ## HTML
 
-- HTML5 semântico; acessibilidade (ARIA, alt, hierarquia de headings, teclado); W3C; responsivo.
+- Semantic HTML5; accessibility (ARIA, alt, heading hierarchy, keyboard); W3C; responsive.
 
 ## CSS
 
-- CSS3, responsivo, BEM, custom properties, especificidade controlada.
-- CSS modules ou styled-components; mobile-first; grids flexíveis; imagens responsivas.
+- CSS3, responsive, BEM, custom properties, controlled specificity.
+- CSS modules or styled-components; mobile-first; flexible grids; responsive images.
 
 ## JavaScript / Frameworks
 
-- ES6+; TypeScript quando adequado; error handling.
-- **React**: componentes funcionais, hooks, state management.
-- **Vue**: Composition API, reatividade, convenções.
+- ES6+; TypeScript when appropriate; error handling.
+- **React**: functional components, hooks, state management.
+- **Vue**: Composition API, reactivity, conventions.
 - **Angular**: TypeScript, services, DI.
 
-## Testes e ferramentas
+## Tests and tools
 
 - Jest (unit), Cypress (E2E), Storybook, Lighthouse, Axe (a11y).
-- Build: bundling, env vars, cache, CDN para assets.
+- Build: bundling, env vars, cache, CDN for assets.
 
-## A11y e segurança
+## A11y and security
 
-- Semântica, ARIA, teclado, leitores de tela; validar/sanitizar inputs; CSP; CORS; HTTPS.
+- Semantics, ARIA, keyboard, screen readers; validate/sanitize inputs; CSP; CORS; HTTPS.

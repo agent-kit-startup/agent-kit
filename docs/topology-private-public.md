@@ -1,6 +1,6 @@
 # Topology - private × public × paid (Fase 7)
 
-Target architecture for Agent Kit distribution and contribution. Complements [repository-boundaries.md](repository-boundaries.md) and [public-launch.md](public-launch.md).
+Target architecture for Agent Kit distribution and contribution. Complements [repository-boundaries.md](repository-boundaries.md) (including the [three-layer cheat sheet](repository-boundaries.md#cheat-sheet-three-layers)) and [public-launch.md](public-launch.md).
 
 ## Roles
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "gestao-contexto",
+  "id": "context-management",
   "title": "Context management",
   "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
   "version": "0.1.0",

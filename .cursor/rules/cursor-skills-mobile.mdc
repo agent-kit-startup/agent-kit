@@ -1,18 +1,18 @@
 ---
-description: Regras CURSOR-SKILLS para mobile (React Native, Flutter, Expo). Plataforma, performance, testes.
+description: CURSOR-SKILLS rules for mobile (React Native, Flutter, Expo). Platform, performance, tests.
 globs: "**/*.dart,**/android/**/*,**/ios/**/*,**/App.tsx,**/app.json"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Mobile
+# CURSOR-SKILLS - Mobile
 
-Fonte: [cursor-skills/mobile](https://github.com/araguaci/cursor-skills/tree/main/mobile)
+Source: [cursor-skills/mobile](https://github.com/araguaci/cursor-skills/tree/main/mobile)
 
-## Setup CURSOR
+## CURSOR setup
 
-- React Native Tools, Flutter, Dart, Expo Tools; em projetos nativos: Android Studio / Xcode conforme a stack.
+- React Native Tools, Flutter, Dart, Expo Tools; on native projects: Android Studio / Xcode per stack.
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -20,20 +20,20 @@ project/
 └── .env
 ```
 
-## Por framework
+## By framework
 
-- **React Native**: componentes, navegação, APIs nativas; ESLint; performance (listas, memo, lazy).
-- **Flutter**: widgets, state management; `dart.flutterSdkPath` se necessário; testes Flutter.
-- **Expo**: expo-cli / expo-dev-client; APIs e componentes Expo; `expo.toolsPath` se necessário.
+- **React Native**: components, navigation, native APIs; ESLint; performance (lists, memo, lazy).
+- **Flutter**: widgets, state management; `dart.flutterSdkPath` if needed; Flutter tests.
+- **Expo**: expo-cli / expo-dev-client; Expo APIs and components; `expo.toolsPath` if needed.
 
-## Plataforma
+## Platform
 
-- Diferenças iOS/Android; código específico quando necessário; design responsivo; guidelines de cada OS.
+- iOS/Android differences; platform-specific code when needed; responsive design; each OS guidelines.
 
-## Performance e qualidade
+## Performance and quality
 
-- Otimizar imagens e assets; renderização e memória; Prettier, ESLint; testes (unit, integração, E2E); cobertura ≥ 80%.
+- Optimize images and assets; rendering and memory; Prettier, ESLint; tests (unit, integration, E2E); coverage ≥ 80%.
 
-## Segurança
+## Security
 
-- Validar inputs; auth; dados sensíveis; HTTPS; OWASP mobile.
+- Validate inputs; auth; sensitive data; HTTPS; OWASP mobile.

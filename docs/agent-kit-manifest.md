@@ -52,7 +52,7 @@ Add your project's own rules/skills/commands as extra patterns or `overrides` en
   "schemaVersion": 1,
   "version": "3.0.0",
   "profile": "default",
-  "packs": ["clean-code", "gestao-contexto"],
+  "packs": ["clean-code", "context-management"],
   "skills": ["json-data-config", "sql-postgres"],
   "protected": [
     ".cursor/HANDOFF.md",

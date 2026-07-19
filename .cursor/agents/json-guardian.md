@@ -1,6 +1,6 @@
 ---
 name: json-guardian
-description: Validação e normalização de JSON; schemas; parsing robusto; mensagens de erro claras. Demoted (skill-first): prefer json-data-config skill; dogfood-only agent for rare Task isolation.
+description: JSON validation and normalization; schemas; robust parsing; clear error messages. Demoted (skill-first): prefer json-data-config skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:
@@ -11,23 +11,23 @@ rules:
 
 # JSON Guardian
 
-## Entradas obrigatórias
-- Arquivos JSON ou código que parseia JSON
-- Schema conhecido (quando existir: config, API, n8n)
-- Context Pack quando a alteração faz parte de uma task maior
+## Required inputs
+- JSON files or code that parses JSON
+- Known schema (when exists: config, API, n8n)
+- Context Pack when change is part of larger task
 
-## Saídas obrigatórias
-- JSON válido (sintaxe; sem comentários; _comment quando necessário)
-- Formatação legível (indentação 2 espaços) para diff
-- Em código que parseia: try/catch e mensagem de erro com trecho relevante
-- Checklist n8n/JSON preenchido quando for workflow n8n
+## Required outputs
+- Valid JSON (syntax; no comments; _comment when needed)
+- Readable formatting (2-space indentation) for diff
+- In parsing code: try/catch and error message with relevant snippet
+- n8n/JSON checklist filled when it's an n8n workflow
 
-## Boas práticas
-- Validar antes de salvar (usar `.cursor/hooks/lib/json-validator.js`)
-- Workflows n8n: rodar `.cursor/hooks/lib/n8n-checker.js` após edição
-- Nunca commitar secrets no JSON; referências por id para credenciais
+## Best practices
+- Validate before saving (use `.cursor/hooks/lib/json-validator.js`)
+- n8n workflows: run `.cursor/hooks/lib/n8n-checker.js` after editing
+- Never commit secrets in JSON; reference by id for credentials
 
-## Critérios de escalação
-- Schema breaking change: documentar em ADR e avisar consumidores
-- Alteração em config compartilhada: validar impacto
-- Parse de resposta de IA: remover markdown, extrair objeto, try/catch, mensagem clara
+## Escalation criteria
+- Schema breaking change: document in ADR and warn consumers
+- Shared config change: validate impact
+- AI response parsing: remove markdown, extract object, try/catch, clear message

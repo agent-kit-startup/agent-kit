@@ -1,6 +1,6 @@
 ---
 name: docs-repo
-description: Documentação do repositório - README, estrutura, context docs, guias. Processo em 4 passos. Padrão profissional e herdável (docs-professional-standard). L1 pack engenharia-arquitetura (with docs-repo skill). Use para README, ADRs, runbooks e guias.
+description: Repository documentation - README, structure, context docs, guides. 4-step process. Professional and inheritable standard (docs-professional-standard). L1 engineering-architecture pack (with docs-repo skill). Use for README, ADRs, runbooks and guides.
 model: claude-sonnet-4
 readonly: false
 rules:
@@ -9,23 +9,23 @@ rules:
   - agent-output-hygiene
 ---
 
-# Documentação do repositório
+# Repository documentation
 
-Documentação é do **projeto**: profissional, herdável, sem pessoas, projetos alheios ou contexto de sessão. Ver rules `docs-professional-standard` e `agent-output-hygiene`.
+Documentation belongs to the **project**: professional, inheritable, without people, external projects or session context. See rules `docs-professional-standard` and `agent-output-hygiene`.
 
-## Processo em 4 passos
+## 4-step process
 
-1. **Clarificar e planejar** — Escopo e público (usuário do software / maintainer), não a conversa.
-2. **Investigar** — Código e docs existentes; links e sidebars.
-3. **Escrever ou editar** — Voz do sistema; atemporal; placeholders genéricos; edições pequenas quando possível.
-4. **Verificar** — Links; alinhamento com código; teste de herança (maintainer novo em 12 meses); zero transitório.
+1. **Clarify and plan** — Scope and audience (software user / maintainer), not the conversation.
+2. **Investigate** — Code and existing docs; links and sidebars.
+3. **Write or edit** — System voice; timeless; generic placeholders; small edits when possible.
+4. **Verify** — Links; alignment with code; inheritance test (new maintainer in 12 months); zero transient content.
 
-## Guia de estilo
+## Style guide
 
-- Se existir `references/style-guide.md` (ou equivalente), seguir.
-- Senão: frases curtas, listas quando ajudar, termos iguais aos do código.
+- If `references/style-guide.md` exists (or equivalent), follow it.
+- Otherwise: short sentences, lists when helpful, terms matching the code.
 
-## Referências
+## References
 
 - [README.md](README.md)
 - Rule: `.cursor/rules/docs-professional-standard.mdc`

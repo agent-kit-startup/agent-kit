@@ -1,18 +1,18 @@
 ---
-description: Regras CURSOR-SKILLS para DevOps (Docker, Kubernetes, CI/CD, Terraform, IaC).
+description: CURSOR-SKILLS rules for DevOps (Docker, Kubernetes, CI/CD, Terraform, IaC).
 globs: "**/Dockerfile,**/docker-compose*.{yml,yaml},**/.github/**/*.yml,**/.gitlab-ci.yml,**/*.yml,**/k8s/**/*,**/*.tf,**/*.tfvars"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – DevOps
+# CURSOR-SKILLS - DevOps
 
-Fonte: [cursor-skills/devops](https://github.com/araguaci/cursor-skills/tree/main/devops)
+Source: [cursor-skills/devops](https://github.com/araguaci/cursor-skills/tree/main/devops)
 
-## Setup CURSOR
+## CURSOR setup
 
 - Docker, Kubernetes, GitLens, Remote Development, YAML, Terraform.
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -22,33 +22,33 @@ project/
 
 ## Docker
 
-- Dockerfile e docker-compose; multi-stage builds; cache de layers; segurança (usuário não-root, imagens mínimas).
+- Dockerfile and docker-compose; multi-stage builds; layer cache; security (non-root user, minimal images).
 
 ## Kubernetes
 
-- Pods, Services, Deployments; ConfigMaps e Secrets; recursos e limites; health checks; convenções de nome.
+- Pods, Services, Deployments; ConfigMaps and Secrets; resources and limits; health checks; naming conventions.
 
 ## CI/CD
 
-- Pipelines (GitHub Actions, GitLab CI, etc.); estágios (lint, test, build, deploy); triggers; notificações; rollback.
-- Quando o projeto adotar fluxo Git staging → produção: usar `git staging` e `git prod`; nunca commit direto em `main`. Ver regra [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
+- Pipelines (GitHub Actions, GitLab CI, etc.); stages (lint, test, build, deploy); triggers; notifications; rollback.
+- When the project adopts Git staging → production flow: use `git staging` and `git prod`; never commit directly to `main`. See rule [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
 
-## Spine DevOps: Git staging → prod
+## DevOps spine: Git staging → prod
 
-O fluxo de dois degraus (staging → main) é a memória operacional do kit. Reforços que evitam vazar trabalho direto pra produção:
+The two-step flow (staging → main) is the kit's operational memory. Reinforcements that keep work from leaking straight to production:
 
-1. **Staging-first sempre.** Trabalho e commits acontecem em branch de trabalho ou em `staging`, nunca com o checkout em `main`.
-2. **Voltar de `main` após `git prod`.** Promoção deixa o checkout em `main`; ao terminar, fazer `git checkout staging`. Ficar em `main` é o jeito mais comum de um commit escapar pra linha de produção.
-3. **Podar branches legadas.** Branch de pré-prod antiga (`homologacao`, `develop`) que já foi migrada pra `staging` deve ser removida (local e remotos) pra não confundir o fluxo nem o histórico.
-4. **Enforcement, não só convenção.** Instalar as guardas em `git-hooks/` (`pre-commit` e `pre-push`) que abortam commit/push direto em `main`/`master`. Instalação em [git-hooks/README.md](git-hooks/README.md).
-5. **Auditar a linha do `main`.** `git log --first-parent --no-merges main` deve retornar só o commit raiz. Qualquer outro non-merge ali é um commit que nasceu direto em `main` (violação do fluxo).
+1. **Staging-first always.** Work and commits happen on a working branch or on `staging`, never with checkout on `main`.
+2. **Leave `main` after `git prod`.** Promotion leaves checkout on `main`; when done, run `git checkout staging`. Staying on `main` is the most common way a commit escapes onto the production line.
+3. **Prune legacy branches.** An old pre-prod branch (`homologacao`, `develop`) already migrated to `staging` should be removed (local and remotes) so it does not confuse the flow or history.
+4. **Enforcement, not only convention.** Install the guards in `git-hooks/` (`pre-commit` and `pre-push`) that abort commit/push directly to `main`/`master`. Install notes in [git-hooks/README.md](git-hooks/README.md).
+5. **Audit the `main` line.** `git log --first-parent --no-merges main` should return only the root commit. Any other non-merge there is a commit that was born directly on `main` (flow violation).
 
-Detalhes e prompts em [autogit/gitupdate.md](autogit/gitupdate.md); regra completa em [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
+Details and prompts in [autogit/gitupdate.md](autogit/gitupdate.md); full rule in [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
 
 ## IaC (Terraform)
 
-- Módulos; versionamento; state remoto; `terraform fmt`; documentação de recursos e variáveis.
+- Modules; versioning; remote state; `terraform fmt`; document resources and variables.
 
-## Boas práticas
+## Best practices
 
-- Logs, env vars, secrets fora do código; testes de infra quando possível; docs de deploy e troubleshooting.
+- Logs, env vars, secrets out of code; infra tests when possible; deploy and troubleshooting docs.

@@ -1,24 +1,24 @@
 ---
-description: Regras para SQL Postgres (DDL, DML, índices, constraints). Alinhado à skill sql-postgres.
+description: Rules for Postgres SQL (DDL, DML, indexes, constraints). Aligned with the sql-postgres skill.
 globs: "**/*.sql"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – SQL (Postgres)
+# CURSOR-SKILLS - SQL (Postgres)
 
-Alinhado à skill [.cursor/skills/community/sql-postgres/SKILL.md](.cursor/skills/community/sql-postgres/SKILL.md).
+Aligned with skill [.cursor/skills/community/sql-postgres/SKILL.md](.cursor/skills/community/sql-postgres/SKILL.md).
 
-## DDL e convenções
+## DDL and conventions
 
-- CREATE TABLE com `IF NOT EXISTS`; chave primária explícita; tipos adequados (UUID, TEXT, TIMESTAMPTZ, JSONB).
-- Nomes em snake_case; COMMENT ON TABLE/COLUMN quando ajudar manutenção.
+- CREATE TABLE with `IF NOT EXISTS`; explicit primary key; suitable types (UUID, TEXT, TIMESTAMPTZ, JSONB).
+- snake_case names; COMMENT ON TABLE/COLUMN when it helps maintenance.
 
-## Padrões recomendados
+## Recommended patterns
 
-- Scripts de tabelas: ex. 001_create_tables.sql, 002_indexes_constraints.sql.
-- DDL para integrações (logs, eventos, filtros) em pastas dedicadas (db/, scripts/, code/).
+- Table scripts: e.g. 001_create_tables.sql, 002_indexes_constraints.sql.
+- DDL for integrations (logs, events, filters) in dedicated folders (db/, scripts/, code/).
 
-## Boas práticas
+## Best practices
 
-- Scripts idempotentes; TIMESTAMPTZ para datas; UUID quando aplicável.
-- Documentar alterações de schema em docs ou README do módulo.
+- Idempotent scripts; TIMESTAMPTZ for dates; UUID when applicable.
+- Document schema changes in docs or the module README.

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "engenharia-arquitetura",
-  "title": "Engineering & architecture",
-  "description": "ADRs, technology tradeoffs, and tech-lead style decisions — stack-agnostic.",
+  "id": "engineering-architecture",
+  "title": "Engineering and architecture",
+  "description": "ADRs, technology tradeoffs, and tech-lead style decisions - stack-agnostic.",
   "version": "0.1.0",
   "members": [
     {

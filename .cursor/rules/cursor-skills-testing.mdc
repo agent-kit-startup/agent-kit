@@ -1,18 +1,18 @@
 ---
-description: Regras CURSOR-SKILLS para testes (unit, integração, E2E). Jest, Cypress, fixtures, mocks.
+description: CURSOR-SKILLS rules for tests (unit, integration, E2E). Jest, Cypress, fixtures, mocks.
 globs: "**/*.test.*,**/*.spec.*,**/tests/**/*,**/__tests__/**/*,**/e2e/**/*,**/cypress/**/*"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Testing
+# CURSOR-SKILLS - Testing
 
-Fonte: [cursor-skills/testing](https://github.com/araguaci/cursor-skills/tree/main/testing)
+Source: [cursor-skills/testing](https://github.com/araguaci/cursor-skills/tree/main/testing)
 
-## Setup CURSOR
+## CURSOR setup
 
-- Jest, Cypress, Testing Library, Coverage Gutters, Test Explorer, Mocha (conforme o projeto).
+- Jest, Cypress, Testing Library, Coverage Gutters, Test Explorer, Mocha (per project).
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -22,20 +22,20 @@ project/
 
 ## Unit
 
-- Testes isolados e rápidos; assertions claras; mocks para deps externas; nomes descritivos; `jest.autoRun: "off"` se preferir.
+- Isolated, fast tests; clear assertions; mocks for external deps; descriptive names; `jest.autoRun: "off"` if preferred.
 
-## Integração
+## Integration
 
-- Interação entre componentes e fluxo de dados; DB de teste e serviços externos mockados ou reais controlados; setup/teardown; `testing.autoRun: "off"` se preferir.
+- Component interaction and data flow; test DB and external services mocked or controlled; setup/teardown; `testing.autoRun: "off"` if preferred.
 
 ## E2E
 
-- Jornadas de usuário; Cypress ou similar; page objects; dados de teste e limpeza; `cypress.autoRun: "off"` se preferir.
+- User journeys; Cypress or similar; page objects; test data and cleanup; `cypress.autoRun: "off"` if preferred.
 
-## Organização e dados
+## Organization and data
 
-- Agrupar por feature; nomes que descrevem o cenário; fixtures para dados; mocks consistentes; cobertura ≥ 80% onde fizer sentido.
+- Group by feature; names that describe the scenario; fixtures for data; consistent mocks; coverage ≥ 80% where it makes sense.
 
-## Ferramentas
+## Tools
 
-- Prettier, ESLint; relatórios de cobertura; docs de casos de teste e troubleshooting.
+- Prettier, ESLint; coverage reports; test-case and troubleshooting docs.

@@ -1,37 +1,37 @@
 # Context Pack: [TASK-ID]
 
 ## Metadata
-- **Criado:** [YYYY-MM-DD HH:MM]
-- **Última atualização:** [YYYY-MM-DD HH:MM]
+- **Created:** [YYYY-MM-DD HH:MM]
+- **Last updated:** [YYYY-MM-DD HH:MM]
 - **Status:** [draft|active|review|done|archived]
-- **Agentes envolvidos:** [lista]
+- **Agents involved:** [list]
 
-## Estado Atual
-- **O que foi feito:** [lista]
-- **O que falta:** [lista]
-- **Bloqueios:** [lista ou "nenhum"]
+## Current State
+- **What was done:** [list]
+- **What remains:** [list]
+- **Blockers:** [list or "none"]
 
-## Decisões
-- [Link para ADR-NNNN] - [resumo]
+## Decisions
+- [Link to ADR-NNNN] - [summary]
 
 ## Constraints
-- **Tech:** [limitações técnicas]
-- **Segurança:** [requisitos de segurança]
-- **Performance:** [requisitos de performance]
+- **Tech:** [technical limitations]
+- **Security:** [security requirements]
+- **Performance:** [performance requirements]
 
 ## Interface Contracts
-- **Schemas:** [links ou inline]
-- **Endpoints:** [lista]
-- **Tabelas:** [lista]
+- **Schemas:** [links or inline]
+- **Endpoints:** [list]
+- **Tables:** [list]
 
 ## Checklists
-- [ ] Código: lint, testes, typecheck
-- [ ] Segurança: secrets, auth, PII
-- [ ] Validação: schemas, inputs
+- [ ] Code: lint, tests, typecheck
+- [ ] Security: secrets, auth, PII
+- [ ] Validation: schemas, inputs
 - [ ] Git: branch, commits, changelog
 
-## Arquivos Tocados
-- [lista de arquivos com status: criado|modificado|deletado]
+## Files Touched
+- [list of files with status: created|modified|deleted]
 
 ## Handoff Notes
-[Instruções para próximo agente continuar]
+[Instructions for next agent to continue]

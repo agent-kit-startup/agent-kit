@@ -27,7 +27,7 @@ export const initCommand = defineCommand({
     const scan = await runScanner(args.cwd);
     logger.info(`Root: ${scan.rootDir}`);
     logger.info(
-      scan.isGreenfield ? "Repo vazio detectado (greenfield)." : "Projeto existente detectado.",
+      scan.isGreenfield ? "Empty repo detected (greenfield)." : "Existing project detected.",
     );
 
     const profile = scan.isGreenfield
@@ -36,7 +36,7 @@ export const initCommand = defineCommand({
 
     const configPath = path.join(scan.rootDir, ".cursor", "agent-kit.config.json");
     await writeJson(configPath, profile);
-    logger.success(`Profile salvo em ${configPath}`);
+    logger.success(`Profile saved in ${configPath}`);
 
     await generateFromProfile(profile);
 
@@ -48,18 +48,18 @@ export const initCommand = defineCommand({
         profile.selectedCoreComponents,
       );
       if (stats.written.length > 0) {
-        logger.success(`Skills instaladas: ${stats.written.join(", ")}`);
+        logger.success(`Skills installed: ${stats.written.join(", ")}`);
       } else if (stats.missing.length > 0) {
-        logger.warn(`Skills não encontradas no registry: ${stats.missing.join(", ")}`);
+        logger.warn(`Skills not found in registry: ${stats.missing.join(", ")}`);
       } else {
-        logger.info("Nenhuma skill nova a copiar (já instaladas ou seleção vazia).");
+        logger.info("No new skills to copy (already installed or empty selection).");
       }
     } catch {
       logger.info(
-        "Registry indisponível neste diretório: use agent-kit install / agent-kit add <id> com --registry ou cache remoto.",
+        "Registry unavailable in this directory: use agent-kit install / agent-kit add <id> with --registry or remote cache.",
       );
     }
 
-    outro("Setup finalizado.");
+    outro("Setup completed.");
   },
 });

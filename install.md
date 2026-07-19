@@ -49,10 +49,10 @@ When the user drags this file or uses `@install.md` and CLI is not available:
 ├── plans/
 ├── memory/
 ├── context/
-│   ├── templates/  # opcional: context-pack, handoff, task-brief, adr
+│   ├── templates/  # optional: context-pack, handoff, task-brief, adr
 │   ├── current/
 │   └── archive/
-└── HANDOFF.md      # se ainda não existir
+└── HANDOFF.md      # if it does not exist yet
 autogit/
 ├── gitupdate.md
 └── plan-routine.md

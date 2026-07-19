@@ -1,67 +1,67 @@
 ---
-description: Convenções ClickUp - só quando o projeto usa ClickUp (MCP/skill). NÃO é core do Agent Kit. PM tool é escolha do projeto.
+description: ClickUp conventions - only when the project uses ClickUp (MCP/skill). Not part of Agent Kit Core. PM tool is a project choice.
 alwaysApply: false
 globs:
 ---
 
-# ClickUp - Convenções (opcional / stack)
+# ClickUp - Conventions (optional / stack)
 
-**Fora do Core Pack.** O Agent Kit não assume gerenciador de projetos. Use esta rule **somente** se o repositório integrar ClickUp (MCP ou skill instalada). Caso contrário, ignore.
+**Outside the Core Pack.** Agent Kit does not assume a project manager. Use this rule **only** if the repository integrates ClickUp (MCP or installed skill). Otherwise ignore it.
 
-Referência: [.cursor/skills/community/clickup/SKILL.md](.cursor/skills/community/clickup/SKILL.md) (detalhes e exemplos).
+Reference: [.cursor/skills/community/clickup/SKILL.md](.cursor/skills/community/clickup/SKILL.md) (details and examples).
 
-## Padrão de título
+## Title pattern
 
-- **Formato:** `[Projeto/Módulo] Verbo + Objeto` (ex.: "Checkout - Integrar solicitação de reserva").
-- Título claro, acionável; sem abreviações sem contexto.
-- Para subtarefas: verbo no imperativo + objeto (ex.: "Validar fluxo de reserva").
+- **Format:** `[Project/Module] Verb + Object` (e.g. "Checkout - Integrate reservation request").
+- Clear, actionable title; no unexplained abbreviations.
+- For subtasks: imperative verb + object (e.g. "Validate reservation flow").
 
-## Descrição (template)
+## Description (template)
 
-Ao criar ou atualizar task, preencher em Markdown:
+When creating or updating a task, fill in Markdown:
 
-1. **Objetivo** - 1–2 frases.
-2. **Escopo** - lista em bullets dos entregáveis.
-3. **Critérios de aceite** - em formato de checklist.
-4. **Referências** - links para arquivos do repo, docs ou outras tasks.
+1. **Objective** - 1–2 sentences.
+2. **Scope** - bullet list of deliverables.
+3. **Acceptance criteria** - checklist format.
+4. **References** - links to repo files, docs, or other tasks.
 
 ## Task vs Subtask
 
-- **Task** = entrega ou user story completa (pode ter subtarefas).
-- **Subtask** = passo acionável para completar a task; **máx. 1 nível** (sem sub-subtasks).
-- Se uma subtarefa precisar de sub-itens rastreáveis, **promover** essa subtarefa a task.
-- **Checklists** = itens rápidos sem necessidade de tracking individual (ex.: checklist de deploy).
+- **Task** = full delivery or user story (may have subtasks).
+- **Subtask** = actionable step to complete the task; **max 1 level** (no sub-subtasks).
+- If a subtask needs trackable sub-items, **promote** that subtask to a task.
+- **Checklists** = quick items that do not need individual tracking (e.g. deploy checklist).
 
-## Fluxo de status
+## Status flow
 
-Ordem esperada (ajustar aos status reais da list do projeto):
+Expected order (adjust to the project's real list statuses):
 
 ```
-backlog → escopo refinado → desenvolvimento → homologação → complete
+backlog → scope defined → in progress → staging → complete
                               ↓
-                         pendência (bloqueio externo)
+                         blocked (external blocker)
 ```
 
-- **Regras:** Nunca pular de `backlog` direto para `complete`. Usar `desenvolvimento` só após escopo definido (`escopo refinado`).
-- **pendência:** usar quando houver bloqueio externo; adicionar comentário na task explicando o bloqueio.
+- **Rules:** Never jump from `backlog` straight to `complete`. Use `in progress` only after scope is defined (`scope defined`).
+- **blocked:** use when there is an external blocker; add a comment on the task explaining the blocker.
 
-## Integração com Git (opcional)
+## Git integration (optional)
 
-- **Após `git staging`:** atualizar status da(s) task(s) relacionada(s) para homologação/staging, se o projeto usar ClickUp.
-- **Após `git prod`:** atualizar status para **complete**, se aplicável.
-- Se MCP ClickUp não estiver disponível ou não houver tarefas: **pular sem aviso**.
+- **After `git staging`:** update related task status(es) to staging, if the project uses ClickUp.
+- **After `git prod`:** update status to **complete**, if applicable.
+- If ClickUp MCP is unavailable or there are no tasks: **skip without warning**.
 
-## Prioridade, responsável e datas
+## Priority, assignee, and dates
 
-- **Prioridade:** sempre definir ao criar task (`urgent`, `high`, `normal`, `low`).
-- **Responsável:** task pai sempre com responsável; subtarefas herdam ou têm responsável específico quando fizer sentido.
-- **Due date:** tasks de milestone/entrega devem ter due date; subtarefas opcionais.
+- **Priority:** always set when creating a task (`urgent`, `high`, `normal`, `low`).
+- **Assignee:** parent task always has an assignee; subtasks inherit or get a specific assignee when it makes sense.
+- **Due date:** milestone/delivery tasks should have a due date; subtasks optional.
 
 ## Tags
 
-Usar tags do space do projeto (`n8n`, `api`, `hotfix`, etc.) conforme o contexto - não inventar taxonomia do kit.
+Use tags from the project's space (`n8n`, `api`, `hotfix`, etc.) as context requires - do not invent a kit taxonomy.
 
-## Quando usar o MCP ClickUp
+## When to use the ClickUp MCP
 
-- Só se o projeto tiver ClickUp configurado.
-- Resolver list_id por nome (`clickup_get_list` com `list_name`) - sem hardcodar IDs de um workspace alheio.
+- Only if the project has ClickUp configured.
+- Resolve list_id by name (`clickup_get_list` with `list_name`) - do not hardcode IDs from another workspace.
