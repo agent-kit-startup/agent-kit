@@ -1,82 +1,83 @@
-# Bootstrap — install without a nested `agent-kit/` folder
+# What installing Agent Kit puts in your project
 
-Canonical way to put Agent Kit into a **consumer project**. Complements [layers-spec.md](layers-spec.md), [agent-kit-manifest.md](agent-kit-manifest.md), and [getting-started.md](getting-started.md).
+When you install Agent Kit, it doesn't copy its own repository into your project. It writes just the files your project needs: a few rules and commands under `.cursor/`, a git routine under `autogit/`, and a small manifest that tracks what was installed. This page shows exactly what lands where and why.
 
-## Anti-pattern (retired)
-
-Do **not** copy or clone the full Agent Kit monorepo into the project as `agent-kit/` (with or without `node_modules` / `packages/`). That model caused version drift, unknown kit versions, and no safe `update` path. See [drift-inventory.md](drift-inventory.md).
-
-## Target layout after install
-
-Only project-local artifacts — no nested kit repo:
+## The layout you get
 
 ```text
 your-project/
 ├── .cursor/
-│   ├── agent-kit.json          # manifest (version, packs, protected L3)
-│   ├── rules/                  # L0 (+ L1 if packs chosen)
-│   ├── commands/               # L0 slash commands
-│   ├── hooks/pre-commit/       # at least check-secrets (L0)
-│   ├── skills/                 # L2 only if added
-│   ├── agents/                 # from packs / skills if added
-│   ├── plans/                  # L3 (session) — create as needed
-│   ├── memory/                 # L3
-│   ├── context/                # L3
-│   └── HANDOFF.md              # L3
+│   ├── agent-kit.json          # manifest: version, installed packs, files to protect
+│   ├── hooks.json              # Cursor-native agent hooks (phase/context)
+│   ├── rules/                  # always-on rules (base install; more if you add packs)
+│   ├── commands/               # slash commands (/start-project, /handoff, /git-prod, …)
+│   ├── hooks/
+│   │   ├── pre-commit/         # secrets check (git)
+│   │   └── agent/              # sessionStart / stop / preCompact scripts
+│   ├── skills/                 # only if you add skills
+│   ├── agents/                 # only if a pack or skill brings them
+│   ├── plans/                  # your plans (created as you work)
+│   ├── memory/                 # notes the agent keeps between chats
+│   ├── context/                # working context files
+│   └── HANDOFF.md              # where the last session stopped
 └── autogit/
-    ├── gitupdate.md            # L0 — staging → prod prompts
-    └── plan-routine.md         # L0 — plan modes (manual / loop / orchestrated)
+    ├── gitupdate.md            # the staging → production routine
+    └── plan-routine.md         # how the plan modes (manual / loop / orchestrated) work
 ```
 
-Optional later: `.git/hooks/prepare-commit-msg` from the kit’s `git-hooks/` template (copy the single file, not the kit tree).
+Everything under `plans/`, `memory/`, `context/`, and `HANDOFF.md` is **yours** - the kit creates the folders but never overwrites what's inside them when it updates.
 
-## Preferred path — CLI
+Optional extra: a `prepare-commit-msg` git hook you can copy from the kit's `git-hooks/` folder (one file, not the whole tree).
 
-From the **project root**:
+Native agent hooks need `python3` on PATH. They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time.
+
+## Installing
+
+From your project's root:
 
 ```bash
-# Published CLI (when available on npm)
+# once the CLI is on npm
 npx @agent-kit/cli install
-npx @agent-kit/cli install --pack clean-code,gestao-contexto
+npx @agent-kit/cli install --pack clean-code,context-management
 
-# Or from a local checkout of the kit monorepo
+# or straight from a local checkout of the kit
 pnpm --filter @agent-kit/cli start install --cwd /path/to/your-project
 ```
 
 What `install` does:
 
-1. Resolves the registry (local monorepo, `--registry`, or remote cache via `--url` / manifest `registry`).
-2. Copies **L0** artifacts into `.cursor/` + `autogit/` (never the whole monorepo).
-3. Optionally installs L1 packs (`--pack`) and refreshes L2 skills already listed in the manifest.
-4. Writes `.cursor/agent-kit.json` with version and protected L3 globs.
+1. Finds the source of the kit's files (a local copy, a `--registry` path, or a remote one from `--url`).
+2. Copies the base rules, commands, hooks, and the `autogit/` routine into your project.
+3. Optionally adds any packs you asked for with `--pack`.
+4. Writes `.cursor/agent-kit.json` recording the version and which of your files to leave untouched on update.
 
-Ongoing lifecycle (same registry, L3 never overwritten):
+**No CLI on your PATH?** Open the project in your IDE, attach the root [`install.md`](../install.md), and ask the agent to install. It produces the same files and manifest.
 
-| Command | Role |
+## Keeping it current
+
+The kit can update itself against the same source without ever touching your plans, notes, or local tweaks:
+
+| Command | What it does |
 |---------|------|
-| `agent-kit add <id>` | L1 pack or L2 skill |
-| `agent-kit update` | Re-apply L0/packs/skills; skip `protected` |
-| `agent-kit diff` | Drift vs registry |
-| `agent-kit status` | Version, packs, health |
+| `agent-kit add <id>` | Add a pack or skill |
+| `agent-kit update` | Refresh the installed rules/commands; skips your protected files |
+| `agent-kit diff` | Show what's changed vs the latest |
+| `agent-kit status` | Version, installed packs, health |
 
-## Porta B — `@install.md` in chat
+## Moving off an old nested copy
 
-If the user does not want a CLI on the path: open the project in the IDE, attach root [`install.md`](../install.md), and ask to install. The agent must produce the **same** layout and manifest as the CLI (L0 + `agent-kit.json` + `autogit/`), not a nested `agent-kit/` tree.
+Older setups sometimes copied the whole Agent Kit repo into the project as a nested `agent-kit/` folder. That made it impossible to tell which version you had or to update safely. If you have one:
 
-## Migrating an existing nested copy
+1. Note anything that only lives in that folder and is unique to your project (custom rules, local skills, plans, notes).
+2. Run `agent-kit install` (or the chat install) so the manifest exists.
+3. Move your unique files into `.cursor/`.
+4. Delete the nested `agent-kit/` folder (and its `node_modules`, if any).
+5. Run `agent-kit diff` and `status` to confirm.
 
-1. Inventory L3 uniques (domain rules, local skills, plans/memory) — see [drift-inventory.md](drift-inventory.md).
-2. Run `agent-kit install` (or chat install) so the manifest exists.
-3. Move unique files into `.cursor/` if they only lived under `agent-kit/`.
-4. Delete the nested `agent-kit/` directory (including `node_modules` if present).
-5. Run `agent-kit diff` / `status` to confirm.
+Step-by-step: [migrate-consumer.md](migrate-consumer.md).
 
-Step-by-step migration: [migrate-consumer.md](migrate-consumer.md). This document defines the **install contract** so new projects never start with a folder copy.
+## Related
 
-## Acceptance
-
-- [x] Install path documented without nested monorepo
-- [x] L0 includes `autogit/` at project root  
-- [x] Root `install.md` and README point at CLI / this bootstrap
-- [x] Migration runbook proven and documented
-- [x] Registry-based dogfood deployment verified
+- [Getting started](getting-started.md) - install, commands, workflow
+- [Layers](layers-spec.md) - how the base install, packs, and your own files layer together
+- [Manifest](agent-kit-manifest.md) - the `.cursor/agent-kit.json` file

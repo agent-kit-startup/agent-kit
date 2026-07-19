@@ -1,4 +1,4 @@
-# Review — camadas & orquestração (`review-camadas`)
+# Review - camadas & orquestração (`review-camadas`)
 
 Final coherence pass against the active plan thesis (HITL, hygiene, structural vs stack, public go/no-go). Date: 2026-07-16.
 
@@ -24,11 +24,11 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 
 ## Residuals (not blockers for plan close)
 
-1. **`PUBLIC_REPO_TOKEN`** on private CI — required for PR-based public sync ([public-launch.md](public-launch.md)).
-2. **Phase B cutover** — stop mirroring `registry/**` when contribution-on-public goes live.
-3. **Cursor Marketplace submission** — publisher HITL.
-4. **Paid MCP implementation** — blocked until marketplace gate green.
-5. **Private consumer workspaces** — out of scope for this pass.
+1. **`PUBLIC_REPO_TOKEN`** on private CI - required for PR-based public sync ([public-launch.md](public-launch.md)).
+2. **Phase B cutover** - stop mirroring `registry/**` when contribution-on-public goes live.
+3. **Cursor Marketplace submission** - publisher HITL.
+4. **Paid MCP implementation** - blocked until marketplace gate green.
+5. **Private consumer workspaces** - out of scope for this pass.
 
 ## Contradictions found
 

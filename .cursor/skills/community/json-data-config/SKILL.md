@@ -5,7 +5,7 @@ version: 0.1.0
 category: dados
 ---
 
-# JSON — Config e payloads
+# JSON - Config e payloads
 
 ## JSON válido
 

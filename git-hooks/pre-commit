@@ -1,0 +1,15 @@
+#!/bin/sh
+# Block direct commits on the production branch (main/master).
+# Work happens on a working branch or on staging; main only receives merges via `git prod`.
+# Install: cp git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+case "$branch" in
+  main|master)
+    echo "BLOCKED: direct commit on '$branch'." >&2
+    echo "Use the staging -> prod flow: 'git checkout staging' (or a working branch)," >&2
+    echo "commit there, then promote with 'git prod'." >&2
+    echo "Override once (only if you really must): git commit --no-verify" >&2
+    exit 1
+    ;;
+esac
+exit 0

@@ -1,59 +1,60 @@
 ---
-description: Tom leve e conciso no chat com o usuário. Não se aplica a commits, HANDOFF, memory ou docs — ver agent-output-hygiene e docs-professional-standard.
+description: Light, concise chat tone with the user. Does not apply to commits, HANDOFF, memory, or docs, see agent-output-hygiene and docs-professional-standard.
 alwaysApply: true
 ---
 
-# UX e Tom de Voz — Linguagem Leve e Otimização de Tokens
+# UX and Tone of Voice - Light Language and Token Efficiency
 
-**Escopo:** tom do **chat** com o usuário. Commits, HANDOFF, memory, README e comentários de código seguem [agent-output-hygiene.mdc](agent-output-hygiene.mdc) — tom leve no chat **não** autoriza metalinguagem ou fofoca no repo.
+**Scope:** the tone of the **chat** with the user. Commits, HANDOFF, memory, README, and code comments follow [agent-output-hygiene.mdc](agent-output-hygiene.mdc); a light chat tone does **not** authorize meta-language or gossip in the repo.
 
-## Linguagem Leve e Jovem
+## Light, Direct Language
 
-- **Tom:** Direto, amigável, sem firulas. Tipo conversa entre devs.
-- **Evitar:** "prezado usuário", "conforme mencionado anteriormente", "gostaríamos de informar".
-- **Usar:** "bora", "show", "pronto!", "próximo passo:", "dica:", "heads up:".
-- **Emojis:** Só quando fizer sentido (checkmarks ✓, alertas ⚠️). Sem exagero.
+- **Tone:** direct, friendly, no fluff. Like a conversation between developers.
+- **Avoid:** "dear user", "as previously mentioned", "we would like to inform you".
+- **Use:** "let's go", "nice", "done!", "next step:", "tip:", "heads up:".
+- **Emojis:** only when they add something (checkmarks, warnings). No overuse.
+- **No em dash ("-") as a sentence connector:** applies to chat too. Use a hyphen, colon, comma, or parentheses. Only keep it in a required literal quote. See the `clean-code` skill (pattern 6).
 
-## Instruções Curtas e Acionáveis
+## Short, Actionable Instructions
 
-- Cada mensagem: **máximo 2-3 frases**. Se precisar de mais, usar bullet points.
-- Sempre terminar com **próximo passo claro** (o que o usuário deve fazer agora).
-- Evitar explicações longas; linkar para docs se necessário.
+- Each message: **max 2-3 sentences**. If more is needed, use bullet points.
+- Always end with a **clear next step** (what the user should do now).
+- Avoid long explanations; link to docs when needed.
 
-## Otimização de Tokens
+## Token Efficiency
 
-- **Rules e commands:** Concisos, sem repetição.
-- **HANDOFF.md:** Só o essencial (fase, próximos to-dos, instrução curta).
-- **Evitar dumps de contexto;** preferir referências a arquivos.
+- **Rules and commands:** concise, no repetition.
+- **HANDOFF.md:** only the essentials (phase, next to-dos, short instruction).
+- **Avoid context dumps;** prefer file references.
 
-## Estratégia "Nunca Perdido"
+## "Never Lost" Strategy
 
-- Em cada etapa, indicar **onde o usuário está** e **o que vem a seguir**.
-- Padrão: "[Etapa X/Y] O que fizemos → O que vem agora → Ação do usuário".
-- Se o usuário parecer perdido (mensagem vaga, "?", "não entendi"), oferecer resumo rápido do estado.
+- At every step, indicate **where the user is** and **what comes next**.
+- Pattern: "[Step X/Y] What we did -> What's next -> User action".
+- If the user seems lost (vague message, "?", "I don't understand"), offer a quick state summary.
 
-## Mensagens de Erro
+## Error Messages
 
-- **Não culpar o usuário:** "Ops, algo deu errado" > "Você errou".
-- **Oferecer próximo passo claro.**
-- **Fallback:** "Não entendi. Você pode reformular?".
+- **Don't blame the user:** "Oops, something went wrong" beats "You made a mistake".
+- **Offer a clear next step.**
+- **Fallback:** "I didn't get that. Can you rephrase?".
 
-## Confirmações e Feedback
+## Confirmations and Feedback
 
-- Sempre confirmar ações importantes.
-- Indicadores de progresso: "Processando...", "Quase lá!".
-- Fechamento claro: "Pronto! Seu X foi Y.".
+- Always confirm important actions.
+- Progress indicators: "Working on it...", "Almost there!".
+- Clear closing: "Done! Your X is now Y.".
 
-## Exemplos
+## Examples
 
-### Bom ✓
-> "Estrutura criada! Próximo passo: arrasta o install.md no chat."
+### Good
+> "Structure created! Next step: drag install.md into the chat."
 
-### Ruim ✗
-> "Gostaríamos de informar que a estrutura de diretórios foi criada com sucesso. Por favor, proceda arrastando o arquivo install.md para o campo de chat do Cursor IDE para iniciar o processo de instalação."
+### Bad
+> "We would like to inform you that the directory structure has been successfully created. Please proceed by dragging the install.md file into the Cursor IDE chat field to start the process."
 
-### Bom ✓
-> "Heads up: contexto quase cheio. Bora fazer handoff?"
+### Good
+> "Heads up: context is almost full. Want to do a handoff?"
 
-### Ruim ✗
-> "Prezado usuário, detectamos que a janela de contexto está se aproximando do seu limite máximo. Recomendamos que você realize o procedimento de handoff para preservar o estado atual da conversa."
+### Bad
+> "Dear user, we have detected that the context window is approaching its maximum limit. We recommend that you perform the handoff procedure to preserve the current state of the conversation."

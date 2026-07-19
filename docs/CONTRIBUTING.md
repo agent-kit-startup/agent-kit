@@ -1,6 +1,6 @@
 # Contributing
 
-Agent Kit is a developer bootstrapper for AI-assisted IDEs. Contributions welcome — from skills to CLI features to docs.
+Agent Kit is a developer bootstrapper for AI-assisted IDEs. Contributions welcome - from skills to CLI features to docs.
 
 ## Setup
 
@@ -16,7 +16,7 @@ pnpm test
 - Small, focused PRs
 - Update docs when behavior changes
 - Open PRs from a fork or short-lived branch directly to `main`; the public repository has no long-lived `staging` branch
-- **Cursor-native tooling:** prefer Cursor-supported MCP servers, workspace hooks, and the official SDK. Do not add or document parallel agent gateways — see [cursor-3-features.md](cursor-3-features.md#mcp-hooks-e-sdk).
+- **Cursor-native tooling:** prefer Cursor-supported MCP servers, workspace hooks, and the official SDK. Do not add or document parallel agent gateways - see [cursor-3-features.md](cursor-3-features.md#mcp-hooks-e-sdk).
 
 ## What belongs in Git (vs local-only)
 
@@ -61,4 +61,4 @@ pnpm --filter @agent-kit/cli start -- contribute \
   --registry /path/to/agent-kit
 ```
 
-See [contribute-upstream.md](contribute-upstream.md). Prefer PRs to the **public** repo as Phase B lands — [topology-private-public.md](topology-private-public.md).
+See [contribute-upstream.md](contribute-upstream.md). Prefer PRs to the **public** repo as Phase B lands - [topology-private-public.md](topology-private-public.md).

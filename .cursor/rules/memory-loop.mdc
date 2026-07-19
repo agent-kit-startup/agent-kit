@@ -1,68 +1,68 @@
 ---
-description: Loop CHECK → ACT → WRITE em .cursor/memory/ — consultar memória antes de diagnosticar erros ou decisões; gravar após incidentes significativos e atualizar o índice.
+description: CHECK -> ACT -> WRITE loop in .cursor/memory/, consult memory before diagnosing errors or decisions; record after significant incidents and update the index.
 alwaysApply: true
 ---
 
-# Memory Loop — Aprendizado entre chats
+# Memory Loop: learning across chats
 
-## Objetivo
+## Goal
 
-Persistir **erros resolvidos** e **decisões com tradeoffs** em `.cursor/memory/` para o próximo chat reutilizar em segundos (grep, títulos, tags).
+Persist **resolved errors** and **tradeoff decisions** in `.cursor/memory/` so the next chat can reuse them in seconds (glob, grep on titles, `**Tags:**` lines, symptoms).
 
-## Fluxo
+## Flow
 
-1. **CHECK** — Antes de investigar um erro sério ou propor decisão arquitetural relevante, buscar em `.cursor/memory/errors/` e `.cursor/memory/decisions/` (glob, grep em títulos, linhas `**Tags:**`, sintomas).
-2. **ACT** — Se houver entrada aplicável, **reusar** a solução ou alinhar com a decisão documentada; senão, resolver normalmente.
-3. **WRITE** — Depois de fechar o caso, se couber nos critérios abaixo, criar arquivo novo e **atualizar** `.cursor/memory/_index.md`.
+1. **CHECK** - before investigating a serious error or proposing a relevant architectural decision, search `.cursor/memory/errors/` and `.cursor/memory/decisions/` (glob, grep on titles, symptoms).
+2. **ACT** - if a matching entry exists, **reuse** the solution or align with the documented decision; otherwise, solve it normally.
+3. **WRITE** - after closing the case, if it meets the criteria below, create a new file and **update** `.cursor/memory/_index.md`.
 
-## Onde gravar
+## Where to write
 
-| Tipo | Pasta | Nome do arquivo |
-|------|--------|------------------|
-| Erro + causa + fix | `.cursor/memory/errors/` | `YYYY-MM-DD_slug-descritivo.md` |
-| Decisão (ADR-lite) | `.cursor/memory/decisions/` | `YYYY-MM-DD_slug-descritivo.md` |
+| Type | Folder | File name |
+|------|--------|-----------|
+| Error + cause + fix | `.cursor/memory/errors/` | `YYYY-MM-DD_descriptive-slug.md` |
+| Decision (ADR-lite) | `.cursor/memory/decisions/` | `YYYY-MM-DD_descriptive-slug.md` |
 
-## Critérios de escrita (WRITE)
+## Write criteria
 
-**Não** salvar: typo, import óbvio, ajuste trivial de formatação.
+**Do not** save: typos, obvious imports, trivial formatting tweaks.
 
-**Salvar** quando pelo menos um for verdadeiro:
+**Save** when at least one of these is true:
 
-- (a) O erro exigiu investigação (logs, repro, tentativas).
-- (b) A solução **não** era óbvia de primeira.
-- (c) Houve **escolha** entre alternativas (tradeoffs).
-- (d) Um `/git-staging` ou `/git-prod` **fechou** um incidente ou decisão que ainda não estava em `.cursor/memory/` — o promote é um bom momento de WRITE (amarrado ao spine DevOps).
+- (a) The error required investigation (logs, repro, several attempts).
+- (b) The solution was **not** obvious at first.
+- (c) There was a **choice** between alternatives (tradeoffs).
+- (d) A `/git-staging` or `/git-prod` **closed** an incident or decision not yet in `.cursor/memory/`; the promote is a good moment to WRITE, tied to the DevOps spine.
 
-## Formato — Erros (`errors/*.md`)
+## Format: errors (`errors/*.md`)
 
-Título H1 = resumo curto. Corpo compacto:
+H1 title = short summary. Compact body:
 
-- **Data:** YYYY-MM-DD
-- **Erro:** sintoma / mensagem / contexto
-- **Causa:** raiz
-- **Solução:** o que fazer
-- **Arquivos:** paths tocados (opcional)
-- **Tags:** palavras-chave minúsculas, separadas por vírgula
+- **Date:** YYYY-MM-DD
+- **Error:** symptom / message / context
+- **Cause:** root cause
+- **Solution:** what to do
+- **Files:** paths touched (optional)
+- **Tags:** lowercase keywords, comma-separated
 
-## Formato — Decisões (`decisions/*.md`)
+## Format: decisions (`decisions/*.md`)
 
-- **Data:** YYYY-MM-DD
-- **Contexto:** 1–2 frases
-- **Decisão:** o que foi escolhido
-- **Alternativa descartada:** breve
+- **Date:** YYYY-MM-DD
+- **Context:** 1-2 sentences
+- **Decision:** what was chosen
+- **Discarded alternative:** brief
 - **Tags:**
 
-## Índice
+## Index
 
-Após cada nova entrada, acrescentar linha em `.cursor/memory/_index.md` com: título (link relativo), data, tags.
+After each new entry, add a line to `.cursor/memory/_index.md` with: title (relative link), date, tags.
 
-## O que **não** fazer
+## What **not** to do
 
-- Não processar transcripts JSONL como fonte principal do loop.
-- Não introduzir embeddings, vector DB ou serviço externo só para isso.
-- Não duplicar preferências de estilo já cobertas por outras rules.
-- Não inflar a memória com ruído; preferir poucas entradas **úteis**.
+- Do not process JSONL transcripts as the loop's main source.
+- Do not introduce embeddings, a vector DB, or an external service just for this.
+- Do not duplicate style preferences already covered by other rules.
+- Do not inflate memory with noise; prefer a few **useful** entries.
 
-## Subagente opcional
+## Optional subagent
 
-Para sessões longas, deduplicação ou reindexação em lote, usar o agente **memory-extractor** (`.cursor/agents/memory-extractor.md`).
+For long sessions, deduplication, or bulk reindexing, use the **memory-extractor** agent (`.cursor/agents/memory-extractor.md`).
