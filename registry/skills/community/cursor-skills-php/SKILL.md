@@ -1,0 +1,51 @@
+---
+name: cursor-skills-php
+description: CURSOR-SKILLS rules for PHP (Laravel, Symfony, WordPress). PSR, Composer, security.
+version: 0.1.0
+category: language
+---
+
+# CURSOR-SKILLS - PHP
+
+Source: [cursor-skills/php](https://github.com/araguaci/cursor-skills/tree/main/php)
+
+## CURSOR setup
+
+- PHP Intelephense, PHP Debug (Xdebug), PHP DocBlocker, Composer.
+- Laravel Blade / Symfony / WordPress snippets per project.
+
+## Typical structure
+
+```
+project/
+├── app/     ├── config/     ├── public/     ├── resources/
+├── tests/   ├── vendor/     ├── composer.json   ├── composer.lock   └── .env
+```
+
+## Required standards
+
+- **PSR**: PSR-1, PSR-2/PSR-12, PSR-4 (autoload).
+- **Composer**: always for deps; `composer.lock`; autoload; separate dev deps.
+- **Tools**: PHP CS Fixer, PHPStan, PHPUnit, Xdebug.
+
+## By framework
+
+- **Laravel**: Artisan, Eloquent, MVC, middleware, validation, PHPUnit, Laravel security.
+- **Symfony**: Bundles, services, DI, PHPUnit, Symfony security.
+- **WordPress**: Coding standards, hooks/filters, plugin/theme architecture, WP tests.
+
+## Code and documentation
+
+- PHPDoc on classes and methods; comments on complex logic; README and API docs.
+
+## Security
+
+- Validate and sanitize inputs; prepared statements; CSRF; secure auth; OWASP; password hashing; HTTPS.
+
+## DB
+
+- Normalization, indexes, FKs, naming conventions; prepared statements; avoid N+1; transactions.
+
+## REST APIs (in PHP)
+
+- REST, correct HTTP codes, versioning, JSON; auth, rate limit, CORS, HTTPS.

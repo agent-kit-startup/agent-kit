@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "packs": [
+    { "id": "cybersec", "path": "registry/packs/cybersec" },
+    { "id": "devops", "path": "registry/packs/devops" },
+    { "id": "engineering-architecture", "path": "registry/packs/engineering-architecture" },
+    { "id": "clean-code", "path": "registry/packs/clean-code" },
+    { "id": "project-management", "path": "registry/packs/project-management" },
+    { "id": "context-management", "path": "registry/packs/context-management" },
+    { "id": "quality", "path": "registry/packs/quality" }
+  ]
+}

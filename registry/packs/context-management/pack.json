@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "context-management",
+  "title": "Context management",
+  "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
+  "version": "0.2.0",
+  "members": [
+    {
+      "kind": "agent",
+      "id": "context-librarian",
+      "source": ".cursor/agents/context-librarian.md"
+    },
+    {
+      "kind": "agent",
+      "id": "memory-extractor",
+      "source": ".cursor/agents/memory-extractor.md"
+    },
+    {
+      "kind": "command",
+      "id": "context-status",
+      "source": ".cursor/commands/context-status.md"
+    },
+    {
+      "kind": "template",
+      "id": "context-pack",
+      "source": "registry/packs/context-management/templates/context-pack.md"
+    }
+  ],
+  "excludes": [
+    "context-guardian.mdc",
+    "memory-loop.mdc",
+    "hooks.json",
+    "session-plan-guard.py",
+    "stop-phase-guard.py",
+    "precompact-handoff.py",
+    "HANDOFF.md"
+  ]
+}
