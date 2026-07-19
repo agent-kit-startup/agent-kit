@@ -1,6 +1,6 @@
 {
   "name": "@agent-kit/cli",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Agent Kit CLI — bootstraps AI-assisted IDEs with project-aware rules, skills, and context management",
   "type": "module",
   "bin": {

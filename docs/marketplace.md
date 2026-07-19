@@ -79,4 +79,4 @@ Future nicety (not required for this to-do): `agent-kit search <query>` over `re
 - [x] CONTRIBUTING quality gate documented
 - [x] This marketplace doc + plugin.json thesis/version note
 - [ ] Live Cursor Marketplace submission (publisher ops / HITL)
-- [ ] Phase B cutover so public catalog is not overwritten by private sync
+- [x] Phase B cutover so public catalog is not overwritten by private sync

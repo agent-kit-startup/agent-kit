@@ -31,7 +31,7 @@ See [getting-started.md](getting-started.md) for the full development setup and 
 
 ## What belongs in Git (vs local-only)
 
-See [repository-boundaries.md](repository-boundaries.md): daily Git targets the **private** repo (`agent-kit-dev`); the **public** repo is updated only via the allowlist sync after release. Cursor plans and `HANDOFF.md` must not be committed; CI blocks the workflow if they are tracked.
+See [repository-boundaries.md](repository-boundaries.md): daily Git targets the **private** repo (`agent-kit-dev`); the **public** repo is updated only via the allowlist sync after release. Registry contributions now flow to the **public** repo since Phase B - the public registry is canonical. Cursor plans and `HANDOFF.md` must not be committed; CI blocks the workflow if they are tracked.
 
 ## Registry contributions (marketplace catalog)
 
@@ -84,4 +84,4 @@ pnpm --filter @agent-kit/cli start -- contribute \
   --registry /path/to/agent-kit
 ```
 
-See [contribute-upstream.md](contribute-upstream.md). Prefer PRs to the **public** repo as Phase B lands - [topology-private-public.md](topology-private-public.md).
+See [contribute-upstream.md](contribute-upstream.md). Registry contributions now target the **public** repo as Phase B is complete - [topology-private-public.md](topology-private-public.md).

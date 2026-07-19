@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Developer bootstrapper for AI-assisted IDEs — understands your project, generates tailored setup for Cursor/VS Code/Windsurf, and helps you develop without losing context.",
   "private": true,
   "license": "MIT",

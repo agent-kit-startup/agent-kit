@@ -110,7 +110,7 @@ export const contributeCommand = defineCommand({
 
     if (!args.write) {
       logger.info(
-        "Dry run. Re-run with --write --registry /path/to/agent-kit to copy accepted files into the kit checkout, then open a PR (gh pr create --base staging).",
+        "Dry run. Re-run with --write --registry /path/to/agent-kit to copy accepted files into the kit checkout, then open a PR (gh pr create --base main).",
       );
       return;
     }
@@ -123,6 +123,6 @@ export const contributeCommand = defineCommand({
     console.log("  git checkout -b contribute/<short-topic>");
     console.log('  git add <files> && git commit -m "feat: contribute <topic> from consumer"');
     console.log("  git push -u origin HEAD");
-    console.log('  gh pr create --base staging --title "feat: contribute <topic>" --body-file -');
+    console.log('  gh pr create --base main --title "feat: contribute <topic>" --body-file -');
   },
 });

@@ -17,7 +17,14 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 Run this in your project root (don't clone this repo into it):
 
 ```bash
+# once @agent-kit/cli is on npm
 npx @agent-kit/cli install
+
+# until then: from a kit checkout, pull the public registry
+pnpm --filter @agent-kit/cli start -- install \
+  --cwd /path/to/your-project \
+  --url https://github.com/agent-kit-startup/agent-kit \
+  --ref main
 ```
 
 Prefer chat? Open your project in the IDE, drag in [`install.md`](install.md), and ask the agent to set it up - same result.
