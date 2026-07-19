@@ -1,62 +1,71 @@
 # Getting Started
 
-Agent Kit understands your project, generates IDE-specific setup, and keeps your context across sessions. Here's how to use it.
+Agent Kit keeps your AI coding agent working against a plan and stops you from losing context when a chat gets too long. This guide covers installing it, the commands you get, and how a normal day looks.
 
-## End-user install (no nested kit folder)
+## Install
+
+Run this in your project's root folder:
 
 ```bash
 npx @agent-kit/cli install
 ```
 
-This writes **L0** into `.cursor/` + `autogit/`, plus `.cursor/agent-kit.json`. Do **not** copy the Agent Kit monorepo into the project. Full contract: [bootstrap.md](bootstrap.md).
+That's the whole install. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work.
 
-Chat alternative: attach root [`install.md`](../install.md) and ask the agent to install (same layout).
-
-Optional packs:
+Want a few extra bundles up front? Add packs (clean code, context tools, and more — see [domain packs](domain-packs.md)):
 
 ```bash
 npx @agent-kit/cli install --pack clean-code,gestao-contexto
 ```
 
-Scan + wizard (generators) remains available as:
+**Prefer not to use the CLI?** Open your project in the IDE, drag in the root [`install.md`](../install.md), and ask the agent to install. You get exactly the same result.
+
+> Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs — see [bootstrap](bootstrap.md) for the exact layout.
+
+There's also a guided setup that scans your project and asks a few questions before installing:
 
 ```bash
 npx @agent-kit/cli init
 ```
 
-## Development (this monorepo)
-
-1. Install dependencies: `pnpm install`
-2. Build CLI: `pnpm build`
-3. Run scanner: `pnpm --filter @agent-kit/cli start scan`
-4. Install into a project: `pnpm --filter @agent-kit/cli start install --cwd /path/to/project`
-5. Dogfood here: `pnpm --filter @agent-kit/cli start status`
-
-## Commands
+## The commands you get
 
 | Command | What it does |
 |---------|-------------|
-| `agent-kit init` | Scan + wizard + generate setup + install core skills |
-| `agent-kit install [profile]` | Bootstrap L0 (+ optional `--pack` list) from registry; writes `.cursor/agent-kit.json` |
-| `agent-kit scan` | Run scanner only |
-| `agent-kit add <id>` | Install a skill or L1 pack from registry (`--skill` / `--pack` if ids collide) |
-| `agent-kit status` | Distribution status (version, packs, L3 protected); `--json` for raw dump |
-| `agent-kit update` | Re-apply L0/packs/skills from registry; **never** overwrites L3 protected paths |
-| `agent-kit diff` | Drift between installed artifacts and registry (`--all` includes matches) |
-| `agent-kit contribute` | Propose upstream PR from local drift/new artifacts (anti-slop gate; `--write` copies into kit checkout) |
-| `agent-kit handoff` | Read active plan, save progress to `.cursor/HANDOFF.md`, suggest routines |
+| `agent-kit install [profile]` | Install the base kit into your project (add packs with `--pack`) |
+| `agent-kit init` | Guided setup: scan your project, ask a few questions, then install |
+| `agent-kit add <id>` | Add one skill or pack later |
+| `agent-kit status` | Show what's installed (version, packs, protected files) |
+| `agent-kit update` | Pull the latest rules and commands; leaves your own files alone |
+| `agent-kit diff` | Show what changed between what you have and the latest |
+| `agent-kit contribute` | Send an improvement you made locally back upstream |
+| `agent-kit handoff` | Save your progress to `.cursor/HANDOFF.md` |
+| `agent-kit scan` | Just scan the project, don't install |
 
-## Workflow for long projects
+## A normal day
 
-Agent Kit helps you develop without losing context. **Always start from a plan** with to-dos in the frontmatter — that panel is how you track status.
+The idea is simple: work against a plan, and save your place before a conversation gets too big to think straight.
 
-1. `/iniciar-projeto` — create a plan with to-dos
-2. Work on tasks (each sized for ~50% of context window), updating to-do `status` as you go
-3. `/handoff` after each task — saves state, suggests git staging/prod
-4. New conversation → `/continuar-plano` — reads HANDOFF and resumes
+1. **`/iniciar-projeto`** — the agent turns your goal into a plan with checkable to-dos. Everything starts from a plan; that panel is how you both track what's done and what's next.
+2. **Work.** The agent implements a to-do at a time and checks them off. Keep each task roughly within half of the chat's context window so the agent stays sharp.
+3. **`/handoff`** — when the chat is getting long, the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
+4. **New chat → `/continuar-plano`** — it reads the handoff and continues, without you re-explaining the project.
 
-**Continuous mode:** `/executar-plano-loop` runs ticks in the same session, updates plan to-do status each tick, and runs `/git-staging` when there is a commitable diff. Never `/git-prod` inside the loop (HITL).
+### Less babysitting
 
-**Orchestrated mode:** `/executar-plano-orquestrado` keeps the main chat thin — it dispatches a Task/worker per to-do, checks a short summary, updates HANDOFF, and stages if needed. Without Task/subagents, degrade to loop or `/continuar-plano`.
+- **`/executar-plano-loop`** — the agent keeps working through the plan in the same chat, checking off to-dos and pushing to staging when there's something to commit. It never promotes to production on its own.
+- **`/executar-plano-orquestrado`** — for big plans: a lightweight main chat hands each to-do to a separate worker, keeping the main conversation from filling up. If your setup has no worker support, it falls back to the loop or manual mode.
 
-See `autogit/plan-routine.md` for manual vs loop vs orchestrated modes. See root **README** for the full overview.
+The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit.
+
+## Working on Agent Kit itself
+
+If you're developing the kit (not just using it):
+
+1. Install dependencies: `pnpm install`
+2. Build the CLI: `pnpm build`
+3. Try the scanner: `pnpm --filter @agent-kit/cli start scan`
+4. Install into a test project: `pnpm --filter @agent-kit/cli start install --cwd /path/to/project`
+5. Check this repo's own install: `pnpm --filter @agent-kit/cli start status`
+
+See the root [README](../README.md) for the big picture and [CONTRIBUTING](CONTRIBUTING.md) for how changes flow.

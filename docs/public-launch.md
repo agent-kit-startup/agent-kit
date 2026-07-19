@@ -25,7 +25,7 @@ Decision recorded in the maintainers' decision log (private repo memory).
 | Public sync opens an append-only PR by default | ✅ `scripts/sync-public.mjs` |
 | GitHub About description and topics | ✅ aligned with [github-about.md](github-about.md) |
 | `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops — requires Contents + Pull requests + Workflows write on the public repo |
-| Public `main` ruleset | ⏳ ops — activate after the first PR-based sync succeeds |
+| Public `main` ruleset | ✅ active (`Protect main` — PR + 1 approval + check `build`) |
 | Fase 7 registry-on-public topology | ✅ spec [topology-private-public.md](topology-private-public.md); cutover ops still open |
 | Final plan review (`review-camadas`) | ✅ [review-camadas.md](review-camadas.md) |
 

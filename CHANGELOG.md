@@ -8,6 +8,17 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-07-19
+
+### Alterado
+
+- README: reescrito em voz de produto para leitor externo — abre pela dor (perder contexto em chats longos), explica handoff/plano/staging→prod em linguagem comum e remove jargão interno do texto (L0, Core Pack, hygiene, spine); tabela de docs descreve cada guia pelo conteúdo.
+- `docs/getting-started.md`: reescrito full em voz de produto — install, tabela de comandos em linguagem comum, "a normal day" e seção separada para quem desenvolve o kit.
+- `docs/bootstrap.md`: reescrito full — abre pelo layout que o install gera (não pelo anti-pattern); passos de install/update/migração em linguagem comum.
+- `docs/domain-packs.md`: reescrito full — explica o que é um pack e para que serve, tabela "what it adds / good for", sem jargão de fase.
+- `docs/layers-spec.md` e `docs/agent-kit-manifest.md`: mantêm o modelo L0–L3 (docs de maintainer), mas ganham abertura em linguagem simples e perdem referências de sessão ("Phase 0", "fleet migration", "drift denominator", "f1-/f2-/f6-", seções de "Acceptance").
+- `docs/public-launch.md`: checklist marca ruleset de `main` do repositório público como ativo.
+
 ## [3.3.1] - 2026-07-18
 
 ### Alterado

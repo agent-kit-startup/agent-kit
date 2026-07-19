@@ -1,53 +1,55 @@
-# Domain packs (L1)
+# Domain packs
 
-Initial L1 discipline packs for Agent Kit. Complements [layers-spec.md](layers-spec.md) and [coherence-inventory.md](coherence-inventory.md). Machine manifests live under `registry/packs/<id>/pack.json` (schema: [schemas/agent-kit.pack.schema.json](../schemas/agent-kit.pack.schema.json)).
+The base install is intentionally small — just the rules and commands every long project needs. **Packs** are optional bundles you add when your work calls for them: a security reviewer, a clean-code refactorer, testing helpers, and so on. Each pack is a set of related rules, skills, and agents that install together.
 
-**Status:** membership defined (`f1-domain-packs`). Install/catalog wiring is `f1-registry-packs` + `f2-cli-lifecycle`.
+Add one anytime:
 
-## Rules
+```bash
+npx @agent-kit/cli add clean-code
+```
 
-1. A pack is **stack-agnostic discipline** knowledge (security, DevOps patterns, clean code, …).
-2. Language/runtime/SaaS skills (n8n, SQL, Node, PHP, …) stay **L2** — not pack members.
-3. Structural HITL loop (handoff, staging→prod, memory-loop, hygiene, docs-standard) stays **L0** even if a related agent sits in a pack.
-4. `members[].source` points at today’s SoT path until packs ship bundled trees (`f1-registry-packs`).
-5. `excludes` documents what must **not** move into the pack (still L0 or L2).
+Or list the packs you want when you first install:
 
-## Pack index
+```bash
+npx @agent-kit/cli install --pack clean-code,cybersec,gestao-contexto
+```
 
-| Id | Title | Members (summary) | Stays out (L0 / L2) |
-|----|-------|-------------------|---------------------|
-| `cybersec` | Cybersecurity | skill `security-review`, agent `security-reviewer` | `check-secrets` hook (L0) |
-| `devops` | DevOps | rule `cursor-skills-devops` | git spine rules/commands/agents (L0) |
-| `engenharia-arquitetura` | Engineering & architecture | agent `tech-lead`, skill `docs-repo` | `docs-professional-standard` (L0) |
-| `clean-code` | Clean code | skill `clean-code`, agent `cleancode-refactor` | registry SoT; former workspace id `code-deslop` merged |
-| `gestao-projeto` | Project management | ClickUp rule/skill/agent, skill `jira` | plan/handoff commands + `plan-routine` (L0) |
-| `gestao-contexto` | Context management | agents `context-librarian`, `memory-extractor`; command `context-status` | `context-guardian`, `memory-loop` (L0) |
-| `quality` | Quality | rule `cursor-skills-testing`, agent `testes-roteiros` | language test runners (L2) |
+## Available packs
 
-## L2 — not packs
+| Pack | What it adds | Good for |
+|------|--------------|----------|
+| `cybersec` | Security-review skill + a security-reviewer agent | Auditing auth, secrets, and risky changes |
+| `devops` | CI/CD and infrastructure guidance | Pipelines, deploys, infra work |
+| `engenharia-arquitetura` | A tech-lead agent + a docs/repo skill | Architecture decisions and keeping docs honest |
+| `clean-code` | A clean-code skill + a refactoring agent | Readability and refactors |
+| `gestao-projeto` | Adapters for project tools (ClickUp, Jira) | Teams that track work in a PM tool |
+| `gestao-contexto` | Context-librarian and memory agents | Very long projects that lean hard on handoff |
+| `quality` | A testing rule + a test-plan agent | Test coverage and QA routines |
 
-These remain on-demand registry/workspace skills or glob rules (see coherence inventory):
+## What packs deliberately leave out
 
-`n8n-workflows`, `sql-postgres`, `json-data-config`, `prompts-markdown`, `ux-message-flows`, and rules `cursor-skills-{n8n,node,php,python,sql,json,prompts,api,integrations,webdesign,mobile,groovy}`.
+Packs hold **discipline** knowledge that isn't tied to any particular language or service. Two things stay out of packs on purpose:
 
-## Registry tier vs layer
+- **The core loop** (planning, handoff, the staging→production flow, clean commits) is always installed with the base kit — never bundled into a pack, even when a related agent lives in one. For example, the `gestao-projeto` pack adds PM-tool adapters, but the plan and handoff commands are part of the base install.
+- **Language- and service-specific tools** (n8n, SQL, Node, PHP, JSON helpers, and similar) are installed individually as skills, not as pack members. Add them on demand:
 
-Some skills sit under `registry/skills/core/` for historical catalog reasons. **Catalog “core” ≠ layer L0.** Example: `security-review` is catalogued under skills/core but **ships with the `cybersec` L1 pack**. L0 keeps only the structural secrets gate (`check-secrets`).
+```bash
+npx @agent-kit/cli add sql-postgres
+npx @agent-kit/cli add n8n-workflows
+```
 
-## Manifest usage
+## How your project records packs
 
-Projects list opted-in packs in `.cursor/agent-kit.json`:
+Installed packs are listed in your project's manifest, `.cursor/agent-kit.json`:
 
 ```json
 "packs": ["clean-code", "cybersec", "gestao-contexto"]
 ```
 
-Empty `packs` = L0 only (+ any L2 `skills`).
+An empty list means you're running the base kit only, plus any individual skills you added.
 
-## Acceptance (`f1-domain-packs`)
+## Related
 
-- [x] Seven pack ids with `pack.json` membership
-- [x] Human index in this doc; layers-spec L1 points here
-- [x] L2 language/SaaS explicitly excluded from packs
-- [x] Registry catalog lists packs (`f1-registry-packs` — `registry.json` schemaVersion 2)
-- [x] Full remote lifecycle `update`/`diff` (`f2-cli-lifecycle`)
+- [Layers](layers-spec.md) — how the base install, packs, and your own files fit together
+- [Manifest](agent-kit-manifest.md) — the `.cursor/agent-kit.json` file
+- [Creating skills](creating-skills.md) — build your own
