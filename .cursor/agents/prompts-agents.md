@@ -1,6 +1,6 @@
 ---
 name: prompts-agents
-description: Cria e edita prompts de agentes em Markdown; segue modelo de referência e estrutura por pasta. Use para novos prompts, versões V1/V2 e consistência entre agentes.
+description: Cria e edita prompts de agentes em Markdown; segue modelo de referência e estrutura por pasta. Demoted (skill-first): prefer prompts-markdown skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:

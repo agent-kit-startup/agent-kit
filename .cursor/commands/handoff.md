@@ -1,48 +1,50 @@
-# Comando: /handoff
+# Command: /handoff
 
-## Objetivo
-Atualizar o documento de handoff para preservar o estado atual e permitir continuação em nova conversa.
+## Goal
 
-## Quando Usar
-- Ao fim de cada fase de um plano
-- Quando o contexto estiver ficando cheio
-- Antes de pausar o trabalho por tempo prolongado
-- Quando quiser registrar progresso
+Update the handoff document to preserve current state and allow continuation in a new conversation.
 
-## O Que Fazer
+## When to Use
 
-1. **Verificar tarefa ativa:**
-   - Checar se existe Context Pack em `.cursor/context/current/`
-   - Checar se existe plano ativo em `.cursor/plans/`
+- At the end of each phase of a plan
+- When context is getting full
+- Before pausing work for an extended period
+- When you want to record progress
 
-2. **Atualizar `.cursor/HANDOFF.md` com:**
-   - Nome do plano (arquivo)
-   - Última atualização (timestamp)
-   - Fase concluída
-   - To-dos concluídos (ids)
-   - Próxima fase
-   - Próximos to-dos (ids)
-   - Instrução clara para o próximo agente (1-3 frases)
+## What to Do
 
-3. **Spine DevOps (sugerir, não executar sem pedido):**
-   - Se a fase gerou código commitável → sugerir `/git-staging` para promover à pré-prod.
-   - Se houve erro/decisão com tradeoff → sugerir memory-loop WRITE (`.cursor/memory/`).
-   - Nunca sugerir commit direto em `main`; produção só via `/git-prod` após staging.
+1. **Check the active task:**
+   - Check whether a Context Pack exists in `.cursor/context/current/`
+   - Check whether an active plan exists in `.cursor/plans/`
 
-4. **Responder ao usuário:**
-   > "Handoff atualizado! Continuar: `/continuar-plano`. Com código pronto: `/git-staging`. Produção: `/git-prod`."
+2. **Update `.cursor/HANDOFF.md` with:**
+   - Plan name (file)
+   - Last updated (timestamp)
+   - Phase completed
+   - Completed to-dos (ids)
+   - Next phase
+   - Next to-dos (ids)
+   - Clear instruction for the next agent (1-3 sentences)
 
-## Alternativa via CLI
+3. **DevOps spine (suggest, do not run without being asked):**
+   - If the phase produced commitable code, suggest `/git-staging` to promote to pre-prod.
+   - If there was an error or a tradeoff decision, suggest a memory-loop WRITE (`.cursor/memory/`).
+   - Never suggest committing directly to `main`; production only via `/git-prod` after staging.
+
+4. **Respond to the user:**
+   > "Handoff updated! Continue: `/continue-plan`. With code ready: `/git-staging`. Production: `/git-prod`."
+
+## CLI alternative
 
 ```bash
 ./cursor-handoff handoff
-# ou: agent-kit handoff
+# or: agent-kit handoff
 ```
 
-Isso atualiza o HANDOFF.md com base no plano / Context Pack ativo.
+This updates HANDOFF.md based on the active plan / Context Pack.
 
-## Loop completo
+## Full loop
 
 ```
-plano → trabalho → /handoff → /git-staging → (aprovação) → /git-prod → memory
+plan -> work -> /handoff -> /git-staging -> (approval) -> /git-prod -> memory
 ```

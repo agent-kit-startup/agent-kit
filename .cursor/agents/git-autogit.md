@@ -1,6 +1,6 @@
 ---
 name: git-autogit
-description: Aplica fluxo staging → produção (git staging, git prod), CHANGELOG e Conventional Commits. Use para commits, MR, promoção e CHANGELOG. Usa autogit/gitupdate.md. Atualiza HANDOFF após promote.
+description: Aplica fluxo staging → produção (git staging, git prod), CHANGELOG e Conventional Commits. Dogfood-only: not a pack member; consumers use L0 /git-staging and /git-prod. Optional Task isolation in the kit repo.
 model: claude-sonnet-4
 readonly: false
 rules:

@@ -1,13 +1,13 @@
 ---
 name: clean-code
-description: Remove AI code slop (redundant comments, noisy try/catch, any casts, deep nesting). Alias: code-deslop. Use after AI sessions or before review.
+description: Remove AI slop (redundant comments, noisy try/catch, any casts, deep nesting, em dash "—" in text). Alias: code-deslop. Use after AI sessions or before review.
 version: 0.1.0
 category: quality
 ---
 
 # Clean Code (code-deslop)
 
-Comentários óbvios, defesa excessiva, `any` para calar o tipo, nesting profundo — padrões que leem como código de máquina.
+Comentários óbvios, defesa excessiva, `any` para calar o tipo, nesting profundo - padrões que leem como código de máquina.
 
 ## Quando usar
 
@@ -33,11 +33,11 @@ Diff ou arquivo pontual: esta skill. Refatoração grande: subagente `cleancode-
 Repetem o óbvio em vez de explicar o porquê.
 
 ```typescript
-// BAD — slop
+// BAD - slop
 const total = items.length; // Get the total number of items
 return total; // Return the total
 
-// GOOD — no comment needed, code is self-explanatory
+// GOOD - no comment needed, code is self-explanatory
 const total = items.length;
 return total;
 ```
@@ -47,7 +47,7 @@ return total;
 Try/catch ou null check em caminho interno onde o caller já garante dado válido.
 
 ```typescript
-// BAD — slop (internal helper, caller always passes valid data)
+// BAD - slop (internal helper, caller always passes valid data)
 function formatName(user: User): string {
   try {
     if (!user) throw new Error('User is required');
@@ -70,10 +70,10 @@ function formatName(user: User): string {
 Cast só para calar o checker em vez de modelar o tipo certo.
 
 ```typescript
-// BAD — slop
+// BAD - slop
 const result = (response as any).data;
 
-// GOOD — use the actual type
+// GOOD - use the actual type
 const result = (response as ApiResponse).data;
 ```
 
@@ -82,7 +82,7 @@ const result = (response as ApiResponse).data;
 If/else ou try/catch empilhados; preferir early return ou guard clauses.
 
 ```typescript
-// BAD — slop
+// BAD - slop
 function process(input: string | null) {
   if (input) {
     if (input.length > 0) {
@@ -94,7 +94,7 @@ function process(input: string | null) {
   return null;
 }
 
-// GOOD — early returns
+// GOOD - early returns
 function process(input: string | null) {
   if (!input || input.length === 0 || !isValid(input)) return null;
   return transform(input);
@@ -104,6 +104,25 @@ function process(input: string | null) {
 ### 5. Estilo fora do arquivo
 
 Nomes, imports, tratamento de erro ou formatação diferentes do resto do arquivo.
+
+### 6. Travessão (em dash "—") em texto
+
+O travessão "—" é uma das marcas mais fortes de texto gerado por IA. Em comentários, mensagens de commit, docs, README, HANDOFF e memory, ele é slop: troque por hífen, dois-pontos, vírgula, parênteses ou ponto.
+
+```text
+BAD  (slop de IA, com travessão)
+feat: novo cache — reduz latência e simplifica o fluxo
+o CLI faz o parse — depois valida — e então grava
+
+GOOD
+feat: novo cache reduz latência e simplifica o fluxo
+o CLI faz o parse, valida e grava
+o CLI faz o parse; depois valida; então grava
+```
+
+Regra: **eliminar por completo** o "—" de commits, textos e docs. Só usar quando for obrigatório por um motivo concreto (por exemplo, citar literalmente um texto externo, um dado ou uma API que já contém o caractere). Nesses casos, preservar o original.
+
+Nota: isto vale para o repositório e para o chat. É slop textual, não só de código; ver rules `agent-output-hygiene`, `docs-professional-standard` e `ux-tone`.
 
 ## Convenções
 
@@ -118,6 +137,7 @@ Nomes, imports, tratamento de erro ou formatação diferentes do resto do arquiv
 - [ ] Try/catch e checks desnecessários removidos onde o fluxo é confiável
 - [ ] `any` trocado por tipo adequado ou removido
 - [ ] Nesting achatado (early return / guards)
+- [ ] Travessão "—" eliminado de comentários, commits e docs tocados (só manter se for citação literal obrigatória)
 - [ ] Estilo alinhado ao arquivo
 - [ ] Sem metalinguagem / fofoca / raciocínio de chat em comments, commits ou docs tocados (rule `agent-output-hygiene`)
 - [ ] Lint/typecheck ok; resumo curto

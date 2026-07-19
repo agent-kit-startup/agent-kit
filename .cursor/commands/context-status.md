@@ -1,44 +1,46 @@
-# Comando: /context-status
+# Command: /context-status
 
-## Objetivo
-Mostrar o estado atual do contexto: tarefa ativa, handoff, arquivados.
+## Goal
 
-## Quando Usar
-- Quando quiser saber o que está em andamento
-- Para verificar se há tarefa ativa
-- Para listar tarefas arquivadas
+Show the current context state: active task, handoff, archived tasks.
 
-## O Que Fazer
+## When to Use
 
-1. **Verificar tarefa ativa:**
-   - Checar `.cursor/context/current/` para Context Pack ativo
-   - Mostrar nome da tarefa e resumo do estado
+- When you want to know what is in progress
+- To check whether there is an active task
+- To list archived tasks
 
-2. **Verificar HANDOFF.md:**
-   - Checar se existe `.cursor/HANDOFF.md`
-   - Mostrar última atualização e próximos passos
+## What to Do
 
-3. **Listar arquivados (últimos 5):**
-   - Checar `.cursor/context/archive/` para tarefas concluídas
+1. **Check the active task:**
+   - Check `.cursor/context/current/` for an active Context Pack
+   - Show task name and state summary
 
-4. **Responder ao usuário:**
+2. **Check HANDOFF.md:**
+   - Check whether `.cursor/HANDOFF.md` exists
+   - Show last update and next steps
+
+3. **List archived tasks (last 5):**
+   - Check `.cursor/context/archive/` for completed tasks
+
+4. **Respond to the user:**
 
 ```
-📋 Status do Contexto
+Context status
 
-**Tarefa ativa:** feature-auth (desde 2024-01-15)
-  - Fase: 2/5
-  - Próximo to-do: implementar-jwt
+Active task: feature-auth (since 2024-01-15)
+  - Phase: 2/5
+  - Next to-do: implement-jwt
 
-**Handoff:** Atualizado em 2024-01-16 14:30
-  - Instrução: "Continuar implementação do JWT middleware"
+Handoff: updated on 2024-01-16 14:30
+  - Instruction: "Continue JWT middleware implementation"
 
-**Arquivados (últimos):**
-  - 2024-01/setup-inicial
-  - 2024-01/configurar-db
+Archived (latest):
+  - 2024-01/initial-setup
+  - 2024-01/configure-db
 ```
 
-## Alternativa via CLI
+## CLI alternative
 
 ```bash
 ./cursor-handoff status

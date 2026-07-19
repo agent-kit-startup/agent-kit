@@ -1,4 +1,4 @@
-# Registry format — Agent Kit
+# Registry format - Agent Kit
 
 Canonical catalog for installable units. SoT file: `registry/registry.json`.  
 Generate/refresh with:
@@ -7,13 +7,13 @@ Generate/refresh with:
 node scripts/build-registry.mjs
 ```
 
-(Legacy `scripts/build-registry.sh` only scanned `.cursor/skills/` into an older flat format — prefer the Node builder for this monorepo.)
+(Legacy `scripts/build-registry.sh` only scanned `.cursor/skills/` into an older flat format - prefer the Node builder for this monorepo.)
 
 ## schemaVersion 2
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `schemaVersion` | number | `2` — packs + artifact catalog |
+| `schemaVersion` | number | `2` - packs + artifact catalog |
 | `skills.core` | object[] | Structural / high-reuse skills under `registry/skills/core/` |
 | `skills.community` | object[] | Stack/community skills under `registry/skills/community/` |
 | `packs` | object[] | L1 domain pack summaries (`registry/packs/<id>/`) |
@@ -27,7 +27,7 @@ node scripts/build-registry.mjs
 | `title` | Display title (from SKILL frontmatter `name` when present) |
 | `description` | Short description |
 | `path` | Repo-relative directory containing `SKILL.md` |
-| `version` | Semver from frontmatter (`version:`) — marketplace catalog |
+| `version` | Semver from frontmatter (`version:`) - marketplace catalog |
 | `category` | Catalog category from frontmatter (`category:`) |
 
 ### Pack entry
@@ -38,7 +38,7 @@ node scripts/build-registry.mjs
 | `title` / `description` / `version` | From `pack.json` |
 | `path` | Repo-relative pack directory (`pack.json` inside) |
 
-Membership detail: `registry/packs/<id>/pack.json` — see [docs/domain-packs.md](docs/domain-packs.md) and [schemas/agent-kit.pack.schema.json](schemas/agent-kit.pack.schema.json).
+Membership detail: `registry/packs/<id>/pack.json` - see [docs/domain-packs.md](docs/domain-packs.md) and [schemas/agent-kit.pack.schema.json](schemas/agent-kit.pack.schema.json).
 
 ### Artifact entry
 

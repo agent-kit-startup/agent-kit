@@ -1,52 +1,53 @@
 ---
-description: Higiene de saída do agente — chat ≠ artefato versionado. Proíbe metalinguagem, raciocínio interno, fofoca e contexto pessoal em commits, docs, HANDOFF, memory e código. Docs de produto: ver também docs-professional-standard.
+description: Agent output hygiene, chat is not a versioned artifact. Forbids meta-language, internal reasoning, gossip, and personal context in commits, docs, HANDOFF, memory, and code. Product docs: see also docs-professional-standard.
 alwaysApply: true
 ---
 
-# Higiene de saída — chat vs repositório
+# Output hygiene: chat vs repository
 
-Agentes juniores misturam **conversa** com **artefato**. Isso gera slop, quebra confiança e pode vazar conteúdo inadequado.
+Junior agents mix **conversation** with **artifact**. That produces slop, breaks trust, and can leak content that should not be there.
 
-## Regra de ouro
+## Golden rule
 
-| Superfície | Pode | Não pode |
-|------------|------|----------|
-| **Chat** (resposta ao usuário) | Tom leve, humor, ecoar urgência do usuário | — |
-| **Repo** (commit, PR, README, docs, HANDOFF, memory, comments, CHANGELOG) | Fato técnico, decisão, próximo passo | Metalinguagem, fofoca, motivação pessoal, “o agente pensou…” |
+| Surface | Allowed | Not allowed |
+|---------|---------|--------------|
+| **Chat** (response to the user) | Light tone, humor, echoing the user's urgency | - |
+| **Repo** (commit, PR, README, docs, HANDOFF, memory, comments, CHANGELOG) | Technical fact, decision, next step | Meta-language, gossip, personal motivation, "the agent thought..." |
 
-Documentação de produto (README, `docs/`, ADRs, runbooks): além desta rule, seguir **[docs-professional-standard.mdc](docs-professional-standard.mdc)** — padrão profissional, herdável, sem referências transitórias (pessoas, projetos alheios, sessão).
+Product documentation (README, `docs/`, ADRs, runbooks): besides this rule, follow **[docs-professional-standard.mdc](docs-professional-standard.mdc)**, a professional, inheritable standard with no transient references (people, unrelated projects, session).
 
-Se o usuário trouxer urgência ou contexto pessoal no chat:
+If the user brings urgency or personal context into the chat:
 
-- **Chat:** ok reconhecer (“bora, priorizo isso”).
-- **Commit / HANDOFF / doc / memory:** só o profissional e **do projeto**. Nunca repetir insulto, política de pessoas ou drama.
+- **Chat:** fine to acknowledge ("got it, prioritizing this").
+- **Commit / HANDOFF / doc / memory:** professional and **about the project** only. Never repeat an insult, people politics, or drama.
 
-## Proibido em qualquer artefato versionado
+## Forbidden in any versioned artifact
 
-1. **Metalinguagem de agente** — “como IA…”, “no meu raciocínio…”, “vou usar a tool…”, “contexto do chat…”.
-2. **Raciocínio interno** colado em markdown, comentários de código ou commits.
-3. **Fofoca, insultos, política de pessoas.**
-4. **Desabafo ou motivação emocional** como justificativa técnica.
-5. **Referências transitórias** — pessoas, projetos que não são este repo, orgs alheias ao produto, IDs de workspace de cliente. Preferir omitir ou termo genérico do domínio do software.
-6. **Commits que narram o chat.**
+1. **Agent meta-language** - "as an AI...", "in my reasoning...", "I'll use the tool...", "chat context...".
+2. **Internal reasoning** pasted into markdown, code comments, or commits.
+3. **Gossip, insults, people politics.**
+4. **Venting or emotional motivation** used as a technical justification.
+5. **Transient references** - people, projects that are not this repo, orgs unrelated to the product, client workspace IDs. Prefer omitting them or using a generic domain term.
+6. **Commits that narrate the chat.**
+7. **Em dash ("-") as a sentence connector** in commit messages, PRs, docs, README, HANDOFF, memory, or comments. It reads as AI slop; replace with a hyphen, colon, comma, or parentheses. Eliminate it entirely; only keep it when quoting external text/data/API literally. See the `clean-code` skill (pattern 6).
 
-## Obrigatório
+## Required
 
-- Conventional Commits com porquê **técnico**.
-- HANDOFF: fase, to-dos, instrução operacional.
-- Memory: sintoma, causa, solução, tradeoff — sem nomes de pessoas.
-- Comentários de código: invariantes, não conversa.
-- Docs de produto: voz do projeto, atemporal, herdável (`docs-professional-standard`).
+- Conventional Commits with a **technical** rationale.
+- HANDOFF: phase, to-dos, operational instruction.
+- Memory: symptom, cause, solution, tradeoff, no personal names.
+- Code comments: invariants, not conversation.
+- Product docs: project voice, timeless, inheritable (`docs-professional-standard`).
 
-## Teste rápido
+## Quick test
 
-> “Se um desconhecido abrir isto no GitHub amanhã — ou um maintainer daqui a um ano — fica constrangedor ou inútil sem o chat?”
+> "If a stranger opens this on GitHub tomorrow, or a maintainer a year from now, is it embarrassing or useless without the chat?"
 
-Se sim → reescrever.
+If yes, rewrite it.
 
-## Relação com outras rules
+## Relation to other rules
 
-- **docs-professional-standard** — padrão de documentação herdável do projeto.
-- **code-deslop / clean-code** — slop de código.
-- **ux-tone** — tom leve só no chat.
-- **security-review** — secrets.
+- **docs-professional-standard** - the project's inheritable documentation standard.
+- **code-deslop / clean-code** - code slop.
+- **ux-tone** - light tone, chat only.
+- **security-review** - secrets.

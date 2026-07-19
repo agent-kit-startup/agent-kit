@@ -1,6 +1,6 @@
 ---
 name: docs-repo
-description: Documentação do repositório — README, estrutura, context docs, guias. Processo em 4 passos. Padrão profissional e herdável (docs-professional-standard). Use para README, ADRs, runbooks e guias.
+description: Documentação do repositório - README, estrutura, context docs, guias. Processo em 4 passos. Padrão profissional e herdável (docs-professional-standard). L1 pack engenharia-arquitetura (with docs-repo skill). Use para README, ADRs, runbooks e guias.
 model: claude-sonnet-4
 readonly: false
 rules:

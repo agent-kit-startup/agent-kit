@@ -1,10 +1,10 @@
 ---
-description: Convenções ClickUp — só quando o projeto usa ClickUp (MCP/skill). NÃO é core do Agent Kit. PM tool é escolha do projeto.
+description: Convenções ClickUp - só quando o projeto usa ClickUp (MCP/skill). NÃO é core do Agent Kit. PM tool é escolha do projeto.
 alwaysApply: false
 globs:
 ---
 
-# ClickUp — Convenções (opcional / stack)
+# ClickUp - Convenções (opcional / stack)
 
 **Fora do Core Pack.** O Agent Kit não assume gerenciador de projetos. Use esta rule **somente** se o repositório integrar ClickUp (MCP ou skill instalada). Caso contrário, ignore.
 
@@ -20,10 +20,10 @@ Referência: [.cursor/skills/community/clickup/SKILL.md](.cursor/skills/communit
 
 Ao criar ou atualizar task, preencher em Markdown:
 
-1. **Objetivo** — 1–2 frases.
-2. **Escopo** — lista em bullets dos entregáveis.
-3. **Critérios de aceite** — em formato de checklist.
-4. **Referências** — links para arquivos do repo, docs ou outras tasks.
+1. **Objetivo** - 1–2 frases.
+2. **Escopo** - lista em bullets dos entregáveis.
+3. **Critérios de aceite** - em formato de checklist.
+4. **Referências** - links para arquivos do repo, docs ou outras tasks.
 
 ## Task vs Subtask
 
@@ -59,9 +59,9 @@ backlog → escopo refinado → desenvolvimento → homologação → complete
 
 ## Tags
 
-Usar tags do space do projeto (`n8n`, `api`, `hotfix`, etc.) conforme o contexto — não inventar taxonomia do kit.
+Usar tags do space do projeto (`n8n`, `api`, `hotfix`, etc.) conforme o contexto - não inventar taxonomia do kit.
 
 ## Quando usar o MCP ClickUp
 
 - Só se o projeto tiver ClickUp configurado.
-- Resolver list_id por nome (`clickup_get_list` com `list_name`) — sem hardcodar IDs de um workspace alheio.
+- Resolver list_id por nome (`clickup_get_list` com `list_name`) - sem hardcodar IDs de um workspace alheio.

@@ -1,4 +1,4 @@
-# Marketplace catalog — registry as a living catalog
+# Marketplace catalog - registry as a living catalog
 
 How Agent Kit skills and packs are discovered, versioned, and listed for `agent-kit add` and (optionally) the Cursor Marketplace. Depends on [topology-private-public.md](topology-private-public.md) Phase B for a stable public SoT.
 
@@ -6,12 +6,12 @@ How Agent Kit skills and packs are discovered, versioned, and listed for `agent-
 
 | Surface | Role |
 |---------|------|
-| `registry/registry.json` | Machine catalog (schemaVersion 2) — skills + packs + artifacts |
+| `registry/registry.json` | Machine catalog (schemaVersion 2) - skills + packs + artifacts |
 | `agent-kit add` / `install` | Install from local checkout or remote git URL/ref |
 | `.cursor-plugin/plugin.json` | Cursor plugin manifest for Marketplace listing of the Core Pack shell |
 | GitHub public repo | Human browsing + PRs (gate in CONTRIBUTING) |
 
-The **CLI catalog** is the registry index. The **Cursor Marketplace** is a distribution channel for the plugin wrapper — it does not replace `agent-kit add` for stack skills.
+The **CLI catalog** is the registry index. The **Cursor Marketplace** is a distribution channel for the plugin wrapper - it does not replace `agent-kit add` for stack skills.
 
 ## Versioning per artifact
 
@@ -57,7 +57,7 @@ Same rules as `agent-kit contribute` (see [contribute-upstream.md](contribute-up
 
 1. Keep `.cursor-plugin/plugin.json` version aligned with product releases.
 2. Plugin ships the **structural** experience (rules/commands samples); stack skills remain `agent-kit add`.
-3. Submission / listing follows Cursor’s publisher flow for the public repo — do not document third-party gateways.
+3. Submission / listing follows Cursor’s publisher flow for the public repo - do not document third-party gateways.
 4. After Phase B cutover, Marketplace updates track **public** tags, not private history.
 
 ## Listing UX (CLI)

@@ -14,6 +14,11 @@
       "kind": "skill",
       "id": "docs-repo",
       "source": "registry/skills/core/docs-repo"
+    },
+    {
+      "kind": "agent",
+      "id": "docs-repo",
+      "source": ".cursor/agents/docs-repo.md"
     }
   ],
   "excludes": [

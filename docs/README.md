@@ -1,25 +1,25 @@
 # Agent Kit Docs
 
-Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your project, finds what's missing, and generates tailored setup for Cursor, VS Code, and Windsurf — then helps you develop without losing context.
+Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your project, finds what's missing, and generates tailored setup for Cursor, VS Code, and Windsurf - then helps you develop without losing context.
 
 ## Guides
 
-- [Getting Started](getting-started.md) — install, commands, workflow
-- [Bootstrap](bootstrap.md) — install without nested `agent-kit/` folder
-- [Migrate consumer](migrate-consumer.md) — generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
-- [Contribute upstream](contribute-upstream.md) — `agent-kit contribute` return channel + gate
-- [Public launch](public-launch.md) — go/no-go + append-only sync
-- [Topology private × public](topology-private-public.md) — Fase 7 registry-canonical public
-- [Marketplace catalog](marketplace.md) — versioning, CLI add, Cursor plugin, quality gate
-- [Review camadas](review-camadas.md) — final HITL / go-no-go pass
-- [Creating Skills](creating-skills.md) — skill format, placement, registry
-- [Cursor 3.0 Features](cursor-3-features.md) — how Agent Kit uses native IDE features
-- [Cursor-native audit](cursor-native-audit.md) — hooks.json, plugin, rule modes, VS Code/Windsurf gaps
-- [Coherence inventory](coherence-inventory.md) — classification of rules, skills, hooks, agents, commands
-- [Drift inventory](drift-inventory.md) — per-workspace kit copies, L0 candidates, L3 uniques
-- [Layers specification](layers-spec.md) — L0–L3 model, precedence, nomenclature
-- [Domain packs (L1)](domain-packs.md) — seven discipline packs and membership
-- [Agent Kit manifest](agent-kit-manifest.md) — `.cursor/agent-kit.json` schema (version, packs, protected L3)
-- [Repository Boundaries](repository-boundaries.md) — private vs public repos, npm, sync
-- [Contributing](CONTRIBUTING.md) — setup, standards, registry contributions
-- [GitHub About](github-about.md) — description and topics for the GitHub repo
+- [Getting Started](getting-started.md) - install, commands, workflow
+- [Bootstrap](bootstrap.md) - install without nested `agent-kit/` folder
+- [Migrate consumer](migrate-consumer.md) - generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
+- [Contribute upstream](contribute-upstream.md) - `agent-kit contribute` return channel + gate
+- [Public launch](public-launch.md) - go/no-go + append-only sync
+- [Topology private × public](topology-private-public.md) - Fase 7 registry-canonical public
+- [Marketplace catalog](marketplace.md) - versioning, CLI add, Cursor plugin, quality gate
+- [Review camadas](review-camadas.md) - final HITL / go-no-go pass
+- [Creating Skills](creating-skills.md) - skill format, placement, registry
+- [Cursor 3.0 Features](cursor-3-features.md) - how Agent Kit uses native IDE features
+- [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
+- [Coherence inventory](coherence-inventory.md) - classification of rules, skills, hooks, agents, commands
+- [Drift inventory](drift-inventory.md) - per-workspace kit copies, L0 candidates, L3 uniques
+- [Layers specification](layers-spec.md) - L0–L3 model, precedence, nomenclature
+- [Domain packs (L1)](domain-packs.md) - seven discipline packs and membership
+- [Agent Kit manifest](agent-kit-manifest.md) - `.cursor/agent-kit.json` schema (version, packs, protected L3)
+- [Repository Boundaries](repository-boundaries.md) - private vs public repos, npm, sync
+- [Contributing](CONTRIBUTING.md) - setup, standards, registry contributions
+- [GitHub About](github-about.md) - description and topics for the GitHub repo
