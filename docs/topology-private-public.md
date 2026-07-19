@@ -35,7 +35,7 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
 2. Public `registry/**` is the only write path for skills/packs (PRs + maintainers).
 3. Private **consumes** public registry like any consumer (`--url` / cache) when developing CLI; optional local `registry/` checkout for offline tests only (not SoT).
 4. Promote flow for new artifacts invented in private: open PR **to public** (same gate as `agent-kit contribute`).
-5. Sync allowlist keeps CLI, docs, templates, L0 samples - product code still ships private → public without carrying registry mutations.
+5. Sync allowlist keeps CLI, docs, templates, L0 samples. Product code ships private → public via append-only sync that **preserves** public-owned `registry/**` when replacing the allowlist tree.
 
 **Status:** Phase B complete. Private `registry/` is out of the outbound sync set; public is SoT for registry; contribute is public-first; leak audit + public-URL install/update dogfood passed (2026-07-19).
 
