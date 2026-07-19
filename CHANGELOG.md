@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-07-19
+
+### Fixed
+
+- Docs: root README maintainers section no longer claims "this repo is agent-kit-dev" (false on the public mirror after sync); names private factory vs public storefront + registry SoT (Phase B)
+
+### Changed
+
+- Docs: Phase B phase5 leak audit + public-URL install dogfood (2026-07-19) - Guard public tree pass; `node scripts/sync-public.mjs --dry-run` exit 0 (no session/secret paths; no `registry/**`; `.cursor/hooks.json` in set); smoke `install`/`update`/`status` against `https://github.com/agent-kit-startup/agent-kit@main` (24 L0 files); contribute gate rejects `.cursor/HANDOFF.md`. Gap: `@agent-kit/cli` not yet on npm (`npx` 404); documented checkout + `--url` path in README / getting-started / bootstrap
+- Sync: Phase B cutover - `scripts/public-sync.manifest` no longer mirrors `registry/**` from private (include removed, `!registry/**` exclude); public repo is SoT for registry
+- Contribute: Phase B cutover - contribution surfaces now point to public-first registry flow (public repo is canonical; CLI instructions use `--base main`)
+- Docs: Phase B final pre-freeze public mirror recorded (private `9f6c717` → public PR #8; registry still in sync allowlist)
+- Docs: Registry freeze messaging - private registry edits will soon stop publishing; prepare for Phase B cutover to public-canonical registry
+
 ## [4.1.0] - 2026-07-19
 
 ### Added

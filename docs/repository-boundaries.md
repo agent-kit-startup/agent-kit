@@ -53,9 +53,9 @@ Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, the sync 
 
 ## Two remotes - private and public
 
-**Phase A (current):** private authors product + registry; public is an allowlist mirror (append-only sync).
+**Phase A (legacy):** private authors product + registry; public is an allowlist mirror (append-only sync). ⚠️ **Being phased out**
 
-**Phase B (target):** public owns `registry/**`; private syncs CLI/docs/L0 samples only and **consumes** the public registry URL.
+**Phase B (manifest cutover landed):** public owns `registry/**`; private syncs CLI/docs/L0 samples only and **consumes** the public registry URL. Private `registry/` edits no longer sync to public.
 
 ```
 Phase A: Local → agent-kit-dev → sync-public → agent-kit (incl. registry)
@@ -71,13 +71,17 @@ Phase B: Local → agent-kit-dev → sync-public → agent-kit (excl. registry)
 | **Public repo** | Allowlist (`scripts/public-sync.manifest`); Phase B + community PRs on registry | Session state, credentials, private memory, private-only tooling |
 | **npm (`@agent-kit/cli`)** | Only `packages/cli/dist` (`files` in `package.json`) | Monorepo templates and `.cursor/` are not in the tarball |
 
-### Phase B cutover (ops)
+### Phase B cutover (ops) ✅ DONE
 
-1. Freeze registry edits on private (PRs go to public only).
-2. Ensure public `registry/**` matches private (final sync including registry).
-3. Add `!registry/**` to `scripts/public-sync.manifest` (or remove the include).
-4. Document in CHANGELOG; point `agent-kit contribute` / CONTRIBUTING at public PRs.
-5. Private dogfood: `update` against public URL/ref.
+**Manifest exclude landed.** Private `registry/` no longer syncs; public is SoT for registry. Contribute surfaces point public-first. Leak audit + public-URL dogfood closed 2026-07-19.
+
+**Completed:**
+1. [x] Registry freeze messaging on private.
+2. [x] Cutover docs for Phase B.
+3. [x] Final sync ensuring public `registry/**` matches private (2026-07-19; private `main` `9f6c717`; CI run [29695424400](https://github.com/agent-kit-startup/agent-kit-dev/actions/runs/29695424400); public PR [#8](https://github.com/agent-kit-startup/agent-kit/pull/8) merged as `b28cf16`).
+4. [x] Exclude `registry/**` from `scripts/public-sync.manifest` (`!registry/**`; include removed).
+5. [x] Point `agent-kit contribute` / CONTRIBUTING at public PRs.
+6. [x] Leak audit + private dogfood: `install`/`update`/`status` against public URL (`https://github.com/agent-kit-startup/agent-kit` `@ main`); contribute gate rejects `.cursor/HANDOFF.md`. Evidence: `node scripts/sync-public.mjs --dry-run` exit 0; Guard public tree pass; smoke install wrote 24 L0 files including `.cursor/hooks.json`.
 
 ### How sync works
 
@@ -96,8 +100,8 @@ Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git 
 
 ### External contributions
 
-- **Phase A:** external PRs on public; maintainers merge and, if needed, promote-back into private before the next sync overwrites registry paths.
-- **Phase B:** registry PRs land **only** on public; `agent-kit contribute` targets public; private no longer mirrors registry.
+- **Phase A (legacy):** external PRs on public; maintainers merge and, if needed, promote-back into private before the next sync overwrites registry paths. ⚠️ **Being phased out**
+- **Phase B (complete):** registry PRs must target public; private registry sync no longer publishes; contribute surfaces are public-first.
 
 ## Why
 

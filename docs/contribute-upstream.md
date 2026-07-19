@@ -15,7 +15,7 @@ consumer project
   → agent-kit contribute [--path …]
   → anti-slop / hygiene gate
   → (optional) --write into local kit checkout
-  → human opens PR → staging (private SoT today; public registry after Fase 7)
+  → human opens PR → main (public registry is canonical after Phase B)
 ```
 
 HITL: the CLI never pushes and never runs `/git-prod`. `--write` only copies files into a local checkout.
@@ -42,7 +42,7 @@ pnpm --filter @agent-kit/cli start -- contribute \
   --write
 ```
 
-Then in the kit repo: branch → commit → `gh pr create --base staging` (review the suggested PR body from the CLI).
+Then in the kit repo: branch → commit → `gh pr create --base main` (review the suggested PR body from the CLI).
 
 ## Gate (entry)
 
@@ -64,12 +64,9 @@ Rejected when any of these apply:
 
 New skills still need a `registry/registry.json` entry (and pack membership if applicable) - update those in the PR.
 
-## Target repo (today vs Fase 7)
+## Target repo (after Phase B)
 
-| Phase | PR target |
-|-------|-----------|
-| Phase A (now) | Prefer public `agent-kit` when contributing registry paths; if writing into a private checkout, promote to public before the next sync |
-| Phase B (cutover) | **Only** public `agent-kit` - registry is canonical there ([topology-private-public.md](topology-private-public.md)) |
+Registry contributions target the **public** `agent-kit` repository (main branch) - the public registry is now canonical ([topology-private-public.md](topology-private-public.md)). CLI and sync tooling changes still target the private repository.
 
 ## Acceptance (`f5-upstream-flow`)
 
