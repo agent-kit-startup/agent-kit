@@ -7,21 +7,21 @@ category: prompts
 
 # Prompts (Markdown)
 
-## Estrutura recomendada
+## Recommended structure
 
-- **Objetivo e instruções gerais:** papel do agente, canal, formato de saída (ex.: HTML, texto puro, formatação WhatsApp).
-- **Classificação:** categorias e subtipos quando aplicável; saída em JSON quando for estruturada.
-- **Ações/ferramentas:** quando acionar cada tool e com quais parâmetros; exemplos de request/response.
-- **Pares .system/.user:** usar arquivos .system.md (instruções) e .user.md (template de input) para extração e formatação quando aplicável.
+- **Objective and general instructions:** agent role, channel, output format (e.g., HTML, plain text, WhatsApp formatting).
+- **Classification:** categories and subtypes when applicable; JSON output when structured.
+- **Actions/tools:** when to trigger each tool and with which parameters; request/response examples.
+- **System/user pairs:** use .system.md files (instructions) and .user.md (input template) for extraction and formatting when applicable.
 
-## Padrões recomendados
+## Recommended patterns
 
-- **Modelo base:** manter um modelo de referência para novos prompts (ex.: modelo-guest.md para atendimento).
-- **Prompts por agente:** pastas por contexto; nomenclatura `prompt-{nome}-{contexto}.md` ou `prompt-principal.md`.
-- **Versionamento:** V1, V2 em subpastas quando houver evolução de versão.
+- **Base model:** maintain a reference model for new prompts (e.g., modelo-guest.md for service).
+- **Prompts per agent:** folders by context; naming `prompt-{name}-{context}.md` or `prompt-principal.md`.
+- **Versioning:** V1, V2 in subfolders when there's version evolution.
 
-## Boas práticas
+## Best practices
 
-- Linguagem clara e objetiva; evitar ambiguidade nas instruções.
-- Incluir exemplos de saída esperada (JSON ou trecho de texto) quando a saída for estruturada.
-- Referenciar base de conhecimento ou tools quando o agente depender delas; deixar explícito quando pedir confirmação ao usuário.
+- Clear and objective language; avoid ambiguity in instructions.
+- Include expected output examples (JSON or text snippet) when output is structured.
+- Reference knowledge base or tools when the agent depends on them; make explicit when to ask for user confirmation.

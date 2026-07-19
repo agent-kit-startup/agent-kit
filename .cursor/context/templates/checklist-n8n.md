@@ -1,47 +1,47 @@
-# Checklist: Alteração n8n/JSON
+# Checklist: n8n/JSON Change
 
-## Identificação
-- **Workflow:** [nome]
-- **Arquivo:** [path]
-- **Tipo de alteração:** [novo|edit|delete]
+## Identification
+- **Workflow:** [name]
+- **File:** [path]
+- **Change type:** [new|edit|delete]
 
-## Pré-alteração
-- [ ] Backup criado em `.cursor/context/backups/`
-- [ ] JSON atual é válido
-- [ ] Entendo a estrutura atual
+## Pre-change
+- [ ] Backup created in `.cursor/context/backups/`
+- [ ] Current JSON is valid
+- [ ] I understand the current structure
 
-## Estrutura n8n
-- [ ] Webhook tem responseMode: "responseNode" quando usado com Respond Webhook
-- [ ] Todas as ramificações terminam em Respond Webhook (ou NoOp se não responder)
-- [ ] IDs de nodes são únicos e seguem padrão kebab-case
+## n8n Structure
+- [ ] Webhook has responseMode: "responseNode" when used with Respond Webhook
+- [ ] All branches end in Respond Webhook (or NoOp if not responding)
+- [ ] Node IDs are unique and follow kebab-case pattern
 
 ## Connections
-- [ ] Todas as conexões apontam para nodes existentes
-- [ ] Nenhum node órfão (sem entrada e saída, exceto Webhook e Respond)
-- [ ] Execute Workflow tem workflowId preenchido (não vazio)
+- [ ] All connections point to existing nodes
+- [ ] No orphaned nodes (without input and output, except Webhook and Respond)
+- [ ] Execute Workflow has workflowId filled (not empty)
 
 ## Credentials
-- [ ] Credentials referenciadas por id (não hardcoded)
-- [ ] Nenhum secret no JSON (buscar: password, token, key, secret)
-- [ ] Documentar credentials necessárias em README
+- [ ] Credentials referenced by id (not hardcoded)
+- [ ] No secrets in JSON (search for: password, token, key, secret)
+- [ ] Document required credentials in README
 
-## Alteração
-- [ ] Nodes adicionados/editados estão corretos
-- [ ] Connections estão corretas (from → to)
-- [ ] Referências $json apontam para node correto na cadeia
-- [ ] $('NodeName') usa nome exato (case-sensitive)
-- [ ] Nodes Postgres com RETURNING quando dados são usados depois
+## Change
+- [ ] Added/edited nodes are correct
+- [ ] Connections are correct (from → to)
+- [ ] $json references point to correct node in the chain
+- [ ] $('NodeName') uses exact name (case-sensitive)
+- [ ] Postgres nodes with RETURNING when data is used later
 
-## Validação
-- [ ] JSON é válido após alteração
-- [ ] Script n8n-checker passa sem erros: `node .cursor/hooks/lib/n8n-checker.js <arquivo>`
-- [ ] Nenhum secret hardcoded
+## Validation
+- [ ] JSON is valid after change
+- [ ] n8n-checker script passes without errors: `node .cursor/hooks/lib/n8n-checker.js <file>`
+- [ ] No hardcoded secrets
 
-## Documentação
-- [ ] README atualizado (se necessário)
-- [ ] docs/n8n-manual-update-*.md criado (se alteração manual)
+## Documentation
+- [ ] README updated (if necessary)
+- [ ] docs/n8n-manual-update-*.md created (if manual change)
 
-## Teste
-- [ ] Workflow testado no n8n (importar e executar)
-- [ ] Fluxo principal funciona
-- [ ] Erros tratados corretamente
+## Testing
+- [ ] Workflow tested in n8n (import and execute)
+- [ ] Main flow works
+- [ ] Errors handled correctly

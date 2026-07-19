@@ -20,7 +20,7 @@ npx @agent-kit/cli install --pack clean-code,cybersec,context-management
 |------|--------------|----------|
 | `cybersec` | Security-review skill + a security-reviewer agent | Auditing auth, secrets, and risky changes |
 | `devops` | CI/CD and infrastructure guidance | Pipelines, deploys, infra work |
-| `engenharia-arquitetura` | tech-lead agent + docs-repo skill and agent (same pattern as clean-code) | Architecture decisions and keeping docs honest |
+| `engineering-architecture` | tech-lead agent + docs-repo skill and agent (same pattern as clean-code) | Architecture decisions and keeping docs honest |
 | `clean-code` | A clean-code skill + a refactoring agent | Readability and refactors |
 | `project-management` | Adapters for project tools (ClickUp, Jira) | Teams that track work in a PM tool |
 | `context-management` | Context-librarian and memory agents (beyond L0 guardian + native hooks) | Very long projects that lean hard on handoff |
@@ -46,11 +46,11 @@ Every file under `.cursor/agents/` must be either a **pack/registry member** or 
 |------------|--------------|-------|
 | `cleancode-refactor` | L1 `clean-code` | Pair with `clean-code` skill |
 | `security-reviewer` | L1 `cybersec` | Pair with security-review skill |
-| `tech-lead` | L1 `engenharia-arquitetura` | Architecture / ADR |
-| `docs-repo` (agent) | L1 `engenharia-arquitetura` | Pair with `docs-repo` skill; skill for short edits, agent for multi-file doc passes |
-| `context-librarian`, `memory-extractor` | L1 `gestao-contexto` | Beyond L0 guardian / memory-loop |
-| `clickup-tasks` | L1 `gestao-projeto` | Optional PM adapter |
-| `testes-roteiros` | L1 `quality` | QA routines |
+| `tech-lead` | L1 `engineering-architecture` | Architecture / ADR |
+| `docs-repo` (agent) | L1 `engineering-architecture` | Pair with `docs-repo` skill; skill for short edits, agent for multi-file doc passes |
+| `context-librarian`, `memory-extractor` | L1 `context-management` | Beyond L0 guardian / memory-loop |
+| `clickup-tasks` | L1 `project-management` | Optional PM adapter |
+| `test-suites` | L1 `quality` | QA routines |
 | `git-autogit` | **Dogfood-only** | L0 already ships git commands + `autogit/`; agent stays in the kit for optional Task isolation, never a pack member |
 | `json-guardian`, `prompts-agents`, `n8n-workflows`, `sql-schema` | **Demoted (skill-first)** | Matching community skills are the install path; agent files remain dogfood-only for rare Task isolation |
 

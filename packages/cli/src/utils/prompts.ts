@@ -19,20 +19,20 @@ function ensureNotCancelled<V>(value: V | symbol): V {
 async function askIdeAndPlan(current: IdeDetection): Promise<IdeDetection> {
   const ide = ensureNotCancelled(
     await select<IdeName>({
-      message: "Qual IDE principal?",
+      message: "Which is your main IDE?",
       initialValue: current.ide === "unknown" ? undefined : current.ide,
       options: [
         { label: "Cursor", value: "cursor" },
         { label: "VS Code", value: "vscode" },
         { label: "Windsurf", value: "windsurf" },
-        { label: "Outro", value: "other" },
+        { label: "Other", value: "other" },
       ],
     }),
   );
 
   const plan = ensureNotCancelled(
     await select<IdePlan>({
-      message: "Qual seu plano na IDE?",
+      message: "What's your IDE plan?",
       initialValue: current.plan === "default" ? undefined : current.plan,
       options: [
         { label: "Cursor Free", value: "cursor-free" },
@@ -40,7 +40,7 @@ async function askIdeAndPlan(current: IdeDetection): Promise<IdeDetection> {
         { label: "VS Code + Copilot Free", value: "vscode-free" },
         { label: "VS Code + Copilot Pro / Business", value: "vscode-pro" },
         { label: "Windsurf", value: "windsurf" },
-        { label: "Nao sei / padrao", value: "default" },
+        { label: "Don't know / default", value: "default" },
       ],
     }),
   );
@@ -51,13 +51,13 @@ async function askIdeAndPlan(current: IdeDetection): Promise<IdeDetection> {
 async function askGitWorkflow(current: ProjectProfile["git"]["workflow"]) {
   return ensureNotCancelled(
     await select<ProjectProfile["git"]["workflow"]>({
-      message: "Como e seu workflow de Git?",
+      message: "What's your Git workflow?",
       initialValue: current === "unknown" ? undefined : current,
       options: [
-        { label: "trunk-based (direto na main)", value: "trunk-based" },
+        { label: "trunk-based (direct to main)", value: "trunk-based" },
         { label: "feature branch -> PR/MR -> main", value: "feature-pr" },
         { label: "gitflow (develop/release/main)", value: "gitflow" },
-        { label: "staging -> producao (staging -> main)", value: "homolog-prod" },
+        { label: "staging -> production (staging -> main)", value: "homolog-prod" },
       ],
     }),
   );
@@ -68,7 +68,7 @@ async function askProjectManagement(
 ): Promise<ProjectManagementTool[]> {
   return ensureNotCancelled(
     await multiselect({
-      message: "Usa algum sistema de gestao de projeto?",
+      message: "Do you use any project management system?",
       initialValues: existing,
       options: [
         { label: "GitHub Issues / Projects", value: "github-issues" },
@@ -93,7 +93,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
   const projectManagement = await askProjectManagement(scan.services.projectManagement ?? []);
   const installHooks = ensureNotCancelled(
     await confirm({
-      message: "Instalar git hooks? (pre-commit: secrets + lint)",
+      message: "Install git hooks? (pre-commit: secrets + lint)",
       initialValue: true,
     }),
   );
@@ -122,7 +122,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
 export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProfile> {
   const language = ensureNotCancelled(
     await select<string>({
-      message: "Qual vai ser a stack principal?",
+      message: "What will be the main stack?",
       options: [
         { label: "Node.js (JavaScript/TypeScript)", value: "node" },
         { label: "Python", value: "python" },
@@ -132,32 +132,32 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
         { label: "PHP", value: "php" },
         { label: "Rust", value: "rust" },
         { label: "C# / .NET", value: "dotnet" },
-        { label: "Outra", value: "other" },
+        { label: "Other", value: "other" },
       ],
     }),
   );
 
   const framework = ensureNotCancelled(
     await text({
-      message: "Framework principal? (ex: nextjs, nestjs, django, rails, spring, none)",
+      message: "Main framework? (ex: nextjs, nestjs, django, rails, spring, none)",
       placeholder: "none",
       initialValue: "none",
       validate(value) {
-        return value.trim().length === 0 ? "Informe um framework ou 'none'" : undefined;
+        return value.trim().length === 0 ? "Enter a framework or 'none'" : undefined;
       },
     }),
   );
 
   const database = ensureNotCancelled(
     await select<string>({
-      message: "Vai usar banco de dados?",
+      message: "Will you use a database?",
       options: [
         { label: "PostgreSQL", value: "postgresql" },
         { label: "MySQL", value: "mysql" },
         { label: "MongoDB", value: "mongodb" },
         { label: "SQLite", value: "sqlite" },
         { label: "SQL Server", value: "sqlserver" },
-        { label: "Nenhum por enquanto", value: "none" },
+        { label: "None for now", value: "none" },
       ],
     }),
   );
@@ -175,7 +175,7 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
   const projectManagement = await askProjectManagement();
   const installHooks = ensureNotCancelled(
     await confirm({
-      message: "Instalar git hooks? (pre-commit: secrets + lint)",
+      message: "Install git hooks? (pre-commit: secrets + lint)",
       initialValue: true,
     }),
   );

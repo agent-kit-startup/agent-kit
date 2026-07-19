@@ -2,48 +2,52 @@
 
 ## Goal
 
-Resume a plan or task from the last handoff.
+Resume a plan from the last handoff. Confirm the next unit, then execute **only that unit** (manual default).
 
 ## When to Use
 
 - At the start of a new conversation after a handoff
 - When you want to continue where you left off
 
+## Hard stops
+
+1. **Read `.cursor/HANDOFF.md` first.** No handoff → say so and suggest `/start-project`. Do not invent progress.
+2. **Summarize and wait for yes** before editing. "Ready?" / "Sound good?" is a real gate, not flavor text.
+3. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan-loop` or `/run-plan-orchestrated`.
+4. **Do not start a competing plan.** New goal → `/start-project` (continue vs park), not silent parallel work.
+
 ## What to Do
 
-1. **Read `.cursor/HANDOFF.md`** (required)
-   - If it does not exist: tell the user there is no recorded handoff and suggest `/start-project`
+1. **Read `.cursor/HANDOFF.md`** (required).
 
 2. **Identify the state:**
-   - Which plan is active
-   - Which phase was completed
-   - Which to-dos are pending
-   - Instruction left by the previous agent
+   - Active plan
+   - Phase completed
+   - Pending to-dos
+   - Instruction from the previous agent
+   - Parked plans (mention only; do not start unless the user asks)
 
-3. **Read the Context Pack** (if it exists):
-   - Check `.cursor/context/current/` for state details
-   - Check touched files, decisions, constraints
+3. **Read the Context Pack** (if it exists) under `.cursor/context/current/`.
 
-4. **Summarize for the user:**
-   > "[Phase X/Y completed] Last step: [description]. Next: [to-do]. Ready?"
+4. **Summarize and stop for confirmation:**
+   > "[Phase X/Y completed] Last step: [description]. Next: `[to-do-id]`. Start that unit only?"
 
-5. **Continue only the indicated next to-do / phase** (manual default). Do not chain the rest of the plan in this chat.
+5. **On yes:** run only that unit. Keep plan to-do `status` updated (`pending` → `in_progress` → `completed`).
 
-6. **When that unit is done:** update HANDOFF, stop, suggest `/git-staging` if there is a diff, and ask the user to open a **new** conversation with `/continue-plan` for the next phase.
+6. **When that unit is done:** update HANDOFF, stop, suggest `/git-staging` if there is a diff, and ask for a **new** conversation with `/continue-plan` for the next phase (manual mode).
 
 ## Typical flow
 
 ```
 User: /continue-plan
-Agent: Reading HANDOFF.md... Phase 2/5 completed. Next: implement authentication.
-Agent: I'll start with the to-do "create-auth-service" only. Sound good?
+Agent: Reading HANDOFF... Phase 2/5 done. Next: create-auth-service only. Start it?
 User: yes
-Agent: [Does that to-do] -> updates HANDOFF -> stops and asks before phase 3
+Agent: [Does that to-do] -> updates HANDOFF -> stops; suggests /git-staging if diff
 ```
 
 ## Tip
 
-If the handoff is outdated or unclear, the user can ask for a summary:
+If the handoff is outdated:
 > "Explain where we left off and what's left to do"
 
-If the user wants many phases in one window, they must opt into `/run-plan-loop` or `/run-plan-orchestrated`.
+Multi-phase in one window: user must opt into `/run-plan-loop` or `/run-plan-orchestrated`.

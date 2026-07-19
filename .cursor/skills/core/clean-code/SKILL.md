@@ -7,30 +7,30 @@ category: quality
 
 # Clean Code (code-deslop)
 
-Comentários óbvios, defesa excessiva, `any` para calar o tipo, nesting profundo - padrões que leem como código de máquina.
+Obvious comments, excessive defense, `any` to silence the type checker, deep nesting - patterns that read like machine code.
 
-## Quando usar
+## When to use
 
-- Depois de sessão com IA, antes do commit
-- Review de PR com trecho gerado
-- Pedido explícito: deslop / limpar código de IA
-- Antes de code review
+- After AI session, before commit
+- PR review with generated code
+- Explicit request: deslop / clean AI code
+- Before code review
 
-Diff ou arquivo pontual: esta skill. Refatoração grande: subagente `cleancode-refactor`.
+Diff or specific file: this skill. Large refactoring: `cleancode-refactor` subagent.
 
-## Processo
+## Process
 
-1. `git diff` contra a base (ex.: `main`)
-2. Varrer as áreas abaixo
-3. Mudança mínima; mesmo comportamento salvo bug claro
-4. Lint e typecheck
-5. Resumo em 1–3 frases
+1. `git diff` against base (e.g., `main`)
+2. Scan the areas below
+3. Minimal change; same behavior except for clear bugs
+4. Lint and typecheck
+5. Summary in 1-3 sentences
 
 ## Focus Areas (slop patterns)
 
-### 1. Comentários redundantes
+### 1. Redundant comments
 
-Repetem o óbvio em vez de explicar o porquê.
+Repeat the obvious instead of explaining the why.
 
 ```typescript
 // BAD - slop
@@ -42,9 +42,9 @@ const total = items.length;
 return total;
 ```
 
-### 2. Defesa demais
+### 2. Too much defense
 
-Try/catch ou null check em caminho interno onde o caller já garante dado válido.
+Try/catch or null check in internal path where caller already guarantees valid data.
 
 ```typescript
 // BAD - slop (internal helper, caller always passes valid data)
@@ -65,9 +65,9 @@ function formatName(user: User): string {
 }
 ```
 
-### 3. `any` para fugir do tipo
+### 3. `any` to escape typing
 
-Cast só para calar o checker em vez de modelar o tipo certo.
+Cast just to silence the checker instead of modeling the correct type.
 
 ```typescript
 // BAD - slop
@@ -77,9 +77,9 @@ const result = (response as any).data;
 const result = (response as ApiResponse).data;
 ```
 
-### 4. Nesting profundo
+### 4. Deep nesting
 
-If/else ou try/catch empilhados; preferir early return ou guard clauses.
+Stacked if/else or try/catch; prefer early return or guard clauses.
 
 ```typescript
 // BAD - slop
@@ -101,43 +101,43 @@ function process(input: string | null) {
 }
 ```
 
-### 5. Estilo fora do arquivo
+### 5. Style inconsistent with file
 
-Nomes, imports, tratamento de erro ou formatação diferentes do resto do arquivo.
+Names, imports, error handling or formatting different from the rest of the file.
 
-### 6. Travessão (em dash "—") em texto
+### 6. Em dash ("—") in text
 
-O travessão "—" é uma das marcas mais fortes de texto gerado por IA. Em comentários, mensagens de commit, docs, README, HANDOFF e memory, ele é slop: troque por hífen, dois-pontos, vírgula, parênteses ou ponto.
+The em dash "—" is one of the strongest marks of AI-generated text. In comments, commit messages, docs, README, HANDOFF and memory, it's slop: replace with hyphen, colon, comma, parentheses or period.
 
 ```text
-BAD  (slop de IA, com travessão)
-feat: novo cache — reduz latência e simplifica o fluxo
-o CLI faz o parse — depois valida — e então grava
+BAD  (AI slop, with em dash)
+feat: new cache — reduces latency and simplifies flow
+the CLI parses — then validates — then saves
 
 GOOD
-feat: novo cache reduz latência e simplifica o fluxo
-o CLI faz o parse, valida e grava
-o CLI faz o parse; depois valida; então grava
+feat: new cache reduces latency and simplifies flow
+the CLI parses, validates and saves
+the CLI parses; then validates; then saves
 ```
 
-Regra: **eliminar por completo** o "—" de commits, textos e docs. Só usar quando for obrigatório por um motivo concreto (por exemplo, citar literalmente um texto externo, um dado ou uma API que já contém o caractere). Nesses casos, preservar o original.
+Rule: **completely eliminate** "—" from commits, text and docs. Only use when mandatory for a concrete reason (e.g., literally quoting external text, data or an API that already contains the character). In these cases, preserve the original.
 
-Nota: isto vale para o repositório e para o chat. É slop textual, não só de código; ver rules `agent-output-hygiene`, `docs-professional-standard` e `ux-tone`.
+Note: this applies to the repository and to chat. It's textual slop, not just code; see rules `agent-output-hygiene`, `docs-professional-standard` and `ux-tone`.
 
-## Convenções
+## Conventions
 
-- Mesmo comportamento observável, salvo correção de bug claro
-- Edits pequenos; alinhar ao estilo local
-- Comentário que explica *porquê*: mantém
-- Rodar linter/typecheck depois
+- Same observable behavior, except for clear bug fixes
+- Small edits; align to local style
+- Comment that explains *why*: keep it
+- Run linter/typecheck after
 
 ## Checklist
 
-- [ ] Comentários óbvios removidos
-- [ ] Try/catch e checks desnecessários removidos onde o fluxo é confiável
-- [ ] `any` trocado por tipo adequado ou removido
-- [ ] Nesting achatado (early return / guards)
-- [ ] Travessão "—" eliminado de comentários, commits e docs tocados (só manter se for citação literal obrigatória)
-- [ ] Estilo alinhado ao arquivo
-- [ ] Sem metalinguagem / fofoca / raciocínio de chat em comments, commits ou docs tocados (rule `agent-output-hygiene`)
-- [ ] Lint/typecheck ok; resumo curto
+- [ ] Obvious comments removed
+- [ ] Unnecessary try/catch and checks removed where flow is reliable
+- [ ] `any` replaced with appropriate type or removed
+- [ ] Nesting flattened (early return / guards)
+- [ ] Em dash "—" eliminated from comments, commits and touched docs (only keep if mandatory literal quote)
+- [ ] Style aligned to file
+- [ ] No meta-language / gossip / chat reasoning in comments, commits or touched docs (rule `agent-output-hygiene`)
+- [ ] Lint/typecheck ok; short summary

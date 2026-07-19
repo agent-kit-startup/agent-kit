@@ -1,16 +1,16 @@
 ---
-description: Regras para Groovy (sintaxe, scripts de filtro e integração).
+description: Rules for Groovy (syntax, filter scripts, and integration).
 globs: "**/*.groovy"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Groovy
+# CURSOR-SKILLS - Groovy
 
-## Contexto
+## Context
 
-- Scripts Groovy para filtros de e-mail, integrações ou ferramentas que executem Groovy.
+- Groovy scripts for email filters, integrations, or tools that run Groovy.
 
-## Sintaxe e boas práticas
+## Syntax and best practices
 
-- Groovy: sintaxe compatível com Java; closures; GStrings; verificar compatibilidade com o runtime onde o script é executado.
-- Manter script documentado e alinhado à lógica descrita em docs do projeto quando houver.
+- Groovy: Java-compatible syntax; closures; GStrings; verify compatibility with the runtime where the script runs.
+- Keep the script documented and aligned with project docs when they exist.

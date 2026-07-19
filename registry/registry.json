@@ -47,7 +47,7 @@
       {
         "id": "clickup",
         "title": "clickup",
-        "description": "Create and update ClickUp tasks via MCP. Optional — only if the project uses ClickUp. Not part of Core Pack.",
+        "description": "Create and update ClickUp tasks via MCP. Optional - only if the project uses ClickUp. Not part of Core Pack.",
         "path": "registry/skills/community/clickup",
         "version": "0.1.0",
         "category": "pm"
@@ -111,6 +111,13 @@
       "path": "registry/packs/clean-code"
     },
     {
+      "id": "context-management",
+      "title": "Context management",
+      "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
+      "version": "0.1.0",
+      "path": "registry/packs/context-management"
+    },
+    {
       "id": "cybersec",
       "title": "Cybersecurity",
       "description": "Security review, secrets/PII awareness, and pre-merge hardening — discipline pack, not language-specific.",
@@ -125,25 +132,18 @@
       "path": "registry/packs/devops"
     },
     {
-      "id": "engenharia-arquitetura",
-      "title": "Engineering & architecture",
-      "description": "ADRs, technology tradeoffs, and tech-lead style decisions — stack-agnostic.",
+      "id": "engineering-architecture",
+      "title": "Engineering and architecture",
+      "description": "ADRs, technology tradeoffs, and tech-lead style decisions - stack-agnostic.",
       "version": "0.1.0",
-      "path": "registry/packs/engenharia-arquitetura"
+      "path": "registry/packs/engineering-architecture"
     },
     {
-      "id": "gestao-contexto",
-      "title": "Context management",
-      "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
-      "version": "0.1.0",
-      "path": "registry/packs/gestao-contexto"
-    },
-    {
-      "id": "gestao-projeto",
+      "id": "project-management",
       "title": "Project management",
       "description": "Optional PM-tool adapters and project sizing helpers. Structural plan/handoff stays in L0.",
       "version": "0.1.0",
-      "path": "registry/packs/gestao-projeto"
+      "path": "registry/packs/project-management"
     },
     {
       "id": "quality",
@@ -165,28 +165,28 @@
       "kind": "agent",
       "id": "clickup-tasks",
       "path": ".cursor/agents/clickup-tasks.md",
-      "pack": "gestao-projeto",
+      "pack": "project-management",
       "layer": "L1"
     },
     {
       "kind": "agent",
       "id": "context-librarian",
       "path": ".cursor/agents/context-librarian.md",
-      "pack": "gestao-contexto",
+      "pack": "context-management",
       "layer": "L1"
     },
     {
       "kind": "agent",
       "id": "docs-repo",
       "path": ".cursor/agents/docs-repo.md",
-      "pack": "engenharia-arquitetura",
+      "pack": "engineering-architecture",
       "layer": "L1"
     },
     {
       "kind": "agent",
       "id": "memory-extractor",
       "path": ".cursor/agents/memory-extractor.md",
-      "pack": "gestao-contexto",
+      "pack": "context-management",
       "layer": "L1"
     },
     {
@@ -200,13 +200,13 @@
       "kind": "agent",
       "id": "tech-lead",
       "path": ".cursor/agents/tech-lead.md",
-      "pack": "engenharia-arquitetura",
+      "pack": "engineering-architecture",
       "layer": "L1"
     },
     {
       "kind": "agent",
-      "id": "testes-roteiros",
-      "path": ".cursor/agents/testes-roteiros.md",
+      "id": "test-suites",
+      "path": ".cursor/agents/test-suites.md",
       "pack": "quality",
       "layer": "L1"
     },
@@ -214,14 +214,14 @@
       "kind": "command",
       "id": "context-status",
       "path": ".cursor/commands/context-status.md",
-      "pack": "gestao-contexto",
+      "pack": "context-management",
       "layer": "L1"
     },
     {
       "kind": "rule",
       "id": "cursor-skills-clickup",
       "path": ".cursor/rules/cursor-skills-clickup.mdc",
-      "pack": "gestao-projeto",
+      "pack": "project-management",
       "layer": "L1"
     },
     {
@@ -249,21 +249,21 @@
       "kind": "skill",
       "id": "clickup",
       "path": "registry/skills/community/clickup",
-      "pack": "gestao-projeto",
+      "pack": "project-management",
       "layer": "L1"
     },
     {
       "kind": "skill",
       "id": "docs-repo",
       "path": "registry/skills/core/docs-repo",
-      "pack": "engenharia-arquitetura",
+      "pack": "engineering-architecture",
       "layer": "L1"
     },
     {
       "kind": "skill",
       "id": "jira",
       "path": "registry/skills/community/jira",
-      "pack": "gestao-projeto",
+      "pack": "project-management",
       "layer": "L1"
     },
     {

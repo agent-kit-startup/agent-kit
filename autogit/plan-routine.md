@@ -2,6 +2,8 @@
 
 Agent Kit **starts with the plan**: without a plan with to-dos, there's no structured execution. Create/update the plan before implementing.
 
+`/start-project` is **bootstrap, not execute**: Gate A writes the plan file only; Gate B (second explicit yes) runs one unit. Active HANDOFF → ask continue vs start new. Details: `.cursor/commands/start-project.md`.
+
 When the user requests **creating a new plan** (or the agent is in planner mode creating plans), **always** follow this routine:
 
 ---
@@ -12,6 +14,7 @@ When the user requests **creating a new plan** (or the agent is in planner mode 
 - Respect phase order (0 → 1 → 2 → …).
 - Each phase with actionable and trackable to-dos.
 - During execution, keep `status` updated (`pending` → `in_progress` → `completed`) so the user can follow along in the plan panel.
+- Do not edit product files in the same turn that only creates the plan (Gate A).
 
 ---
 

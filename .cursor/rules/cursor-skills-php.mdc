@@ -1,19 +1,19 @@
 ---
-description: Regras CURSOR-SKILLS para PHP (Laravel, Symfony, WordPress). PSR, Composer, segurança.
+description: CURSOR-SKILLS rules for PHP (Laravel, Symfony, WordPress). PSR, Composer, security.
 globs: "**/*.php"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – PHP
+# CURSOR-SKILLS - PHP
 
-Fonte: [cursor-skills/php](https://github.com/araguaci/cursor-skills/tree/main/php)
+Source: [cursor-skills/php](https://github.com/araguaci/cursor-skills/tree/main/php)
 
-## Setup CURSOR
+## CURSOR setup
 
 - PHP Intelephense, PHP Debug (Xdebug), PHP DocBlocker, Composer.
-- Laravel Blade / Symfony / WordPress snippets conforme o projeto.
+- Laravel Blade / Symfony / WordPress snippets per project.
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -21,30 +21,30 @@ project/
 ├── tests/   ├── vendor/     ├── composer.json   ├── composer.lock   └── .env
 ```
 
-## Padrões obrigatórios
+## Required standards
 
 - **PSR**: PSR-1, PSR-2/PSR-12, PSR-4 (autoload).
-- **Composer**: sempre para deps; `composer.lock`; autoload; dev deps separadas.
-- **Ferramentas**: PHP CS Fixer, PHPStan, PHPUnit, Xdebug.
+- **Composer**: always for deps; `composer.lock`; autoload; separate dev deps.
+- **Tools**: PHP CS Fixer, PHPStan, PHPUnit, Xdebug.
 
-## Por framework
+## By framework
 
-- **Laravel**: Artisan, Eloquent, MVC, middleware, validação, PHPUnit, segurança Laravel.
-- **Symfony**: Bundles, services, DI, PHPUnit, segurança Symfony.
-- **WordPress**: Coding standards, hooks/filters, arquitetura plugin/theme, testes WP.
+- **Laravel**: Artisan, Eloquent, MVC, middleware, validation, PHPUnit, Laravel security.
+- **Symfony**: Bundles, services, DI, PHPUnit, Symfony security.
+- **WordPress**: Coding standards, hooks/filters, plugin/theme architecture, WP tests.
 
-## Código e documentação
+## Code and documentation
 
-- PHPDoc em classes e métodos; comentários em lógica complexa; README e docs de API.
+- PHPDoc on classes and methods; comments on complex logic; README and API docs.
 
-## Segurança
+## Security
 
-- Validar e sanitizar inputs; prepared statements; CSRF; auth segura; OWASP; hash de senhas; HTTPS.
+- Validate and sanitize inputs; prepared statements; CSRF; secure auth; OWASP; password hashing; HTTPS.
 
 ## DB
 
-- Normalização, índices, FKs, convenções de nome; prepared statements; evitar N+1; transações.
+- Normalization, indexes, FKs, naming conventions; prepared statements; avoid N+1; transactions.
 
-## APIs REST (em PHP)
+## REST APIs (in PHP)
 
-- REST, códigos HTTP corretos, versionamento, JSON; auth, rate limit, CORS, HTTPS.
+- REST, correct HTTP codes, versioning, JSON; auth, rate limit, CORS, HTTPS.

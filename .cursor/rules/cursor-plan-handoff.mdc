@@ -11,6 +11,8 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
 
 0b. **Manual mode hard stop (default):** unless the user explicitly ran `/run-plan-loop` or `/run-plan-orchestrated`, treat **one phase ≈ one chat**. After finishing the current phase (or one heavy to-do), update HANDOFF, **stop coding**, and ask before the next phase. Burning an entire multi-phase plan in one window is a kit failure, not "being helpful".
 
+0c. **`/start-project` two gates (HITL):** Gate A = propose + write `.cursor/plans/*.plan.md` only (no product edits). Gate B = after an explicit second yes, run one unit only. Active HANDOFF/plan → ask continue vs start new first. Goal in the same slash message is not execute permission. Merging "create plan and start Phase 1" in one turn is a kit failure.
+
 1. **Execute to-dos by phase** following the plan's "Phases and to-dos by context" section (when it exists). Respect the order Phase 0 -> 1 -> 2 -> 3 -> 4 -> 5.
 
 2. **At the end of each phase:** create or update `.cursor/HANDOFF.md` with:

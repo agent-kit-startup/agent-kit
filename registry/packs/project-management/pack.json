@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "gestao-projeto",
+  "id": "project-management",
   "title": "Project management",
   "description": "Optional PM-tool adapters and project sizing helpers. Structural plan/handoff stays in L0.",
   "version": "0.1.0",

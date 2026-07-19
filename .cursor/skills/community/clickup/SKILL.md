@@ -5,120 +5,120 @@ version: 0.1.0
 category: pm
 ---
 
-# ClickUp - Gestão de tarefas (stack opcional)
+# ClickUp - Task management (optional stack)
 
-**Não faz parte do Core Pack.** Instalar/usar só quando o repositório integrar ClickUp. Alinhado à rule [cursor-skills-clickup.mdc](.cursor/rules/cursor-skills-clickup.mdc) (`alwaysApply: false`).
+**Not part of the Core Pack.** Install/use only when the repository integrates ClickUp. Aligned with rule [cursor-skills-clickup.mdc](.cursor/rules/cursor-skills-clickup.mdc) (`alwaysApply: false`).
 
 ## When to Use
 
-- O projeto já usa ClickUp e há MCP configurado.
-- Criar ou atualizar tasks/subtarefas; breakdown de features.
-- Atualizar status após `git staging` / `git prod` **se** a integração existir.
-- Resolver list_id pelo nome da list do **projeto atual** (sem IDs hardcodados de outro workspace).
+- The project already uses ClickUp and has MCP configured.
+- Create or update tasks/subtasks; feature breakdown.
+- Update status after `git staging` / `git prod` **if** the integration exists.
+- Resolve list_id by list name from the **current project** (no hardcoded IDs from another workspace).
 
-## Processo (criação de task)
+## Process (task creation)
 
-1. **Definir lista:** usar `clickup_get_list` com `list_name` (ou `list_id` se conhecido).
-2. **Título:** seguir padrão `[Projeto/Módulo] Verbo + Objeto`.
-3. **Descrição:** preencher em Markdown - Objetivo, Escopo, Critérios de aceite, Referências.
-4. **Status:** iniciar em `backlog` ou `escopo refinado` conforme maturidade.
-5. **Prioridade:** sempre definir (`urgent`, `high`, `normal`, `low`).
-6. **Responsável:** definir assignee(s); para subtarefas, herdar ou especificar.
-7. **Tags:** adicionar tags transversais (n8n, prompt, api, etc.) se aplicável.
-8. **Due date:** definir em tasks de milestone/entrega.
-9. **Subtasks:** criar como passos acionáveis; máx. 1 nível; se precisar de sub-itens, promover subtask a task.
+1. **Define list:** use `clickup_get_list` with `list_name` (or `list_id` if known).
+2. **Title:** follow pattern `[Project/Module] Verb + Object`.
+3. **Description:** fill in Markdown - Objective, Scope, Acceptance criteria, References.
+4. **Status:** start at `backlog` or `scope defined` depending on maturity.
+5. **Priority:** always define (`urgent`, `high`, `normal`, `low`).
+6. **Assignee:** define assignee(s); for subtasks, inherit or specify.
+7. **Tags:** add cross-cutting tags (n8n, prompt, api, etc.) if applicable.
+8. **Due date:** define for milestone/delivery tasks.
+9. **Subtasks:** create as actionable steps; max 1 level; if you need sub-items, promote subtask to task.
 
-## Convenções (detalhamento)
+## Conventions (details)
 
-### Títulos
+### Titles
 
-- Task: `[Projeto/Módulo] Verbo + Objeto` - ex.: "Checkout - Integrar solicitação de reserva".
-- Subtask: verbo no imperativo + objeto - ex.: "Validar fluxo de reserva no n8n", "Atualizar prompt com regras de validação".
+- Task: `[Project/Module] Verb + Object` - e.g., "Checkout - Integrate reservation request".
+- Subtask: imperative verb + object - e.g., "Validate reservation flow in n8n", "Update prompt with validation rules".
 
-### Descrição (template Markdown)
+### Description (Markdown template)
 
 ```markdown
-## Objetivo
-1-2 frases sobre o que se espera da task.
+## Objective
+1-2 sentences about what is expected from the task.
 
-## Escopo
-- Entregável 1
-- Entregável 2
+## Scope
+- Deliverable 1
+- Deliverable 2
 
-## Critérios de aceite
-- [ ] Critério 1
-- [ ] Critério 2
+## Acceptance criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
 
-## Referências
-- [README do módulo](caminho/no/repo)
-- Task relacionada: [link ClickUp]
+## References
+- [Module README](path/in/repo)
+- Related task: [ClickUp link]
 ```
 
-### Status (ordem do pipeline)
+### Status (pipeline order)
 
-| Status             | Uso |
+| Status             | Use |
 |--------------------|-----|
-| backlog            | Ainda não priorizado/refinado |
-| escopo refinado    | Escopo definido, pronto para dev |
-| desenvolvimento    | Em implementação |
-| homologação        | Em teste/staging; também após `git staging` |
-| pendência          | Bloqueio externo (sempre comentar o motivo) |
-| complete           | Concluído; também após `git prod` |
+| backlog            | Not yet prioritized/refined |
+| scope defined      | Scope defined, ready for dev |
+| in progress        | In implementation |
+| staging            | In testing/staging; also after `git staging` |
+| blocked            | External blocker (always comment the reason) |
+| complete           | Completed; also after `git prod` |
 
-### Prioridade e responsável
+### Priority and assignee
 
-- Prioridade: sempre informar ao criar task.
-- Task pai: sempre com pelo menos um responsável.
-- Subtasks: podem herdar (deixar vazio) ou ter responsável específico.
+- Priority: always inform when creating task.
+- Parent task: always with at least one assignee.
+- Subtasks: can inherit (leave empty) or have specific assignee.
 
-### Tags sugeridas
+### Suggested tags
 
-- Por tipo: `n8n`, `prompt`, `api`, `agente`, `hotfix`, `docs`, `testes`.
-- Usar tags já existentes no space quando possível.
+- By type: `n8n`, `prompt`, `api`, `agente`, `hotfix`, `docs`, `testes`.
+- Use existing tags in the space when possible.
 
 ## Workspace Reference
 
-Não hardcodar `list_id` de um workspace específico no kit. Sempre resolver com `clickup_get_list` (`list_name`) ou `clickup_get_workspace_hierarchy` no ambiente do usuário.
+Do not hardcode `list_id` from a specific workspace in the kit. Always resolve with `clickup_get_list` (`list_name`) or `clickup_get_workspace_hierarchy` in the user's environment.
 
-## Exemplos
+## Examples
 
-### Task bem formatada
+### Well-formatted task
 
-- **Nome:** "Checkout - Integrar solicitação de reserva no fluxo de email"
-- **Descrição:** Objetivo (1-2 frases), Escopo em bullets, Critérios em checklist, Referências (links).
-- **Status:** desenvolvimento
-- **Prioridade:** high
-- **Assignees:** definido
+- **Name:** "Checkout - Integrate reservation request in email flow"
+- **Description:** Objective (1-2 sentences), Scope in bullets, Criteria in checklist, References (links).
+- **Status:** in progress
+- **Priority:** high
+- **Assignees:** defined
 - **Tags:** n8n, prompt
 
-### Task mal formatada (evitar)
+### Poorly formatted task (avoid)
 
-- **Nome:** "Integrar coisa" (vago, sem projeto).
-- **Descrição:** vazia ou só uma linha.
-- **Status:** complete sem ter passado por desenvolvimento/homologação.
-- **Prioridade:** omitida.
-- **Assignees:** nenhum na task pai.
+- **Name:** "Integrate thing" (vague, no project).
+- **Description:** empty or just one line.
+- **Status:** complete without having gone through development/staging.
+- **Priority:** omitted.
+- **Assignees:** none on parent task.
 
 ## Decision Tree
 
-- **Preciso rastrear este item individualmente (datas, responsável, status)?**
-  - **Sim** → É **subtask** (se pertencer a uma entrega maior) ou **task** (se for entrega completa).
-  - **Não** → Use **checklist** dentro da task.
+- **Do I need to track this item individually (dates, assignee, status)?**
+  - **Yes** → It's a **subtask** (if it belongs to a larger delivery) or **task** (if it's a complete delivery).
+  - **No** → Use **checklist** within the task.
 
-- **Este item tem vários passos que também precisam de tracking?**
-  - **Sim** → Crie uma **task** para esse item (não subtask com sub-subtasks).
-  - **Não** → Mantenha como **subtask** ou checklist.
+- **Does this item have multiple steps that also need tracking?**
+  - **Yes** → Create a **task** for this item (not subtask with sub-subtasks).
+  - **No** → Keep as **subtask** or checklist.
 
-- **É uma entrega completa ou um passo de uma entrega?**
-  - Entrega completa → **Task** na list apropriada.
-  - Passo de uma entrega → **Subtask** da task que representa a entrega.
+- **Is it a complete delivery or a step of a delivery?**
+  - Complete delivery → **Task** in appropriate list.
+  - Step of a delivery → **Subtask** of the task representing the delivery.
 
-## Checklist de qualidade (antes de criar/atualizar)
+## Quality checklist (before creating/updating)
 
-- [ ] Título segue padrão [Projeto/Módulo] Verbo + Objeto (ou imperativo para subtask).
-- [ ] Descrição tem Objetivo, Escopo, Critérios de aceite e Referências (para tasks; subtasks podem ser mais curtas).
-- [ ] Status compatível com o pipeline (não pular de backlog para complete).
-- [ ] Prioridade definida.
-- [ ] Task pai com responsável.
-- [ ] Subtasks apenas 1 nível; se precisar mais, promover subtask a task.
-- [ ] Tags aplicadas quando fizer sentido.
+- [ ] Title follows pattern [Project/Module] Verb + Object (or imperative for subtask).
+- [ ] Description has Objective, Scope, Acceptance criteria and References (for tasks; subtasks can be shorter).
+- [ ] Status compatible with pipeline (don't skip from backlog to complete).
+- [ ] Priority defined.
+- [ ] Parent task with assignee.
+- [ ] Subtasks only 1 level; if you need more, promote subtask to task.
+- [ ] Tags applied when it makes sense.

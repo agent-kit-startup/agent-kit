@@ -6,7 +6,7 @@ Checklist before promoting or advertising the public mirror ([agent-kit-startup/
 
 | Mode | Behavior | When |
 |------|----------|------|
-| **append-only PR** (default) | Clone `main` → replace allowlisted tree → push sync branch → open PR | Normal sync; compatible with protected `main`, community PRs, and watches |
+| **append-only PR** (default) | Clone `main` → replace allowlisted tree → push semantic head (`sync/vX.Y.Z-<shortsha>`) → open or update PR; close superseded `sync/*` PRs | Normal sync; compatible with protected `main`, community PRs, and watches |
 | **direct** | Clone public → replace allowlisted tree → push directly to `main` | Migration only, before branch protection (`--direct`) |
 | **force-snapshot** | `git init` + force-push | Escape hatch only (`--force-snapshot`) |
 
@@ -25,7 +25,7 @@ Decision recorded in the maintainers' decision log (private repo memory).
 | Public sync opens an append-only PR by default | ✅ `scripts/sync-public.mjs` |
 | GitHub About description and topics | ✅ aligned with [github-about.md](github-about.md) |
 | `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops - requires Contents + Pull requests + Workflows write on the public repo |
-| Public `main` ruleset | ✅ active (`Protect main` - PR + 1 approval + check `build`) |
+| Public `main` ruleset | ✅ active (`Protect main` - PR + 1 approval + Admin bypass + check `build`) |
 | Fase 7 registry-on-public topology | ✅ spec [topology-private-public.md](topology-private-public.md); cutover ops still open |
 | Final plan review (`review-camadas`) | ✅ [review-camadas.md](review-camadas.md) |
 
@@ -37,11 +37,14 @@ The public repository uses a single long-lived branch, `main`. Contributors work
 
 Configure a repository ruleset targeting `main`:
 
-- require a pull request with one approval;
+- require a pull request with one approval (community PRs);
+- **bypass actors:** Repository Admin (`always`) so a solo maintainer and the sync operator can land private→public sync PRs without a second reviewer;
 - require the `build` status check and an up-to-date branch;
 - require resolved conversations;
 - block force pushes and branch deletion;
 - allow squash merge and delete merged branches automatically.
+
+Without the Admin bypass, a single-owner repo deadlocks: you cannot approve your own sync PR, and `--admin` merge still fails on `REVIEW_REQUIRED`.
 
 Do not require a merge queue or signed commits until contribution volume or release risk justifies the added friction. Protect `v*` tags from updates and deletion in a separate tag ruleset.
 

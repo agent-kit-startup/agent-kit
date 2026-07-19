@@ -1,18 +1,18 @@
 # Cursor-native audit - Agent Kit harness
 
-Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Output of plan to-do `f0-audit-native`.
+Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-07-19** (post EN sweep on staging).
 
 ## Summary
 
 | Area | Status | Notes |
 |------|--------|-------|
-| `.cursor/rules/` | Present (23 files) | 7 core rules `alwaysApply: true`; stack rules use globs |
-| `.cursor/skills/` | Present (7 skills) | Partial overlap with `registry/skills/` |
-| `.cursor/agents/` | Present (13 agents) | Mix of core and stack subagents |
-| `.cursor/commands/` | Present (9 commands) | DevOps spine + handoff commands |
+| `.cursor/rules/` | Present (23 files) | 8 core rules `alwaysApply: true`; stack rules use globs |
+| `.cursor/skills/` | Present (7 skills) | Install output from registry (`core/` + `community/`) |
+| `.cursor/agents/` | Present (13 agents) | Mix of core and stack subagents; EN pack ids |
+| `.cursor/commands/` | Present (10 commands) | DevOps spine + handoff + orchestration |
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
-| `.cursor/hooks.json` | **Absent** | Native Cursor hook manifest not versioned |
-| `.cursor-plugin/plugin.json` | Present | Metadata only; no bundled rules/skills manifest |
+| `.cursor/hooks.json` | **Present (L0)** | `sessionStart` + `preCompact`; no `stop` hook |
+| `.cursor-plugin/plugin.json` | Present | Metadata only; version `3.0.0` (drift vs product **3.5.1**) |
 | `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
 | `AGENTS.md` (dogfood) | **Absent** | CLI generates it for target projects; this repo does not use its own cross-IDE file |
 | `mcp.json` | Absent | No project-level MCP config in core |
@@ -35,7 +35,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 - Manifest is metadata-only: no `rules`, `skills`, or `hooks` entries in the plugin schema used here.
 - CLI `init` also writes `plugin.json` into target projects with equivalent fields.
 
-**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. Fase 3 covers install paths.
+**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan.
 
 ---
 
@@ -49,13 +49,14 @@ These run on every agent turn in Cursor:
 
 | Rule | Role |
 |------|------|
-| `agent-output-hygiene.mdc` | Chat ≠ repo; no metalinguagem in artifacts |
+| `agent-output-hygiene.mdc` | Chat ≠ repo; no meta-language in artifacts |
 | `context-guardian.mdc` | Context window warning + handoff trigger |
 | `cursor-plan-handoff.mdc` | Plan phases, HANDOFF.md, `/continue-plan` |
 | `cursor-skills-general.mdc` | General coding + git flow conventions |
 | `cursor-skills-git-workflow.mdc` | Staging → prod spine; blocks direct main |
-| `docs-professional-standard.mdc` | Herdável docs standard |
+| `docs-professional-standard.mdc` | Inheritable docs standard |
 | `memory-loop.mdc` | `.cursor/memory/` errors and decisions |
+| `ux-tone.mdc` | Chat tone only; `alwaysApply: true` (fixed 2026-07-19) |
 
 ### alwaysApply: false + globs (stack / language)
 
@@ -77,17 +78,17 @@ These run on every agent turn in Cursor:
 | `cursor-skills-testing.mdc` | test/spec paths |
 | `cursor-skills-webdesign.mdc` | HTML/CSS/Vue/Svelte |
 
-### Anomaly
+### Anomalies (resolved)
 
-| Rule | Issue |
-|------|-------|
-| `ux-tone.mdc` | **No YAML frontmatter** - no `alwaysApply` or `globs`. Cursor may not load it consistently. Should get `alwaysApply: true` (core, chat-only scope) in Fase 1 coherence. |
+| Rule | Was | Now |
+|------|-----|-----|
+| `ux-tone.mdc` | Missing YAML frontmatter | ✅ `alwaysApply: true` with description (2026-07-19) |
 
-### Rule-mode compliance vs tese
+### Rule-mode compliance
 
 - Stack/product rules (ClickUp, n8n) correctly use `alwaysApply: false` per decision `2026-07-09_structural-harness-vs-stack`.
 - Language CURSOR-SKILLS rules are stack-on-demand via globs - acceptable for dev ergonomics; not structural core.
-- CLI generator (`packages/cli/src/generator/cursor.ts`) produces a **minimal** rule set (3–4 files) for new projects - does not copy the full 23-rule workspace. Intentional for Fase 2 Core Pack; document parity gap.
+- CLI generator (`packages/cli/src/generator/cursor.ts`) produces a **minimal** rule set (3–4 files) for new projects - does not copy the full 23-rule workspace. Intentional L0 subset; document parity gap in Phase B cutover.
 
 ---
 
@@ -138,7 +139,7 @@ Separate from `.cursor/hooks/`; optional hygiene for teams that reject bot co-au
 
 Cursor subagent definitions. Consumed via Task tool / Agents Window. Full classification in [coherence-inventory.md](coherence-inventory.md).
 
-### Commands (`.cursor/commands/` - 9)
+### Commands (`.cursor/commands/` - 10)
 
 Slash commands in Cursor:
 
@@ -146,8 +147,9 @@ Slash commands in Cursor:
 |---------|-------|
 | `/continue-plan` | Handoff resume |
 | `/handoff` | Save HANDOFF |
+| `/run-plan-loop`, `/run-plan-orchestrated` | Continuous loop / worker delegation (no `/git-prod`) |
 | `/git-staging`, `/git-prod` | DevOps spine |
-| `/start-project` | Bootstrap |
+| `/start-project` | Bootstrap (two HITL gates) |
 | `/context-status` | Context pack status |
 | `/summary`, `/tips` | UX helpers |
 
@@ -204,7 +206,7 @@ Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command 
 
 The Agent Kit repo uses the full Cursor workspace and **does**:
 
-1. Version `.cursor/hooks.json` (sessionStart / stop / preCompact)
+1. Version `.cursor/hooks.json` (`sessionStart` / `preCompact`)
 
 Still open dogfood gaps:
 
@@ -212,21 +214,21 @@ Still open dogfood gaps:
 3. Auto-install git hooks on clone (documented manual copy)
 4. Ship `mcp.json` for optional MCP servers
 
-These are acceptable for private SoT during Fase 0–1; Fase 2 Core Pack should decide minimum dogfood set before public sync.
+Acceptable for private SoT until Phase B registry cutover defines minimum dogfood before public sync.
 
 ---
 
-## Action items (by phase)
+## Action items
 
-| ID | Phase | Action |
-|----|-------|--------|
-| A1 | Fase 1 | Fix `ux-tone.mdc` frontmatter |
-| A2 | Fase 1 | Complete [coherence-inventory.md](coherence-inventory.md) |
-| A3 | Fase 2 | ✅ Done: `.cursor/hooks.json` + agent scripts (phase/context) |
-| A4 | Fase 2 | Align CLI git-hooks with `.cursor/hooks/pre-commit/` chain |
-| A5 | Fase 2 | Add root `AGENTS.md` to agent-kit repo (dogfood) |
-| A6 | Fase 3 | Document Marketplace plugin path + VS Code/Windsurf install |
-| A7 | Fase 3 | Expand generators or template files for multi-IDE parity |
+| ID | Status | Action |
+|----|--------|--------|
+| A1 | ✅ Done | Fix `ux-tone.mdc` frontmatter |
+| A2 | ✅ Done | Refresh [coherence-inventory.md](coherence-inventory.md) + [drift-inventory.md](drift-inventory.md) (2026-07-19) |
+| A3 | ✅ Done | `.cursor/hooks.json` + agent scripts (`sessionStart` / `preCompact`) |
+| A4 | Open | Align CLI git-hooks with `.cursor/hooks/pre-commit/` chain |
+| A5 | Open | Add root `AGENTS.md` to agent-kit repo (dogfood) |
+| A6 | Open | Document Marketplace plugin path + VS Code/Windsurf install |
+| A7 | Open | Expand generators or template files for multi-IDE parity |
 
 ---
 

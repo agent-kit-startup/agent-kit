@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-# Valida JSON antes de editar. Opcionalmente cria backup.
-# Uso: validate-json.sh [--backup] <file.json> [file2.json ...]
-# Exit: 0 ok, 1 erro de validação, 2 uso
+# Validates JSON before editing. Optionally creates backup.
+# Usage: validate-json.sh [--backup] <file.json> [file2.json ...]
+# Exit: 0 ok, 1 validation error, 2 usage
 
 set -e
 
@@ -16,24 +16,24 @@ files=""
 for arg in "$@"; do
   case "$arg" in
     --backup) do_backup=true ;;
-    -*) echo "Opção desconhecida: $arg"; exit 2 ;;
+    -*) echo "Unknown option: $arg"; exit 2 ;;
     *) files="$files $arg"
   esac
 done
 
 if [ -z "$files" ]; then
-  echo "Uso: validate-json.sh [--backup] <file.json> [file2.json ...]"
+  echo "Usage: validate-json.sh [--backup] <file.json> [file2.json ...]"
   exit 2
 fi
 
 if [ ! -f "$LIB" ]; then
-  echo "Validador não encontrado: $LIB"
+  echo "Validator not found: $LIB"
   exit 2
 fi
 
 for f in $files; do
   if [ ! -f "$f" ]; then
-    echo "Arquivo não encontrado: $f"
+    echo "File not found: $f"
     exit 1
   fi
   if [ "$do_backup" = true ]; then

@@ -5,137 +5,137 @@ version: 0.1.0
 category: ux
 ---
 
-# Skill: UX para Fluxos de Mensagens (Chatbots, WhatsApp, Telegram)
+# Skill: UX for Message Flows (Chatbots, WhatsApp, Telegram)
 
-Boas práticas para criar fluxos conversacionais em agentes de chat.
+Best practices for creating conversational flows in chat agents.
 
-## Quando Usar
+## When to Use
 
-- Ao criar prompts de agentes de chat
-- Ao projetar workflows de atendimento
-- Ao revisar fluxos conversacionais
-- Ao trabalhar com WhatsApp, Telegram, chatbots em geral
+- When creating chat agent prompts
+- When designing service workflows
+- When reviewing conversational flows
+- When working with WhatsApp, Telegram, chatbots in general
 
-## 1. Estrutura de Mensagens
+## 1. Message Structure
 
-- **Mensagens curtas:** Máximo 3 linhas por bloco.
-- **Uma ação por mensagem:** Não misturar múltiplos pedidos.
-- **Confirmações claras:** "Entendi! Você quer X, certo?"
-- **Quebrar mensagens longas:** Dividir em múltiplas mensagens curtas.
+- **Short messages:** Maximum 3 lines per block.
+- **One action per message:** Don't mix multiple requests.
+- **Clear confirmations:** "Got it! You want X, right?"
+- **Break long messages:** Split into multiple short messages.
 
-### Exemplo
+### Example
 
-**Ruim:**
-> "Olá! Bem-vindo ao nosso atendimento. Para prosseguir, preciso do seu CPF, nome completo, data de nascimento e e-mail. Depois disso, vou verificar sua conta e te informar sobre as opções disponíveis."
+**Bad:**
+> "Hello! Welcome to our service. To proceed, I need your ID, full name, date of birth and email. After that, I'll verify your account and inform you about available options."
 
-**Bom:**
-> "Olá! Vou te ajudar a verificar sua conta."
-> "Qual é o seu CPF?"
+**Good:**
+> "Hello! I'll help you verify your account."
+> "What's your ID number?"
 
 ## 2. Tone of Voice
 
-- **Amigável, direto, sem jargão desnecessário.**
-- **Adaptar ao contexto:**
-  - Formal para enterprise/B2B
-  - Casual para consumer/B2C
-- **Emojis com moderação:** Use para clareza, não para enfeitar.
+- **Friendly, direct, no unnecessary jargon.**
+- **Adapt to context:**
+  - Formal for enterprise/B2B
+  - Casual for consumer/B2C
+- **Emojis in moderation:** Use for clarity, not decoration.
 
-### Tom por Contexto
+### Tone by Context
 
-| Contexto | Tom | Exemplo |
-|----------|-----|---------|
-| Suporte técnico | Profissional, calmo | "Entendi o problema. Vou resolver." |
-| Atendimento ao cliente | Acolhedor, ágil | "Sem problemas! Já resolvo isso pra você." |
-| Vendas | Entusiasmado, consultivo | "Boa escolha! Esse produto é perfeito pra..." |
+| Context | Tone | Example |
+|---------|------|---------|
+| Technical support | Professional, calm | "Got it. I'll fix this." |
+| Customer service | Welcoming, quick | "No problem! I'll sort this out for you." |
+| Sales | Enthusiastic, consultative | "Great choice! This product is perfect for..." |
 
-## 3. Tratamento de Erros
+## 3. Error Handling
 
-- **Não culpar o usuário:** "Ops, algo deu errado" > "Você errou".
-- **Oferecer próximo passo claro:** O que o usuário deve fazer agora.
-- **Fallback gentil:** "Não entendi. Você pode reformular?"
+- **Don't blame the user:** "Oops, something went wrong" > "You made an error".
+- **Offer clear next step:** What the user should do now.
+- **Gentle fallback:** "I didn't understand. Can you rephrase?"
 
-### Exemplos de Fallback
+### Fallback Examples
 
-- "Hmm, não consegui entender. Você quis dizer [opção A] ou [opção B]?"
-- "Desculpa, não achei essa informação. Pode tentar de outro jeito?"
-- "Não entendi. Quer falar com um atendente humano?"
+- "Hmm, I couldn't understand. Did you mean [option A] or [option B]?"
+- "Sorry, I couldn't find that information. Can you try another way?"
+- "I didn't understand. Want to speak with a human agent?"
 
-## 4. Confirmações e Feedback
+## 4. Confirmations and Feedback
 
-- **Sempre confirmar ações importantes:** "Reserva confirmada para 15/03."
-- **Indicadores de progresso:** "Processando...", "Quase lá!", "Verificando..."
-- **Fechamento claro:** "Pronto! Seu pedido foi registrado."
+- **Always confirm important actions:** "Booking confirmed for March 15th."
+- **Progress indicators:** "Processing...", "Almost there!", "Checking..."
+- **Clear closure:** "Done! Your order has been registered."
 
-### Tipos de Confirmação
+### Confirmation Types
 
-| Tipo | Quando usar | Exemplo |
+| Type | When to use | Example |
 |------|-------------|---------|
-| Confirmação rápida | Ações simples | "Feito!" |
-| Confirmação com resumo | Ações importantes | "Reserva confirmada: Hotel X, 15-17/03, 2 adultos." |
-| Confirmação com próximo passo | Ações em fluxo | "Pagamento recebido! Agora vou enviar seu ingresso." |
+| Quick confirmation | Simple actions | "Done!" |
+| Confirmation with summary | Important actions | "Booking confirmed: Hotel X, Mar 15-17, 2 adults." |
+| Confirmation with next step | Actions in flow | "Payment received! Now I'll send your ticket." |
 
-## 5. Fluxos de Handoff (Agente → Humano)
+## 5. Handoff Flows (Agent → Human)
 
-Quando o agente precisa passar para um atendente humano:
+When the agent needs to transfer to a human attendant:
 
-1. **Avisar o usuário:** "Vou transferir para um atendente."
-2. **Passar contexto resumido para o humano:** CPF, problema, o que já foi tentado.
-3. **Confirmar quando humano assumir:** "Pronto! Você está falando com [Nome]."
+1. **Notify the user:** "I'll transfer you to an agent."
+2. **Pass summarized context to human:** ID, problem, what was already tried.
+3. **Confirm when human takes over:** "All set! You're now speaking with [Name]."
 
-### Exemplo de Handoff
+### Handoff Example
 
-> **Agente:** "Esse caso precisa de um atendente especializado. Vou te transferir agora."
-> **Agente:** "Passando o contexto: cliente quer cancelar reserva #12345, já tentou pelo app."
-> **Atendente:** "Olá! Sou a Maria. Vi que você quer cancelar a reserva. Vou resolver isso."
+> **Agent:** "This case needs a specialized agent. I'll transfer you now."
+> **Agent:** "Passing context: customer wants to cancel booking #12345, already tried via app."
+> **Agent:** "Hello! I'm Maria. I see you want to cancel the booking. I'll handle this."
 
-## 6. Padrões de Fluxo
+## 6. Flow Patterns
 
-### Menu de Opções
-
-```
-O que você precisa?
-1️⃣ Fazer reserva
-2️⃣ Cancelar reserva
-3️⃣ Falar com atendente
-
-(Digite o número ou escreva o que precisa)
-```
-
-### Coleta de Dados Sequencial
+### Options Menu
 
 ```
-Agente: "Qual é o seu CPF?"
-Usuário: "123.456.789-00"
-Agente: "Perfeito! E o seu e-mail?"
-Usuário: "joao@email.com"
-Agente: "Ótimo! Dados confirmados. Agora vou verificar sua conta."
+What do you need?
+1️⃣ Make booking
+2️⃣ Cancel booking
+3️⃣ Speak with agent
+
+(Type the number or write what you need)
 ```
 
-### Confirmação de Entendimento
+### Sequential Data Collection
 
 ```
-Usuário: "quero mudar a data"
-Agente: "Entendi! Você quer alterar a data da sua reserva. É isso?"
-Usuário: "sim"
-Agente: "Certo! Para qual data você quer mudar?"
+Agent: "What's your ID number?"
+User: "123.456.789-00"
+Agent: "Perfect! And your email?"
+User: "john@email.com"
+Agent: "Great! Data confirmed. Now I'll verify your account."
 ```
 
-## 7. Erros Comuns a Evitar
+### Understanding Confirmation
 
-| Erro | Problema | Solução |
-|------|----------|---------|
-| Mensagens muito longas | Usuário não lê | Dividir em múltiplas mensagens curtas |
-| Múltiplas perguntas de uma vez | Usuário confunde | Uma pergunta por vez |
-| Jargão técnico | Usuário não entende | Linguagem simples |
-| Sem próximo passo | Usuário fica perdido | Sempre indicar o que fazer |
-| Tom robótico | Usuário desconecta | Tom amigável e natural |
+```
+User: "I want to change the date"
+Agent: "Got it! You want to change your booking date. Is that right?"
+User: "yes"
+Agent: "Alright! What date do you want to change to?"
+```
 
-## 8. Checklist Rápido
+## 7. Common Errors to Avoid
 
-- [ ] Mensagens com máximo 3 linhas
-- [ ] Uma ação por mensagem
-- [ ] Próximo passo claro
-- [ ] Tom adequado ao contexto
-- [ ] Fallback gentil para erros
-- [ ] Confirmação de ações importantes
-- [ ] Handoff suave para humano quando necessário
+| Error | Problem | Solution |
+|-------|---------|----------|
+| Messages too long | User doesn't read | Split into multiple short messages |
+| Multiple questions at once | User gets confused | One question at a time |
+| Technical jargon | User doesn't understand | Simple language |
+| No next step | User gets lost | Always indicate what to do |
+| Robotic tone | User disconnects | Friendly and natural tone |
+
+## 8. Quick Checklist
+
+- [ ] Messages with max 3 lines
+- [ ] One action per message
+- [ ] Clear next step
+- [ ] Appropriate tone for context
+- [ ] Gentle fallback for errors
+- [ ] Confirmation of important actions
+- [ ] Smooth handoff to human when needed

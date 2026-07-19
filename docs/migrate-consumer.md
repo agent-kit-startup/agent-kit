@@ -16,7 +16,7 @@ Generic runbook for any project to migrate from nested `agent-kit/` folder to th
 pnpm --filter @agent-kit/cli start -- install \
   --cwd /path/to/project \
   --registry /path/to/agent-kit \
-  --pack gestao-contexto,clean-code
+  --pack context-management,clean-code
 ```
 
 3. **Protect L3** - extend `.cursor/agent-kit.json` `protected` (and optional `overrides`) with domain paths, e.g.:

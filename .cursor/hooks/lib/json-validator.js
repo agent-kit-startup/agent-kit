@@ -1,35 +1,35 @@
 #!/usr/bin/env node
 /**
- * JSON Validator - Valida sintaxe e formatação de arquivos JSON.
- * Uso: node json-validator.js <file> [file2 ...]
- * Ou importar: const { validateJson } = require('./json-validator.js');
+ * JSON Validator - Validates JSON file syntax and formatting.
+ * Usage: node json-validator.js <file> [file2 ...]
+ * Or import: const { validateJson } = require('./json-validator.js');
  */
 
 const fs = require('fs');
 const path = require('path');
 
 /**
- * Valida conteúdo JSON.
- * @param {string} content - Conteúdo do arquivo
- * @param {string} [filePath] - Caminho do arquivo (para mensagens de erro)
+ * Validates JSON content.
+ * @param {string} content - File content
+ * @param {string} [filePath] - File path (for error messages)
  * @returns {{ valid: boolean, error?: string, warning?: string }}
  */
 function validateJson(content, filePath = '') {
-  const label = filePath ? ` em ${filePath}` : '';
+  const label = filePath ? ` in ${filePath}` : '';
 
   try {
     JSON.parse(content);
   } catch (e) {
     return {
       valid: false,
-      error: `Erro de sintaxe${label}: ${e.message}`
+      error: `Syntax error${label}: ${e.message}`
     };
   }
 
   if (content.includes('//') || content.includes('/*')) {
     return {
       valid: false,
-      error: `JSON não suporta comentários${label}. Use _comment se precisar de nota.`
+      error: `JSON does not support comments${label}. Use _comment if you need notes.`
     };
   }
 
@@ -37,7 +37,7 @@ function validateJson(content, filePath = '') {
   if (content.trim() !== formatted) {
     return {
       valid: true,
-      warning: `Formatação inconsistente${label}. Preferir indentação de 2 espaços.`
+      warning: `Inconsistent formatting${label}. Prefer 2-space indentation.`
     };
   }
 
@@ -45,8 +45,8 @@ function validateJson(content, filePath = '') {
 }
 
 /**
- * Valida um arquivo JSON no disco.
- * @param {string} filePath - Caminho do arquivo
+ * Validates a JSON file on disk.
+ * @param {string} filePath - File path
  * @returns {{ valid: boolean, error?: string, warning?: string }}
  */
 function validateJsonFile(filePath) {
@@ -54,7 +54,7 @@ function validateJsonFile(filePath) {
   try {
     content = fs.readFileSync(filePath, 'utf8');
   } catch (e) {
-    return { valid: false, error: `Não foi possível ler o arquivo: ${e.message}` };
+    return { valid: false, error: `Could not read file: ${e.message}` };
   }
   return validateJson(content, filePath);
 }
@@ -62,7 +62,7 @@ function validateJsonFile(filePath) {
 function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('Uso: node json-validator.js <file> [file2 ...]');
+    console.error('Usage: node json-validator.js <file> [file2 ...]');
     process.exit(2);
   }
 
@@ -72,7 +72,7 @@ function main() {
   for (const file of args) {
     const resolved = path.resolve(file);
     if (!fs.existsSync(resolved)) {
-      console.error(`Arquivo não encontrado: ${file}`);
+      console.error(`File not found: ${file}`);
       hasError = true;
       continue;
     }

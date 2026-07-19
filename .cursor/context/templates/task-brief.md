@@ -1,29 +1,29 @@
-# Task Brief: [TITULO]
+# Task Brief: [TITLE]
 
-## Objetivo
-[1-2 frases descrevendo o resultado esperado]
+## Objective
+[1-2 sentences describing the expected result]
 
-## Contexto
-- **Projeto:** [nome]
-- **Arquivos principais:** [lista]
-- **Dependências:** [libs, APIs, serviços]
+## Context
+- **Project:** [name]
+- **Main files:** [list]
+- **Dependencies:** [libs, APIs, services]
 
-## Requisitos
-### Funcionais
-- [ ] [requisito 1]
-- [ ] [requisito 2]
+## Requirements
+### Functional
+- [ ] [requirement 1]
+- [ ] [requirement 2]
 
-### Não-funcionais
-- [ ] Performance: [critério]
-- [ ] Segurança: [critério]
+### Non-functional
+- [ ] Performance: [criteria]
+- [ ] Security: [criteria]
 
 ## Constraints
-- [limitação 1]
-- [limitação 2]
+- [limitation 1]
+- [limitation 2]
 
-## Critérios de Aceite
-- [ ] [critério 1]
-- [ ] [critério 2]
+## Acceptance Criteria
+- [ ] [criteria 1]
+- [ ] [criteria 2]
 
-## Notas
-[informações adicionais]
+## Notes
+[additional information]

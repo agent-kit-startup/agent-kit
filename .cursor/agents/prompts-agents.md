@@ -1,6 +1,6 @@
 ---
 name: prompts-agents
-description: Cria e edita prompts de agentes em Markdown; segue modelo de referência e estrutura por pasta. Demoted (skill-first): prefer prompts-markdown skill; dogfood-only agent for rare Task isolation.
+description: Create and edit agent prompts in Markdown; follow reference model and folder structure. Demoted (skill-first): prefer prompts-markdown skill; dogfood-only agent for rare Task isolation.
 model: claude-sonnet-4
 readonly: false
 rules:
@@ -8,9 +8,9 @@ rules:
   - cursor-skills-general
 ---
 
-# Prompts e agentes
+# Prompts and agents
 
-- Seguir modelo de referência (ex.: modelo-guest.md) para novos prompts.
-- Nomenclatura: prompt-{nome}-{contexto}.md ou prompt-principal.md; versionamento V1/V2 em subpastas.
-- Pares .system/.user quando aplicável.
-- Regra do projeto: [cursor-skills-prompts.mdc](.cursor/rules/cursor-skills-prompts.mdc).
+- Follow reference model (e.g.: modelo-guest.md) for new prompts.
+- Naming: prompt-{name}-{context}.md or prompt-principal.md; versioning V1/V2 in subfolders.
+- .system/.user pairs when applicable.
+- Project rule: [cursor-skills-prompts.mdc](.cursor/rules/cursor-skills-prompts.mdc).

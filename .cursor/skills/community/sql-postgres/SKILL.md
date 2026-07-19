@@ -7,20 +7,20 @@ category: dados
 
 # SQL (Postgres)
 
-## DDL e convenções
+## DDL and conventions
 
-- **CREATE TABLE:** usar `IF NOT EXISTS`; chave primária explícita; tipos adequados (UUID, TEXT, TIMESTAMPTZ, JSONB).
-- **Nomes:** snake_case para tabelas e colunas.
-- **Documentação:** `COMMENT ON TABLE ...` e `COMMENT ON COLUMN ...` quando ajudar manutenção.
+- **CREATE TABLE:** use `IF NOT EXISTS`; explicit primary key; appropriate types (UUID, TEXT, TIMESTAMPTZ, JSONB).
+- **Names:** snake_case for tables and columns.
+- **Documentation:** `COMMENT ON TABLE ...` and `COMMENT ON COLUMN ...` when it helps maintenance.
 
-## Padrões recomendados
+## Recommended patterns
 
-- Scripts de tabelas: ex. `001_create_tables.sql`, `002_indexes_constraints.sql`; extensão `uuid-ossp` quando usar UUID.
-- Sequências para protocolos ou IDs numéricos quando aplicável.
-- DDL para integrações (filtros, logs, eventos) em pastas dedicadas (ex.: db/, scripts/, code/).
+- Table scripts: e.g. `001_create_tables.sql`, `002_indexes_constraints.sql`; `uuid-ossp` extension when using UUID.
+- Sequences for protocols or numeric IDs when applicable.
+- DDL for integrations (filters, logs, events) in dedicated folders (e.g., db/, scripts/, code/).
 
-## Boas práticas
+## Best practices
 
-- Scripts idempotentes: `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`; evitar falha em reexecução.
-- TIMESTAMPTZ para datas/horas; UUID para ids quando aplicável.
-- Alterações de schema: documentar em docs ou README do módulo.
+- Idempotent scripts: `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`; avoid failure on re-execution.
+- TIMESTAMPTZ for dates/times; UUID for ids when applicable.
+- Schema changes: document in docs or module README.

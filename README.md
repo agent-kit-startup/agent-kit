@@ -26,7 +26,7 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 
 ## Usage
 
-1. **Start a plan:** `/start-project` - agent turns your goal into checkable to-dos.
+1. **Start a plan:** `/start-project` - propose/write the plan first, then run the first to-do only after you confirm.
 2. **Work one phase:** agent implements the current phase, updates handoff, and stops.
 3. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off.
 4. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.
@@ -51,4 +51,6 @@ Full routine: `autogit/gitupdate.md` after install.
 
 ## For maintainers
 
-This repo is the source of truth and dogfood workspace. Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never this whole repo. Your handoffs and notes live only in your project; the pre-commit hook helps stop secrets from being committed.
+This repo (`agent-kit-dev`) is the private factory and dogfood workspace. Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never this whole repo.
+
+**Three layers:** local scratch (HANDOFF/plans, gitignored) · private Git (this repo) · public storefront ([agent-kit](https://github.com/agent-kit-startup/agent-kit), allowlist sync). Full cheat sheet: [docs/repository-boundaries.md](docs/repository-boundaries.md#cheat-sheet-three-layers).

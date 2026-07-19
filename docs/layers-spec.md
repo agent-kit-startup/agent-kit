@@ -167,7 +167,7 @@ Membership (members, excludes, SoT paths): **[domain-packs.md](domain-packs.md)*
 | `clean-code` | clean-code skill + cleancode-refactor agent |
 | `project-management` | Optional PM adapters (ClickUp/Jira); plan/handoff stays L0 |
 | `context-management` | context-librarian, memory-extractor, context-status |
-| `quality` | testing rule + testes-roteiros agent |
+| `quality` | testing rule + test-suites agent |
 
 Language/SaaS artifacts are **L2**, not pack members (n8n, SQL, Node, …).
 

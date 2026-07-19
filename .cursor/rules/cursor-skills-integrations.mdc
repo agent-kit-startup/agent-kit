@@ -1,18 +1,18 @@
 ---
-description: Regras CURSOR-SKILLS para integrações (webhooks, microserviços, DBs, filas).
+description: CURSOR-SKILLS rules for integrations (webhooks, microservices, DBs, queues).
 globs: "**/integrations/**/*,**/webhooks/**/*,**/microservices/**/*"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Integrações
+# CURSOR-SKILLS - Integrations
 
-Fonte: [cursor-skills/integrations](https://github.com/araguaci/cursor-skills/tree/main/integrations)
+Source: [cursor-skills/integrations](https://github.com/araguaci/cursor-skills/tree/main/integrations)
 
-## Setup CURSOR
+## CURSOR setup
 
 - Docker, Kubernetes, GitLens, Remote Development, Database Client, REST Client.
 
-## Estrutura típica
+## Typical structure
 
 ```
 project/
@@ -20,22 +20,22 @@ project/
 └── .env
 ```
 
-## Princípios
+## Principles
 
-- Microserviços; error handling e logging; comunicação segura; retries e idempotência quando aplicável.
+- Microservices; error handling and logging; secure communication; retries and idempotency when applicable.
 
 ## Webhooks
 
-- Eventos e payloads padronizados; validação (ex. assinatura); retry; segurança.
+- Standardized events and payloads; validation (e.g. signature); retry; security.
 
-## Microserviços
+## Microservices
 
-- APIs consistentes; discovery; load balancing; health checks; testes de comunicação.
+- Consistent APIs; discovery; load balancing; health checks; communication tests.
 
-## Banco de dados
+## Database
 
-- Connection pooling; transações; índices; prepared statements; evitar N+1; convenções de nome.
+- Connection pooling; transactions; indexes; prepared statements; avoid N+1; naming conventions.
 
-## Comunicação
+## Communication
 
-- HTTP, gRPC ou WebSocket conforme o caso; tratamento de erros; filas (RabbitMQ, Kafka, etc.) quando fizer sentido.
+- HTTP, gRPC, or WebSocket as appropriate; error handling; queues (RabbitMQ, Kafka, etc.) when it makes sense.

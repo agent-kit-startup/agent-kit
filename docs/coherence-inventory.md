@@ -2,9 +2,9 @@
 
 Living inventory for internal coherence (`f6-coherence`). Classifies each artifact as **core** (structural harness), **stack** (on demand), **obsolete**, or **merge** (resolved).
 
-**Checklist per artifact:** alwaysApply/globs · tese HITL · no transitório · nomenclatura · dedupe workspace ↔ registry.
+**Checklist per artifact:** alwaysApply/globs · HITL thesis · no transient content · naming · dedupe workspace ↔ registry.
 
-**Status (2026-07-16):** Fase 6 pass complete for SoT. Registry is the skill SoT; workspace `.cursor/skills/{core,community}/` is install output from `agent-kit update`.
+**Status (2026-07-19):** Post public-surface EN sweep on `origin/staging` (PRs #60–#64). Registry is the skill SoT; workspace `.cursor/skills/{core,community}/` is install output from `agent-kit update`. L1 pack ids are English (`engineering-architecture`, `project-management`, `context-management`). Product release **3.5.1** on `main`; `[Unreleased]` on staging includes breaking pack id rename until `/git-prod`.
 
 ---
 
@@ -14,7 +14,7 @@ Living inventory for internal coherence (`f6-coherence`). Classifies each artifa
 |------|-------|-------------|--------|
 | `agent-output-hygiene.mdc` | core | true | ✅ keep |
 | `context-guardian.mdc` | core | true | ✅ keep |
-| `cursor-plan-handoff.mdc` | core | true | ✅ keep (manual / loop / orquestrado) |
+| `cursor-plan-handoff.mdc` | core | true | ✅ keep (manual / loop / orchestrated) |
 | `cursor-skills-general.mdc` | core | true | ✅ keep |
 | `cursor-skills-git-workflow.mdc` | core | true | ✅ staging-first |
 | `docs-professional-standard.mdc` | core | true | ✅ keep |
@@ -84,18 +84,18 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | File | Catalog | Install path |
 |------|---------|--------------|
 | `git-autogit.md` | core (spine) | Dogfood-only; L0 = commands + `autogit/` |
-| `docs-repo.md` | core | L1 `engenharia-arquitetura` (with docs-repo skill) |
+| `docs-repo.md` | core | L1 `engineering-architecture` (with docs-repo skill) |
 | `cleancode-refactor.md` | core | L1 `clean-code` |
 | `security-reviewer.md` | core | L1 `cybersec` |
-| `context-librarian.md` | core | L1 `gestao-contexto` |
-| `memory-extractor.md` | core | L1 `gestao-contexto` |
-| `tech-lead.md` | core | L1 `engenharia-arquitetura` |
+| `context-librarian.md` | core | L1 `context-management` |
+| `memory-extractor.md` | core | L1 `context-management` |
+| `tech-lead.md` | core | L1 `engineering-architecture` |
 | `json-guardian.md` | stack | Demoted; prefer `json-data-config` skill |
 | `prompts-agents.md` | stack | Demoted; prefer `prompts-markdown` skill |
 | `n8n-workflows.md` | stack | Demoted; prefer `n8n-workflows` skill |
 | `sql-schema.md` | stack | Demoted; prefer `sql-postgres` skill |
-| `clickup-tasks.md` | stack | L1 `gestao-projeto` |
-| `testes-roteiros.md` | stack | L1 `quality` |
+| `clickup-tasks.md` | stack | L1 `project-management` |
+| `test-suites.md` | stack | L1 `quality` |
 
 ---
 
@@ -125,7 +125,7 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | `install.md` / `docs/bootstrap.md` | core | ✅ no nested folder copy |
 | `docs/contribute-upstream.md` | core | ✅ `f5` return channel |
 | `docs/CONTRIBUTING.md` | core | ✅ contribute gate link |
-| `README.md` | core | ⏳ EN thesis polish → `f6-repo-publico` |
+| `README.md` | core | ✅ keep (EN; public sync gated by Phase B cutover) |
 
 ---
 
@@ -149,15 +149,16 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | Skills (registry) | 12 | 5 | 7 | SoT |
 | Skills (workspace install) | 7 | 1 | 6 | dogfood manifest |
 | Agents | 13 | 7 catalog-core | 6 stack | 8 pack-installable; 5 dogfood/demoted (see domain-packs) |
-| Commands | 11 | 11 | 0 | - |
+| Commands | 10 | 10 | 0 | includes `/run-plan-loop`, `/run-plan-orchestrated` |
 
 ---
 
 ## Residual (not blocking)
 
 1. **`.cursor/hooks.json`** - ✅ shipped (sessionStart / preCompact); optional later: shell gate for push to main, prompt secrets check.
-2. **README EN thesis** - `f6-repo-publico` go/no-go.
+2. **Registry-canonical public cutover** - operational work lives in `phase_b_registry_canonical_public.plan.md` (spec done ≠ storefront cutover done).
 3. **Stack language rules** (php/groovy/mobile/…) - keep as stack; no promotion to L0.
 4. **`skills-registry.json` / `_legacy/v2`** - obsolete paths; do not resurrect flat skill ids.
+5. **`package.json` / `.cursor-plugin/plugin.json` version `3.0.0`** - known drift vs CHANGELOG product release **3.5.1**; bump on next release tag, not blocking inventory truth.
 
-Update this file when classifications change. Public sync still gated by `f6-repo-publico`.
+Update this file when classifications change.

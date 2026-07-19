@@ -1,26 +1,26 @@
 ---
-description: Regras para workflows n8n (nodes, webhooks, Execute Workflow, credenciais, docs). Alinhado à skill n8n-workflows.
+description: Rules for n8n workflows (nodes, webhooks, Execute Workflow, credentials, docs). Aligned with the n8n-workflows skill.
 globs: "**/n8n/**/*,**/*workflow*.json,**/workflows/**/*.json"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – n8n
+# CURSOR-SKILLS - n8n
 
-Alinhado à skill [.cursor/skills/community/n8n-workflows/SKILL.md](.cursor/skills/community/n8n-workflows/SKILL.md).
+Aligned with skill [.cursor/skills/community/n8n-workflows/SKILL.md](.cursor/skills/community/n8n-workflows/SKILL.md).
 
-## Estrutura de workflow
+## Workflow structure
 
 - **nodes:** Webhook, HTTP Request, Code, Postgres, Switch, IF, Execute Workflow, Respond Webhook.
-- **connections:** mapeamento de saídas para entradas; todas as ramificações devem terminar em Respond Webhook quando for webhook.
-- **credentials:** referências por id; nunca valores fixos no JSON.
+- **connections:** map outputs to inputs; all branches must end in Respond Webhook when the flow is a webhook.
+- **credentials:** references by id; never hardcode values in the JSON.
 
-## Padrões recomendados
+## Recommended patterns
 
 - Webhook → Get Session / IF / Switch → Execute Workflow → Respond Webhook.
-- State machine: documentar estados em `docs/context/` ou README; manter `docs/n8n-manual-update-*.md` para alterações manuais sem reimportar.
+- State machine: document states in `docs/context/` or README; keep `docs/n8n-manual-update-*.md` for manual changes without reimporting.
 
-## Boas práticas
+## Best practices
 
-- Credenciais via n8n Credentials ou `$env.VAR`; IDs de sub-workflows ajustados após importar.
-- `$json`, `$env`, `queryReplacement` (Postgres) conforme docs; Query Parameters preenchidos quando a query usar `$1`, `$2`.
-- Versionar JSONs no Git; documentar credenciais em README ou env.example.
+- Credentials via n8n Credentials or `$env.VAR`; sub-workflow IDs adjusted after import.
+- `$json`, `$env`, `queryReplacement` (Postgres) per docs; fill Query Parameters when the query uses `$1`, `$2`.
+- Version JSON in Git; document credentials in README or env.example.

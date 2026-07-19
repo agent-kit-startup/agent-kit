@@ -42,9 +42,9 @@ export const DEFAULT_PROTECTED_PATHS: readonly string[] = [
 export const DOMAIN_PACK_IDS: readonly string[] = [
   "cybersec",
   "devops",
-  "engenharia-arquitetura",
+  "engineering-architecture",
   "clean-code",
-  "gestao-projeto",
-  "gestao-contexto",
+  "project-management",
+  "context-management",
   "quality",
 ];

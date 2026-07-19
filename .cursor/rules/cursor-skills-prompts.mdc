@@ -1,23 +1,23 @@
 ---
-description: Regras para prompts de agentes em Markdown (estrutura, .system/.user, versionamento). Alinhado à skill prompts-markdown.
+description: Rules for agent prompts in Markdown (structure, .system/.user, versioning). Aligned with the prompts-markdown skill.
 globs: "**/prompt*.md,**/prompts/**/*.md,**/modelo-guest.md"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS – Prompts (Markdown)
+# CURSOR-SKILLS - Prompts (Markdown)
 
-Alinhado à skill [.cursor/skills/community/prompts-markdown/SKILL.md](.cursor/skills/community/prompts-markdown/SKILL.md).
+Aligned with skill [.cursor/skills/community/prompts-markdown/SKILL.md](.cursor/skills/community/prompts-markdown/SKILL.md).
 
-## Estrutura
+## Structure
 
-- Objetivo, instruções gerais, classificação (quando aplicável), ações/ferramentas.
-- Pares .system/.user para extração e formatação quando aplicável.
+- Objective, general instructions, classification (when applicable), actions/tools.
+- .system/.user pairs for extraction and formatting when applicable.
 
-## Padrões recomendados
+## Recommended patterns
 
-- **Modelo base:** manter um modelo de referência para novos prompts (ex.: modelo-guest.md).
-- Nomenclatura: prompt-{nome}-{contexto}.md ou prompt-principal.md; versionamento V1/V2 em subpastas.
+- **Base model:** keep a reference model for new prompts (e.g. modelo-guest.md).
+- Naming: prompt-{name}-{context}.md or prompt-principal.md; V1/V2 versioning in subfolders.
 
-## Boas práticas
+## Best practices
 
-- Linguagem clara; exemplos de saída (JSON ou texto) quando estruturada; referência a tools/base de conhecimento quando existir.
+- Clear language; output examples (JSON or text) when structured; reference tools/knowledge base when they exist.

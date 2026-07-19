@@ -1,45 +1,45 @@
-# Cursor 3.0 Features - Como o Agent Kit Usa
+# Cursor 3.0 Features - How Agent Kit Uses Them
 
-Agent Kit ajuda a desenvolver sem perder contexto - e usa features nativas do Cursor como **complemento**, não substituição.
+Agent Kit helps develop without losing context and uses native Cursor features as **complement**, not replacement.
 
-## Posição do Agent Kit
+## Agent Kit Position
 
-O handoff em arquivo (`.cursor/HANDOFF.md`) é a **fonte da verdade** para continuidade. Nenhuma IDE garante memória infinita - o limite de contexto é real, e sessões novas começam do zero. Por isso o Agent Kit mantém estado em disco: planos estruturados, progresso, e rotinas sugeridas.
+File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continuity. No IDE guarantees infinite memory; context limits are real, and new sessions start from zero. That's why Agent Kit maintains state on disk: structured plans, progress, and suggested routines.
 
-## Features nativas e como usar
+## Native features and how to use them
 
-| Feature | O que faz | Como o Agent Kit usa |
+| Feature | What it does | How Agent Kit uses it |
 |---------|-----------|----------------------|
-| `/resume` | Retoma conversa anterior | Complemento ao HANDOFF - bom para referência rápida, não substitui estado em arquivo |
-| Summaries | Resumo automático de sessões longas | Útil para revisitar decisões; handoff continua obrigatório |
-| Transcripts / @mentions | Busca em chats anteriores | Referência cruzada; não substitui plano com to-dos |
-| Agents Window | Múltiplos agentes em paralelo | Cada agente lê HANDOFF antes de agir; estado compartilhado é em arquivo |
-| `/worktree` | Git worktree isolado | Para mudanças arriscadas sem sujar a working tree |
-| `/best-of-n` | Comparar abordagens lado a lado | Para decisões de arquitetura |
-| Plans | Planos nativos do Cursor | Agent Kit gera planos com to-dos no frontmatter; HANDOFF referencia o plano ativo |
+| `/resume` | Resume previous conversation | Complement to HANDOFF - good for quick reference, doesn't replace file state |
+| Summaries | Automatic summary of long sessions | Useful for revisiting decisions; handoff remains mandatory |
+| Transcripts / @mentions | Search in previous chats | Cross-reference; doesn't replace plan with todos |
+| Agents Window | Multiple agents in parallel | Each agent reads HANDOFF before acting; shared state is in file |
+| `/worktree` | Isolated git worktree | For risky changes without dirtying the working tree |
+| `/best-of-n` | Compare approaches side by side | For architecture decisions |
+| Plans | Native Cursor plans | Agent Kit generates plans with todos in frontmatter; HANDOFF references active plan |
 
-## MCP, hooks e SDK
+## MCP, hooks and SDK
 
-**Gateways de agente paralelos ao Cursor não fazem parte do stack do Agent Kit** - não documentamos nem versionamos config para isso.
+**Agent gateways parallel to Cursor are not part of the Agent Kit stack** - we don't document or version config for that.
 
-Para extensões e automação, use o que o próprio Cursor oferece:
+For extensions and automation, use what Cursor itself offers:
 
-- **MCP** - servidores suportados pelo Cursor (ex.: integrações oficiais ou documentadas no ecossistema; no IDE, preferir o que já vem habilitado ou `mcp.json` do projeto para ferramentas estáveis).
-- **Hooks** - eventos do agente no workspace (ver skill `create-hook` na sua instalação Cursor, se aplicável).
-- **`@cursor/sdk`** - agentes e fluxos fora do IDE quando fizer sentido (ver documentação do SDK).
+- **MCP** - servers supported by Cursor (ex.: official integrations or documented in ecosystem; in IDE, prefer what comes enabled or project `mcp.json` for stable tools).
+- **Hooks** - agent events in workspace (see `create-hook` skill in your Cursor installation, if applicable).
+- **`@cursor/sdk`** - agents and flows outside IDE when it makes sense (see SDK documentation).
 
-Isso mantém um único lugar de verdade para ferramentas do agente e evita duplicar controle de sessão fora do modelo nativo.
+This maintains a single source of truth for agent tools and avoids duplicating session control outside the native model.
 
-## Regra prática
+## Practical rule
 
-1. **Planejar cada task para ~50% da janela** - sobra espaço para execução + handoff
-2. **Após cada task**: gravar HANDOFF, atualizar to-dos, sugerir git staging
-3. **Nova conversa**: `/continue-plan` lê HANDOFF e retoma
-4. **Agentes paralelos**: cada um lê HANDOFF antes de começar
+1. **Plan each task for ~50% of window** - leaves space for execution + handoff
+2. **After each task**: record HANDOFF, update todos, suggest git staging
+3. **New conversation**: `/continue-plan` reads HANDOFF and resumes
+4. **Parallel agents**: each one reads HANDOFF before starting
 
-## O que NÃO confiar
+## What NOT to trust
 
-- **Memória infinita na mesma thread** - não existe
-- **Outro agente saber o que você fez** - contextos são separados
-- **Continuidade automática entre sessões** - summaries ajudam mas não garantem
-- **`/resume` como substituto de handoff** - bom para relembrar, não para retomar trabalho complexo
+- **Infinite memory in same thread** - doesn't exist
+- **Other agent knowing what you did** - contexts are separate
+- **Automatic continuity between sessions** - summaries help but don't guarantee
+- **`/resume` as handoff replacement** - good for remembering, not for resuming complex work

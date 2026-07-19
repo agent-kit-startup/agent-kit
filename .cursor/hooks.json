@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/agent/session-plan-guard.py",
+        "timeout": 10
+      }
+    ],
+    "preCompact": [
+      {
+        "command": ".cursor/hooks/agent/precompact-handoff.py",
+        "timeout": 5
+      }
+    ]
+  }
+}

@@ -1,31 +1,31 @@
-# ADR-NNNN: [Título da Decisão]
+# ADR-NNNN: [Decision Title]
 
 ## Status
-[Proposto | Aceito | Depreciado | Substituído por ADR-XXXX]
+[Proposed | Accepted | Deprecated | Superseded by ADR-XXXX]
 
-## Contexto
-[Qual problema estamos resolvendo? Por que precisamos decidir?]
+## Context
+[What problem are we solving? Why do we need to decide?]
 
-## Decisão
-[O que decidimos fazer]
+## Decision
+[What we decided to do]
 
-## Alternativas Consideradas
+## Alternatives Considered
 
-### Opção A: [nome]
-- **Prós:** [lista]
-- **Contras:** [lista]
+### Option A: [name]
+- **Pros:** [list]
+- **Cons:** [list]
 
-### Opção B: [nome]
-- **Prós:** [lista]
-- **Contras:** [lista]
+### Option B: [name]
+- **Pros:** [list]
+- **Cons:** [list]
 
-## Consequências
+## Consequences
 
-### Positivas
-- [consequência 1]
+### Positive
+- [consequence 1]
 
-### Negativas
-- [consequência 1]
+### Negative
+- [consequence 1]
 
-## Referências
-- [links para docs, issues, discussões]
+## References
+- [links to docs, issues, discussions]

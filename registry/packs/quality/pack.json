@@ -12,8 +12,8 @@
     },
     {
       "kind": "agent",
-      "id": "testes-roteiros",
-      "source": ".cursor/agents/testes-roteiros.md"
+      "id": "test-suites",
+      "source": ".cursor/agents/test-suites.md"
     }
   ],
   "excludes": []

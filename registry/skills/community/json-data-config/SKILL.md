@@ -5,21 +5,21 @@ version: 0.1.0
 category: dados
 ---
 
-# JSON — Config e payloads
+# JSON - Config and payloads
 
-## JSON válido
+## Valid JSON
 
-- Aspas duplas em chaves e strings; vírgulas entre itens; sem vírgula final; escapamento correto (`\"`, `\n`).
-- JSON não suporta comentários; usar chave `_comment` se precisar de nota no objeto.
+- Double quotes on keys and strings; commas between items; no trailing comma; correct escaping (`\"`, `\n`).
+- JSON does not support comments; use `_comment` key if you need notes in the object.
 
-## Padrões recomendados
+## Recommended patterns
 
-- **Parse de resposta de IA:** remover blocos markdown (`` ```json ``), extrair primeiro `{ ... }`, tratar `\n`/`\"`; retornar objeto com tratamento de erro (try/catch, mensagem clara).
-- **Configs:** estruturas de unidades, mapeamentos; manter nomes consistentes (ex.: mapeamento-*.json).
-- **Workflows n8n:** JSON com `nodes`, `connections`, `settings`; manter legível (indentação) quando editar manualmente.
+- **AI response parsing:** remove markdown blocks (`` ```json ``), extract first `{ ... }`, handle `\n`/`\"`; return object with error handling (try/catch, clear message).
+- **Configs:** unit structures, mappings; maintain consistent names (e.g., mapping-*.json).
+- **n8n workflows:** JSON with `nodes`, `connections`, `settings`; keep readable (indented) when editing manually.
 
-## Boas práticas
+## Best practices
 
-- Validar antes de salvar (sintaxe); quando existir, seguir schema (config ou API).
-- Em código que parseia: sempre try/catch; mensagem de erro com trecho relevante (ex.: primeiros 100–200 chars do raw).
-- Minificação apenas para deploy/asset; no repo preferir JSON legível para diff e revisão.
+- Validate before saving (syntax); when available, follow schema (config or API).
+- In parsing code: always try/catch; error message with relevant excerpt (e.g., first 100-200 chars of raw).
+- Minification only for deploy/assets; in repo prefer readable JSON for diff and review.

@@ -11,7 +11,7 @@ Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your 
 - [Public launch](public-launch.md) - go/no-go + append-only sync
 - [Topology private × public](topology-private-public.md) - Fase 7 registry-canonical public
 - [Marketplace catalog](marketplace.md) - versioning, CLI add, Cursor plugin, quality gate
-- [Review camadas](review-camadas.md) - final HITL / go-no-go pass
+- [Review layers](review-camadas.md) - final HITL / go-no-go pass
 - [Creating Skills](creating-skills.md) - skill format, placement, registry
 - [Cursor 3.0 Features](cursor-3-features.md) - how Agent Kit uses native IDE features
 - [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
@@ -20,6 +20,6 @@ Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your 
 - [Layers specification](layers-spec.md) - L0–L3 model, precedence, nomenclature
 - [Domain packs (L1)](domain-packs.md) - seven discipline packs and membership
 - [Agent Kit manifest](agent-kit-manifest.md) - `.cursor/agent-kit.json` schema (version, packs, protected L3)
-- [Repository Boundaries](repository-boundaries.md) - private vs public repos, npm, sync
+- [Repository Boundaries](repository-boundaries.md) - three-layer cheat sheet (local / private / public), npm, sync
 - [Contributing](CONTRIBUTING.md) - setup, standards, registry contributions
 - [GitHub About](github-about.md) - description and topics for the GitHub repo
