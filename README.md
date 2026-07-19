@@ -31,7 +31,10 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 3. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off.
 4. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.
 
-Optional hands-off modes: `/run-plan-loop` (same chat) or `/run-plan-orchestrated` (worker delegation).
+Two ways to drive a plan:
+
+- **`/continue-plan`** - you drive: one phase per chat, the agent stops and waits between units.
+- **`/run-plan`** - it drives: the agent works through the plan to the end, checking off to-dos and pushing each finished topic to staging. It picks the best execution strategy itself (worker delegation when available, same-chat loop otherwise).
 
 **Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 
@@ -46,7 +49,7 @@ Full routine: `autogit/gitupdate.md` after install.
 | [Layers](docs/layers-spec.md) | How the base install, optional packs, and your local files layer together |
 | [Domain packs](docs/domain-packs.md) | Optional bundles: clean code, DevOps, testing, and more |
 | [Manifest](docs/agent-kit-manifest.md) | The `.cursor/agent-kit.json` file |
-| [Contributing](docs/CONTRIBUTING.md) | Working on the kit itself |
+| [Contributing](docs/CONTRIBUTING.md) | Working on the kit itself (includes contributor quickstart) |
 | [Docs index](docs/README.md) | Everything else |
 
 ## For maintainers

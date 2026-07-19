@@ -7,6 +7,8 @@ category: prompts
 
 # Prompts (Markdown)
 
+**Routing:** small, in-scope prompt edit: apply this skill in the main window. Large or isolated batch (or when it needs its own context): hand to the `prompts-agents` Task subagent (demoted, dogfood-only).
+
 ## Recommended structure
 
 - **Objective and general instructions:** agent role, channel, output format (e.g., HTML, plain text, WhatsApp formatting).

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "engineering-architecture",
   "title": "Engineering and architecture",
-  "description": "ADRs, technology tradeoffs, and tech-lead style decisions - stack-agnostic.",
-  "version": "0.1.0",
+  "description": "ADRs, technology tradeoffs, docs honesty, and tech-lead style decisions - stack-agnostic.",
+  "version": "0.2.0",
   "members": [
     {
       "kind": "agent",
@@ -19,6 +19,16 @@
       "kind": "agent",
       "id": "docs-repo",
       "source": ".cursor/agents/docs-repo.md"
+    },
+    {
+      "kind": "template",
+      "id": "adr",
+      "source": "registry/packs/engineering-architecture/templates/adr.md"
+    },
+    {
+      "kind": "template",
+      "id": "task-brief",
+      "source": "registry/packs/engineering-architecture/templates/task-brief.md"
     }
   ],
   "excludes": [

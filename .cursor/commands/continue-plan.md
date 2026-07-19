@@ -13,7 +13,7 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
 
 1. **Read `.cursor/HANDOFF.md` first.** No handoff → say so and suggest `/start-project`. Do not invent progress.
 2. **Summarize and wait for yes** before editing. "Ready?" / "Sound good?" is a real gate, not flavor text.
-3. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan-loop` or `/run-plan-orchestrated`.
+3. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan`.
 4. **Do not start a competing plan.** New goal → `/start-project` (continue vs park), not silent parallel work.
 
 ## What to Do
@@ -50,4 +50,4 @@ Agent: [Does that to-do] -> updates HANDOFF -> stops; suggests /git-staging if d
 If the handoff is outdated:
 > "Explain where we left off and what's left to do"
 
-Multi-phase in one window: user must opt into `/run-plan-loop` or `/run-plan-orchestrated`.
+Multi-phase in one window: user must opt into `/run-plan`.

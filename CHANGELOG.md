@@ -8,6 +8,47 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-07-19
+
+### Added
+
+- CLI: `agent-kit run-plan` headless continuous plan runner (fresh agent per tick, `LOOP_TICK_RESULT` contract, stop file / max-ticks / no-progress guards); pluggable backend (`cursor-agent` default, `claude` reserved)
+- Commands: `/run-plan` unifies continuous plan execution; strategy auto-selected (orchestrated workers, in-session loop, or headless `agent-kit run-plan`)
+- Registry: expanded artifacts[] from ~17→50 entries with cursor-skills-* community skills (12 new) and checklist-n8n support
+- Domain packs: DevOps templates (CODEOWNERS, GitLab CI variants for Docker/Firebase/content)
+- Domain packs: engineering-architecture templates (ADR, task-brief)
+- Domain packs: context-management template (context-pack)
+- Docs: contributor quickstart section in CONTRIBUTING.md with skill placement and testing workflow; worktree isolation note for headless plan execution; secrets hook scope clarification
+- Docs: ops/docs audit follow-ups (Phase 5) - contributor workflow improvements, git worktree isolation notes, pre-commit hook scope clarification
+
+### Removed
+
+- Registry: four `cursor-skills-*` mirror skills (json/n8n/prompts/sql) deduped into their canonical counterparts; `checklist-n8n.md` moved into `n8n-workflows`
+
+### Fixed
+
+- CLI: `guessRegistryPath` narrows the legacy flat skill id before `path.posix.join` so `pnpm typecheck` passes under strict indexed access
+- Security: replaced shell-interpolated git commit in `scripts/sync-public.mjs` with `execFileSync` to prevent command injection
+
+### Changed
+
+- Security: bump monorepo devDependencies to clear pnpm audit critical/high (turbo >=2.9.14, vitest >=3.2.6, vite >=7.3.5 for the CLI test toolchain)
+
+- Release: root and `packages/cli` `package.json` versions aligned to closed CHANGELOG SemVer (`4.0.1`); `/git-prod` must bump both when closing a release (see `autogit/gitupdate.md`)
+- CI: run `pnpm typecheck` between lint and test in the build job
+- Docs: skill-to-agent routing one-liners on community skills (`n8n-workflows`, `sql-postgres`, `prompts-markdown`, `json-data-config`) stating skill-first in the main window vs the matching demoted Task subagent, with `docs-repo` and `security-reviewer` routing notes; `/git-staging`, `/git-prod`, `/handoff` now state they run in the main window and are not Task-dispatched by default
+- Commands: `/run-plan-loop` and `/run-plan-orchestrated` deprecated to thin aliases of `/run-plan`; tick contract lives in one place (`run-plan.md`)
+- Scripts: `scripts/plan-loop.sh` is a thin wrapper that forwards to `agent-kit run-plan`
+- Docs: README usage, getting-started, plan-routine, install.md, migrate-consumer, layers-spec updated for the single continuous command
+- Registry: `build-registry.mjs` fails on duplicate skill ids and preserves hand-curated L0 artifacts across rebuilds
+- Docs: CONTRIBUTING documents two contribution paths (improve existing skill vs new skill id)
+- Domain packs: consolidated pack.json for devops/cybersec/engineering-architecture/context-management with expanded skill sets
+- Registry: community skills count increased from 7→19 to include cursor-skills-* collection
+- Security: git-secrets-safety rule dual placement (L0 + cybersec pack)
+- Docs: updated domain-packs.md and layers-spec.md for Phase 4 consolidation
+- CLI: L0/install types updated to support expanded domain pack structure
+- Schemas: agent-kit.pack.schema.json updated for enhanced pack configurations
+
 ## [4.0.1] - 2026-07-19
 
 ### Fixed

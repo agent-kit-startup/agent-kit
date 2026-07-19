@@ -3,7 +3,7 @@
   "id": "context-management",
   "title": "Context management",
   "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "members": [
     {
       "kind": "agent",
@@ -19,6 +19,11 @@
       "kind": "command",
       "id": "context-status",
       "source": ".cursor/commands/context-status.md"
+    },
+    {
+      "kind": "template",
+      "id": "context-pack",
+      "source": "registry/packs/context-management/templates/context-pack.md"
     }
   ],
   "excludes": [

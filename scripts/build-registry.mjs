@@ -78,19 +78,40 @@ async function listPacks() {
   return { packs, artifacts };
 }
 
+/**
+ * L0 artifacts are curated by hand (layers-spec), not derived from pack
+ * manifests. Preserve them from the existing registry.json across rebuilds.
+ */
+async function readExistingL0Artifacts(outPath) {
+  try {
+    const existing = JSON.parse(await readFile(outPath, "utf8"));
+    return (existing.artifacts ?? []).filter((a) => a.layer === "L0");
+  } catch {
+    return [];
+  }
+}
+
 const core = await listSkillTier("core");
 const community = await listSkillTier("community");
 const { packs, artifacts } = await listPacks();
+const outPath = path.join(root, "registry", "registry.json");
+const l0Artifacts = await readExistingL0Artifacts(outPath);
 
 const index = {
   schemaVersion: 2,
   skills: { core, community },
   packs,
-  artifacts,
+  artifacts: [...l0Artifacts, ...artifacts],
 };
 
-const outPath = path.join(root, "registry", "registry.json");
+const allIds = [...core, ...community].map((s) => s.id);
+const dupes = allIds.filter((id, i) => allIds.indexOf(id) !== i);
+if (dupes.length > 0) {
+  console.error(`Duplicate skill ids across tiers: ${[...new Set(dupes)].join(", ")}`);
+  process.exit(1);
+}
+
 await writeFile(outPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
 console.log(
-  `Wrote ${outPath} (skills: ${core.length + community.length}, packs: ${packs.length}, artifacts: ${artifacts.length})`,
+  `Wrote ${outPath} (skills: ${core.length + community.length}, packs: ${packs.length}, artifacts: ${index.artifacts.length})`,
 );

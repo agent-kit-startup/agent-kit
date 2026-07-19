@@ -1,6 +1,6 @@
 # Domain packs
 
-The base install is intentionally small - just the rules and commands every long project needs. **Packs** are optional bundles you add when your work calls for them: a security reviewer, a clean-code refactorer, testing helpers, and so on. Each pack is a set of related rules, skills, and agents that install together.
+The base install is intentionally small - just the rules and commands every long project needs. **Packs** are optional bundles you add when your work calls for them: a security reviewer, a clean-code refactorer, testing helpers, and so on. Each pack is a set of related rules, skills, agents, and templates that install together.
 
 Add one anytime:
 
@@ -16,21 +16,25 @@ npx @agent-kit/cli install --pack clean-code,cybersec,context-management
 
 ## Available packs
 
-| Pack | What it adds | Good for |
-|------|--------------|----------|
-| `cybersec` | Security-review skill + a security-reviewer agent | Auditing auth, secrets, and risky changes |
-| `devops` | CI/CD and infrastructure guidance | Pipelines, deploys, infra work |
-| `engineering-architecture` | tech-lead agent + docs-repo skill and agent (same pattern as clean-code) | Architecture decisions and keeping docs honest |
-| `clean-code` | A clean-code skill + a refactoring agent | Readability and refactors |
-| `project-management` | Adapters for project tools (ClickUp, Jira) | Teams that track work in a PM tool |
-| `context-management` | Context-librarian and memory agents (beyond L0 guardian + native hooks) | Very long projects that lean hard on handoff |
-| `quality` | A testing rule + a test-plan agent | Test coverage and QA routines |
+| Pack | Members (approx.) | What it adds | Good for |
+|------|-------------------|--------------|----------|
+| `cybersec` | 3 | Security-review skill, security-reviewer agent, and `git-secrets-safety` (pack double-check; also L0 always-on) | Auditing auth, secrets, and risky changes |
+| `devops` | 5 | DevOps rule plus CODEOWNERS and GitLab CI scaffolding templates | Pipelines, deploys, infra work |
+| `engineering-architecture` | 5 | tech-lead agent, docs-repo skill and agent, ADR and task-brief templates | Architecture decisions and keeping docs honest |
+| `clean-code` | 2 | A clean-code skill + a refactoring agent | Readability and refactors |
+| `project-management` | 4 | Adapters for project tools (ClickUp, Jira) | Teams that track work in a PM tool |
+| `context-management` | 4 | Context-librarian and memory agents, context-status, context-pack template | Very long projects that lean hard on handoff |
+| `quality` | 2 | A testing rule + a test-plan agent | Test coverage and QA routines |
+
+## Secrets rule dual placement
+
+`git-secrets-safety` ships in **L0** (always installed) and again as a **cybersec** pack member. Core keeps the invariant on every install; the cybersec pack reaffirms it when teams add a security discipline bundle. The structural pre-commit hook (`check-secrets.sh`) stays L0-only and is listed in cybersec `excludes`.
 
 ## What packs deliberately leave out
 
 Packs hold **discipline** knowledge that isn't tied to any particular language or service. Two things stay out of packs on purpose:
 
-- **The core loop** (planning, handoff, the staging→production flow, clean commits) is always installed with the base kit - never bundled into a pack, even when a related agent lives in one. For example, the `project-management` pack adds PM-tool adapters, but the plan and handoff commands are part of the base install. The `devops` pack therefore **excludes** `git-autogit` and the L0 git slash commands; consumers get `/git-staging` and `/git-prod` from L0, not a second git agent via the pack.
+- **The core loop** (planning, handoff, the staging→production flow, clean commits) is always installed with the base kit - never bundled into a pack, even when a related agent lives in one. For example, the `project-management` pack adds PM-tool adapters, but the plan and handoff commands are part of the base install. The `devops` pack therefore **excludes** `git-autogit`, the L0 git slash commands, and `git-secrets-safety` (that rule is L0 + cybersec, not devops).
 - **Language- and service-specific tools** (n8n, SQL, Node, PHP, JSON helpers, and similar) are installed individually as skills, not as pack members. Add them on demand:
 
 ```bash

@@ -17,7 +17,7 @@ export interface RegistryPackSummary {
   path: string;
 }
 
-export type RegistryArtifactKind = "rule" | "skill" | "agent" | "command" | "hook";
+export type RegistryArtifactKind = "rule" | "skill" | "agent" | "command" | "hook" | "template";
 
 export interface RegistryArtifact {
   kind: RegistryArtifactKind;

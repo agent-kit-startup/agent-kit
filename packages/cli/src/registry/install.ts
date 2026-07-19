@@ -13,7 +13,7 @@ import { allSkills, findPack, loadRegistry } from "./client.js";
 import type { RegistryIndex, RegistrySkill } from "./types.js";
 
 export interface PackMember {
-  kind: "rule" | "skill" | "agent" | "command" | "hook";
+  kind: "rule" | "skill" | "agent" | "command" | "hook" | "template";
   id: string;
   source: string;
 }
@@ -61,6 +61,24 @@ function targetForMember(member: PackMember): { sourceRel: string; targetRel: st
         ? member.source
         : path.posix.join(".cursor", "hooks", path.posix.basename(member.source));
       return { sourceRel: member.source, targetRel };
+    }
+    case "template": {
+      const base = path.posix.basename(member.source);
+      // Context / architecture scaffolds install under .cursor/context/templates/
+      if (
+        member.source.includes("/context-management/") ||
+        member.source.includes("/engineering-architecture/")
+      ) {
+        return {
+          sourceRel: member.source,
+          targetRel: path.posix.join(".cursor", "context", "templates", base),
+        };
+      }
+      // DevOps scaffolding (CI, CODEOWNERS) installs under project templates/
+      return {
+        sourceRel: member.source,
+        targetRel: path.posix.join("templates", base),
+      };
     }
     default: {
       const _exhaustive: never = member.kind;

@@ -4,6 +4,8 @@
 
 Update the handoff document to preserve current state and allow continuation in a new conversation.
 
+**Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in and used only when the kit repo wants it.
+
 ## When to Use
 
 - At the end of each phase of a plan

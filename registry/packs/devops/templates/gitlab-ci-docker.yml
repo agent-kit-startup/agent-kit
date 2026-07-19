@@ -1,0 +1,30 @@
+# Kit template: .gitlab-ci.yml for Node.js + Docker repos.
+# Copy to the repo as .gitlab-ci.yml and adjust variables / include paths.
+
+stages:
+  - secret-scan
+  - validate
+  - test
+  - build
+  - deploy-staging
+  - deploy-prod
+
+include:
+  - project: 'YOUR_ORG/infra/ci-templates'
+    ref: main
+    file:
+      - '/templates/secret-scan.yml'
+      - '/templates/node-lint-test.yml'
+      - '/templates/sast.yml'
+      - '/templates/docker-build-push.yml'
+      - '/templates/deploy-ssh-docker.yml'
+      - '/templates/changelog-check.yml'
+
+variables:
+  NODE_VERSION: "20"
+  PRISMA_GENERATE: "false"       # "true" if the app uses Prisma
+  STAGING_PORT: "<staging-port>" # set per environment
+  PROD_PORT: "<prod-port>"       # set per environment
+  VPS_DEPLOY_PATH: /opt/YOUR_APP # set per app
+  # APP_NAME: default = $CI_PROJECT_NAME
+  # DOCKER_NETWORK: default = ${APP_NAME}_default

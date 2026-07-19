@@ -76,8 +76,9 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/rules/memory-loop.mdc` | idem |
 | `.cursor/commands/start-project.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |
-| `.cursor/commands/run-plan-loop.md` | idem |
-| `.cursor/commands/run-plan-orchestrated.md` | idem |
+| `.cursor/commands/run-plan.md` | idem |
+| `.cursor/commands/run-plan-loop.md` | idem (deprecated alias) |
+| `.cursor/commands/run-plan-orchestrated.md` | idem (deprecated alias) |
 | `.cursor/commands/handoff.md` | idem |
 | `.cursor/commands/summary.md` | idem |
 | `.cursor/commands/git-staging.md` | idem |
@@ -137,7 +138,7 @@ If HANDOFF didn't exist before:
 
 1. Short welcome to Agent Kit (handoff + plans).
 2. Commands: `/start-project`, `/handoff`, `/continue-plan`, `/git-staging`, `/git-prod`.
-   Manual mode = one phase per chat; multi-phase in same window only with `/run-plan-loop` or `/run-plan-orchestrated`.
+   Manual mode = one phase per chat; multi-phase in same window only with `/run-plan`.
 3. Ask if they want to create the first plan.
 
 If structure already existed: confirm and list the same commands.

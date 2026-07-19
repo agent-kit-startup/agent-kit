@@ -6,6 +6,7 @@ import { diffCommand } from "./commands/diff.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
+import { runPlanCommand } from "./commands/run-plan.js";
 import { scanCommand } from "./commands/scan.js";
 import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
@@ -25,6 +26,7 @@ const main = defineCommand({
     diff: diffCommand,
     contribute: contributeCommand,
     handoff: handoffCommand,
+    "run-plan": runPlanCommand,
   },
 });
 

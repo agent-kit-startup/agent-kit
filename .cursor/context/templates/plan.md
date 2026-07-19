@@ -37,7 +37,7 @@ Optional fields in the frontmatter of each `todos` item (see `autogit/plan-routi
 | `read_scope` | list of globs/paths | What the worker can read beyond HANDOFF/plan |
 | `worker_contract` | string | Return format (e.g.: `summary + staging-ready`) |
 | `max_ticks` | number | Ticks on this to-do before forced HANDOFF |
-| `worker_type` | string | Preferred Task `subagent_type` (orchestrated); omit = routing table in `/run-plan-orchestrated` |
+| `worker_type` | string | Preferred Task `subagent_type` (orchestrated strategy); omit = routing table in `/run-plan` |
 
 Example:
 

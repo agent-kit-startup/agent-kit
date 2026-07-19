@@ -7,6 +7,8 @@ category: dados
 
 # SQL (Postgres)
 
+**Routing:** small, in-scope schema change: apply this skill in the main window. Large or isolated batch (or when it needs its own context): hand to the `sql-schema` Task subagent (demoted, dogfood-only).
+
 ## DDL and conventions
 
 - **CREATE TABLE:** use `IF NOT EXISTS`; explicit primary key; appropriate types (UUID, TEXT, TIMESTAMPTZ, JSONB).
