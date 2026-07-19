@@ -1,4 +1,4 @@
-# Public launch — go/no-go
+# Public launch - go/no-go
 
 Checklist before promoting or advertising the public mirror ([agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit)). Complements [repository-boundaries.md](repository-boundaries.md) and `scripts/sync-public.mjs`.
 
@@ -17,15 +17,15 @@ Decision recorded in the maintainers' decision log (private repo memory).
 | Item | Status |
 |------|--------|
 | README EN with framework + HITL + anti-slop thesis | ✅ root `README.md` |
-| Internal coherence (`f6-coherence`) — registry skill SoT, no stack `alwaysApply: true` | ✅ [coherence-inventory.md](coherence-inventory.md) |
+| Internal coherence (`f6-coherence`) - registry skill SoT, no stack `alwaysApply: true` | ✅ [coherence-inventory.md](coherence-inventory.md) |
 | Core structural only; PM/n8n optional | ✅ |
 | `/git-staging` + `/git-prod` with explicit prod confirmation | ✅ |
 | Allowlist audited (`node scripts/sync-public.mjs --dry-run`) | ✅ no HANDOFF/plans/memory in set |
 | Dogfood on this repo (plan, HANDOFF, staging→prod, memory) | ✅ |
 | Public sync opens an append-only PR by default | ✅ `scripts/sync-public.mjs` |
 | GitHub About description and topics | ✅ aligned with [github-about.md](github-about.md) |
-| `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops — requires Contents + Pull requests + Workflows write on the public repo |
-| Public `main` ruleset | ⏳ ops — activate after the first PR-based sync succeeds |
+| `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops - requires Contents + Pull requests + Workflows write on the public repo |
+| Public `main` ruleset | ✅ active (`Protect main` - PR + 1 approval + check `build`) |
 | Fase 7 registry-on-public topology | ✅ spec [topology-private-public.md](topology-private-public.md); cutover ops still open |
 | Final plan review (`review-camadas`) | ✅ [review-camadas.md](review-camadas.md) |
 

@@ -1,4 +1,4 @@
-# Cursor-native audit — Agent Kit harness
+# Cursor-native audit - Agent Kit harness
 
 Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Output of plan to-do `f0-audit-native`.
 
@@ -39,11 +39,11 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 
 ---
 
-## Rules — modes and coverage
+## Rules - modes and coverage
 
 **Location:** `.cursor/rules/*.mdc` (23 files)
 
-### alwaysApply: true (core — structural)
+### alwaysApply: true (core - structural)
 
 These run on every agent turn in Cursor:
 
@@ -51,7 +51,7 @@ These run on every agent turn in Cursor:
 |------|------|
 | `agent-output-hygiene.mdc` | Chat ≠ repo; no metalinguagem in artifacts |
 | `context-guardian.mdc` | Context window warning + handoff trigger |
-| `cursor-plan-handoff.mdc` | Plan phases, HANDOFF.md, `/continuar-plano` |
+| `cursor-plan-handoff.mdc` | Plan phases, HANDOFF.md, `/continue-plan` |
 | `cursor-skills-general.mdc` | General coding + git flow conventions |
 | `cursor-skills-git-workflow.mdc` | Staging → prod spine; blocks direct main |
 | `docs-professional-standard.mdc` | Herdável docs standard |
@@ -81,45 +81,44 @@ These run on every agent turn in Cursor:
 
 | Rule | Issue |
 |------|-------|
-| `ux-tone.mdc` | **No YAML frontmatter** — no `alwaysApply` or `globs`. Cursor may not load it consistently. Should get `alwaysApply: true` (core, chat-only scope) in Fase 1 coherence. |
+| `ux-tone.mdc` | **No YAML frontmatter** - no `alwaysApply` or `globs`. Cursor may not load it consistently. Should get `alwaysApply: true` (core, chat-only scope) in Fase 1 coherence. |
 
 ### Rule-mode compliance vs tese
 
 - Stack/product rules (ClickUp, n8n) correctly use `alwaysApply: false` per decision `2026-07-09_structural-harness-vs-stack`.
-- Language CURSOR-SKILLS rules are stack-on-demand via globs — acceptable for dev ergonomics; not structural core.
-- CLI generator (`packages/cli/src/generator/cursor.ts`) produces a **minimal** rule set (3–4 files) for new projects — does not copy the full 23-rule workspace. Intentional for Fase 2 Core Pack; document parity gap.
+- Language CURSOR-SKILLS rules are stack-on-demand via globs - acceptable for dev ergonomics; not structural core.
+- CLI generator (`packages/cli/src/generator/cursor.ts`) produces a **minimal** rule set (3–4 files) for new projects - does not copy the full 23-rule workspace. Intentional for Fase 2 Core Pack; document parity gap.
 
 ---
 
-## Hooks — shell vs native
+## Hooks - shell vs native
 
 ### Shell hooks (`.cursor/hooks/`)
 
 | Path | Trigger | Class |
 |------|---------|-------|
 | `pre-commit/pre-commit` | Git pre-commit (manual install to `.git/hooks/`) | Core orchestrator |
-| `pre-commit/check-secrets.sh` | Staged files | Core — security |
+| `pre-commit/check-secrets.sh` | Staged files | Core - security |
 | `pre-commit/validate-all-json.sh` | Staged JSON | Core |
 | `pre-edit/validate-json.sh` | Manual / legacy edit hook | Core |
 | `post-edit/validate-n8n.sh` | n8n workflow edits | Stack |
 | `lib/json-validator.js` | Shared | Core |
 | `lib/n8n-checker.js` | Shared | Stack |
 
-**Install model:** Documented copy-to-`.git/hooks/pre-commit`. CLI `generateGitHooks` writes a **simpler** secrets-only hook — not the full `.cursor/hooks/pre-commit/` chain.
+**Install model:** Documented copy-to-`.git/hooks/pre-commit`. CLI `generateGitHooks` writes a **simpler** secrets-only hook - not the full `.cursor/hooks/pre-commit/` chain.
 
 ### Native Cursor hooks (`.cursor/hooks.json`)
 
-**Status: absent.**
+**Status: present (L0).**
 
-Cursor agent events (e.g. `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`) are not configured. See Cursor hooks schema (`version: 1`, event → command list).
+| Event | Script | Role |
+|-------|--------|------|
+| `sessionStart` | `.cursor/hooks/agent/session-plan-guard.py` | Inject HANDOFF excerpt + manual one-phase hard rules (incl. HITL slash commands keep the turn) |
+| `preCompact` | `.cursor/hooks/agent/precompact-handoff.py` | User-visible handoff hint when context compacting |
 
-**Recommended mapping (Fase 2 — after Fase 1 coherence):**
+No `stop` follow-up: it stole the agent turn from `/git-staging` / `/git-prod` confirmation waits. Phase/HITL stay in sessionStart + soft rules; native hooks stay for context injection, handoff on compact, and (later) security checks. See memory `2026-07-19_stop-hook-no-hitl-interference`.
 
-| Native event | Candidate script | Purpose |
-|--------------|------------------|---------|
-| `beforeShellExecution` | gate `git push origin main` | Enforce staging→prod spine |
-| `afterFileEdit` | `validate-json.sh` / n8n validator | Post-edit validation by glob |
-| `beforeSubmitPrompt` | secrets pattern check | Block prompts with obvious secrets |
+Optional later: `beforeShellExecution` gate for `git push origin main`; `afterFileEdit` JSON/n8n validators; `beforeSubmitPrompt` secrets pattern check.
 
 Shell git hooks and native hooks serve different layers: git hooks = commit time; native hooks = agent runtime.
 
@@ -135,49 +134,49 @@ Separate from `.cursor/hooks/`; optional hygiene for teams that reject bot co-au
 
 ## Agents and commands (Cursor-native)
 
-### Agents (`.cursor/agents/` — 13)
+### Agents (`.cursor/agents/` - 13)
 
 Cursor subagent definitions. Consumed via Task tool / Agents Window. Full classification in [coherence-inventory.md](coherence-inventory.md).
 
-### Commands (`.cursor/commands/` — 9)
+### Commands (`.cursor/commands/` - 9)
 
 Slash commands in Cursor:
 
 | Command | Spine |
 |---------|-------|
-| `/continuar-plano` | Handoff resume |
+| `/continue-plan` | Handoff resume |
 | `/handoff` | Save HANDOFF |
-| `/git-staging`, `/git-homolog`, `/git-prod` | DevOps spine |
-| `/iniciar-projeto` | Bootstrap |
+| `/git-staging`, `/git-prod` | DevOps spine |
+| `/start-project` | Bootstrap |
 | `/context-status` | Context pack status |
-| `/resumo`, `/dicas` | UX helpers |
+| `/summary`, `/tips` | UX helpers |
 
 Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command files; parity relies on `AGENTS.md` and IDE-specific instruction files.
 
 ---
 
-## CLI generators — multi-IDE parity
+## CLI generators - multi-IDE parity
 
 **Entry:** `packages/cli/src/generator/index.ts`
 
 | IDE | Generator | Artifacts | Parity vs Cursor workspace |
 |-----|-----------|-----------|----------------------------|
-| Cursor | `cursor.ts` | `.cursor/rules/` (3–4 rules), optional agent, `/agent-kit-status` | Low — subset only |
-| VS Code | `vscode.ts` | `.vscode/settings.json`, `.github/copilot-instructions.md`, optional `.agent.md` | Low — no handoff commands, no hooks |
+| Cursor | `cursor.ts` | `.cursor/rules/` (3–4 rules), optional agent, `/agent-kit-status` | Low - subset only |
+| VS Code | `vscode.ts` | `.vscode/settings.json`, `.github/copilot-instructions.md`, optional `.agent.md` | Low - no handoff commands, no hooks |
 | Windsurf | `windsurf.ts` | `.windsurfrules` (short bullet list) | Minimal |
-| Cross-IDE | `agents-md.ts` | `AGENTS.md` | Medium — flow summary, no full rule corpus |
+| Cross-IDE | `agents-md.ts` | `AGENTS.md` | Medium - flow summary, no full rule corpus |
 | Git | `git-hooks.ts` | `.git/hooks/pre-commit` (rg secrets) | Simpler than repo's `.cursor/hooks/` |
 
-**Templates:** `templates/cursor/`, `templates/vscode/`, `templates/windsurf/` — README stubs only; generators inline strings, not template files.
+**Templates:** `templates/cursor/`, `templates/vscode/`, `templates/windsurf/` - README stubs only; generators inline strings, not template files.
 
 ---
 
-## VS Code — gaps
+## VS Code - gaps
 
 | Cursor capability | VS Code equivalent | Agent Kit today |
 |-------------------|-------------------|-----------------|
 | `.cursor/rules/*.mdc` | Copilot instructions, `.github/copilot-instructions.md` | Generated minimal copilot-instructions |
-| Slash commands | None native | Not portable — document manual prompts |
+| Slash commands | None native | Not portable - document manual prompts |
 | Subagents / Task | Copilot custom agents (`.agent.md`, Pro) | One optional `security-review.agent.md` |
 | HANDOFF + plans | `AGENTS.md` + repo files | Generated `AGENTS.md` only |
 | Native hooks | None | N/A |
@@ -188,7 +187,7 @@ Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command 
 
 ---
 
-## Windsurf — gaps
+## Windsurf - gaps
 
 | Cursor capability | Windsurf equivalent | Agent Kit today |
 |-------------------|---------------------|-----------------|
@@ -203,9 +202,12 @@ Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command 
 
 ## Dogfood gaps (this repository)
 
-The Agent Kit repo uses the full Cursor workspace but does **not**:
+The Agent Kit repo uses the full Cursor workspace and **does**:
 
-1. Version `.cursor/hooks.json`
+1. Version `.cursor/hooks.json` (sessionStart / stop / preCompact)
+
+Still open dogfood gaps:
+
 2. Include root `AGENTS.md` (cross-IDE contract)
 3. Auto-install git hooks on clone (documented manual copy)
 4. Ship `mcp.json` for optional MCP servers
@@ -220,7 +222,7 @@ These are acceptable for private SoT during Fase 0–1; Fase 2 Core Pack should 
 |----|-------|--------|
 | A1 | Fase 1 | Fix `ux-tone.mdc` frontmatter |
 | A2 | Fase 1 | Complete [coherence-inventory.md](coherence-inventory.md) |
-| A3 | Fase 2 | Design and add `.cursor/hooks.json` (native agent hooks) |
+| A3 | Fase 2 | ✅ Done: `.cursor/hooks.json` + agent scripts (phase/context) |
 | A4 | Fase 2 | Align CLI git-hooks with `.cursor/hooks/pre-commit/` chain |
 | A5 | Fase 2 | Add root `AGENTS.md` to agent-kit repo (dogfood) |
 | A6 | Fase 3 | Document Marketplace plugin path + VS Code/Windsurf install |

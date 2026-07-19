@@ -1,11 +1,11 @@
 # Git prod
 
-Siga a rotina **git prod** para promover `origin/staging` para `origin/main` (produção):
+Follow the **git prod** routine to promote `origin/staging` to `origin/main` (production):
 
-1. **Leia** a seção "Prompt: git prod" em `autogit/gitupdate.md` (quando existir no projeto).
-2. Validação crítica: sem alterações locais não commitadas; nunca commit direto em main.
-3. Feche a release no CHANGELOG (mover `[Unreleased]` → versão datada) antes do merge.
-4. Mostre o resumo das mudanças (diff/log) entre staging e main e **peça confirmação explícita** ao usuário antes de merge e push para main.
-5. Execute merge → main, push main, confirme produção.
-6. Atualize `.cursor/HANDOFF.md` ("promovido a produção") e, se couber, memory-loop WRITE.
-7. Neste monorepo: após prod, sync público conforme `autogit/gitupdate.md` / `pnpm git:trigger-public-sync` quando aplicável.
+1. **Read** the "Prompt: git prod" section in `autogit/gitupdate.md` (when it exists in the project).
+2. Critical validation: no uncommitted local changes; never commit directly to main.
+3. Close the release in the CHANGELOG (move `[Unreleased]` to a dated version) before merging.
+4. Show a summary of the changes (diff/log) between staging and main and **ask for explicit confirmation** before merging and pushing to main.
+5. Run merge to main, push main, confirm production.
+6. Update `.cursor/HANDOFF.md` ("promoted to production") and memory-loop WRITE if it applies.
+7. In this monorepo: after prod, run the public sync per `autogit/gitupdate.md` / `pnpm git:trigger-public-sync` when applicable.

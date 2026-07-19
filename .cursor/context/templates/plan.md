@@ -1,51 +1,54 @@
 ---
-name: [Nome do plano]
-overview: "[1–2 frases — resultado esperado]"
+name: [Plan name]
+overview: "[1-2 sentences — expected result]"
 todos:
-  - id: f0-exemplo
-    content: "Fase 0 — …"
+  - id: phase0-example
+    content: "Phase 0 — …"
     status: pending
-    # Budget de contexto (opcional — recomendado em loop/orquestrado):
+    # Context budget (optional — recommended in loop/orchestrated):
     # read_scope: ["path/glob/*.ts", "docs/FOO.md"]
     # worker_contract: "summary + staging-ready"
     # max_ticks: 3
-  - id: f1-exemplo
-    content: "Fase 1 — …"
+    # worker_type: docs-repo
+  - id: phase1-example
+    content: "Phase 1 — …"
     status: pending
 isProject: true
 ---
 
-# [Nome do plano]
+# [Plan name]
 
-**Objetivo:** …
+**Goal:** …
 
-## Fases
+## Phases
 
-### Fase 0
+### Phase 0
 - …
 
-### Fase 1
+### Phase 1
 - …
 
-## Budget de contexto (por to-do)
+## Context budget (per to-do)
 
-Campos opcionais no frontmatter de cada item de `todos` (ver `autogit/plan-routine.md`):
+Optional fields in the frontmatter of each `todos` item (see `autogit/plan-routine.md`):
 
-| Campo | Tipo | Uso |
+| Field | Type | Use |
 |-------|------|-----|
-| `read_scope` | lista de globs/paths | O que o worker pode ler além do HANDOFF/plano |
-| `worker_contract` | string | Formato do retorno (ex.: `summary + staging-ready`) |
-| `max_ticks` | número | Ticks neste to-do antes de HANDOFF forçado |
+| `read_scope` | list of globs/paths | What the worker can read beyond HANDOFF/plan |
+| `worker_contract` | string | Return format (e.g.: `summary + staging-ready`) |
+| `max_ticks` | number | Ticks on this to-do before forced HANDOFF |
+| `worker_type` | string | Preferred Task `subagent_type` (orchestrated); omit = routing table in `/run-plan-orchestrated` |
 
-Exemplo:
+Example:
 
 ```yaml
-- id: fase7-exemplo
+- id: phase7-example
   content: "..."
   status: pending
-  read_scope: ["db/002_*.sql", "docs/FILAS.md"]
+  read_scope: ["db/002_*.sql", "docs/QUEUES.md"]
   worker_contract: "summary + staging-ready"
   max_ticks: 3
+  worker_type: sql-schema
 ```
 
-Omitir os três = comportamento legado (sem budget explícito). Em modo orquestrado, o orquestrador passa os campos ao worker.
+Omit budget fields = legacy behavior (no explicit budget / no forced worker). In orchestrated mode, the orchestrator passes the fields to the worker and resolves `subagent_type` via `worker_type` or the routing table.

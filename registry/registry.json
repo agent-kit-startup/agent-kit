@@ -134,7 +134,7 @@
     {
       "id": "gestao-contexto",
       "title": "Context management",
-      "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian + memory-loop.",
+      "description": "Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks.",
       "version": "0.1.0",
       "path": "registry/packs/gestao-contexto"
     },
@@ -173,6 +173,13 @@
       "id": "context-librarian",
       "path": ".cursor/agents/context-librarian.md",
       "pack": "gestao-contexto",
+      "layer": "L1"
+    },
+    {
+      "kind": "agent",
+      "id": "docs-repo",
+      "path": ".cursor/agents/docs-repo.md",
+      "pack": "engenharia-arquitetura",
       "layer": "L1"
     },
     {

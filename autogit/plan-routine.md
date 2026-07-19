@@ -1,146 +1,149 @@
-# Roteiro de Planos — Criação e Sincronização
+# Plan Routine — Creation and Synchronization
 
-O Agent Kit **começa pelo plano**: sem plano com to-dos, não há execução estruturada. Criar/atualizar o plano antes de implementar.
+Agent Kit **starts with the plan**: without a plan with to-dos, there's no structured execution. Create/update the plan before implementing.
 
-Quando o usuário solicitar a **criação de um novo plano** (ou o agente estiver no modo planner criando planos), seguir **sempre** este roteiro:
-
----
-
-## 1. Criar o plano com to-dos
-
-- **Sempre incluir to-dos** no frontmatter do plano (array com `id`, `content`, `status`).
-- Respeitar ordem de fases (0 → 1 → 2 → …).
-- Cada fase com to-dos acionáveis e rastreáveis.
-- Durante a execução, manter `status` atualizado (`pending` → `in_progress` → `completed`) para o usuário acompanhar no painel do plano.
+When the user requests **creating a new plan** (or the agent is in planner mode creating plans), **always** follow this routine:
 
 ---
 
-## 2. Incluir verificação de segurança
+## 1. Create the plan with to-dos
 
-Quando o plano envolver **fluxos, APIs, integrações ou deploy**:
-
-- Adicionar fase ou seção **"Verificação completa de segurança"** com:
-  - **Fluxo e integridade:** webhook, filtros, timeouts, error handling
-  - **Segredos e credenciais:** nenhum no código; env.example sem valores reais; tokens ofuscados em docs
-  - **Boas práticas:** PII, rate limits, HTTPS, idempotência
-  - **Checklist pré-produção:** check-secrets, CHANGELOG, documentação
+- **Always include to-dos** in the plan frontmatter (array with `id`, `content`, `status`).
+- Respect phase order (0 → 1 → 2 → …).
+- Each phase with actionable and trackable to-dos.
+- During execution, keep `status` updated (`pending` → `in_progress` → `completed`) so the user can follow along in the plan panel.
 
 ---
 
-## 3. Sincronizar com gerenciador de projetos (opcional)
+## 2. Include security verification
 
-**Só se o projeto usar um PM tool** (ClickUp, Jira, Linear, etc.) e o usuário indicar task pai ou integração ativa.
+When the plan involves **flows, APIs, integrations or deployment**:
 
-Quando houver task pai:
-
-1. Criar subtarefa por fase (ou to-do acionável) na tool do **projeto**.
-2. Seguir convenções da skill/rule dessa tool (se existir) — o kit **não** assume ClickUp.
-3. Registrar IDs no plano para atualização entre fases.
-
-Se não houver PM tool: pular. Planos + HANDOFF + Git bastam para o spine estrutural.
+- Add phase or section **"Complete security verification"** with:
+  - **Flow and integrity:** webhook, filters, timeouts, error handling
+  - **Secrets and credentials:** none in code; env.example without real values; tokens obfuscated in docs
+  - **Best practices:** PII, rate limits, HTTPS, idempotency
+  - **Pre-production checklist:** check-secrets, CHANGELOG, documentation
 
 ---
 
-## 4. Manter PM atualizado entre fases (se existir)
+## 3. Sync with project manager (optional)
 
-- **Ao concluir cada fase:** atualizar status da subtarefa correspondente.
-- **Ao fim do plano:** após `git prod`, marcar entrega como complete na tool do projeto.
-- **Ao atualizar HANDOFF.md:** mencionar subtarefas só se existirem.
+**Only if the project uses a PM tool** (ClickUp, Jira, Linear, etc.) and the user indicates parent task or active integration.
 
----
+When there's a parent task:
 
-## 5. Três modos de execução
+1. Create subtask per phase (or actionable to-do) in the **project's** tool.
+2. Follow conventions of that tool's skill/rule (if it exists) — the kit does **not** assume ClickUp.
+3. Record IDs in the plan for updates between phases.
 
-| Modo | Comando | Comportamento |
-|------|---------|---------------|
-| **Manual** | `/continuar-plano` | 1 fase ≈ 1 chat; sugere `/git-staging`; handoff se contexto cheio |
-| **Loop** | `/executar-plano-loop` | Ticks na mesma sessão; status do plano a cada tick; `/git-staging` automático se houver diff; **nunca** `/git-prod` |
-| **Orquestrado** | `/executar-plano-orquestrado` | Janela principal magra + workers (Task); staging automático se houver diff; **nunca** `/git-prod`. Sem Task/subagentes: degradar para loop ou manual |
-
-Em **qualquer** modo: plano primeiro → atualizar to-dos → HANDOFF → staging. O painel do plano é o placar para o humano acompanhar.
+If there's no PM tool: skip. Plans + HANDOFF + Git are sufficient for the structural spine.
 
 ---
 
-## 6. Budget de contexto por to-do (opcional)
+## 4. Keep PM updated between phases (if it exists)
 
-Template canônico: [`.cursor/context/templates/plan.md`](../.cursor/context/templates/plan.md).
+- **When completing each phase:** update corresponding subtask status.
+- **At plan end:** after `git prod`, mark delivery as complete in project tool.
+- **When updating HANDOFF.md:** mention subtasks only if they exist.
 
-Cada item de `todos` no frontmatter pode incluir campos de **budget** (além de `id`, `content`, `status`):
+---
 
-| Campo | Tipo | Semântica |
+## 5. Three execution modes
+
+| Mode | Command | Behavior |
+|------|---------|----------|
+| **Manual** | `/continue-plan` | 1 phase ≈ 1 chat; suggests `/git-staging`; handoff if context full |
+| **Loop** | `/run-plan-loop` | Ticks in same session; plan status each tick; automatic `/git-staging` if diff exists; **never** `/git-prod` |
+| **Orchestrated** | `/run-plan-orchestrated` | Lean main window + workers (Task); automatic staging if diff exists; **never** `/git-prod`. No Task/subagents: degrade to loop or manual |
+
+In **any** mode: plan first → update to-dos → HANDOFF → staging. The plan panel is the scoreboard for the human to follow.
+
+---
+
+## 6. Context budget per to-do (optional)
+
+Canonical template: [`.cursor/context/templates/plan.md`](../.cursor/context/templates/plan.md).
+
+Each `todos` item in frontmatter can include **budget** fields (besides `id`, `content`, `status`):
+
+| Field | Type | Semantics |
 |-------|------|-----------|
-| `read_scope` | lista de globs/paths | Escopo de leitura do worker; fora disso, só HANDOFF + plano + o estritamente necessário |
-| `worker_contract` | string | Formato do retorno (padrão de facto: `summary + staging-ready` — ver `/executar-plano-orquestrado`) |
-| `max_ticks` | número inteiro ≥ 1 | Ticks neste to-do antes de HANDOFF forçado + nova conversa |
+| `read_scope` | list of globs/paths | Worker reading scope; outside this, only HANDOFF + plan + strictly necessary |
+| `worker_contract` | string | Return format (de facto standard: `summary + staging-ready` — see `/run-plan-orchestrated`) |
+| `max_ticks` | integer ≥ 1 | Ticks in this to-do before forced HANDOFF + new conversation |
+| `worker_type` | string | Preferred Task `subagent_type` for orchestrated mode (e.g. `docs-repo`, `cleancode-refactor`). Omit = orchestrator picks from the routing table in `/run-plan-orchestrated` |
 
-Exemplo:
+Example:
 
 ```yaml
 todos:
-  - id: fase7-exemplo
-    content: "Aplicar migration e atualizar docs de filas"
+  - id: phase7-example
+    content: "Apply migration and update queue docs"
     status: pending
-    read_scope: ["db/002_*.sql", "docs/FILAS.md"]
+    read_scope: ["db/002_*.sql", "docs/QUEUES.md"]
     worker_contract: "summary + staging-ready"
     max_ticks: 3
+    worker_type: sql-schema
 ```
 
-**Regras:**
+**Rules:**
 
-- Campos **opcionais**. Omitir = sem budget explícito (legado).
-- Em **orquestrado**: a principal copia os campos para o prompt do worker; o worker respeita `read_scope` e devolve no `worker_contract`.
-- Em **loop** / **manual**: `read_scope` e `max_ticks` ainda valem como guia; se `max_ticks` for atingido → HANDOFF + pedir nova conversa (mesmo em loop).
-- `max_ticks` estourado **não** autoriza `/git-prod`.
+- Fields are **optional**. Omit = no explicit budget (legacy).
+- In **orchestrated**: main copies fields to worker prompt; worker respects `read_scope` and returns in `worker_contract`.
+- `worker_type` overrides the signal table when set. If that agent is not installed, fall back to `generalPurpose` + the matching skill (same rule as `/run-plan-orchestrated`).
+- In **loop** / **manual**: `read_scope` and `max_ticks` still apply as guide; if `max_ticks` reached → HANDOFF + ask for new conversation (even in loop). `worker_type` is informational only (no Task).
+- `max_ticks` exceeded does **not** authorize `/git-prod`.
 
-Ao criar planos (`/iniciar-projeto` ou planner): preferir o template; preencher budget em to-dos longos ou multi-arquivo.
-
----
-
-## 7. Atualizar HANDOFF ao fim de cada fase
-
-Conforme [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc):
-
-- Registrar fase concluída, to-dos concluídos, próxima fase.
-- Incluir instrução para o próximo agente.
-- Modo **manual**: se a fase gerou código commitável, **sugerir** `/git-staging` (não executar sem pedido).
-- Modo **loop**: executar `/git-staging` ao fim do tick se houver diff (autorizado pelo comando).
-- Modo **orquestrado**: mesma regra de staging; a principal só despacha/confere (não implementa).
-- Produção só via `/git-prod` com confirmação explícita.
-- Se tarefas de PM tool foram atualizadas, mencionar no HANDOFF.
+When creating plans (`/start-project` or planner): prefer template; fill budget for long or multi-file to-dos.
 
 ---
 
-## 8. Fechar fase no Git (spine DevOps)
+## 7. Update HANDOFF at end of each phase
 
-| Momento | Comando | Efeito |
-|---------|---------|--------|
-| Código pronto para pré-prod | `/git-staging` | Promote → branch de staging + HANDOFF |
-| Pré-prod aprovada | `/git-prod` | Promote → `main` + HANDOFF (+ memory se couber) |
-| Incidente/decisão no caminho | memory-loop WRITE | Persistir em `.cursor/memory/` |
+According to [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc):
 
-Sem staging/prod, o handoff descreve trabalho que o Git ainda não “lembra”.
-
----
-
-## Resumo para o agente
-
-| Momento | Ação |
-|---------|------|
-| **Criar plano** | Template `plan.md` + to-dos no frontmatter (+ budget se couber) + fase de segurança (se aplicável) — **sempre antes de executar** |
-| **Durante execução** | Atualizar `status` dos to-dos no plano (placar); honrar `read_scope` / `max_ticks` |
-| **PM tool + task pai** | Subtarefas por fase (opcional — só se o projeto usar) |
-| **Fim de cada fase / tick** | Atualizar HANDOFF; staging (sugerir ou automático conforme o modo) |
-| **Pré-prod** | `/git-staging` |
-| **Fim do plano / release** | `/git-prod`; complete na PM tool se existir |
+- Record completed phase, completed to-dos, next phase.
+- Include instruction for the next agent.
+- **Manual** mode: if phase generated committable code, **suggest** `/git-staging` (don't execute without request).
+- **Loop** mode: execute `/git-staging` at end of tick if diff exists (authorized by command).
+- **Orchestrated** mode: same staging rule; main only dispatches/checks (doesn't implement).
+- Production only via `/git-prod` with explicit confirmation.
+- If PM tool tasks were updated, mention in HANDOFF.
 
 ---
 
-## Referências
+## 8. Close phase in Git (DevOps spine)
 
-- [`.cursor/context/templates/plan.md`](../.cursor/context/templates/plan.md) — template canônico com budget
+| Moment | Command | Effect |
+ |---------|---------|--------|
+| Code ready for pre-prod | `/git-staging` | Promote → staging branch + HANDOFF |
+| Pre-prod approved | `/git-prod` | Promote → `main` + HANDOFF (+ memory if applicable) |
+| Incident/decision along the way | memory-loop WRITE | Persist in `.cursor/memory/` |
+
+Without staging/prod, handoff describes work that Git doesn't "remember" yet.
+
+---
+
+## Summary for the agent
+
+| Moment | Action |
+|---------|--------|
+| **Create plan** | Template `plan.md` + to-dos in frontmatter (+ budget if applicable) + security phase (if applicable) — **always before executing** |
+| **During execution** | Update to-do `status` in plan (scoreboard); honor `read_scope` / `max_ticks` |
+| **PM tool + parent task** | Subtasks per phase (optional — only if project uses it) |
+| **End of each phase / tick** | Update HANDOFF; staging (suggest or automatic per mode) |
+| **Pre-prod** | `/git-staging` |
+| **End of plan / release** | `/git-prod`; complete in PM tool if it exists |
+
+---
+
+## References
+
+- [`.cursor/context/templates/plan.md`](../.cursor/context/templates/plan.md) — canonical template with budget
 - [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc)
 - [cursor-skills-git-workflow.mdc](.cursor/rules/cursor-skills-git-workflow.mdc)
 - [autogit/gitupdate.md](autogit/gitupdate.md) (`git staging`, `git prod`)
-- [`.cursor/commands/executar-plano-loop.md`](../.cursor/commands/executar-plano-loop.md)
-- [`.cursor/commands/executar-plano-orquestrado.md`](../.cursor/commands/executar-plano-orquestrado.md)
-- PM tools (ClickUp, Jira, …): skills/rules **opcionais** — só se o projeto exigir
+- [`.cursor/commands/run-plan-loop.md`](../.cursor/commands/run-plan-loop.md)
+- [`.cursor/commands/run-plan-orchestrated.md`](../.cursor/commands/run-plan-orchestrated.md)
+- PM tools (ClickUp, Jira, …): **optional** skills/rules — only if project requires it

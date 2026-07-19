@@ -1,103 +1,54 @@
 # Agent Kit
 
-**Framework for AI-assisted development on long-running projects** — human-in-the-loop by design, for any AI-assisted IDE.
+**Turn your AI coding agent into one that runs the whole workflow: plan it, build it, ship it, and remember it across long projects.**
 
-Agent Kit gives coding agents a structural harness: plans with trackable to-dos, context handoff between sessions, a persistent memory loop, and a staged git workflow with explicit human confirmation before anything reaches production.
+Long AI coding sessions fall apart when the context window fills up. Agent Kit fixes this with a small operating layer that handles planning, handoff between chats, and structured git flow. The agent builds against a checkable plan and writes down where it stopped so any fresh chat picks up exactly where the last one left off.
 
-## Principles
+## Why you'd want it
 
-- **Human-in-the-loop.** Agents automate inside the fence; humans approve at the gates. Production promotion (`/git-prod`) always requires explicit confirmation.
-- **Structure over improvisation.** Plan → handoff → staging → prod. Long conversations hand off state instead of losing it.
-- **Output hygiene.** Chat stays in chat: commits, docs, and memory carry technical facts only — no agent metalanguage, no session narrative.
-- **Structural core, opt-in stack.** The Core Pack (L0) covers handoff, memory loop, hygiene, docs standards, and the git workflow. Stack tooling (ClickUp, n8n, SQL, …) is installed on demand via `agent-kit add` — never as always-on rules.
+- **No more lost context.** The agent keeps a short state file; new chat, one command, and it's caught up.
+- **Work against real plans.** To-dos you can watch tick off, not vibes.
+- **Built-in DevOps discipline.** Staging-first git flow prevents history chaos.
+- **Production needs confirmation.** Agent can push to staging alone; promoting to `main` always asks first.
+- **Clean history everywhere.** Commits and docs describe the software, not chat chatter.
 
 ## Install
 
-Do **not** copy this monorepo into your project. From the project root:
+Run this in your project root (don't clone this repo into it):
 
 ```bash
 npx @agent-kit/cli install
-# optional domain packs:
-npx @agent-kit/cli install --pack clean-code,gestao-contexto
 ```
 
-Chat alternative: attach [`install.md`](install.md) and ask the agent to install — same layout (L0 + manifest + `autogit/`).
+Prefer chat? Open your project in the IDE, drag in [`install.md`](install.md), and ask the agent to set it up - same result.
 
-Contract and layout: [docs/bootstrap.md](docs/bootstrap.md). Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
+That's it. You now have a handful of slash commands and a small set of rules. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
-## How it works
+## Usage
 
-1. `/iniciar-projeto` — create a plan with trackable to-dos.
-2. Work in the IDE; update to-do status as you go.
-3. Context filling up? Handoff saves state to `.cursor/HANDOFF.md`.
-4. New conversation → `/continuar-plano` — resume from the handoff.
+1. **Start a plan:** `/start-project` - agent turns your goal into checkable to-dos.
+2. **Work one phase:** agent implements the current phase, updates handoff, and stops.
+3. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off.
+4. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.
 
-**Continuous mode:** `/executar-plano-loop` runs ticks in-session and stages when there is a commit-ready diff. Never `/git-prod` inside the loop.
+Optional hands-off modes: `/run-plan-loop` (same chat) or `/run-plan-orchestrated` (worker delegation).
 
-**Orchestrated mode:** `/executar-plano-orquestrado` keeps the main chat thin and dispatches workers per to-do. Without Task/subagents, fall back to loop or manual.
+**Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 
-Plan modes: `autogit/plan-routine.md` (installed with L0).
-
-## What install gives you (L0)
-
-Minimum structural set — verified against the CLI L0 list:
-
-| Kind | Contents |
-|------|----------|
-| Rules | plan-handoff, context-guardian, git-workflow, general, ux-tone, output hygiene, docs-professional-standard, memory-loop |
-| Commands | `/iniciar-projeto`, `/continuar-plano`, `/executar-plano-loop`, `/executar-plano-orquestrado`, `/handoff`, `/resumo`, `/git-staging`, `/git-homolog` (legacy), `/git-prod` |
-| Autogit | `autogit/gitupdate.md`, `autogit/plan-routine.md` |
-| Hook | `.cursor/hooks/pre-commit/check-secrets.sh` |
-
-Also written: `.cursor/agent-kit.json` (manifest). Session state (plans, HANDOFF, memory, context) is **L3** — local to the project, never overwritten by `update`.
-
-ClickUp, n8n, SQL, language rules, and similar stack agents are **not** in L0. Add them with packs or skills:
-
-```bash
-npx @agent-kit/cli add <pack-or-skill>
-```
-
-Layers and packs: [docs/layers-spec.md](docs/layers-spec.md) · [docs/domain-packs.md](docs/domain-packs.md).
-
-## CLI lifecycle
-
-```bash
-npx @agent-kit/cli install
-npx @agent-kit/cli add <id>
-npx @agent-kit/cli update    # re-apply L0/packs/skills; skips L3 protected paths
-npx @agent-kit/cli diff
-npx @agent-kit/cli status
-npx @agent-kit/cli contribute   # propose upstream from local drift
-```
-
-Contribute guide: [docs/contribute-upstream.md](docs/contribute-upstream.md).
-
-## Git spine (staging → production)
-
-When the project uses staging before main:
-
-- Never commit or push directly to `main`.
-- **`/git-staging`** — work → `origin/staging` (branch, commit, MR/PR, merge). Legacy synonym: `git homolog`.
-- **`/git-prod`** — approved staging → `origin/main` (explicit confirmation required).
-- Conventional Commits (`feat:`, `fix:`, `docs:`, …).
-
-Routines live in `autogit/gitupdate.md` after install.
+Full routine: `autogit/gitupdate.md` after install.
 
 ## Docs
 
-| Guide | Topic |
-|-------|--------|
-| [docs/getting-started.md](docs/getting-started.md) | Install, commands, workflow |
-| [docs/bootstrap.md](docs/bootstrap.md) | Install without a nested kit folder |
-| [docs/layers-spec.md](docs/layers-spec.md) | L0–L3 model |
-| [docs/domain-packs.md](docs/domain-packs.md) | Seven L1 packs |
-| [docs/agent-kit-manifest.md](docs/agent-kit-manifest.md) | `.cursor/agent-kit.json` |
-| [docs/contribute-upstream.md](docs/contribute-upstream.md) | `agent-kit contribute` |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Contributing to this repo |
-| [docs/README.md](docs/README.md) | Full docs index |
+| Guide | What's in it |
+|-------|--------------|
+| [Getting started](docs/getting-started.md) | Install, commands, day-to-day workflow |
+| [Bootstrap](docs/bootstrap.md) | Exactly what lands in your project, and why there's no nested folder |
+| [Layers](docs/layers-spec.md) | How the base install, optional packs, and your local files layer together |
+| [Domain packs](docs/domain-packs.md) | Optional bundles: clean code, DevOps, testing, and more |
+| [Manifest](docs/agent-kit-manifest.md) | The `.cursor/agent-kit.json` file |
+| [Contributing](docs/CONTRIBUTING.md) | Working on the kit itself |
+| [Docs index](docs/README.md) | Everything else |
 
-This monorepo is the SoT/registry (`packages/cli`, `registry/`, dogfood `.cursor/`). Consumers only get `.cursor/` + `autogit/` + the manifest.
+## For maintainers
 
-## Security
-
-The package ships no real project data. Keep `.cursor/HANDOFF.md` and Context Packs local (add to `.gitignore` if you do not want them versioned). The L0 pre-commit hook helps block secrets from being committed.
+This repo is the source of truth and dogfood workspace. Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never this whole repo. Your handoffs and notes live only in your project; the pre-commit hook helps stop secrets from being committed.

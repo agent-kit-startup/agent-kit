@@ -1,49 +1,50 @@
 ---
-description: Documentação do projeto — padrão profissional e herdável. Sem pessoas, projetos transitórios, chat ou contexto de sessão. Vale para este repo e para qualquer projeto onde o Agent Kit estiver instalado.
+description: Project documentation, professional and inheritable standard. No people, transient projects, chat, or session context. Applies to this repo and to any project where Agent Kit is installed.
 alwaysApply: true
 ---
 
-# Documentação — padrão profissional e herdável
+# Documentation: professional, inheritable standard
 
-A documentação **pertence ao projeto**, não à conversa, à pessoa nem ao momento. Quem herdar o repo daqui a um ano deve entender o sistema sem conhecer quem escreveu nem o que aconteceu no chat.
+Documentation **belongs to the project**, not to the conversation, the person, or the moment. Whoever inherits the repo a year from now should understand the system without knowing who wrote it or what happened in the chat.
 
-## Escopo
+## Scope
 
-Aplica-se a: README, `docs/`, ADRs, runbooks, `CHANGELOG`, comentários de API pública, guias de setup, `install.md`, skills/rules versionadas como produto, e qualquer markdown **destinado a viver no Git** como referência do projeto.
+Applies to: README, `docs/`, ADRs, runbooks, `CHANGELOG`, public API comments, setup guides, `install.md`, skills/rules versioned as product, and any markdown **meant to live in Git** as a project reference.
 
-**Não** se aplica ao tom do chat (ver `ux-tone`). HANDOFF e planos ativos são estado de sessão — ainda assim sem fofoca/metalinguagem (`agent-output-hygiene`); ao promover conteúdo de plano/HANDOFF para `docs/`, **reescrever** no padrão abaixo.
+**Does not** apply to chat tone (see `ux-tone`). HANDOFF and active plans are session state; still no gossip/meta-language (`agent-output-hygiene`). When promoting plan/HANDOFF content into `docs/`, **rewrite** it to the standard below.
 
-## Obrigatório
+## Required
 
-1. **Voz do projeto** — descrever o sistema (“o CLI faz X”), não a sessão (“hoje eu configurei X”).
-2. **Herdável** — nomes estáveis de componentes, comandos, paths e contratos; glossário consistente com o código.
-3. **Atemporal** — preferir comportamento e invariantes a datas de reunião, sprints ou “esta semana”.
-4. **Verificável** — o que a doc afirma deve bater com o código; não inventar comportamento.
-5. **Completo o suficiente** — setup, uso, limites e links internos; sem romance narrativo.
+1. **Project voice** - describe the system ("the CLI does X"), not the session ("today I configured X").
+2. **Inheritable** - stable names for components, commands, paths, and contracts; a glossary consistent with the code.
+3. **Timeless** - prefer behavior and invariants over meeting dates, sprints, or "this week".
+4. **Verifiable** - what the doc claims must match the code; do not invent behavior.
+5. **Complete enough** - setup, usage, limits, and internal links; no narrative filler.
 
-## Proibido (transitório / fora do projeto)
+## Forbidden (transient / outside the project)
 
-| Proibido | Em vez disso |
-|----------|----------------|
-| Nomes de pessoas (autores, chefes, colegas, “fulano pediu”) | Papel genérico (“maintainer”, “reviewer”) ou omitir |
-| Projetos / produtos / clientes **que não são este repositório** | Conceito genérico ou omitir |
-| Orgs empregadoras anteriores ou marcas alheias ao produto | “integração externa”, “provedor”, nome só se for dependência real do código |
-| Urgência ou drama da conversa (“porque o prazo do chefe…”) | Requisito técnico ou omitir |
-| Metalinguagem de agente / raciocínio de chat | Fato sobre o software |
-| Exemplos com IDs, lists ou nomes de workspace de um cliente específico | Placeholder (`YOUR_LIST_ID`, “list do projeto”) |
-| “Conforme falamos”, “no chat anterior”, “WIP do agente” | Estado atual do sistema |
+| Forbidden | Instead |
+|-----------|---------|
+| People's names (authors, managers, colleagues, "so-and-so asked") | Generic role ("maintainer", "reviewer") or omit |
+| Projects / products / clients that are **not this repository** | Generic concept, or omit |
+| Former employers or brands unrelated to the product | "external integration", "provider", name only if it is a real code dependency |
+| Conversation urgency or drama ("because the deadline...") | Technical requirement, or omit |
+| Agent meta-language / chat reasoning | Fact about the software |
+| Examples with a specific client's IDs, lists, or workspace names | Placeholder (`YOUR_LIST_ID`, "the project's list") |
+| "As we discussed", "in the previous chat", "agent WIP" | Current state of the system |
+| Em dash ("-") as a sentence connector (AI slop) | Hyphen, colon, comma, or parentheses; eliminate entirely, keep only in a required literal quote |
 
-## Teste de herança
+## Inheritance test
 
-Antes de gravar ou atualizar doc:
+Before writing or updating a doc:
 
-> “Um maintainer novo, sem acesso ao chat e sem conhecer o time, consegue usar isto daqui a 12 meses?”
+> "Can a new maintainer, with no chat access and no knowledge of the team, use this 12 months from now?"
 
-Se não → reescrever. Se constrange no GitHub público → reescrever.
+If not, rewrite it. If it would be embarrassing on public GitHub, rewrite it.
 
-## Relação com outras rules
+## Relation to other rules
 
-- **agent-output-hygiene** — chat ≠ repo (commits, HANDOFF, memory).
-- **Esta rule** — padrão de *documentação de produto/projeto* (README, docs, ADRs).
-- **docs-repo** (skill/agent) — processo de escrita; deve obedecer esta rule.
-- **ux-tone** — só chat.
+- **agent-output-hygiene** - chat is not the repo (commits, HANDOFF, memory).
+- **This rule** - the standard for *product/project documentation* (README, docs, ADRs).
+- **docs-repo** (skill/agent) - the writing process; must follow this rule.
+- **ux-tone** - chat only.

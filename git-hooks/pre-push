@@ -1,0 +1,25 @@
+#!/bin/sh
+# Block direct pushes to the production branch (main/master) on any remote.
+# main is promoted only via `git prod` (merge from staging). Feature/staging pushes are fine.
+# Install: cp git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Authorized prod push (from the `git prod` routine):
+#   ALLOW_MAIN_PUSH=1 git push origin main
+#
+# Git feeds pre-push lines on stdin: <local ref> <local sha> <remote ref> <remote sha>
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      if [ "${ALLOW_MAIN_PUSH:-}" = "1" ]; then
+        echo "pre-push: ALLOW_MAIN_PUSH=1 - allowing push to $remote_ref (git prod)." >&2
+        continue
+      fi
+      echo "BLOCKED: direct push to '$remote_ref'." >&2
+      echo "Promote via the staging -> prod flow ('git prod'), not a direct push." >&2
+      echo "Authorized override: ALLOW_MAIN_PUSH=1 git push origin main" >&2
+      echo "Emergency only: git push --no-verify" >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0

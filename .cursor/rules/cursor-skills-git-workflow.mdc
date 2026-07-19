@@ -1,57 +1,66 @@
 ---
-description: Fluxo Git estruturado (staging → prod) — spine DevOps do Agent Kit. Base: autogit/gitupdate.md. Amarrado a handoff e memory-loop.
+description: Structured Git flow (staging -> prod), Agent Kit's DevOps spine. Base: autogit/gitupdate.md. Tied to handoff and memory-loop.
 alwaysApply: true
 globs: 
 ---
 
-# Git — Fluxo staging → produção (spine DevOps)
+# Git - Staging to production flow (DevOps spine)
 
-Referência: [autogit/gitupdate.md](autogit/gitupdate.md) (quando existir no projeto).
+Reference: [autogit/gitupdate.md](autogit/gitupdate.md) (when it exists in the project).
 
-O Agent Kit trata este fluxo como **memória operacional** dos agentes: plano → handoff → staging → prod → memory. Sem promote estruturado, handoffs ficam órfãos e o agente perde o que já foi entregue.
+Agent Kit treats this flow as the agents' **operational memory**: plan -> handoff -> staging -> prod -> memory. Without a structured promote step, handoffs go stale and the agent loses track of what has already shipped.
 
-## Comandos
+## Commands
 
-| Comando | Slash | Destino (neste repo) | Uso |
-|---------|-------|----------------------|-----|
-| `git staging` | `/git-staging` | `origin/staging` | Levar alterações locais para staging (branch de trabalho, commit, MR, merge). |
-| `git prod` | `/git-prod` | `origin/main` | Promover staging aprovada para produção. |
+| Command | Slash | Destination (in this repo) | Use |
+|---------|-------|------------------------------|-----|
+| `git staging` | `/git-staging` | `origin/staging` | Bring local changes to staging (working branch, commit, MR, merge). |
+| `git prod` | `/git-prod` | `origin/main` | Promote approved staging to production. |
 
-`git homolog` / `/git-homolog` são **sinônimos legados** de `git staging` — mesma rotina. Em projetos legados a branch de pré-prod pode chamar-se `homologacao`, `develop`, etc.; o **padrão de dois degraus** permanece e o nome canônico é `staging`. Ver decisão em `.cursor/memory/decisions/` (branch naming).
+Legacy projects may name the pre-prod branch `homologacao`, `develop`, etc.; the **two-step pattern** stays the same and the canonical name is `staging`. See the decision in `.cursor/memory/decisions/` (branch naming).
 
-## Regra crítica
+## Critical rule
 
-- **NUNCA** fazer commit direto em `main` nem push para `origin/main` sem passar por `origin/staging`.
-- Ao fazer commits por conta do usuário: usar **`git staging`** (não commitar em `main`).
-- Promoção para produção apenas com **`git prod`** após aprovação em staging.
+- **NEVER** commit directly to `main`, nor push to `origin/main` without going through `origin/staging`.
+- When committing on the user's behalf: use **`git staging`** (do not commit to `main`).
+- Promotion to production only via **`git prod`**, after approval in staging.
 
-## Fluxo + memória
+## Flow + memory
 
 ```
-Plano (.cursor/plans/) → trabalho → /handoff
-    → git staging → origin/staging
-    → (aprovação) → git prod → origin/main
-    → memory-loop WRITE se couber
+Plan (.cursor/plans/) -> work -> /handoff
+    -> git staging -> origin/staging
+    -> (approval) -> git prod -> origin/main
+    -> memory-loop WRITE if it applies
 ```
 
-Após staging ou prod: atualizar `.cursor/HANDOFF.md`. Se o promote fechou incidente ou decisão com tradeoff, gravar em `.cursor/memory/` (rule memory-loop).
+After staging or prod: update `.cursor/HANDOFF.md`. If the promote closed an incident or a tradeoff decision, record it in `.cursor/memory/` (memory-loop rule).
 
-## Validações
+## Validations
 
-- ❌ BLOQUEADO: commit em `main`, push direto para `origin/main`, merge de branch local direto em `main`.
-- ✅ PERMITIDO: commits em branch de trabalho; push para `staging`; promoção `staging` → `main` via `git prod`.
+- BLOCKED: commit to `main`, push directly to `origin/main`, merging a local branch directly into `main`.
+- ALLOWED: commits on a working branch; push to `staging`; promotion `staging` -> `main` via `git prod`.
+
+## Staging-first and enforcement
+
+The "never commit to `main`" rule only works if the checkout is not on `main` while working.
+
+- **Never work on `main`.** Commits happen on a working branch or on `staging`. `git prod` leaves the checkout on `main`; when done, switch back with `git checkout staging`.
+- **Hook guards.** Install the `pre-commit` and `pre-push` hooks from [git-hooks/](../../git-hooks/) that abort a commit/push directly to `main`/`master`. This makes the block enforced, not just a convention.
+- **Audit the `main` line.** `git log --first-parent --no-merges main` should only list the root commit. Any other non-merge commit on that line was born directly on `main`.
+- **Prune legacy branches.** A pre-prod branch (`homologacao`, `develop`) already migrated to `staging` should be deleted, locally and on remotes, so it does not confuse the flow.
 
 ## Conventional Commits
 
-Usar prefixos: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, `style:`, `perf:`.
+Use prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, `style:`, `perf:`.
 
-## Quando o usuário disser
+## When the user says
 
-- **`git staging`** (ou legado `git homolog`) — Rotina completa em [autogit/gitupdate.md](autogit/gitupdate.md) (seção "Prompt: git staging"): validação, CHANGELOG (`[Unreleased]`), checkout staging, pull, branch de trabalho, commit, push, MR, merge, limpeza; depois HANDOFF.
-- **`git prod`** — Rotina em [autogit/gitupdate.md](autogit/gitupdate.md) (seção "Prompt: git prod"): validação, fechar release no CHANGELOG, resumo, **confirmação explícita**, merge → main, push; depois HANDOFF (+ sync público neste monorepo se aplicável).
+- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): validation, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF.
+- **`git prod`** - Routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git prod" section): validation, close the release in the CHANGELOG, summary, **explicit confirmation**, merge to main, push; then HANDOFF (+ public sync in this monorepo if applicable).
 
-## Troubleshooting rápido
+## Quick troubleshooting
 
-- "Commits diretos em main são bloqueados" → Usar `git staging`.
-- Branch `staging` não existe → `git checkout -b staging` e `git push -u origin staging`.
-- Repo legado com `homologacao` → mesmo comando; migrar para `staging` quando possível (ver gitupdate.md, seção Nomenclatura).
+- "Direct commits to main are blocked" -> use `git staging`.
+- `staging` branch does not exist -> `git checkout -b staging` and `git push -u origin staging`.
+- Legacy repo with `homologacao` -> same command; migrate to `staging` when possible (see gitupdate.md, Naming section).

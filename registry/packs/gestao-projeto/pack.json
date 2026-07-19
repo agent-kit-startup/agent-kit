@@ -28,8 +28,8 @@
   ],
   "excludes": [
     "cursor-plan-handoff.mdc",
-    "iniciar-projeto.md",
-    "continuar-plano.md",
+    "start-project.md",
+    "continue-plan.md",
     "handoff.md",
     "plan-routine.md"
   ]
