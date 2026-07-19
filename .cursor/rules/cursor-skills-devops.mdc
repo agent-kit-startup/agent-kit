@@ -33,6 +33,18 @@ project/
 - Pipelines (GitHub Actions, GitLab CI, etc.); estágios (lint, test, build, deploy); triggers; notificações; rollback.
 - Quando o projeto adotar fluxo Git staging → produção: usar `git staging` e `git prod`; nunca commit direto em `main`. Ver regra [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
 
+## Spine DevOps: Git staging → prod
+
+O fluxo de dois degraus (staging → main) é a memória operacional do kit. Reforços que evitam vazar trabalho direto pra produção:
+
+1. **Staging-first sempre.** Trabalho e commits acontecem em branch de trabalho ou em `staging`, nunca com o checkout em `main`.
+2. **Voltar de `main` após `git prod`.** Promoção deixa o checkout em `main`; ao terminar, fazer `git checkout staging`. Ficar em `main` é o jeito mais comum de um commit escapar pra linha de produção.
+3. **Podar branches legadas.** Branch de pré-prod antiga (`homologacao`, `develop`) que já foi migrada pra `staging` deve ser removida (local e remotos) pra não confundir o fluxo nem o histórico.
+4. **Enforcement, não só convenção.** Instalar as guardas em `git-hooks/` (`pre-commit` e `pre-push`) que abortam commit/push direto em `main`/`master`. Instalação em [git-hooks/README.md](git-hooks/README.md).
+5. **Auditar a linha do `main`.** `git log --first-parent --no-merges main` deve retornar só o commit raiz. Qualquer outro non-merge ali é um commit que nasceu direto em `main` (violação do fluxo).
+
+Detalhes e prompts em [autogit/gitupdate.md](autogit/gitupdate.md); regra completa em [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
+
 ## IaC (Terraform)
 
 - Módulos; versionamento; state remoto; `terraform fmt`; documentação de recursos e variáveis.

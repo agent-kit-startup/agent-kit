@@ -1,4 +1,4 @@
-# Como adicionar e instalar skills — Agent Kit
+# Como adicionar e instalar skills - Agent Kit
 
 Este guia explica como **criar** novos skills no seu workspace e como **instalar** skills (do kit ou por categoria/nome) usando o registry.
 
@@ -50,9 +50,9 @@ Formato do registry: [registry-schema.md](registry-schema.md).
 ### Listar skills
 
 ```bash
-./cursor-handoff list              # todos, agrupados por categoria
-./cursor-handoff list dados        # só da categoria "dados"
-./cursor-handoff list integrações
+agent-kit list              # all, grouped by category
+agent-kit list data         # only from "data" category  
+agent-kit list integrations
 ```
 
 ### Instalar com perfil
@@ -61,14 +61,14 @@ Ao instalar o Agent Kit no workspace você escolhe o perfil:
 
 | Perfil    | O que instala |
 |-----------|----------------|
-| `completo` | Tudo (rules, skills, agents, hooks, commands, templates, autogit) — padrão |
+| `completo` | Tudo (rules, skills, agents, hooks, commands, templates, autogit) - padrão |
 | `minimo`   | Só handoff, context e git (sem rules, skills, agents) |
 | `custom`   | Perguntas: instalar por **categoria** ou por **nome** de skill |
 
 Exemplo:
 
 ```bash
-./cursor-handoff install custom
+agent-kit install custom
 ```
 
 Se o registry existir, o install `custom` usa a lista de categorias e de skills para você escolher o que copiar para `.cursor/`. Sem registry, o install mantém o comportamento de copiar o conjunto fixo do kit.
@@ -94,7 +94,7 @@ Manter o SKILL.md focado e menor que ~500 linhas; detalhes muito longos podem ir
 |------|--------------------|
 | Criar skill novo | `agent-kit/scripts/new-skill.sh <slug> [categoria]` |
 | Atualizar registry | `agent-kit/scripts/build-registry.sh .cursor/skills agent-kit/skills-registry.json` |
-| Listar skills | `./cursor-handoff list [categoria]` |
-| Instalar (perfil) | `./cursor-handoff install [completo\|minimo\|custom]` |
+| Listar skills | `agent-kit list [category]` |
+| Instalar (perfil) | `agent-kit install [complete\|minimal\|custom]` |
 | Categorias | [categories.md](categories.md) |
 | Formato do registry | [registry-schema.md](registry-schema.md) |

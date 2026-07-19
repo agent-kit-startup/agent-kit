@@ -1,4 +1,4 @@
-# Categorias de skills — Agent Kit
+# Categorias de skills - Agent Kit
 
 Lista oficial de categorias para metadata dos skills. Usada no frontmatter (`category`) e como base para registry e listagem.
 

@@ -1,4 +1,4 @@
-# Topology — private × public × paid (Fase 7)
+# Topology - private × public × paid (Fase 7)
 
 Target architecture for Agent Kit distribution and contribution. Complements [repository-boundaries.md](repository-boundaries.md) and [public-launch.md](public-launch.md).
 
@@ -21,24 +21,24 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
 
 ## Phases
 
-### Phase A — today (mirror)
+### Phase A - today (mirror)
 
 - Registry **authored** in private; `scripts/sync-public.mjs` copies allowlist (including `registry/**`) to public with **append-only** history.
 - Fleet may already resolve remote registry via public URL (`DEFAULT_REGISTRY_URL` → `agent-kit`).
-- Community PRs on public are possible but can be overwritten if private re-syncs the same paths — treat public registry edits as needing a **promote-back** into private until Phase B.
+- Community PRs on public are possible but can be overwritten if private re-syncs the same paths - treat public registry edits as needing a **promote-back** into private until Phase B.
 
-### Phase B — registry-canonical public (cutover)
+### Phase B - registry-canonical public (cutover)
 
 1. **Stop** syncing `registry/**` from private → public (manifest exclusion).
 2. Public `registry/**` becomes the only write path for skills/packs (PRs + maintainers).
 3. Private **consumes** public registry like any consumer (`--url` / cache) when developing CLI; optional local `registry/` checkout for offline tests only (not SoT).
 4. Promote flow for new artifacts invented in private: open PR **to public** (same gate as `agent-kit contribute`).
-5. Sync allowlist keeps CLI, docs, templates, L0 samples — product code still ships private → public without carrying registry mutations.
+5. Sync allowlist keeps CLI, docs, templates, L0 samples - product code still ships private → public without carrying registry mutations.
 
-### Phase C — marketplace + paid
+### Phase C - marketplace + paid
 
-- `f7-marketplace` — ✅ catalog versioning + gate docs ([marketplace.md](marketplace.md)); live Marketplace submission = ops/HITL.
-- `f7-mcp-pago` — ✅ product spec (private doc); implementation gated on free marketplace.
+- `f7-marketplace` - ✅ catalog versioning + gate docs ([marketplace.md](marketplace.md)); live Marketplace submission = ops/HITL.
+- `f7-mcp-pago` - ✅ product spec (private doc); implementation gated on free marketplace.
 
 ## Manifest adjustments
 
@@ -65,11 +65,11 @@ Do **not** `/git-prod` as part of promote; private prod remains HITL for CLI rel
 ## CLI defaults
 
 - Remote registry default URL already points at the **public** repo (`packages/cli` `DEFAULT_REGISTRY_URL`).
-- After Phase B, private CI should not treat local `registry/` as publish SoT — only as optional cache.
+- After Phase B, private CI should not treat local `registry/` as publish SoT - only as optional cache.
 
 ## Acceptance (`f7-topologia-repos`)
 
 - [x] Target topology documented (this file + boundaries)
 - [x] Phase A vs B sync rules for `registry/**` explicit
 - [x] Promote runbook written
-- [ ] Phase B cutover executed (ops: exclude `registry/**` from manifest + first public-only registry PR) — tracked as follow-up when launching contribution
+- [ ] Phase B cutover executed (ops: exclude `registry/**` from manifest + first public-only registry PR) - tracked as follow-up when launching contribution

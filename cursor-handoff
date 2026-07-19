@@ -309,7 +309,7 @@ cmd_resume() {
       mkdir -p "$(dirname "$HANDOFF_FILE")"
       cp "$REPO_ROOT/${task_id}/HANDOFF.md" "$HANDOFF_FILE"
       echo "Handoff do projeto carregado: $task_id/HANDOFF.md -> .cursor/HANDOFF.md"
-      echo "Próximo passo: abra uma nova conversa e use /continuar-plano (ou leia .cursor/HANDOFF.md)."
+      echo "Próximo passo: abra uma nova conversa e use /continue-plan (ou leia .cursor/HANDOFF.md)."
       exit 0
     fi
     if [ -z "$found" ]; then
@@ -610,17 +610,17 @@ cmd_install() {
     echo ""
     echo "Funciona assim: quando o contexto encher, a gente salva o estado"
     echo "e você continua numa nova conversa. Skills: n8n, JSON, SQL, prompts, UX."
-    echo "Comandos: /iniciar-projeto, /handoff, /continuar-plano, /context-status,"
-    echo "  /resumo, /git-staging, /git-prod."
+    echo "Comandos: /start-project, /handoff, /continue-plan, /context-status,"
+    echo "  /summary, /git-staging, /git-prod."
     echo ""
-    echo "Próximo passo: manda /iniciar-projeto no chat do Cursor!"
+    echo "Próximo passo: manda /start-project no chat do Cursor!"
   else
     echo "Comandos disponíveis:"
-    echo "  /iniciar-projeto  — começar ou retomar projeto"
+    echo "  /start-project    — começar ou retomar projeto"
     echo "  /handoff          — salvar estado para continuar depois"
-    echo "  /continuar-plano  — retomar de onde parou"
+    echo "  /continue-plan    — retomar de onde parou"
     echo "  /context-status   — ver estado atual"
-    echo "  /resumo           — resumo rápido"
+    echo "  /summary          — resumo rápido"
     echo "  /git-staging      — levar alterações para staging"
     echo "  /git-prod         — promover staging para produção"
     echo ""
