@@ -36,18 +36,13 @@ Native agent hooks need `python3` on PATH. They are separate from git pre-commit
 From your project's root:
 
 ```bash
-# once the CLI is on npm
 npx @dadado/agent-kit-cli install
+```
+
+With optional packs:
+
+```bash
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
-
-# until then: local CLI + public registry URL
-pnpm --filter @dadado/agent-kit-cli start -- install \
-  --cwd /path/to/your-project \
-  --url https://github.com/agent-kit-startup/agent-kit \
-  --ref main
-
-# or install from a local kit checkout as the registry source
-pnpm --filter @dadado/agent-kit-cli start -- install --cwd /path/to/your-project --registry /path/to/agent-kit
 ```
 
 What `install` does:
