@@ -14,20 +14,23 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 
 ## Install
 
-Run this in your project root (don't clone this repo into it):
+### In Cursor (recommended)
 
-```bash
-# once @dadado/agent-kit-cli is on npm
-npx @dadado/agent-kit-cli install
+Open your project in Cursor and copy-paste this into chat:
 
-# until then: from a kit checkout, pull the public registry
-pnpm --filter @dadado/agent-kit-cli start -- install \
-  --cwd /path/to/your-project \
-  --url https://github.com/agent-kit-startup/agent-kit \
-  --ref main
+```
+You are the installer for Agent Kit L0. Please confirm the absolute workspace root path via Ask questions before any write operations. If Node.js and npx are available, run `npx @dadado/agent-kit-cli install` in the confirmed root directory. Otherwise, fetch the install contract from https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install.md and follow the Port B instructions. Detect missing Node.js or git and inform the user if either is unavailable. Handle existing `.cursor/` directories appropriately. After successful installation, run the first-install onboarding gates from the install contract using Ask questions for confirmations (chat fallback when tool unavailable), then offer the user `/start-project` as the next command.
 ```
 
-Prefer chat? Open your project in the IDE, drag in [`install.md`](install.md), and ask the agent to set it up - same result.
+> **Source:** [install-prompt.md](install-prompt.md) - Copy from raw URL: https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install-prompt.md
+
+### In the terminal
+
+Run from your project root:
+
+```bash
+npx @dadado/agent-kit-cli install
+```
 
 That's it. You now have a handful of slash commands and a small set of rules. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 

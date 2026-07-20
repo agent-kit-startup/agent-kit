@@ -4,33 +4,21 @@ Agent Kit keeps your AI coding agent working against a plan and stops you from l
 
 ## Install
 
-Run this in your project's root folder:
+Run this from your project's root folder:
 
 ```bash
-# once @dadado/agent-kit-cli is on npm
 npx @dadado/agent-kit-cli install
 ```
 
 That's the whole install. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work.
 
-**Until the CLI is published to npm**, install from a kit checkout and pull the public registry:
-
-```bash
-# from a clone of agent-kit-dev (or public agent-kit after pnpm install && pnpm build)
-pnpm --filter @dadado/agent-kit-cli start -- install \
-  --cwd /path/to/your-project \
-  --url https://github.com/agent-kit-startup/agent-kit \
-  --ref main
-```
-
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
 ```bash
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
-# or the same --pack flag on the pnpm start -- install form above
 ```
 
-**Prefer not to use the CLI?** Open your project in the IDE, drag in the root [`install.md`](../install.md), and ask the agent to install. You get exactly the same result. The install wizard will use **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
+**Prefer chat install?** Copy-paste the installer brief from the [README](../README.md#install) into Cursor chat. You get exactly the same result. The chat installer uses **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
 
 > Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
 

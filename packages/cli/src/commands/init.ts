@@ -60,6 +60,10 @@ export const initCommand = defineCommand({
       );
     }
 
+    console.log("\nNext:");
+    console.log(`  Open this folder in Cursor: ${scan.rootDir}`);
+    console.log("  Run /start-project in chat");
+    console.log("  Optional: agent-kit status");
     outro("Setup completed.");
   },
 });

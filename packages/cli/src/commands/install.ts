@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineCommand } from "citty";
 import { type ApplyStats, buildManifest, saveManifest } from "../lifecycle/apply.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
@@ -18,6 +19,13 @@ function parsePackList(raw: string | undefined): string[] {
         .filter(Boolean),
     ),
   ];
+}
+
+function printInstallNextSteps(projectRoot: string): void {
+  console.log("\nNext:");
+  console.log(`  Open this folder in Cursor: ${projectRoot}`);
+  console.log("  Run /start-project in chat");
+  console.log("  Optional: agent-kit status");
 }
 
 export const installCommand = defineCommand({
@@ -42,6 +50,9 @@ export const installCommand = defineCommand({
     ...REGISTRY_CLI_ARGS,
   },
   async run({ args }) {
+    const projectRoot = path.resolve(args.cwd);
+    logger.info(`Installing into: ${projectRoot}`);
+
     const packs = parsePackList(args.pack);
     for (const id of packs) {
       if (!DOMAIN_PACK_IDS.includes(id as (typeof DOMAIN_PACK_IDS)[number])) {
@@ -49,9 +60,9 @@ export const installCommand = defineCommand({
       }
     }
 
-    const existing = await loadAgentKitManifest(args.cwd);
+    const existing = await loadAgentKitManifest(projectRoot);
     const registry = await resolveRegistryFromCli({
-      cwd: args.cwd,
+      cwd: projectRoot,
       registry: args.registry,
       url: args.url,
       ref: args.ref,
@@ -73,14 +84,15 @@ export const installCommand = defineCommand({
 
     let stats: ApplyStats;
     if ((draft.packs?.length ?? 0) > 0 || (draft.skills?.length ?? 0) > 0) {
-      stats = await syncFromManifest(registry.root, args.cwd, draft);
+      stats = await syncFromManifest(registry.root, projectRoot, draft);
     } else {
       const protectedGlobs = resolveProtectedGlobs(draft);
-      stats = await installL0(registry.root, args.cwd, protectedGlobs);
+      stats = await installL0(registry.root, projectRoot, protectedGlobs);
     }
 
-    const manifestPath = await saveManifest(args.cwd, draft);
+    const manifestPath = await saveManifest(projectRoot, draft);
     logApplyStats(stats);
     logger.success(`Manifest written: ${manifestPath}`);
+    printInstallNextSteps(projectRoot);
   },
 });
