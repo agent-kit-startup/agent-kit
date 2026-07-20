@@ -30,7 +30,7 @@ When the window looks close to the limit:
 
 ## User Preferences
 
-- **First time:** always ask the user which they prefer.
+- **First time:** use **Ask questions** tool to ask which they prefer (options: `Automatic handoff` / `Manual handoff`).
 - **Save the preference:** if the user picks automatic, save it in `.cursor/context/config.json`:
   ```json
   { "autoHandoff": true }
@@ -76,9 +76,10 @@ When the user drags in `install.md` and **this is the first install** (no `.curs
    > "Here's how it works: when context fills up, we save the state and you continue in a new conversation. Commands: `/start-project`, `/handoff`, `/continue-plan`."
 
 3. **Next step:**
-   > "Want to create your first plan? (yes/no)"
-   - If **yes:** guide them through creating a plan with to-dos.
-   - If **no:** "All set! Structure is ready. When you want to start, send `/start-project`."
+   Use **Ask questions** tool to confirm: "Want to create your first plan?"
+   Options: `Create first plan` / `Skip for now` / `Learn more`
+   - If **Create first plan:** guide them through creating a plan with to-dos.
+   - If **Skip for now:** "All set! Structure is ready. When you want to start, send `/start-project`."
 
 ## Err on the Safe Side
 

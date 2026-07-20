@@ -8,6 +8,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.2.3] - 2026-07-20
+
+### Fixed
+
+- Sync: remove stale `dadado` entry from `scripts/public-sync.denylist` so `@dadado/agent-kit-cli` docs and package metadata pass the public sync content guard (CI `sync-public` failed on tag `v4.2.2`)
+
+## [4.2.2] - 2026-07-20
+
+### Added
+
+- Rules: always-applied L0 `hitl-ask-questions.mdc` (AskQuestion-first for all kit HITL gates; chat fallback; CLI clack exception)
+- Decision: optional external plan review via Claude Code (opt-in config, post-hoc monitoring, no HITL interference)
+- Templates: plan monitor template and external review prompt for Claude Code integration (.cursor/context/templates/plan-monitor.md, plan-external-review-prompt.md)
+- Scripts / commands: opt-in external plan review launcher (`scripts/plan-external-review.sh`, `/plan-external-review`); Claude Code post-exhaustion arm; no-op if disabled or `claude` missing
+- Command: `/plan-review-triage` for processing Claude monitor residuals with Ask questions (write residuals plan / fix nits only / ack and stop); cross-linked from `/plan-external-review` and `/run-plan`
+- CLI: `agent-kit run-plan` arms `scripts/plan-external-review.sh` when the loop stops on plan exhausted (opt-in / missing `claude` stay in the script; tips do not fail the loop)
+- Docs: `docs/external-plan-review.md` guide covering setup, workflow, configuration options, and triage guidelines for dual-agent plan validation
+- Docs: npm publish HITL checklist for `@dadado/agent-kit-cli` (`docs/npm-publish-checklist.md`; linked from repository boundaries)
+- Security: external PR threat model section in `docs/public-launch.md` covering contributor fork PRs, workflow protection, dependency confusion, and maintainer review guidance
+
+### Changed
+
+- Rules: `hitl-ask-questions` chat fallback documents numbered list + typed "Other"; tip notes empirical model gaps (Auto / Grok 4.5) with memory decision link
+- Commands: `/run-plan` tick close documents optional external plan review after exhaustion (not a Cursor `stop` hook; never steals `/git-prod` HITL); `/plan-external-review` notes the wired exhausted path
+- Commands / install / onboarding: Ask questions for confirmations (install Port B, context-guardian, continue-plan, git-prod, run-plan risk, handoff preference); bootstrap + getting-started aligned
+- Install.md: Ask questions wired for all four residual gates (registry URL/ref, git hooks install, nested agent-kit/ migration, structure-already-existed confirmation)
+- Commands: `/continue-plan` multi-plan picker when multiple resumable plans exist; Ask questions for plan selection and next to-do confirmation
+- Commands: `/start-project` always creates a plan (Broad Intake Review, park prior active plan, Ask questions for Gate A/B); no continue-vs-new; resume via `/continue-plan`
+- Rules / hooks: mirrored always-create-plan + Broad Intake + Ask questions HITL across all surfaces (cursor-plan-handoff, session-plan-guard.py, plan-routine, docs)
+- Memory: supersede start-project two-gates decision (2026-07-20 always-create-plan + Broad Intake + Ask questions; park prior plan; no continue-vs-new)
+- Docs: consolidated overlapping topology/cutover docs with `topology-private-public.md` as SoT and short pointers from other docs
+- **Breaking (npm):** CLI package renamed from `@agent-kit/cli` to `@dadado/agent-kit-cli` (publish under maintainer npm scope `@dadado`)
+
+### Fixed
+
+- Docs: drift/coherence inventories no longer hardcode stale product version `3.5.1` (point to `package.json`)
+- Memory: loop-review mandate addendum (continuous monitoring stays human HITL, not silent agent cancel); Decisions index lists the mandate
+- Docs: Phase B topology status marked COMPLETE; cursor-native-audit product version aligned to 4.2.1
+
 ## [4.2.1] - 2026-07-19
 
 ### Fixed

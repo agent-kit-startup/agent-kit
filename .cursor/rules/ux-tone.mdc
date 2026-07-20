@@ -42,6 +42,7 @@ alwaysApply: true
 ## Confirmations and Feedback
 
 - Always confirm important actions.
+- **Kit HITL gates** (install/onboarding, start-project, continue-plan, git-prod, run-plan risk, handoff preference): use **Ask questions** (`AskQuestion`), not "type yes" in chat. See [hitl-ask-questions.mdc](hitl-ask-questions.mdc). Chat fallback only if the tool is missing.
 - Progress indicators: "Working on it...", "Almost there!".
 - Clear closing: "Done! Your X is now Y.".
 

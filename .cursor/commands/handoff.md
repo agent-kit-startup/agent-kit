@@ -28,12 +28,17 @@ Update the handoff document to preserve current state and allow continuation in 
    - Next to-dos (ids)
    - Clear instruction for the next agent (1-3 sentences)
 
-3. **DevOps spine (suggest, do not run without being asked):**
+3. **Handoff preference (first time / when offering a choice):** if the user has no saved preference in `.cursor/context/config.json`, or you are offering automatic vs manual handoff, use the **Ask questions** tool (not typed yes/no).
+   Options: `Automatic handoff` / `Manual handoff`
+   **Fallback:** if Ask questions is unavailable, say so once and ask the same options in chat.
+   If they pick automatic, save `{ "autoHandoff": true }` in `.cursor/context/config.json`.
+
+4. **DevOps spine (suggest, do not run without being asked):**
    - If the phase produced commitable code, suggest `/git-staging` to promote to pre-prod.
    - If there was an error or a tradeoff decision, suggest a memory-loop WRITE (`.cursor/memory/`).
    - Never suggest committing directly to `main`; production only via `/git-prod` after staging.
 
-4. **Respond to the user:**
+5. **Respond to the user:**
    > "Handoff updated! Continue: `/continue-plan`. With code ready: `/git-staging`. Production: `/git-prod`."
 
 ## CLI alternative

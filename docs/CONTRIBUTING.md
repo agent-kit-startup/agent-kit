@@ -17,7 +17,7 @@ New to the kit? Here's where things land and how to test before your PR:
 - **Skills:** Community contributions go under `registry/skills/community/<skill-id>/SKILL.md` - see the [new skill vs improving existing](#new-skill-vs-improving-an-existing-one) section below
 - **Core changes:** CLI features, base rules, and templates live in their respective folders (`packages/cli/`, `.cursor/`, etc.)
 - **Test locally:** `pnpm install && pnpm lint && pnpm test` from the repo root
-- **Test on a project:** `pnpm --filter @agent-kit/cli start install --cwd /path/to/test-project`
+- **Test on a project:** `pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/test-project`
 
 See [getting-started.md](getting-started.md) for the full development setup and workflow details.
 
@@ -63,7 +63,7 @@ Then:
 
 ```bash
 node scripts/build-registry.mjs   # refresh registry/registry.json
-pnpm --filter @agent-kit/cli test # if CLI touched
+pnpm --filter @dadado/agent-kit-cli test # if CLI touched
 ```
 
 ### Quality gate (PR checklist)
@@ -79,7 +79,7 @@ pnpm --filter @agent-kit/cli test # if CLI touched
 ### From a consumer project
 
 ```bash
-pnpm --filter @agent-kit/cli start -- contribute \
+pnpm --filter @dadado/agent-kit-cli start -- contribute \
   --cwd /path/to/consumer \
   --registry /path/to/agent-kit
 ```

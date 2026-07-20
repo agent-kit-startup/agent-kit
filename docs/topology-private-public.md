@@ -29,7 +29,7 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
 
 **Status:** Phase A is deprecated. Manifest no longer includes `registry/**`; private registry writes do not publish.
 
-### Phase B - registry-canonical public (cutover) 🚀 IN PROGRESS
+### Phase B - registry-canonical public (cutover) 🚀 COMPLETE
 
 1. [x] **Stop** syncing `registry/**` from private → public (manifest exclusion landed: include removed, `!registry/**` present).
 2. Public `registry/**` is the only write path for skills/packs (PRs + maintainers).

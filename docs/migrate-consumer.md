@@ -4,7 +4,7 @@ Generic runbook for any project to migrate from nested `agent-kit/` folder to th
 
 ## Prerequisites
 
-- Local checkout of the Agent Kit monorepo (registry + CLI), or a published `@agent-kit/cli` that can reach the registry.
+- Local checkout of the Agent Kit monorepo (registry + CLI), or a published `@dadado/agent-kit-cli` that can reach the registry.
 - Inventory of L3 uniques for the project (domain rules, one-off commands/skills, plans/memory).
 
 ## Steps
@@ -13,7 +13,7 @@ Generic runbook for any project to migrate from nested `agent-kit/` folder to th
 2. **Install from registry** (project root):
 
 ```bash
-pnpm --filter @agent-kit/cli start -- install \
+pnpm --filter @dadado/agent-kit-cli start -- install \
   --cwd /path/to/project \
   --registry /path/to/agent-kit \
   --pack context-management,clean-code
@@ -30,7 +30,7 @@ pnpm --filter @agent-kit/cli start -- install \
 4. **Add registry skills** the project already used:
 
 ```bash
-pnpm --filter @agent-kit/cli start -- add <skill-id> --skill \
+pnpm --filter @dadado/agent-kit-cli start -- add <skill-id> --skill \
   --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
 ```
 
@@ -39,9 +39,9 @@ Skills that exist only under the SoT `.cursor/skills/` tree (not under `registry
 5. **Prove update is safe:**
 
 ```bash
-pnpm --filter @agent-kit/cli start -- update --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
-pnpm --filter @agent-kit/cli start -- diff --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
-pnpm --filter @agent-kit/cli start -- status --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
+pnpm --filter @dadado/agent-kit-cli start -- update --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
+pnpm --filter @dadado/agent-kit-cli start -- diff --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
+pnpm --filter @dadado/agent-kit-cli start -- status --cwd /path/to/YOUR_PROJECT --registry /path/to/agent-kit
 ```
 
 Expect: L3 files unchanged; `diff` shows protected skips, not destructive drift on domain paths.

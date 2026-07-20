@@ -3,6 +3,11 @@ import path from "node:path";
 import { fileExists } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
 import type { AgentBackend } from "./backends.js";
+import {
+  armExternalPlanReview,
+  isPlanExhaustedReason,
+  shouldArmExternalPlanReview,
+} from "./external-review.js";
 import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
 import { formatSentinelLine, parseSentinelFromLogFile } from "./sentinel.js";
 
@@ -73,6 +78,9 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     }
 
     let tick = 0;
+    let stopReason: string | undefined;
+    let planExhausted = false;
+
     while (true) {
       tick += 1;
       if (tick > opts.maxTicks) {
@@ -93,6 +101,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       const before = await pending();
       if (before === 0) {
         console.log("Plan exhausted (0 pending to-dos) - nothing to do.");
+        planExhausted = true;
         break;
       }
 
@@ -141,6 +150,10 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         // ok
       } else if (sentinel.kind === "stop") {
         console.log(`Agent requested stop: ${formatSentinelLine(sentinel)}`);
+        stopReason = sentinel.reason;
+        if (after === 0 || isPlanExhaustedReason(sentinel.reason)) {
+          planExhausted = true;
+        }
         break;
       } else if (after < before) {
         console.log(
@@ -155,6 +168,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
 
       if (after === 0) {
         console.log("All to-dos completed. Suggesting /git-prod stays with the human (HITL).");
+        planExhausted = true;
         break;
       }
 
@@ -163,10 +177,19 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       }
     }
 
+    const pendingNow = await pending();
     console.log("");
     console.log(
-      `Loop finished after ${tick} tick(s). Pending now: ${await pending()}. Logs in ${path.relative(opts.root, logDir)}/`,
+      `Loop finished after ${tick} tick(s). Pending now: ${pendingNow}. Logs in ${path.relative(opts.root, logDir)}/`,
     );
+
+    // Optional external review: only on plan exhausted. Script owns opt-in / missing claude.
+    // Never fails the loop; never /git-prod; not a Cursor stop hook.
+    if (planExhausted || shouldArmExternalPlanReview({ pending: pendingNow, stopReason })) {
+      // Prefer pending===0; planExhausted covers sentinel "plan exhausted" before status catch-up.
+      await armExternalPlanReview(opts.root);
+    }
+
     return 0;
   } finally {
     process.off("SIGINT", onSigInt);

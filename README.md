@@ -17,11 +17,11 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 Run this in your project root (don't clone this repo into it):
 
 ```bash
-# once @agent-kit/cli is on npm
-npx @agent-kit/cli install
+# once @dadado/agent-kit-cli is on npm
+npx @dadado/agent-kit-cli install
 
 # until then: from a kit checkout, pull the public registry
-pnpm --filter @agent-kit/cli start -- install \
+pnpm --filter @dadado/agent-kit-cli start -- install \
   --cwd /path/to/your-project \
   --url https://github.com/agent-kit-startup/agent-kit \
   --ref main
@@ -33,7 +33,7 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 
 ## Usage
 
-1. **Start a plan:** `/start-project` - propose/write the plan first, then run the first to-do only after you confirm.
+1. **Start a plan:** `/start-project` - Broad Intake Review, propose/write the plan first, then run the first to-do only after you confirm.
 2. **Work one phase:** agent implements the current phase, updates handoff, and stops.
 3. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off.
 4. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.
@@ -41,7 +41,7 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 Two ways to drive a plan:
 
 - **`/continue-plan`** - you drive: one phase per chat, the agent stops and waits between units.
-- **`/run-plan`** - it drives: the agent works through the plan to the end, checking off to-dos and pushing each finished topic to staging. It picks the best execution strategy itself (worker delegation when available, same-chat loop otherwise).
+- **`/run-plan`** - it drives: the agent works through the plan to the end, checking off to-dos and pushing each finished topic to staging. It picks the best execution strategy itself (worker delegation when available, same-chat loop otherwise). Optional external plan review via Claude Code provides post-completion gap detection.
 
 **Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 

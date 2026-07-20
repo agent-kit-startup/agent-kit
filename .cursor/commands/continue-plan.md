@@ -14,7 +14,7 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
 1. **Read `.cursor/HANDOFF.md` first.** No handoff → say so and suggest `/start-project`. Do not invent progress.
 2. **Summarize and wait for yes** before editing. "Ready?" / "Sound good?" is a real gate, not flavor text.
 3. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan`.
-4. **Do not start a competing plan.** New goal → `/start-project` (continue vs park), not silent parallel work.
+4. **Do not start a competing plan.** New goal requires `/start-project`, which parks the active plan and proceeds to create a new one.
 
 ## What to Do
 
@@ -29,12 +29,24 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
 
 3. **Read the Context Pack** (if it exists) under `.cursor/context/current/`.
 
-4. **Summarize and stop for confirmation:**
+4. **Plan selection (if multiple resumable plans):**
+   If more than one plan exists with `status: active` or resumable to-dos, use **Ask questions** tool to pick which plan to resume:
+   > "Multiple plans available. Which one to continue?"
+   
+   Options: `[plan-name-1.plan.md]` / `[plan-name-2.plan.md]` / `Create new plan instead`
+   
+   **Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+
+5. **Next to-do confirmation using Ask questions:**
    > "[Phase X/Y completed] Last step: [description]. Next: `[to-do-id]`. Start that unit only?"
+   
+   Use **Ask questions** tool with options: `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`
+   
+   **Fallback:** if Ask questions tool unavailable, ask the same options in chat.
 
-5. **On yes:** run only that unit. Keep plan to-do `status` updated (`pending` → `in_progress` → `completed`).
+6. **On yes:** run only that unit. Keep plan to-do `status` updated (`pending` → `in_progress` → `completed`).
 
-6. **When that unit is done:** update HANDOFF, stop, suggest `/git-staging` if there is a diff, and ask for a **new** conversation with `/continue-plan` for the next phase (manual mode).
+7. **When that unit is done:** update HANDOFF, stop, suggest `/git-staging` if there is a diff, and ask for a **new** conversation with `/continue-plan` for the next phase (manual mode).
 
 ## Typical flow
 

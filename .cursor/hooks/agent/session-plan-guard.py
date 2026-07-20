@@ -17,7 +17,7 @@ HARD_RULES = """
 4. **Read HANDOFF first** when resuming. Do not restart the plan from scratch.
 5. **Git:** suggest `/git-staging` after a phase with a diff; never `/git-prod` without explicit confirmation.
 6. **HITL slash commands win.** When waiting for confirmation on `/git-staging` or `/git-prod` (or similar), do not divert to continue-plan / phase-boundary chatter; stay on that routine until the user answers.
-7. **`/start-project` is plan bootstrap, not execute.** Two gates: (A) approve/write the plan file only, (B) approve the first unit. Goal text in the same message is NOT permission to edit product files. Never "create plan and start Phase 1" in one turn. If HANDOFF already has an active plan, ask continue vs start new before anything else.
+7. **`/start-project` is plan bootstrap, not execute.** Broad Intake Review first, then two gates: (A) approve/write the plan file only, (B) approve the first unit. Goal text in the same message is NOT permission to edit product files. Never "create plan and start Phase 1" in one turn. If HANDOFF already has an active plan, park it and proceed. Gates use Ask questions per `.cursor/rules/hitl-ask-questions.mdc`.
 8. **`/continue-plan` waits for yes.** Summarize next `[to-do-id]`, then stop until the user confirms before editing.
 """.strip()
 
