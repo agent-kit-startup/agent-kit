@@ -13,18 +13,18 @@
 If Node.js is available, in the **consumer project root**:
 
 ```bash
-npx @agent-kit/cli install
+npx @dadado/agent-kit-cli install
 # optional L1 packs:
-npx @agent-kit/cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
 With local checkout of Agent Kit monorepo:
 
 ```bash
-pnpm --filter @agent-kit/cli start install --cwd /path/to/project
+pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/project
 ```
 
-After: `agent-kit status` (or equivalent via `pnpm --filter @agent-kit/cli start status --cwd …`).
+After: `agent-kit status` (or equivalent via `pnpm --filter @dadado/agent-kit-cli start status --cwd …`).
 
 If CLI runs successfully, skip to **Onboarding** below.
 
@@ -74,6 +74,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/rules/agent-output-hygiene.mdc` | idem |
 | `.cursor/rules/docs-professional-standard.mdc` | idem |
 | `.cursor/rules/memory-loop.mdc` | idem |
+| `.cursor/rules/hitl-ask-questions.mdc` | idem |
 | `.cursor/commands/start-project.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |
 | `.cursor/commands/run-plan.md` | idem |
@@ -90,7 +91,10 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `autogit/gitupdate.md` | `autogit/gitupdate.md` |
 | `autogit/plan-routine.md` | `autogit/plan-routine.md` |
 
-If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, ask user for registry URL/ref or use `npx @agent-kit/cli install`.
+If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, use **Ask questions** tool for registry source:
+Options: `Use CLI install` / `Provide registry URL in chat` / `Skip registry for now`
+
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
 
 ### 3. Manifest `.cursor/agent-kit.json`
 
@@ -124,6 +128,11 @@ If `.cursor/HANDOFF.md` does **not** exist, create from `HANDOFF.md.example` or 
 
 ### 5. Git hooks (optional)
 
+Use **Ask questions** tool to confirm git hooks installation:
+Options: `Install git hooks` / `Skip hooks` / `Show hook paths only`
+
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+
 ```bash
 # secrets (if project already uses custom pre-commit, integrate check-secrets.sh)
 cp .cursor/hooks/pre-commit/check-secrets.sh .git/hooks/  # only if repo flow requires
@@ -139,13 +148,25 @@ If HANDOFF didn't exist before:
 1. Short welcome to Agent Kit (handoff + plans).
 2. Commands: `/start-project`, `/handoff`, `/continue-plan`, `/git-staging`, `/git-prod`.
    Manual mode = one phase per chat; multi-phase in same window only with `/run-plan`.
-3. Ask if they want to create the first plan.
+   Optional: `/plan-external-review` and `/plan-review-triage` for post-completion gap detection via Claude Code CLI.
+3. Use **Ask questions** tool to confirm if they want to create the first plan:
+   Options: `Create first plan` / `Skip for now` / `Learn more`
 
-If structure already existed: confirm and list the same commands.
+If structure already existed, use **Ask questions** tool to confirm setup:
+Options: `Show commands overview` / `Create first plan` / `Skip for now`
+
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+
+**Note:** Install via chat uses **Ask questions** for confirmations (clickable options in IDE UI). CLI wizard uses `@clack/prompts` (terminal interface).
 
 ### 7. Migrate old copy
 
-If project still has nested `agent-kit/`: preserve L3, install via CLI/manifest, then **delete** the nested folder. Details: [docs/bootstrap.md](docs/bootstrap.md).
+If project still has nested `agent-kit/`: preserve L3, install via CLI/manifest, then use **Ask questions** tool before removal:
+Options: `Migrate and remove nested folder` / `Keep nested folder` / `Cancel migration`
+
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+
+Details: [docs/bootstrap.md](docs/bootstrap.md).
 
 ---
 
@@ -153,7 +174,7 @@ If project still has nested `agent-kit/`: preserve L3, install via CLI/manifest,
 
 - Stack rules/skills (n8n, SQL, Node, PM tools) - `agent-kit add` or `--pack`
 - Kit subtree `packages/`, `node_modules`, `pnpm-lock`
-- Legacy CLI `cursor-handoff` as requirement - prefer `@agent-kit/cli`
+- Legacy CLI `cursor-handoff` as requirement - prefer `@dadado/agent-kit-cli`
 
 ## References
 

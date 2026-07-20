@@ -4,7 +4,7 @@ Living inventory for internal coherence (`f6-coherence`). Classifies each artifa
 
 **Checklist per artifact:** alwaysApply/globs · HITL thesis · no transient content · naming · dedupe workspace ↔ registry.
 
-**Status (2026-07-19):** Post public-surface EN sweep on `origin/staging` (PRs #60–#64). Registry is the skill SoT; workspace `.cursor/skills/{core,community}/` is install output from `agent-kit update`. L1 pack ids are English (`engineering-architecture`, `project-management`, `context-management`). Product release **3.5.1** on `main`; `[Unreleased]` on staging includes breaking pack id rename until `/git-prod`.
+**Status (2026-07-19):** Post public-surface EN sweep on `origin/staging` (PRs #60–#64). Registry is the skill SoT; workspace `.cursor/skills/{core,community}/` is install output from `agent-kit update`. L1 pack ids are English (`engineering-architecture`, `project-management`, `context-management`). Product release per `package.json` current version; `[Unreleased]` on staging includes breaking pack id rename until `/git-prod`.
 
 ---
 
@@ -156,9 +156,9 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 ## Residual (not blocking)
 
 1. **`.cursor/hooks.json`** - ✅ shipped (sessionStart / preCompact); optional later: shell gate for push to main, prompt secrets check.
-2. **Registry-canonical public cutover** - operational work lives in `phase_b_registry_canonical_public.plan.md` (spec done ≠ storefront cutover done).
+2. **Registry-canonical public cutover** - see [topology-private-public.md](topology-private-public.md) for Phase B status and remaining ops work.
 3. **Stack language rules** (php/groovy/mobile/…) - keep as stack; no promotion to L0.
 4. **`skills-registry.json` / `_legacy/v2`** - obsolete paths; do not resurrect flat skill ids.
-5. **`package.json` / `.cursor-plugin/plugin.json` version `3.0.0`** - known drift vs CHANGELOG product release **3.5.1**; bump on next release tag, not blocking inventory truth.
+5. **`package.json` / `.cursor-plugin/plugin.json` version sync** - version alignment checked against current `package.json`; bump on next release tag, not blocking inventory truth.
 
 Update this file when classifications change.

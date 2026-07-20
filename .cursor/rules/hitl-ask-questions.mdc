@@ -1,0 +1,44 @@
+---
+description: HITL via Ask questions (AskQuestion) for ALL Agent Kit confirmations, choices, and clarifications. Chat fallback when tool unavailable.
+alwaysApply: true
+---
+
+# HITL Ask Questions - Kit-wide confirmations via AskQuestion
+
+Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`) for **ALL** human-in-the-loop confirmations, choices among options, and clarifications before acting. This creates clickable options in the IDE UI instead of plain-text "type yes to continue" prompts.
+
+## Contract for Agent Kit
+
+1. **Any step that needs confirmation, choice among options, or clarification before acting** must call **Ask questions**, not ask the user to type. **No exceptions** for onboarding or install.
+
+2. **Prefer one question at a time** (or a small coherent set in one tool call if the product allows multi-question).
+
+3. **Options must be concrete labels** (e.g. `Write plan file`, `Create first plan`, `Skip for now`, `Install via CLI`, `Install via chat`, `Start first unit`, `Switch to /run-plan`).
+
+4. **Fallback when tool unavailable:** some models/modes do not expose the tool (dogfood 2026-07-20: Auto mode routed picks and Grok 4.5 absent; Opus, Sonnet 4.6, Composer 2.5 Fast, GPT, Gemini present — see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`). When it is not in the session toolset, say so once, then present the same options in chat as a **numbered list**. Tell the user they can **reply with the number** (or the label), and that they can always **type their own answer** (the equivalent of the built-in "Other" choice) if none fit. Do not invent a fake tool call. Tip: switching to a model that supports Ask questions restores the clickable UI.
+
+5. **This does not weaken HITL:** skipped/cancelled answers mean **stop** (same as no yes).
+
+## Gates requiring Ask questions
+
+| Surface | Gate |
+|---------|------|
+| `install.md` (Port B / drag-install) | Registry URL/ref if needed; create first plan yes/no; migrate nested `agent-kit/` confirm; optional git-hooks install |
+| `context-guardian` onboarding | Welcome path; create first plan; auto vs manual handoff preference (first time) |
+| `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
+| `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
+| `/git-prod` | Explicit confirm before merge/push to `main` |
+| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick |
+| `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop) |
+| `/handoff` / guardian | Prefer Ask questions when offering auto vs manual handoff |
+| Other commands / docs | Any "stop and ask" / "Want to… (yes/no)" prose in L0 + getting-started / bootstrap |
+
+## CLI exception
+
+`agent-kit init` / wizard in `packages/cli/src/utils/prompts.ts` already uses `@clack/prompts` (terminal select/confirm). Keep that. Do not call IDE `AskQuestion` from the CLI. This rule only ensures chat/`install.md` onboarding matches the same UX quality.
+
+## References
+
+- [Agent tools - Ask questions](https://cursor.com/docs/agent/overview.md)
+- [ACP ask_question](https://cursor.com/docs/cli/acp.md)
+- [Skills](https://cursor.com/docs/skills.md)

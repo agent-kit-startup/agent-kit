@@ -12,7 +12,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | `.cursor/commands/` | Present (10 commands) | DevOps spine + handoff + orchestration |
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
 | `.cursor/hooks.json` | **Present (L0)** | `sessionStart` + `preCompact`; no `stop` hook |
-| `.cursor-plugin/plugin.json` | Present | Metadata only; version `3.0.0` (drift vs product **3.5.1**) |
+| `.cursor-plugin/plugin.json` | Present | Metadata only; version `3.0.0` (drift vs product **4.2.1**) |
 | `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
 | `AGENTS.md` (dogfood) | **Absent** | CLI generates it for target projects; this repo does not use its own cross-IDE file |
 | `mcp.json` | Absent | No project-level MCP config in core |
@@ -118,6 +118,8 @@ These run on every agent turn in Cursor:
 | `preCompact` | `.cursor/hooks/agent/precompact-handoff.py` | User-visible handoff hint when context compacting |
 
 No `stop` follow-up: it stole the agent turn from `/git-staging` / `/git-prod` confirmation waits. Phase/HITL stay in sessionStart + soft rules; native hooks stay for context injection, handoff on compact, and (later) security checks. See memory `2026-07-19_stop-hook-no-hitl-interference`.
+
+Optional external plan review also avoids native `stop` hooks (per ADR `2026-07-20_optional-claude-code-plan-review`). When `/run-plan` exhausts implementable to-dos, it suggests an external script rather than registering a follow-up agent that would interfere with HITL turns.
 
 Optional later: `beforeShellExecution` gate for `git push origin main`; `afterFileEdit` JSON/n8n validators; `beforeSubmitPrompt` secrets pattern check.
 

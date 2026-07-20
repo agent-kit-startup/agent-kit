@@ -1,6 +1,6 @@
 # Public launch - go/no-go
 
-Checklist before promoting or advertising the public mirror ([agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit)). Complements [repository-boundaries.md](repository-boundaries.md) and `scripts/sync-public.mjs`.
+Checklist before promoting or advertising the public mirror ([agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit)). For topology and cutover status, see [topology-private-public.md](topology-private-public.md).
 
 ## History mode (decision)
 
@@ -47,6 +47,37 @@ Configure a repository ruleset targeting `main`:
 Without the Admin bypass, a single-owner repo deadlocks: you cannot approve your own sync PR, and `--admin` merge still fails on `REVIEW_REQUIRED`.
 
 Do not require a merge queue or signed commits until contribution volume or release risk justifies the added friction. Protect `v*` tags from updates and deletion in a separate tag ruleset.
+
+## External PR threat model
+
+Contributors work from forks and submit PRs directly to the public `main` branch. The repository controls enforce these mitigations against malicious PRs:
+
+### Required review and build checks
+
+- All PRs require approval from a maintainer (cannot self-approve)
+- CI must pass (`build` job: lint, typecheck, test, build)
+- Branch must be up-to-date with `main`
+
+### Workflow and dependency risks
+
+**Dependency confusion:** PRs cannot modify `package.json` dependencies without maintainer review detecting suspicious packages or version downgrades.
+
+**Workflow injection:** Contributors cannot modify `.github/workflows/` or add new workflows since these paths are not in the public sync allowlist. CI workflows remain controlled by the private repository.
+
+**Secret exfiltration attempts:** The public repository contains no secrets. CI jobs on external PRs run in a restricted context with limited access to repository secrets.
+
+### Sync preservation
+
+The allowlist sync from private to public preserves maintainer-controlled paths and overwrites contributor changes to protected areas during each sync operation. External PRs can only persistently modify files within the public-writable subset (primarily registry skills and documentation).
+
+### Maintainer responsibilities
+
+When reviewing external PRs, watch for:
+- Unexpected changes to `package.json`, `pnpm-lock.yaml`, or build configuration
+- New dependencies from untrusted sources or with suspicious version patterns  
+- Code that attempts filesystem access beyond expected skill operations
+- Documentation changes that introduce external links to untrusted domains
+- Skill submissions that request unusual permissions or network access
 
 ## Dry-run
 

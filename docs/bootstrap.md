@@ -37,17 +37,17 @@ From your project's root:
 
 ```bash
 # once the CLI is on npm
-npx @agent-kit/cli install
-npx @agent-kit/cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli install --pack clean-code,context-management
 
 # until then: local CLI + public registry URL
-pnpm --filter @agent-kit/cli start -- install \
+pnpm --filter @dadado/agent-kit-cli start -- install \
   --cwd /path/to/your-project \
   --url https://github.com/agent-kit-startup/agent-kit \
   --ref main
 
 # or install from a local kit checkout as the registry source
-pnpm --filter @agent-kit/cli start -- install --cwd /path/to/your-project --registry /path/to/agent-kit
+pnpm --filter @dadado/agent-kit-cli start -- install --cwd /path/to/your-project --registry /path/to/agent-kit
 ```
 
 What `install` does:
@@ -57,7 +57,7 @@ What `install` does:
 3. Optionally adds any packs you asked for with `--pack`.
 4. Writes `.cursor/agent-kit.json` recording the version and which of your files to leave untouched on update.
 
-**No CLI on your PATH?** Open the project in your IDE, attach the root [`install.md`](../install.md), and ask the agent to install. It produces the same files and manifest.
+**No CLI on your PATH?** Open the project in your IDE, attach the root [`install.md`](../install.md), and ask the agent to install. It produces the same files and manifest. Chat install and first-install onboarding use **Ask questions** (clickable options in the IDE) for confirmations and choices, with a chat fallback if the tool is unavailable. The CLI path (`agent-kit init` / install wizard) keeps `@clack/prompts` in the terminal; it does not call IDE Ask questions.
 
 ## Keeping it current
 

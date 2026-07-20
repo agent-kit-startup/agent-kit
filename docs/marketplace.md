@@ -64,7 +64,7 @@ Same rules as `agent-kit contribute` (see [contribute-upstream.md](contribute-up
 
 ```bash
 # Install by id from remote registry
-npx @agent-kit/cli add n8n-workflows --url https://github.com/agent-kit-startup/agent-kit --ref main
+npx @dadado/agent-kit-cli add n8n-workflows --url https://github.com/agent-kit-startup/agent-kit --ref main
 
 # Inspect catalog locally
 node -e "console.log(JSON.stringify(require('./registry/registry.json').skills,null,2))"

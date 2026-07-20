@@ -24,19 +24,19 @@ HITL: the CLI never pushes and never runs `/git-prod`. `--write` only copies fil
 
 ```bash
 # Report drift vs registry + gate results (dry run)
-pnpm --filter @agent-kit/cli start -- contribute \
+pnpm --filter @dadado/agent-kit-cli start -- contribute \
   --cwd /path/to/project \
   --registry /path/to/agent-kit
 
 # Propose a specific new/edited path
-pnpm --filter @agent-kit/cli start -- contribute \
+pnpm --filter @dadado/agent-kit-cli start -- contribute \
   --cwd /path/to/project \
   --registry /path/to/agent-kit \
   --path .cursor/skills/community/my-skill/SKILL.md \
   --no-drift
 
 # Copy accepted files into the kit checkout (still no push)
-pnpm --filter @agent-kit/cli start -- contribute \
+pnpm --filter @dadado/agent-kit-cli start -- contribute \
   --cwd /path/to/project \
   --registry /path/to/agent-kit \
   --write

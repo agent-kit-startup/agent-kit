@@ -91,7 +91,7 @@ jobs:
           GIT_AUTHOR_NAME: agent-kit-sync
           GIT_AUTHOR_EMAIL: sync@agent-kit.dev
 
-  # ── Publish @agent-kit/cli to npm (tag only) ──
+  # ── Publish @dadado/agent-kit-cli to npm (tag only) ──
   # Secret NPM_TOKEN: the publish step skips gracefully if not configured
   # (secrets context is not allowed in job-level `if`).
   publish-npm:
@@ -124,6 +124,6 @@ jobs:
             echo "NPM_TOKEN not configured — skipping npm publish."
             exit 0
           fi
-          pnpm --filter @agent-kit/cli publish --provenance --access public --no-git-checks
+          pnpm --filter @dadado/agent-kit-cli publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

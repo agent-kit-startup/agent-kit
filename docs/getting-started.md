@@ -7,8 +7,8 @@ Agent Kit keeps your AI coding agent working against a plan and stops you from l
 Run this in your project's root folder:
 
 ```bash
-# once @agent-kit/cli is on npm
-npx @agent-kit/cli install
+# once @dadado/agent-kit-cli is on npm
+npx @dadado/agent-kit-cli install
 ```
 
 That's the whole install. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work.
@@ -17,7 +17,7 @@ That's the whole install. It drops a small set of rules and slash commands into 
 
 ```bash
 # from a clone of agent-kit-dev (or public agent-kit after pnpm install && pnpm build)
-pnpm --filter @agent-kit/cli start -- install \
+pnpm --filter @dadado/agent-kit-cli start -- install \
   --cwd /path/to/your-project \
   --url https://github.com/agent-kit-startup/agent-kit \
   --ref main
@@ -26,18 +26,18 @@ pnpm --filter @agent-kit/cli start -- install \
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
 ```bash
-npx @agent-kit/cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli install --pack clean-code,context-management
 # or the same --pack flag on the pnpm start -- install form above
 ```
 
-**Prefer not to use the CLI?** Open your project in the IDE, drag in the root [`install.md`](../install.md), and ask the agent to install. You get exactly the same result.
+**Prefer not to use the CLI?** Open your project in the IDE, drag in the root [`install.md`](../install.md), and ask the agent to install. You get exactly the same result. The install wizard will use **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
 
 > Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
 
 There's also a guided setup that scans your project and asks a few questions before installing:
 
 ```bash
-npx @agent-kit/cli init
+npx @dadado/agent-kit-cli init
 ```
 
 ## The commands you get
@@ -58,7 +58,7 @@ npx @agent-kit/cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-1. **`/start-project`** - two gates: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you say yes, it runs the **first** unit. If a plan is already in progress, it asks continue vs start new. Goal text in the same message is not a green light to edit the repo.
+1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options instead of "type yes to continue". Goal text in the same message is not a green light to edit the repo.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Soft rules plus **native Cursor hooks** (`sessionStart` / `preCompact`) reinforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
 4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project.
@@ -69,6 +69,17 @@ The idea is simple: work against a plan, save your place before a conversation g
 
 > **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
 
+### Optional external plan review
+
+When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work:
+
+1. **Enable it:** Add `"externalPlanReview": { "enabled": true }` to `.cursor/context/config.json`
+2. **Auto-arm:** `/run-plan` suggests running `scripts/plan-external-review.sh` when it reaches plan exhausted
+3. **Manual:** Use `/plan-external-review` command anytime after a plan is done
+4. **Triage:** After Claude writes a monitor file, use `/plan-review-triage` to process findings with clickable options
+
+This requires Claude Code CLI on your PATH. If disabled or Claude is missing, the kit continues normally without external review.
+
 The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit. Native hooks are listed in [layers-spec.md](layers-spec.md) (L0).
 
 ## Working on Agent Kit itself
@@ -77,8 +88,8 @@ If you're developing the kit (not just using it):
 
 1. Install dependencies: `pnpm install`
 2. Build the CLI: `pnpm build`
-3. Try the scanner: `pnpm --filter @agent-kit/cli start scan`
-4. Install into a test project: `pnpm --filter @agent-kit/cli start install --cwd /path/to/project`
-5. Check this repo's own install: `pnpm --filter @agent-kit/cli start status`
+3. Try the scanner: `pnpm --filter @dadado/agent-kit-cli start scan`
+4. Install into a test project: `pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/project`
+5. Check this repo's own install: `pnpm --filter @dadado/agent-kit-cli start status`
 
 See the root [README](../README.md) for the big picture and [CONTRIBUTING](CONTRIBUTING.md) for how changes flow.

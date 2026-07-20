@@ -5,13 +5,13 @@ The base install is intentionally small - just the rules and commands every long
 Add one anytime:
 
 ```bash
-npx @agent-kit/cli add clean-code
+npx @dadado/agent-kit-cli add clean-code
 ```
 
 Or list the packs you want when you first install:
 
 ```bash
-npx @agent-kit/cli install --pack clean-code,cybersec,context-management
+npx @dadado/agent-kit-cli install --pack clean-code,cybersec,context-management
 ```
 
 ## Available packs
@@ -38,8 +38,8 @@ Packs hold **discipline** knowledge that isn't tied to any particular language o
 - **Language- and service-specific tools** (n8n, SQL, Node, PHP, JSON helpers, and similar) are installed individually as skills, not as pack members. Add them on demand:
 
 ```bash
-npx @agent-kit/cli add sql-postgres
-npx @agent-kit/cli add n8n-workflows
+npx @dadado/agent-kit-cli add sql-postgres
+npx @dadado/agent-kit-cli add n8n-workflows
 ```
 
 ## Agents that are not pack-installable (dogfood / demoted)

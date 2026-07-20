@@ -2,7 +2,7 @@
 
 Agent Kit **starts with the plan**: without a plan with to-dos, there's no structured execution. Create/update the plan before implementing.
 
-`/start-project` is **bootstrap, not execute**: Gate A writes the plan file only; Gate B (second explicit yes) runs one unit. Active HANDOFF → ask continue vs start new. Details: `.cursor/commands/start-project.md`.
+`/start-project` is **bootstrap, not execute**: Broad Intake Review first; Gate A writes the plan file only; Gate B (second explicit approval via **Ask questions**, chat fallback if needed) runs one unit. Active HANDOFF → park prior plan. Details: `.cursor/commands/start-project.md`. HITL gates: `.cursor/rules/hitl-ask-questions.mdc`.
 
 When the user requests **creating a new plan** (or the agent is in planner mode creating plans), **always** follow this routine:
 
@@ -111,7 +111,7 @@ According to [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc):
 - Include instruction for the next agent.
 - **Manual** mode: if phase generated committable code, **suggest** `/git-staging` (don't execute without request).
 - **Continuous** mode (`/run-plan`, any strategy): execute `/git-staging` at end of tick if diff exists (authorized by command); in the orchestrated strategy the main window stages, never the worker.
-- Production only via `/git-prod` with explicit confirmation.
+- Production only via `/git-prod` with explicit confirmation via **Ask questions** (chat fallback if the tool is unavailable).
 - If PM tool tasks were updated, mention in HANDOFF.
 
 ---

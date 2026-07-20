@@ -59,9 +59,19 @@ Optional per-to-do budget fields (`read_scope`, `worker_contract`, `max_ticks`, 
 | Condition | Action |
 |-----------|--------|
 | Next to-do is an external **blocker** with no versionable workaround | HANDOFF + clear message; `/git-staging` only if there is a diff |
-| All implementable to-dos are `completed` | Final HANDOFF; suggest `/git-prod` if staging is ahead of `main` |
+| All implementable to-dos are `completed` | Final HANDOFF; suggest `/git-prod` if staging is ahead of `main` (HITL only, never auto). Then optional external plan review arm (below) |
 | The user asked to stop | Do not reschedule |
-| Diff requires a human decision (scope, prod risk, PII) | Pause and ask, do not guess |
+| Diff requires a human decision (scope, prod risk, PII) | Pause and use **Ask questions** tool to ask (options: `Continue with risk` / `Modify approach` / `Stop run`); fallback to chat if tool unavailable |
+
+#### Optional external plan review (plan exhausted only)
+
+After Final HANDOFF when the run stopped because all implementable to-dos are done (`Mode: STOPPED` / plan exhausted, any strategy):
+
+1. **Arm (opt-in):** run `scripts/plan-external-review.sh` from the repo root, or tell the user to run it / `/plan-external-review`. The script owns config (`externalPlanReview.enabled`) and missing-`claude` tips (exit 0 no-op).
+2. **Triage findings:** after Claude completes the monitor, use `/plan-review-triage` to process residuals and decide next steps.
+3. **Not a native stop hook:** do **not** register or rely on a Cursor `hooks.json` `stop` follow-up. Arming must not steal HITL turns (especially not `/git-prod` confirmation).
+4. **Still never `/git-prod`** from this path. Suggesting prod when staging is ahead of `main` stays a human next step.
+4. Headless `agent-kit run-plan` arms the same script after logging stop on plan exhausted; tips/disabled do not fail the loop.
 
 ### 3. Execute only this to-do
 
@@ -189,9 +199,11 @@ For CI / cron / terminal runs. Canonical entrypoint: **`agent-kit run-plan`** (T
 - Everything else in the tick contract applies: one to-do per tick, plan status, HANDOFF, `/git-staging` if there is a diff, **never** `/git-prod`.
 - Stop mid-run: `touch .cursor/loop.stop` or Ctrl+C.
 - Options: `--max-ticks N`, `--model M`, `--sleep S`, `--backend cursor-agent|claude`, `--dry-run`. Default backend is `cursor-agent` (`claude` reserved for a later wiring).
+- **Tick close / plan exhausted:** when the runner stops because pending to-dos are 0 or the agent sentinel is `stop - plan exhausted` (or equivalent), it invokes `scripts/plan-external-review.sh` (opt-in + `claude` checks inside the script). Disabled / missing `claude` → tip + exit 0; the loop still exits 0. This is not a Cursor `stop` hook and never runs `/git-prod`.
 
 ## HITL (invariants)
 
 - `/git-prod` **never** from this command, any strategy
 - Risk (PII, secrets, ambiguous scope): stop and ask
 - Human gate between phases only in manual mode (`/continue-plan`); `/run-plan` is the explicit opt-out
+- Optional external plan review after exhaustion does **not** replace or auto-confirm `/git-prod`

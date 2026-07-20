@@ -17,7 +17,7 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 | Contribute gate anti-slop | ✅ | `agent-kit contribute` + CONTRIBUTING |
 | Public README thesis EN | ✅ | root `README.md` |
 | Public history append-only default | ✅ | `sync-public.mjs`; decision memory |
-| Topology Phase A/B documented | ✅ | `docs/topology-private-public.md` |
+| Topology documented | ✅ | [topology-private-public.md](topology-private-public.md) |
 | Marketplace versioning | ✅ | skill frontmatter + `registry.json` |
 | Paid MCP does not capture free core | ✅ | paid MCP spec (private) gate + non-goals |
 | Fleet migrated off nested `agent-kit/` | ✅ | example + frota; `docs/migrate-consumer.md` |
@@ -25,7 +25,7 @@ Final coherence pass against the active plan thesis (HITL, hygiene, structural v
 ## Residuals (not blockers for plan close)
 
 1. **`PUBLIC_REPO_TOKEN`** on private CI - required for PR-based public sync ([public-launch.md](public-launch.md)).
-2. **Phase B cutover** - stop mirroring `registry/**` when contribution-on-public goes live.
+2. **Phase B cutover** - see [topology-private-public.md](topology-private-public.md) for current status.
 3. **Cursor Marketplace submission** - publisher HITL.
 4. **Paid MCP implementation** - blocked until marketplace gate green.
 5. **Private consumer workspaces** - out of scope for this pass.

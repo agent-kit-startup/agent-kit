@@ -2,7 +2,7 @@
 
 Agent Kit separates session state from product code. Session scratch stays off remotes; the public remote and the npm package only carry product code and documentation.
 
-**Target topology (Fase 7):** see [topology-private-public.md](topology-private-public.md) - public becomes the **canonical registry**; private keeps CLI/core and promotes mature artifacts.
+**Target topology:** See [topology-private-public.md](topology-private-public.md) for the complete private/public/paid topology and Phase B cutover status.
 
 ## Cheat sheet: three layers
 
@@ -32,7 +32,7 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 |------|------------|------------|-------|
 | **Private** | [agent-kit-startup/agent-kit-dev](https://github.com/agent-kit-startup/agent-kit-dev) | `origin` | Core product SoT (CLI, feats, sync). Phase A also authors registry. |
 | **Public** | [agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit) | sync / community PRs | Phase A: allowlist mirror. Phase B: **registry SoT** + contribution surface. |
-| **npm** | `@agent-kit/cli` | Publish on `v*` tags when `NPM_TOKEN` is configured | Dist only |
+| **npm** | `@dadado/agent-kit-cli` | Publish on `v*` tags when `NPM_TOKEN` is configured | Dist only |
 
 ## Flow: `git staging` → `git prod` → public
 
@@ -53,35 +53,20 @@ Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, the sync 
 
 ## Two remotes - private and public
 
-**Phase A (legacy):** private authors product + registry; public is an allowlist mirror (append-only sync). ⚠️ **Being phased out**
-
-**Phase B (manifest cutover landed):** public owns `registry/**`; private syncs CLI/docs/L0 samples only and **consumes** the public registry URL. Private `registry/` edits no longer sync to public.
-
-```
-Phase A: Local → agent-kit-dev → sync-public → agent-kit (incl. registry)
-Phase B: Local → agent-kit-dev → sync-public → agent-kit (excl. registry)
-         Fleet / private CLI ──install/add──► agent-kit registry (canonical)
-         promote / contribute ──PR──► agent-kit
-```
+**Topology phases:** See [topology-private-public.md](topology-private-public.md) for Phase A/B/C definitions and current status.
 
 | Surface | What goes in | What stays out |
 |---------|--------------|----------------|
 | **Local working tree** | Cursor plans, `HANDOFF.md`, active context packs, secrets | Anything that must never leave the machine |
 | **Private repo** | CLI, feats, sync scripts, dogfood memory; Phase A also registry | Session HANDOFF/plans (gitignored) |
 | **Public repo** | Allowlist (`scripts/public-sync.manifest`); Phase B + community PRs on registry | Session state, credentials, private memory, private-only tooling |
-| **npm (`@agent-kit/cli`)** | Only `packages/cli/dist` (`files` in `package.json`) | Monorepo templates and `.cursor/` are not in the tarball |
+| **npm (`@dadado/agent-kit-cli`)** | Only `packages/cli/dist` (`files` in `package.json`) | Monorepo templates and `.cursor/` are not in the tarball |
+
+Before the first publish or any new registry version, follow [npm-publish-checklist.md](npm-publish-checklist.md) (explicit human approval required).
 
 ### Phase B cutover (ops) ✅ DONE
 
-**Manifest exclude landed.** Private `registry/` no longer syncs; public is SoT for registry. Contribute surfaces point public-first. Leak audit + public-URL dogfood closed 2026-07-19.
-
-**Completed:**
-1. [x] Registry freeze messaging on private.
-2. [x] Cutover docs for Phase B.
-3. [x] Final sync ensuring public `registry/**` matches private (2026-07-19; private `main` `9f6c717`; CI run [29695424400](https://github.com/agent-kit-startup/agent-kit-dev/actions/runs/29695424400); public PR [#8](https://github.com/agent-kit-startup/agent-kit/pull/8) merged as `b28cf16`).
-4. [x] Exclude `registry/**` from `scripts/public-sync.manifest` (`!registry/**`; include removed).
-5. [x] Point `agent-kit contribute` / CONTRIBUTING at public PRs.
-6. [x] Leak audit + private dogfood: `install`/`update`/`status` against public URL (`https://github.com/agent-kit-startup/agent-kit` `@ main`); contribute gate rejects `.cursor/HANDOFF.md`. Evidence: `node scripts/sync-public.mjs --dry-run` exit 0; Guard public tree pass; smoke install wrote 24 L0 files including `.cursor/hooks.json`.
+**Status:** Complete. See [topology-private-public.md](topology-private-public.md) for full cutover details and evidence.
 
 ### How sync works
 
