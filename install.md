@@ -14,23 +14,23 @@ If Node.js is available, in the **consumer project root**:
 
 ```bash
 npx @dadado/agent-kit-cli install
-# optional L1 packs:
+```
+
+Optional L1 packs (separate command):
+
+```bash
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-With local checkout of Agent Kit monorepo:
+After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`).
 
-```bash
-pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/project
-```
-
-After: `agent-kit status` (or equivalent via `pnpm --filter @dadado/agent-kit-cli start status --cwd …`).
+Contributors working from a kit monorepo checkout: use the local CLI examples in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (Working on the kit). Do not paste monorepo `pnpm --filter` commands into a consumer project.
 
 If CLI runs successfully, skip to **Onboarding** below.
 
 ## Port B: install via chat (no CLI)
 
-When the user drags this file or uses `@install.md` and CLI is not available:
+Entry path: either the user drags `install.md` into chat, or they paste the agent brief from [install-prompt.md](install-prompt.md) which points to this contract. Before any file writes, confirm the absolute workspace root path using **Ask questions** tool (fallback to chat if unavailable). Prefer running `npx @dadado/agent-kit-cli install` when Node.js/npx are available; use the file sync below only when CLI is not available.
 
 ### 1. Create minimal structure (L0 + session)
 
@@ -91,10 +91,10 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `autogit/gitupdate.md` | `autogit/gitupdate.md` |
 | `autogit/plan-routine.md` | `autogit/plan-routine.md` |
 
-If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, use **Ask questions** tool for registry source:
-Options: `Use CLI install` / `Provide registry URL in chat` / `Skip registry for now`
+If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, fetch from the public registry URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** tool for any registry source confirmation:
+Options: `Fetch from public registry` / `Use different registry URL` / `Skip registry for now`
 
-**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
 
 ### 3. Manifest `.cursor/agent-kit.json`
 
@@ -131,7 +131,7 @@ If `.cursor/HANDOFF.md` does **not** exist, create from `HANDOFF.md.example` or 
 Use **Ask questions** tool to confirm git hooks installation:
 Options: `Install git hooks` / `Skip hooks` / `Show hook paths only`
 
-**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
 
 ```bash
 # secrets (if project already uses custom pre-commit, integrate check-secrets.sh)
@@ -143,28 +143,25 @@ cp .cursor/hooks/pre-commit/check-secrets.sh .git/hooks/  # only if repo flow re
 
 ### 6. Onboarding (first installation)
 
-If HANDOFF didn't exist before:
+After L0 files are written (Port B or chat install), **run or offer `/onboard`**. That slash command is the SoT for first-session welcome and HITL; do not invent a parallel welcome here. Follow [`.cursor/commands/onboard.md`](.cursor/commands/onboard.md).
 
-1. Short welcome to Agent Kit (handoff + plans).
-2. Commands: `/start-project`, `/handoff`, `/continue-plan`, `/git-staging`, `/git-prod`.
-   Manual mode = one phase per chat; multi-phase in same window only with `/run-plan`.
-   Optional: `/plan-external-review` and `/plan-review-triage` for post-completion gap detection via Claude Code CLI.
-3. Use **Ask questions** tool to confirm if they want to create the first plan:
-   Options: `Create first plan` / `Skip for now` / `Learn more`
+**Ask questions** options (must match `/onboard`):
 
-If structure already existed, use **Ask questions** tool to confirm setup:
-Options: `Show commands overview` / `Create first plan` / `Skip for now`
+- First install: `Create first plan` / `Skip for now` / `Learn more`
+- Already onboarded or existing structure: use the already-onboarded menu in `onboard.md` (`Start a plan (/start-project)` / `Continue plan (/continue-plan)` / `Show commands overview` / `Done`), or if still mid-setup without the marker: `Show commands overview` / `Create first plan` / `Skip for now`
 
-**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+On `Create first plan`, bridge to `/start-project` (do not write a plan file from install alone). Port B post-install ends at `/onboard`, not a jump straight to `/start-project`.
 
-**Note:** Install via chat uses **Ask questions** for confirmations (clickable options in IDE UI). CLI wizard uses `@clack/prompts` (terminal interface).
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
+
+**Note:** Install via chat uses **Ask questions** for confirmations (clickable options in IDE UI). CLI wizard uses `@clack/prompts` (terminal interface); its Next block points at `/onboard` in chat.
 
 ### 7. Migrate old copy
 
 If project still has nested `agent-kit/`: preserve L3, install via CLI/manifest, then use **Ask questions** tool before removal:
 Options: `Migrate and remove nested folder` / `Keep nested folder` / `Cancel migration`
 
-**Fallback:** if Ask questions tool unavailable, ask the same options in chat.
+**Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
 
 Details: [docs/bootstrap.md](docs/bootstrap.md).
 

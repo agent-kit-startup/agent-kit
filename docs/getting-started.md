@@ -4,33 +4,21 @@ Agent Kit keeps your AI coding agent working against a plan and stops you from l
 
 ## Install
 
-Run this in your project's root folder:
+Run this from your project's root folder:
 
 ```bash
-# once @dadado/agent-kit-cli is on npm
 npx @dadado/agent-kit-cli install
 ```
 
 That's the whole install. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work.
 
-**Until the CLI is published to npm**, install from a kit checkout and pull the public registry:
-
-```bash
-# from a clone of agent-kit-dev (or public agent-kit after pnpm install && pnpm build)
-pnpm --filter @dadado/agent-kit-cli start -- install \
-  --cwd /path/to/your-project \
-  --url https://github.com/agent-kit-startup/agent-kit \
-  --ref main
-```
-
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
 ```bash
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
-# or the same --pack flag on the pnpm start -- install form above
 ```
 
-**Prefer not to use the CLI?** Open your project in the IDE, drag in the root [`install.md`](../install.md), and ask the agent to install. You get exactly the same result. The install wizard will use **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
+**Prefer chat install?** Copy-paste the installer brief from the [README](../README.md#install) into Cursor chat. You get exactly the same result. The chat installer uses **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
 
 > Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
 
@@ -58,6 +46,7 @@ npx @dadado/agent-kit-cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
+0. **`/onboard`** *(first time only)* - Welcome and introduction to core commands. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
 1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options instead of "type yes to continue". Goal text in the same message is not a green light to edit the repo.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Soft rules plus **native Cursor hooks** (`sessionStart` / `preCompact`) reinforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).

@@ -21,6 +21,11 @@ HARD_RULES = """
 8. **`/continue-plan` waits for yes.** Summarize next `[to-do-id]`, then stop until the user confirms before editing.
 """.strip()
 
+FIRST_SESSION_NUDGE = """
+## First session
+
+Agent Kit L0 is installed but onboarding has not run (`onboarded` marker missing). Offer or run `/onboard` before other work (welcome + Ask questions). Do not skip to coding. `/onboard` does not write plan files; plan bootstrap is `/start-project`.
+""".strip()
 
 
 def read_text(path: Path, limit: int = 60) -> str:
@@ -29,6 +34,29 @@ def read_text(path: Path, limit: int = 60) -> str:
     except OSError:
         return ""
     return "\n".join(lines[:limit]).strip()
+
+
+def l0_present(root: Path) -> bool:
+    """True when Core Pack L0 artifacts are present in the workspace."""
+    cursor = root / ".cursor"
+    return (
+        (cursor / "agent-kit.json").is_file()
+        or (cursor / "commands" / "onboard.md").is_file()
+        or (cursor / "commands" / "start-project.md").is_file()
+    )
+
+
+def is_onboarded(root: Path) -> bool:
+    """True when `.cursor/context/config.json` has `"onboarded": true`."""
+    config_path = root / ".cursor" / "context" / "config.json"
+    try:
+        raw = config_path.read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    return data.get("onboarded") is True
 
 
 def main() -> None:
@@ -43,6 +71,10 @@ def main() -> None:
 
     handoff = read_text(root / ".cursor" / "HANDOFF.md")
     parts = [HARD_RULES]
+
+    if l0_present(root) and not is_onboarded(root):
+        parts.append(FIRST_SESSION_NUDGE)
+
     if handoff:
         parts.append("## Current HANDOFF.md (excerpt)\n\n" + handoff)
     else:

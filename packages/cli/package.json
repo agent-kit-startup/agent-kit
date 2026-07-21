@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "4.2.3",
+  "version": "4.3.0",
   "description": "Agent Kit CLI — bootstraps AI-assisted IDEs with project-aware rules, skills, and context management",
   "type": "module",
   "bin": {

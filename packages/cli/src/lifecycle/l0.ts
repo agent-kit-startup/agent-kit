@@ -47,6 +47,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/start-project.md",
   },
   {
+    source: ".cursor/commands/onboard.md",
+    target: ".cursor/commands/onboard.md",
+  },
+  {
     source: ".cursor/commands/continue-plan.md",
     target: ".cursor/commands/continue-plan.md",
   },

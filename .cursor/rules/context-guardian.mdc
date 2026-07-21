@@ -67,19 +67,13 @@ If detection fails, just tell the user the command without copying it.
 
 ## Onboarding (First Install)
 
-When the user drags in `install.md` and **this is the first install** (no `.cursor/HANDOFF.md` exists yet):
+**SoT:** slash command [`/onboard`](../commands/onboard.md) (welcome, Ask questions, `onboarded` marker in `.cursor/context/config.json`). Do not duplicate the full Ask options flow here.
 
-1. **Welcome:**
-   > "Hey! Welcome to **Agent Kit**. You won't lose context anymore when the conversation gets long."
+When this is a **first install** or `.cursor/context/config.json` has no `"onboarded": true`:
 
-2. **Quick explanation (max 2 sentences):**
-   > "Here's how it works: when context fills up, we save the state and you continue in a new conversation. Commands: `/start-project`, `/handoff`, `/continue-plan`."
-
-3. **Next step:**
-   Use **Ask questions** tool to confirm: "Want to create your first plan?"
-   Options: `Create first plan` / `Skip for now` / `Learn more`
-   - If **Create first plan:** guide them through creating a plan with to-dos.
-   - If **Skip for now:** "All set! Structure is ready. When you want to start, send `/start-project`."
+1. Short tip: Agent Kit uses plans + handoff so long chats do not lose state.
+2. **Run or offer `/onboard`** (prefer the user sending `/onboard`, or follow that command's steps in-session).
+3. Plan bootstrap stays in `/start-project` after they choose Create first plan inside `/onboard`.
 
 ## Err on the Safe Side
 

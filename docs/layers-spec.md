@@ -111,7 +111,8 @@ The minimum structural set every install ships with:
 
 | Artifact | Role |
 |----------|------|
-| `start-project.md` | Onboarding |
+| `onboard.md` | First-session welcome and setup |
+| `start-project.md` | Plan bootstrap |
 | `continue-plan.md` | Resume from HANDOFF (manual mode: one phase per chat) |
 | `run-plan.md` | Continuous mode; auto strategy (orchestrated workers / in-session loop / headless); staging per tick |
 | `run-plan-loop.md` / `run-plan-orchestrated.md` | Deprecated aliases of `run-plan.md` (forced strategy) |

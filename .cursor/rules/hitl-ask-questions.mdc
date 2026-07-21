@@ -24,7 +24,8 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 | Surface | Gate |
 |---------|------|
 | `install.md` (Port B / drag-install) | Registry URL/ref if needed; create first plan yes/no; migrate nested `agent-kit/` confirm; optional git-hooks install |
-| `context-guardian` onboarding | Welcome path; create first plan; auto vs manual handoff preference (first time) |
+| `/onboard` | First-session welcome; Create first plan / Skip for now / Learn more; already-onboarded: Start a plan / Continue plan / Show commands overview / Done |
+| `context-guardian` onboarding | Defer to `/onboard` when first install / no `onboarded` marker; auto vs manual handoff preference (first time) |
 | `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
 | `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
 | `/git-prod` | Explicit confirm before merge/push to `main` |
