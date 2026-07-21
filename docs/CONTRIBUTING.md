@@ -17,9 +17,36 @@ New to the kit? Here's where things land and how to test before your PR:
 - **Skills:** Community contributions go under `registry/skills/community/<skill-id>/SKILL.md` - see the [new skill vs improving existing](#new-skill-vs-improving-an-existing-one) section below
 - **Core changes:** CLI features, base rules, and templates live in their respective folders (`packages/cli/`, `.cursor/`, etc.)
 - **Test locally:** `pnpm install && pnpm lint && pnpm test` from the repo root
-- **Test on a project:** `pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/test-project`
 
 See [getting-started.md](getting-started.md) for the full development setup and workflow details.
+
+## Working on the kit
+
+When developing Agent Kit itself, you'll use local commands different from the consumer install path.
+
+### Installing from local checkout
+
+Test the CLI on a project using the monorepo:
+
+```bash
+# install from local CLI with public registry
+pnpm --filter @dadado/agent-kit-cli start -- install \
+  --cwd /path/to/your-project \
+  --url https://github.com/agent-kit-startup/agent-kit \
+  --ref main
+
+# or install from local CLI with local registry source  
+pnpm --filter @dadado/agent-kit-cli start -- install \
+  --cwd /path/to/your-project \
+  --registry /path/to/agent-kit
+```
+
+Other local CLI commands follow the same pattern:
+
+```bash
+# status, update, etc.
+pnpm --filter @dadado/agent-kit-cli start -- status --cwd /path/to/your-project
+```
 
 ## Standards
 

@@ -8,6 +8,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-07-20
+
+### Added
+
+- Commands: `/onboard` first-session welcome (Ask questions, `onboarded` marker in `.cursor/context/config.json`); bridges to `/start-project` without writing plan files; registered as L0
+
+### Changed
+
+- CLI: post-install Next block points at `/onboard` (then `/start-project` when you have a goal); `install.md` §6 / `install-prompt.md` / README brief align
+- Hooks: `sessionStart` nudges `/onboard` when L0 is present and `onboarded` is not true (context only; no Ask questions from the hook)
+
+## [4.2.4] - 2026-07-20
+
+### Added
+
+- Docs: `install-prompt.md` single source of truth for the pasteable Cursor installer brief (README embeds the same text; blank projects can fetch the raw URL)
+- Sync: `install-prompt.md` on the public sync allowlist so consumers can fetch the raw URL after `/git-prod` mirror sync
+
+### Changed
+
+- Docs: consumer Install CTA is pasteable Cursor agent brief + single-line `npx @dadado/agent-kit-cli install`; factory / monorepo `pnpm --filter` install lives in CONTRIBUTING only (storefront vs factory)
+- Install: Port B requires absolute workspace-root confirmation via Ask questions, prefers CLI when Node/npx exists, and accepts entry via attached `install.md` or `install-prompt.md`; Preference section keeps consumer fences one executable line each (no `#` comments inside fences)
+- CLI: `install` logs absolute project root before writing and prints a post-install Next block (`/start-project`, `agent-kit status`); `init` exit path mirrors the Next block
+
 ## [4.2.3] - 2026-07-20
 
 ### Fixed
