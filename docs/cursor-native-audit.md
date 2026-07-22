@@ -27,7 +27,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 |-------|-------|
 | name | `agent-kit` |
 | version | `3.0.0` |
-| description | Multi-IDE bootstrapper (Cursor, VS Code, Windsurf) |
+| description | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop) |
 
 **Findings:**
 

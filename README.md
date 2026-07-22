@@ -32,12 +32,14 @@ Run from your project root:
 npx @dadado/agent-kit-cli install
 ```
 
+Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
+
 That's it. You now have a handful of slash commands and a small set of rules. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
 ## Usage
 
-1. **First-time setup:** `/onboard` - welcome and command introduction (then `/start-project` when you have a goal).
-2. **Start a plan:** `/start-project` - Broad Intake Review, propose/write the plan first, then run the first to-do only after you confirm.
+1. **First-time setup:** `/onboard` - welcome with clickable options via Ask questions tool; sets onboarded marker (then `/start-project` when you have a goal).
+2. **Start a plan:** `/start-project` - Broad Intake Review, then two gates with Ask questions: (A) write plan file, (B) run first unit only after explicit confirmation.
 3. **Work one phase:** agent implements the current phase, updates handoff, and stops.
 4. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off.
 5. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.

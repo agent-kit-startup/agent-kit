@@ -12,9 +12,10 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
 ## Hard stops
 
 1. **Read `.cursor/HANDOFF.md` first.** No handoff → say so and suggest `/start-project`. Do not invent progress.
-2. **Summarize and wait for yes** before editing. "Ready?" / "Sound good?" is a real gate, not flavor text.
-3. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan`.
-4. **Do not start a competing plan.** New goal requires `/start-project`, which parks the active plan and proceeds to create a new one.
+2. **Apply workspace skin chrome.** Read `.cursor/context/config.json` for `workspaceSkin.modes.continue-plan` (fallback to "autopilot"). Use the corresponding skin's `chatHints` from `registry/skins/core/` for tone and confirmations.
+3. **Summarize and wait for yes** before editing. "Ready?" / "Sound good?" is a real gate, not flavor text.
+4. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan`.
+5. **Do not start a competing plan.** New goal requires `/start-project`, which parks the active plan and proceeds to create a new one.
 
 ## What to Do
 

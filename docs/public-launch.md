@@ -1,6 +1,6 @@
 # Public launch - go/no-go
 
-Checklist before promoting or advertising the public mirror ([agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit)). For topology and cutover status, see [topology-private-public.md](topology-private-public.md).
+Checklist before promoting or advertising the public mirror ([agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit)). For topology and cutover status, see [topology-private-public.md](topology-private-public.md). Ready-to-paste launch copy: [public-launch-announcement.md](public-launch-announcement.md).
 
 ## History mode (decision)
 
@@ -86,17 +86,23 @@ node scripts/sync-public.mjs --dry-run
 # Review every path; prohibited patterns must not appear.
 ```
 
-## Sync (HITL)
+## Sync (automated)
 
-After `git prod` on the private repo (or `workflow_dispatch`):
+After `git prod` on the private repo, the pipeline automatically:
 
+1. **Creates annotated vX.Y.Z tag** (triggers npm publish + sync-public jobs)
+2. **Opens sync PR** with semantic body: Summary + CHANGELOG release notes + source SHA
+3. **Auto-merges PR** after required checks pass (`gh pr merge --auto`)
+
+Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
+
+Manual fallback:
 ```bash
-# default: push a sync branch and open a PR
+# workflow_dispatch when tag-based trigger is insufficient
+pnpm git:trigger-public-sync
+
+# direct commands (rare)
 node scripts/sync-public.mjs --url "$PUBLIC_REPO_URL"
-
-# migration only, before main is protected
-node scripts/sync-public.mjs --direct --url "$PUBLIC_REPO_URL"
-
-# nuclear rebuild only if public history must be discarded
-node scripts/sync-public.mjs --force-snapshot --url "$PUBLIC_REPO_URL"
+node scripts/sync-public.mjs --direct --url "$PUBLIC_REPO_URL"  # migration only
+node scripts/sync-public.mjs --force-snapshot --url "$PUBLIC_REPO_URL"  # escape hatch
 ```

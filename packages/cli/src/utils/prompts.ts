@@ -6,7 +6,36 @@ import type {
   ProjectManagementTool,
   ProjectProfile,
   ScanResult,
+  WorkspaceSkinChoice,
+  WorkspaceSkinConfig,
+  WorkspaceSkinId,
 } from "../types.js";
+
+/** Mode defaults matching `.cursor/context/config.example.json`. */
+export const WORKSPACE_SKIN_MODE_DEFAULTS: WorkspaceSkinConfig = {
+  default: "autopilot",
+  modes: {
+    "continue-plan": "autopilot",
+    "run-plan": "night-shift",
+    "cli-run-plan": "ghost-runner",
+  },
+};
+
+export function workspaceSkinConfigFromChoice(
+  choice: WorkspaceSkinChoice,
+): WorkspaceSkinConfig | null {
+  if (choice.kind === "skip") return null;
+  if (choice.kind === "mode-defaults")
+    return { ...WORKSPACE_SKIN_MODE_DEFAULTS, modes: { ...WORKSPACE_SKIN_MODE_DEFAULTS.modes } };
+  return {
+    default: choice.id,
+    modes: {
+      "continue-plan": choice.id,
+      "run-plan": choice.id,
+      "cli-run-plan": choice.id,
+    },
+  };
+}
 
 function ensureNotCancelled<V>(value: V | symbol): V {
   if (isCancel(value)) {
@@ -87,6 +116,31 @@ async function askProjectManagement(
   ) as ProjectManagementTool[];
 }
 
+/** Optional workspace skin (mirrors `/onboard` Ask questions; clack only, not IDE AskQuestion). */
+async function askWorkspaceSkin(): Promise<WorkspaceSkinChoice> {
+  type SkinSelect = "mode-defaults" | WorkspaceSkinId | "skip";
+  const value = ensureNotCancelled(
+    await select<SkinSelect>({
+      message: "Workspace skin for chat/CLI chrome? (optional)",
+      initialValue: "mode-defaults",
+      options: [
+        {
+          label: "Keep mode defaults (Autopilot/Night Shift/Ghost Runner per mode)",
+          value: "mode-defaults",
+        },
+        { label: "Autopilot", value: "autopilot" },
+        { label: "Night Shift", value: "night-shift" },
+        { label: "Ghost Runner", value: "ghost-runner" },
+        { label: "Skip for now", value: "skip" },
+      ],
+    }),
+  );
+
+  if (value === "skip") return { kind: "skip" };
+  if (value === "mode-defaults") return { kind: "mode-defaults" };
+  return { kind: "skin", id: value };
+}
+
 export async function runExistingProjectWizard(scan: ScanResult): Promise<ProjectProfile> {
   const ide = await askIdeAndPlan(scan.ide);
   const workflow = await askGitWorkflow(scan.git.workflow);
@@ -97,6 +151,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
       initialValue: true,
     }),
   );
+  const workspaceSkinChoice = await askWorkspaceSkin();
 
   return {
     rootDir: scan.rootDir,
@@ -116,6 +171,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
       "docs-repo",
       "ide-guide",
     ],
+    workspaceSkinChoice,
   };
 }
 
@@ -179,6 +235,7 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
       initialValue: true,
     }),
   );
+  const workspaceSkinChoice = await askWorkspaceSkin();
 
   return {
     rootDir: scan.rootDir,
@@ -206,5 +263,6 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
       "docs-repo",
       "ide-guide",
     ],
+    workspaceSkinChoice,
   };
 }

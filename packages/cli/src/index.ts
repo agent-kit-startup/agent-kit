@@ -14,7 +14,7 @@ import { updateCommand } from "./commands/update.js";
 const main = defineCommand({
   meta: {
     name: "agent-kit",
-    description: "Developer bootstrapper for AI-assisted IDEs",
+    description: "HITL framework for AI-assisted IDEs",
   },
   subCommands: {
     init: initCommand,

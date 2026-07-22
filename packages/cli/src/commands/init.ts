@@ -5,9 +5,27 @@ import { generateFromProfile } from "../generator/index.js";
 import { installSkillsByIds } from "../registry/install.js";
 import { resolveRegistryRoot } from "../registry/resolve.js";
 import { runScanner } from "../scanner/scan.js";
-import { writeJson } from "../utils/fs.js";
+import type { WorkspaceSkinConfig } from "../types.js";
+import { ensureDir, readJson, writeJson } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
-import { runExistingProjectWizard, runGreenfieldWizard } from "../utils/prompts.js";
+import {
+  runExistingProjectWizard,
+  runGreenfieldWizard,
+  workspaceSkinConfigFromChoice,
+} from "../utils/prompts.js";
+
+/** Merge `workspaceSkin` into `.cursor/context/config.json` without wiping other keys. */
+async function mergeWorkspaceSkinConfig(
+  rootDir: string,
+  workspaceSkin: WorkspaceSkinConfig,
+): Promise<string> {
+  const contextDir = path.join(rootDir, ".cursor", "context");
+  const configPath = path.join(contextDir, "config.json");
+  await ensureDir(contextDir);
+  const existing = (await readJson<Record<string, unknown>>(configPath)) ?? {};
+  await writeJson(configPath, { ...existing, workspaceSkin });
+  return configPath;
+}
 
 export const initCommand = defineCommand({
   meta: {
@@ -34,9 +52,17 @@ export const initCommand = defineCommand({
       ? await runGreenfieldWizard(scan)
       : await runExistingProjectWizard(scan);
 
+    const { workspaceSkinChoice, ...profileToSave } = profile;
     const configPath = path.join(scan.rootDir, ".cursor", "agent-kit.config.json");
-    await writeJson(configPath, profile);
+    await writeJson(configPath, profileToSave);
     logger.success(`Profile saved in ${configPath}`);
+
+    const skinConfig =
+      workspaceSkinChoice !== undefined ? workspaceSkinConfigFromChoice(workspaceSkinChoice) : null;
+    if (skinConfig) {
+      const contextConfigPath = await mergeWorkspaceSkinConfig(scan.rootDir, skinConfig);
+      logger.success(`Workspace skin saved in ${contextConfigPath}`);
+    }
 
     await generateFromProfile(profile);
 
