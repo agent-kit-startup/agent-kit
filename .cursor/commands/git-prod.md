@@ -15,3 +15,4 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
 5. Run merge to main, push main, create/push annotated vX.Y.Z tag (when absent), confirm production.
 6. Update `.cursor/HANDOFF.md` ("promoted to production") and memory-loop WRITE if it applies.
 7. In this monorepo: annotated tags trigger `publish-npm` + `sync-public` CI; `pnpm git:trigger-public-sync` fallback when needed per `autogit/gitupdate.md`.
+8. **Post-prod verification (mandatory in this monorepo):** before ending, check tag CI jobs (`publish-npm`, `sync-public`), `npm view @dadado/agent-kit-cli version`, public `main` sync commit, and public GitHub Release Latest. Report each row. Silent npm success with a stale public Releases badge is a kit failure mode — see `autogit/gitupdate.md` step 12.5.

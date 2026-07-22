@@ -403,9 +403,22 @@ This section contains the detailed prompts that should be followed when commands
    - **Fallback**: If tag was not created or manual dispatch needed, run **`pnpm git:trigger-public-sync`** (or `bash scripts/trigger-public-sync-after-prod.sh`) to trigger CI workflow with public repository sync. See `docs/repository-boundaries.md`.
    - In projects without public mirror, skip this step.
 
+#### 12.5. **Post-prod verification (this monorepo — do not skip)**  
+   Tag push alone is not proof that consumers see the release. Before closing the chat, verify and report:
+
+   | Check | How |
+   |-------|-----|
+   | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, and `sync-public` all green |
+   | npm | `npm view @dadado/agent-kit-cli version` matches the release |
+   | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` |
+   | Public GitHub Release | `gh release list -R <public>` shows `vX.Y.Z` as Latest (not a stale older release) |
+
+   If `sync-public` failed or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale).
+
 #### 13. **Final Report**  
    - Summarize executed actions, list commits promoted to production, inform merge status, mention if CHANGELOG.md was updated and any necessary follow-ups.
    - **Highlight**: Clearly inform that changes are now in production (`origin/main`).
+   - Include the step 12.5 verification results (pass/fail per row).
    - Update `.cursor/HANDOFF.md` ("promoted to production"); if appropriate, memory-loop WRITE.
 
 ---
