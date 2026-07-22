@@ -8,6 +8,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.4.5] - 2026-07-22
+
+### Fixed
+
+- CI: `sync-public` job installs pnpm and disables `setup-node` package-manager-cache so tag pushes after Actions v5 do not fail with `Unable to locate executable file: pnpm`
+
+### Added
+
+- Sync: after the public sync PR merges, create a public GitHub Release (`vX.Y.Z`) from CHANGELOG notes so the storefront Latest badge tracks the release (opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`)
+
+## [4.4.4] - 2026-07-22
+
+### Changed
+
+- CI: bump GitHub Actions to Node 24 runtimes (`actions/checkout@v5`, `actions/setup-node@v5`, `pnpm/action-setup@v5`) to clear Node 20 deprecation annotations; job toolchain stays on Node 20
+
 ## [4.4.3] - 2026-07-22
 
 ### Docs

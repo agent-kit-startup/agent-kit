@@ -41,7 +41,8 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 3. **Automatic triggers** - Annotated `v*` tags trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs.
 4. **Public sync PR** - Creates semantic PR body (Summary + CHANGELOG release notes + source SHA) against public `main`.
 5. **Auto-merge** - PRs auto-merge after required checks pass (`gh pr merge --auto`). Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
-6. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
+6. **Public GitHub Release** - After the sync PR merges, sync creates/updates a public GitHub Release `vX.Y.Z` (CHANGELOG notes; Latest badge). Opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`. Git tags alone do not move the Releases sidebar.
+7. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
 
 Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, the sync job pushes nothing; the rest of CI still runs normally.
 
