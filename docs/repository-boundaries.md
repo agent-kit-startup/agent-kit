@@ -37,9 +37,11 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 ## Flow: `git staging` → `git prod` → public
 
 1. **`git staging`** - PR to `staging` on the **private** repo (`agent-kit-dev`). Everything committed goes to private.
-2. **`git prod`** - `staging` → `main` on **private**; push `origin main`.
-3. **Public mirror (integrated into `git prod`)** - With a `public` remote pointing at the public GitHub repo and `gh` authenticated, after pushing `main` run **`pnpm git:trigger-public-sync`** (or `bash scripts/trigger-public-sync-after-prod.sh`): triggers the **CI** workflow on **origin** with *Sync to public repo* → CI runs **build** and opens a sync PR on public (requires `PUBLIC_REPO_TOKEN` on private). See step 12 of "Prompt: git prod" in `autogit/gitupdate.md`.
-4. **Alternatives** (release or fallback): SemVer `v*` tag on private; manual *workflow_dispatch* in Actions; `node scripts/sync-public.mjs` with URL/token in the environment.
+2. **`git prod`** - `staging` → `main` on **private**; push `origin main`; create/push annotated vX.Y.Z tag when absent.
+3. **Automatic triggers** - Annotated `v*` tags trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs.
+4. **Public sync PR** - Creates semantic PR body (Summary + CHANGELOG release notes + source SHA) against public `main`.
+5. **Auto-merge** - PRs auto-merge after required checks pass (`gh pr merge --auto`). Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
+6. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
 
 Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, the sync job pushes nothing; the rest of CI still runs normally.
 
@@ -87,6 +89,10 @@ Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git 
 
 - **Phase A (legacy):** external PRs on public; maintainers merge and, if needed, promote-back into private before the next sync overwrites registry paths. ⚠️ **Being phased out**
 - **Phase B (complete):** registry PRs must target public; private registry sync no longer publishes; contribute surfaces are public-first.
+
+### Trust model
+
+Registry skills and rules are agent instructions executed with filesystem and git access. External contributions should be reviewed for unintended side effects before merge. Plan execution runs agents with `--sandbox disabled` to enable code implementation and git operations required for the development workflow.
 
 ## FAQ: Private vs Public roles
 

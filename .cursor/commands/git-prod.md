@@ -12,6 +12,6 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
    Options: `Proceed with production deploy` / `Review changes first` / `Cancel`
    
    **Fallback:** if Ask questions tool unavailable, ask for explicit confirmation in chat.
-5. Run merge to main, push main, confirm production.
+5. Run merge to main, push main, create/push annotated vX.Y.Z tag (when absent), confirm production.
 6. Update `.cursor/HANDOFF.md` ("promoted to production") and memory-loop WRITE if it applies.
-7. In this monorepo: after prod, run the public sync per `autogit/gitupdate.md` / `pnpm git:trigger-public-sync` when applicable.
+7. In this monorepo: annotated tags trigger `publish-npm` + `sync-public` CI; `pnpm git:trigger-public-sync` fallback when needed per `autogit/gitupdate.md`.

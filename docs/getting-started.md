@@ -10,6 +10,8 @@ Run this from your project's root folder:
 npx @dadado/agent-kit-cli install
 ```
 
+Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
+
 That's the whole install. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work.
 
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
@@ -18,7 +20,7 @@ Want a few extra bundles up front? Add packs (clean code, context tools, and mor
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-**Prefer chat install?** Copy-paste the installer brief from the [README](../README.md#install) into Cursor chat. You get exactly the same result. The chat installer uses **Ask questions** for confirmations (clickable options in IDE UI), while the CLI uses terminal prompts.
+**Prefer chat install?** Copy-paste the installer brief from the [README](../README.md#install) into Cursor chat. You get exactly the same result. The chat installer uses **Ask questions** for confirmations (clickable options in IDE UI, with chat fallback when tool unavailable), while the CLI uses terminal prompts.
 
 > Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
 
@@ -46,9 +48,9 @@ npx @dadado/agent-kit-cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-0. **`/onboard`** *(first time only)* - Welcome and introduction to core commands. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
-1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options instead of "type yes to continue". Goal text in the same message is not a green light to edit the repo.
-2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Soft rules plus **native Cursor hooks** (`sessionStart` / `preCompact`) reinforce that boundary; multi-phase in one window needs an explicit mode below.
+0. **`/onboard`** *(first time only)* - Welcome and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
+1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
+2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
 4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project.
 
@@ -68,6 +70,10 @@ When `/run-plan` finishes all implementable to-dos, you can get a second-agent c
 4. **Triage:** After Claude writes a monitor file, use `/plan-review-triage` to process findings with clickable options
 
 This requires Claude Code CLI on your PATH. If disabled or Claude is missing, the kit continues normally without external review.
+
+### Security considerations
+
+**Plan execution runs with sandbox disabled:** The continuous plan execution (`/run-plan`) uses `cursor-agent --sandbox disabled` to access filesystem operations, git commands, and project tools. This is required for the agent to implement code changes and commit to staging. Maintainers should review plan to-dos and registry skills before enabling continuous execution, as these function as direct agent instructions.
 
 The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit. Native hooks are listed in [layers-spec.md](layers-spec.md) (L0).
 

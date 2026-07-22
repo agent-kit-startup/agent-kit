@@ -6,6 +6,7 @@ Return channel from a **consumer project** back to the Agent Kit registry. Compl
 
 - You edited an installed L0 / pack / skill file and the change should be shared (not kept as a silent fork).
 - You authored a new skill under `.cursor/skills/...` that belongs in `registry/skills/`.
+- You created a workspace skin that belongs in `registry/skins/community/`.
 - Golden rule from layers-spec: do **not** hand-edit kit files as a permanent project fix - override via L3 **or** contribute upstream.
 
 ## Flow
@@ -61,8 +62,9 @@ Rejected when any of these apply:
 |--------------|---------------|
 | L0 / pack member targets | Same relative path (or pack `source`) |
 | `.cursor/skills/<cat>/<id>/SKILL.md` | `registry/skills/<cat>/<id>/SKILL.md` (guessed when not in manifest) |
+| `.cursor/skins/<id>/skin.json` | `registry/skins/community/<id>/skin.json` (community skins only) |
 
-New skills still need a `registry/registry.json` entry (and pack membership if applicable) - update those in the PR.
+New skills still need a `registry/registry.json` entry (and pack membership if applicable) - update those in the PR. Skins are discovered by directory structure and do not require registry entries.
 
 ## Target repo (after Phase B)
 

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Run the **first-session welcome** for Agent Kit: short orientation, HITL choice to create a first plan or skip, and an `onboarded` marker so this does not repeat.
+Run the **first-session welcome** for Agent Kit: short orientation, workspace skin preference, HITL choice to create a first plan or skip, and an `onboarded` marker so this does not repeat.
 
 This command does **not** write a plan file. Plan bootstrap stays in `/start-project` (Gate A + Gate B).
 
@@ -30,8 +30,9 @@ Read `.cursor/context/config.json` (create nothing yet).
 
 1. Short message: onboarding already ran for this project.
 2. Use **Ask questions** (chat fallback if tool unavailable):
-   - Options: `Start a plan (/start-project)` / `Continue plan (/continue-plan)` / `Show commands overview` / `Done`
+   - Options: `Start a plan (/start-project)` / `Continue plan (/continue-plan)` / `Change workspace skin` / `Show commands overview` / `Done`
 3. Act only on the choice (point them at the matching slash command, or list key commands briefly for overview). **Stop.** Do not rewrite `onboarded`.
+4. **On `Change workspace skin`:** run **Step Skin** below, then stop (do not rewrite `onboarded`).
 
 ### Branch B: First time (marker missing or false)
 
@@ -45,22 +46,55 @@ Read `.cursor/context/config.json` (create nothing yet).
    - `/git-staging` - promote work to staging (not `main`)
    - `/git-prod` - promote approved staging to production (explicit confirm)
 
-3. Use **Ask questions** (chat fallback if tool unavailable):
+3. Run **Step Skin** (workspace chrome preference).
+
+4. Use **Ask questions** (chat fallback if tool unavailable):
    > Want to create your first plan?
    - Options: `Create first plan` / `Skip for now` / `Learn more`
 
-4. **On `Create first plan`:**
+5. **On `Create first plan`:**
    - Tell the user to run `/start-project` with their goal (1-2 sentences), **or** offer to run `/start-project`'s flow next in this chat.
    - Do **not** write a plan file inside `/onboard`.
    - Then set the marker (Step 5).
 
-5. **On `Learn more`:**
+6. **On `Learn more`:**
    - 2-4 sentences: plan with to-dos → work one phase → `/handoff` when pausing or context is full → `/git-staging` for pre-prod → `/git-prod` only after staging approval.
    - Re-ask with the same Ask questions options: `Create first plan` / `Skip for now` / `Learn more` (or omit Learn more on the re-ask if they already saw it).
 
-6. **On `Skip for now`:**
+7. **On `Skip for now`:**
    - Confirm structure is ready. They can run `/onboard` or `/start-project` later.
    - Then set the marker (Step 5).
+
+### Step Skin: Workspace skin preference
+
+Skins affect **chat tone chrome and CLI banners only** (see `docs/skins-contract.md`). They never change commits, HANDOFF, memory, or product docs. Built-ins: `registry/skins/core/` (community packs: Phase 5 / contribute docs).
+
+1. Use **Ask questions** (chat fallback if tool unavailable):
+   > Pick a workspace skin for chat/CLI chrome?
+   - Options: `Keep mode defaults (Autopilot/Night Shift/Ghost Runner per mode)` / `Autopilot` / `Night Shift` / `Ghost Runner` / `Skip for now`
+
+2. **Persist** by merging into `.cursor/context/config.json` under `workspaceSkin`. Ensure `.cursor/context/` exists. **Preserve** existing keys (`onboarded`, `autoHandoff`, `externalPlanReview`, etc.). Do not wipe the file.
+
+   | Choice | Write |
+   |--------|-------|
+   | `Keep mode defaults (...)` | Mode map from `.cursor/context/config.example.json` (`continue-plan`→autopilot, `run-plan`→night-shift, `cli-run-plan`→ghost-runner; `default`: `autopilot`) |
+   | `Autopilot` / `Night Shift` / `Ghost Runner` | Set `default` to that skin id (`autopilot` / `night-shift` / `ghost-runner`) and set **all** modes to the same id |
+   | `Skip for now` | Do not change `workspaceSkin` (leave absent or as-is) |
+
+3. Example mode-defaults payload:
+
+```json
+{
+  "workspaceSkin": {
+    "default": "autopilot",
+    "modes": {
+      "continue-plan": "autopilot",
+      "run-plan": "night-shift",
+      "cli-run-plan": "ghost-runner"
+    }
+  }
+}
+```
 
 ### Step 5: Set `onboarded` marker
 
@@ -68,13 +102,13 @@ After **Create first plan** (once bridged to `/start-project`) **or** **Skip for
 
 1. Ensure `.cursor/context/` exists.
 2. Merge into `.cursor/context/config.json`: set `"onboarded": true`.
-3. Preserve other keys (e.g. `autoHandoff`). If the file is missing, create `{ "onboarded": true }`.
+3. Preserve other keys (e.g. `autoHandoff`, `workspaceSkin`). If the file is missing, create `{ "onboarded": true }`.
 
 Do **not** set the marker on `Learn more` alone (wait for Create or Skip).
 
 ## Ask questions requirement
 
-First-session choice and the already-onboarded menu **MUST** use Ask questions (`AskQuestion` / ACP `cursor/ask_question`) instead of "type yes to continue."
+First-session skin pick, first-session plan choice, and the already-onboarded menu **MUST** use Ask questions (`AskQuestion` / ACP `cursor/ask_question`) instead of "type yes to continue."
 
 **Fallback:** if the tool is not in the session toolset, say so once, then present the same options as a numbered list. Tip: a model that supports Ask questions restores the clickable UI.
 
@@ -83,7 +117,7 @@ Kit-wide contract: [`.cursor/rules/hitl-ask-questions.mdc`](../rules/hitl-ask-qu
 ## Relationship to `/start-project`
 
 ```
-/onboard (welcome + HITL) -> user picks Create first plan
+/onboard (welcome + skin HITL + plan HITL) -> user picks Create first plan
   -> /start-project (Gate A: write plan file; Gate B: first unit)
 ```
 

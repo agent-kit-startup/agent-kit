@@ -77,6 +77,25 @@ export interface ScanResult {
   services: ServicesDetection;
 }
 
+/** Built-in workspace skin ids (`registry/skins/core/`). */
+export type WorkspaceSkinId = "autopilot" | "night-shift" | "ghost-runner";
+
+/** Mode → skin map persisted under `.cursor/context/config.json` → `workspaceSkin`. */
+export interface WorkspaceSkinConfig {
+  default: WorkspaceSkinId;
+  modes: {
+    "continue-plan": WorkspaceSkinId;
+    "run-plan": WorkspaceSkinId;
+    "cli-run-plan": WorkspaceSkinId;
+  };
+}
+
+/** Wizard choice: mode defaults, one skin for all modes, or skip writing. */
+export type WorkspaceSkinChoice =
+  | { kind: "mode-defaults" }
+  | { kind: "skin"; id: WorkspaceSkinId }
+  | { kind: "skip" };
+
 export interface ProjectProfile {
   rootDir: string;
   stack: StackDetection;
@@ -86,6 +105,8 @@ export interface ProjectProfile {
   services: ServicesDetection;
   installHooks: boolean;
   selectedCoreComponents: string[];
+  /** Optional: from init wizard; written to `.cursor/context/config.json` when not skip. */
+  workspaceSkinChoice?: WorkspaceSkinChoice;
 }
 
 /**

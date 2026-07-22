@@ -8,6 +8,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.4.1] - 2026-07-22
+
+### Fixed
+
+- CLI: Biome lint/format on `skin-banners` unit test and related `init`/`prompts` format drift (non-null assertions blocked CI `build` after `v4.4.0`, which skipped `publish-npm` and `sync-public`)
+
+## [4.4.0] - 2026-07-21
+
+### Added
+
+- Skins: built-in packs `autopilot`, `night-shift`, and `ghost-runner` under `registry/skins/core/` (schema in `registry/schemas/skin-pack.json`; index in `registry/skins/core/index.json`)
+- Skins: mode-aware chat chrome integration in `/continue-plan` and `/run-plan` commands; workspace skin configuration reading from `.cursor/context/config.json` with built-in pack fallbacks
+- CLI: `agent-kit run-plan` tick banners from `workspaceSkin.modes["cli-run-plan"]` (default `ghost-runner`); loads `registry/skins/core/<id>/skin.json`, kolorist-only coloring, fail-soft to plain logs when the skin file is missing
+- Docs: `docs/skins-contract.md` workspace skins schema, mode defaults, acceptance rules, and hygiene boundary; `workspaceSkin` keys in `.cursor/context/config.example.json`
+- Commands: `/onboard` Ask questions workspace skin pick (Keep mode defaults / Autopilot / Night Shift / Ghost Runner / Skip); merges `workspaceSkin` into `.cursor/context/config.json` without wiping other keys; already-onboarded menu includes `Change workspace skin`
+- CLI: `agent-kit init` wizard optional clack select for the same skin preference; writes `workspaceSkin` into `.cursor/context/config.json` (merge-safe)
+- Docs: `docs/public-launch-announcement.md` copy-paste public launch text; indexed from `docs/README.md` and linked from `docs/public-launch.md`
+- Docs: `docs/creating-skins.md` skin pack format, placement, contribute checklist; indexed from `docs/README.md`, `docs/CONTRIBUTING.md`, and `docs/contribute-upstream.md`
+
+### Changed
+
+- Rules: enhanced `ux-tone.mdc` with workspace skin chrome guidance and HITL confirmation hygiene (skins affect chat tone only, never confirmation options)
+- Rules: `hitl-ask-questions` `/onboard` gate lists workspace skin pick and `Change workspace skin`
+- Docs/meta: product identity says HITL framework (not developer bootstrapper) in `docs/README.md`, `docs/CONTRIBUTING.md`, root + CLI `package.json`, CLI banner, and `docs/cursor-native-audit.md` plugin description row
+- Docs: renamed launch copy from channel-specific `public-launch-whatsapp.md` to channel-agnostic `public-launch-announcement.md`
+- Docs: storefront claims for `/onboard` and `/start-project` match Ask questions + chat fallback, HITL gates, and Context Guardian wording (README, getting-started, bootstrap)
+- Sync: public sync PRs get a semantic body (Summary + CHANGELOG release notes + source SHA) and auto-merge by default (`gh pr merge --auto`); opt out with `PUBLIC_SYNC_AUTO_MERGE=false`
+- Docs: `/git-prod` requires annotated `vX.Y.Z` tag push after private `main` (triggers `publish-npm` + `sync-public`); public sync auto-merge documented in checklist and repository boundaries
+- Sync: `scripts/sync-public.mjs` runs git via `execFileSync` argv arrays (no shell-string interpolation for branch/remote/url/message)
+- Docs: consumer install notes version pin for unpinned `npx @dadado/agent-kit-cli` (README, install.md, getting-started)
+- Docs: plan execution security note (`cursor-agent --sandbox disabled` access; registry trust model for external contributions) in getting-started and repository-boundaries
+
 ## [4.3.0] - 2026-07-20
 
 ### Added

@@ -10,6 +10,7 @@ import {
 } from "./external-review.js";
 import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
 import { formatSentinelLine, parseSentinelFromLogFile } from "./sentinel.js";
+import { createSkinBannerPrinter, loadCliRunPlanSkin } from "./skin-banners.js";
 
 export const TICK_PROMPT =
   '/run-plan - single tick from the headless runner (agent-kit run-plan). Read .cursor/HANDOFF.md and the active plan in .cursor/plans/. Mark the next to-do as in_progress in the frontmatter, execute ONLY that to-do, mark completed and update HANDOFF. If there is a commitable diff: run /git-staging without asking for confirmation. NEVER /git-prod. Do NOT re-arm an internal Loop skill - the external runner starts the next agent. End the response with exactly one line: "LOOP_TICK_RESULT: continue" if implementable to-dos remain, or "LOOP_TICK_RESULT: stop - <reason>" (plan exhausted, external blocker, or human decision needed).';
@@ -61,9 +62,16 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
   process.on("SIGINT", onSigInt);
 
   try {
+    // Fail soft: missing skin.json keeps plain console.log (no crash).
+    const skin = await loadCliRunPlanSkin(opts.root);
+    const banners = createSkinBannerPrinter(skin);
+
     console.log(`Active plan: ${path.basename(planPath)}`);
     console.log(`Pending to-dos: ${await pending()} | max ticks: ${opts.maxTicks}`);
     console.log(`Backend: ${opts.backend.id}`);
+    if (skin) {
+      console.log(`CLI skin: ${skin.displayName ?? skin.id}`);
+    }
 
     if (opts.dryRun) {
       console.log("--dry-run: no agent will be started. Tick prompt:");
@@ -84,12 +92,16 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     while (true) {
       tick += 1;
       if (tick > opts.maxTicks) {
-        console.log(`Budget of ${opts.maxTicks} ticks reached - stopping. Run again to continue.`);
+        const msg = `Budget of ${opts.maxTicks} ticks reached - stopping. Run again to continue.`;
+        if (banners) banners.stop(msg);
+        else console.log(msg);
         break;
       }
 
       if (await fileExists(stopFile)) {
-        console.log(`Stop file found (${stopFile}) - stopping.`);
+        const msg = `Stop file found (${stopFile}) - stopping.`;
+        if (banners) banners.stop(msg);
+        else console.log(msg);
         try {
           await rm(stopFile, { force: true });
         } catch {
@@ -108,7 +120,9 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       const logPath = path.join(logDir, `tick-${stamp()}.log`);
       const relLog = path.relative(opts.root, logPath);
       console.log("");
-      console.log(`=== tick ${tick}/${opts.maxTicks} - pending: ${before} - log: ${relLog} ===`);
+      const tickLine = `=== tick ${tick}/${opts.maxTicks} - pending: ${before} - log: ${relLog} ===`;
+      if (banners) banners.tickStart(tickLine);
+      else console.log(tickLine);
 
       let agentExit = 0;
       try {
@@ -127,9 +141,10 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       try {
         const logText = await readFile(logPath, "utf8");
         if (logText.includes("Too many MCP tools")) {
-          console.log(
-            "Too many MCP tools for the headless model - disable servers (cursor-agent mcp disable <id>) and run again.",
-          );
+          const msg =
+            "Too many MCP tools for the headless model - disable servers (cursor-agent mcp disable <id>) and run again.";
+          if (banners) banners.stop(msg);
+          else console.log(msg);
           break;
         }
       } catch {
@@ -137,14 +152,22 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       }
 
       if (agentExit !== 0) {
-        console.log(
-          `${opts.backend.id} exited with code ${agentExit} - stopping. See log: ${logPath}`,
-        );
+        const msg = `${opts.backend.id} exited with code ${agentExit} - stopping. See log: ${logPath}`;
+        if (banners) {
+          banners.tickEnd(`exit ${agentExit}`);
+          banners.stop(msg);
+        } else {
+          console.log(msg);
+        }
         break;
       }
 
       const sentinel = await parseSentinelFromLogFile(logPath);
       const after = await pending();
+
+      if (banners) {
+        banners.tickEnd(`pending: ${after}`);
+      }
 
       if (sentinel.kind === "continue") {
         // ok
@@ -160,9 +183,9 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
           `warn: tick without sentinel, but progress (${before} -> ${after}) - continuing.`,
         );
       } else {
-        console.log(
-          `Tick without sentinel and no progress (${before} -> ${after}) - stopping for safety.`,
-        );
+        const msg = `Tick without sentinel and no progress (${before} -> ${after}) - stopping for safety.`;
+        if (banners) banners.stop(msg);
+        else console.log(msg);
         break;
       }
 
@@ -173,12 +196,15 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       }
 
       if (opts.sleepSeconds > 0) {
+        if (banners) banners.sleep(opts.sleepSeconds);
         await sleep(opts.sleepSeconds * 1000);
       }
     }
 
     const pendingNow = await pending();
     console.log("");
+    const finishDetail = `after ${tick} tick(s); pending: ${pendingNow}`;
+    if (banners) banners.phaseComplete(finishDetail);
     console.log(
       `Loop finished after ${tick} tick(s). Pending now: ${pendingNow}. Logs in ${path.relative(opts.root, logDir)}/`,
     );

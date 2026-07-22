@@ -1,6 +1,6 @@
 # Agent Kit Docs
 
-Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your project, finds what's missing, and generates tailored setup for Cursor, VS Code, and Windsurf - then helps you develop without losing context.
+Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates project-aware setup for Cursor, VS Code, and Windsurf.
 
 ## Guides
 
@@ -9,10 +9,13 @@ Agent Kit is a developer bootstrapper for AI-assisted IDEs. It understands your 
 - [Migrate consumer](migrate-consumer.md) - generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
 - [Contribute upstream](contribute-upstream.md) - `agent-kit contribute` return channel + gate
 - [Public launch](public-launch.md) - go/no-go + append-only sync
+- [Public launch announcement](public-launch-announcement.md) - copy-paste launch text (chat / social)
 - [Topology private × public](topology-private-public.md) - Fase 7 registry-canonical public
 - [Marketplace catalog](marketplace.md) - versioning, CLI add, Cursor plugin, quality gate
 - [Review layers](review-camadas.md) - final HITL / go-no-go pass
 - [Creating Skills](creating-skills.md) - skill format, placement, registry
+- [Creating Skins](creating-skins.md) - skin pack format, placement, contribute checklist
+- [Workspace skins contract](skins-contract.md) - skin pack schema, mode defaults, acceptance rules
 - [Cursor 3.0 Features](cursor-3-features.md) - how Agent Kit uses native IDE features
 - [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
 - [Coherence inventory](coherence-inventory.md) - classification of rules, skills, hooks, agents, commands

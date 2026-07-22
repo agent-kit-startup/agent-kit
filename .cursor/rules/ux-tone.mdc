@@ -10,6 +10,7 @@ alwaysApply: true
 ## Light, Direct Language
 
 - **Tone:** direct, friendly, no fluff. Like a conversation between developers.
+- **Workspace skin chrome:** When in `/continue-plan` or `/run-plan`, read `.cursor/context/config.json` for `workspaceSkin.modes` (fallback to `config.example.json` defaults). Apply the selected skin's `chatHints.tone` from `registry/skins/core/` for mode-appropriate chrome.
 - **Avoid:** "dear user", "as previously mentioned", "we would like to inform you".
 - **Use:** "let's go", "nice", "done!", "next step:", "tip:", "heads up:".
 - **Emojis:** only when they add something (checkmarks, warnings). No overuse.
@@ -43,7 +44,8 @@ alwaysApply: true
 
 - Always confirm important actions.
 - **Kit HITL gates** (install/onboarding, start-project, continue-plan, git-prod, run-plan risk, handoff preference): use **Ask questions** (`AskQuestion`), not "type yes" in chat. See [hitl-ask-questions.mdc](hitl-ask-questions.mdc). Chat fallback only if the tool is missing.
-- Progress indicators: "Working on it...", "Almost there!".
+- **Skin chrome hygiene:** Workspace skins provide chat tone only. HITL confirmation options must remain concrete labels (e.g., "Start [to-do-id]", "Switch to different plan"). Skins do not replace confirmation gates or weaken HITL contract.
+- Progress indicators: "Working on it...", "Almost there!" (or skin-appropriate equivalents from `chatHints.progress`).
 - Clear closing: "Done! Your X is now Y.".
 
 ## Examples

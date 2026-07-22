@@ -1,6 +1,6 @@
 # Contributing
 
-Agent Kit is a developer bootstrapper for AI-assisted IDEs. Contributions welcome - from skills to CLI features to docs.
+Agent Kit is a HITL framework for AI-assisted IDEs. Contributions welcome - from skills to CLI features to docs.
 
 ## Setup
 
@@ -62,7 +62,13 @@ See [repository-boundaries.md](repository-boundaries.md): daily Git targets the 
 
 ## Registry contributions (marketplace catalog)
 
+### Skills
+
 Add community skills under `registry/skills/community/<skill-id>/SKILL.md`. Core skills need maintainer review (`registry/skills/core/`).
+
+### Skins
+
+Add community workspace skins under `registry/skins/community/<skin-id>/skin.json`. See [creating-skins.md](creating-skins.md) for format and acceptance rules.
 
 ### New skill vs improving an existing one
 

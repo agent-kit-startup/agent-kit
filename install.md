@@ -16,6 +16,8 @@ If Node.js is available, in the **consumer project root**:
 npx @dadado/agent-kit-cli install
 ```
 
+Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
+
 Optional L1 packs (separate command):
 
 ```bash

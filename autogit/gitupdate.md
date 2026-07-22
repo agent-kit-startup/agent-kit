@@ -379,6 +379,12 @@ This section contains the detailed prompts that should be followed when commands
    - **NEVER** force push (`--force` or `--force-with-lease`) without explicit user authorization.
    - Prefer `ALLOW_MAIN_PUSH=1` over `--no-verify` so other hooks still run.
 
+#### 9.5. **Create and push annotated tag (when absent)**  
+   - Check if tag exists for current version: `git tag -l "v<version>"` where `<version>` matches `package.json`.
+   - If tag does not exist, create annotated tag: `git tag -a v<version> -m "Release v<version>"` on the current main commit.
+   - Push the tag: `git push origin v<version>`.
+   - **Effect**: Annotated vX.Y.Z tags trigger CI `publish-npm` job (when `NPM_TOKEN` configured) and `sync-public` workflow (when `PUBLIC_REPO_TOKEN` configured).
+
 #### 10. **Sync staging (optional)**  
    - Run `git checkout staging` to return to staging branch.
    - Run `git merge --ff-only origin/main` to sync staging with main (if applicable).
@@ -393,7 +399,8 @@ This section contains the detailed prompts that should be followed when commands
    - **If** the project has PM tool MCP/skill configured: update status of promotion-related tasks (e.g., "completed"). No tool or no tasks: skip without warning.
 
 #### 12. **Public mirror sync (this monorepo)**  
-   - With `public` remote configured and `gh` authenticated, run **`pnpm git:trigger-public-sync`** (or `bash scripts/trigger-public-sync-after-prod.sh`) to trigger CI workflow with public repository sync. See `docs/repository-boundaries.md`.
+   - **Primary**: Annotated vX.Y.Z tag (step 9.5) automatically triggers `sync-public` CI when `PUBLIC_REPO_TOKEN` is configured.
+   - **Fallback**: If tag was not created or manual dispatch needed, run **`pnpm git:trigger-public-sync`** (or `bash scripts/trigger-public-sync-after-prod.sh`) to trigger CI workflow with public repository sync. See `docs/repository-boundaries.md`.
    - In projects without public mirror, skip this step.
 
 #### 13. **Final Report**  

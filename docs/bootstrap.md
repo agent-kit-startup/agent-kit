@@ -52,7 +52,7 @@ What `install` does:
 3. Optionally adds any packs you asked for with `--pack`.
 4. Writes `.cursor/agent-kit.json` recording the version and which of your files to leave untouched on update.
 
-**No CLI on your PATH?** Open the project in your IDE, attach the root [`install.md`](../install.md), and ask the agent to install. It produces the same files and manifest. After install (CLI or chat), the first step is `/onboard` for first-time setup and command introduction. Chat install and onboarding use **Ask questions** (clickable options in the IDE) for confirmations and choices, with a chat fallback if the tool is unavailable. The CLI path (`agent-kit init` / install wizard) keeps `@clack/prompts` in the terminal; it does not call IDE Ask questions.
+**No CLI on your PATH?** Open the project in your IDE, attach the root [`install.md`](../install.md), and ask the agent to install. It produces the same files and manifest. After install (CLI or chat), the first step is `/onboard` for first-time setup and command introduction with Ask questions tool. Chat install and onboarding use **Ask questions** (clickable options in the IDE, with chat fallback when tool unavailable) for confirmations and choices. The CLI path (`agent-kit init` / install wizard) keeps `@clack/prompts` in the terminal; it does not call IDE Ask questions.
 
 ## Keeping it current
 

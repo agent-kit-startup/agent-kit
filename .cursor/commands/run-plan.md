@@ -4,6 +4,8 @@
 
 Run the **active plan** continuously until it is done or blocked. One command; the agent picks the execution strategy. The user should not have to choose between "loop" and "orchestrated": hit `/run-plan` and follow the plan panel.
 
+**Apply workspace skin chrome.** Read `.cursor/context/config.json` for `workspaceSkin.modes.run-plan` (fallback to "night-shift"). Use the corresponding skin's `chatHints` from `registry/skins/core/` for tone and progress updates.
+
 **Never** `/git-prod` in this mode; production only with explicit confirmation (HITL).
 
 ## Strategy selection (automatic)

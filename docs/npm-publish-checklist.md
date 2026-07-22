@@ -45,7 +45,7 @@ The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. 
 - [ ] Tags use the form **`vMAJOR.MINOR.PATCH`** (e.g. `v4.2.1`).
 - [ ] **Existing tags on `origin`:** `v4.0.0`, `v4.0.1`, `v4.1.0`, `v4.2.0`, `v4.2.1`. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
 - [ ] Tag the commit on `main` that matches the release version; do not tag staging-only commits unless that is an explicit exception documented in the release notes.
-- [ ] Prefer creating the tag locally only after checklist sign-off, then push with `git push origin vX.Y.Z` (or use GitHub Releases UI with equivalent tag name).
+- [ ] **Integrated with `/git-prod`**: Annotated tags are created automatically when absent during `/git-prod` workflow (step 9.5 in `autogit/gitupdate.md`). Manual tag creation via `git push origin vX.Y.Z` or GitHub Releases UI is fallback only.
 
 ## Local dry-run (no upload)
 
