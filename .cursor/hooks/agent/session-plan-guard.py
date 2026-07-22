@@ -27,6 +27,14 @@ FIRST_SESSION_NUDGE = """
 Agent Kit L0 is installed but onboarding has not run (`onboarded` marker missing). Offer or run `/onboard` before other work (welcome + Ask questions). Do not skip to coding. `/onboard` does not write plan files; plan bootstrap is `/start-project`.
 """.strip()
 
+DOGFOOD_INBOX_HINT = """
+## Dogfood inbox
+
+Unprocessed files are listed under `dogfood/README.md` (### Unprocessed Files). Follow the ingest ritual there (detect → analyze → memory WRITE → triage). Do not auto-start analysis unless the user asks.
+""".strip()
+
+_NONE_PLACEHOLDERS = frozenset({"none", "n/a", "empty", "nil"})
+
 
 def read_text(path: Path, limit: int = 60) -> str:
     try:
@@ -59,6 +67,46 @@ def is_onboarded(root: Path) -> bool:
     return data.get("onboarded") is True
 
 
+def parse_unprocessed_dogfood_items(readme_text: str) -> list[str]:
+    """File-like bullets from ### Unprocessed Files; empty when none / *None* only."""
+    items: list[str] = []
+    in_section = False
+    for line in readme_text.splitlines():
+        if line.startswith("### Unprocessed Files"):
+            in_section = True
+            continue
+        if not in_section:
+            continue
+        if line.startswith("### "):
+            break
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        body = stripped[2:].strip()
+        normalized = body.lower().strip("*_ ")
+        if not normalized or normalized in _NONE_PLACEHOLDERS:
+            continue
+        items.append(body)
+    return items
+
+
+def dogfood_inbox_section(root: Path) -> str | None:
+    """Hint when dogfood/ exists and the index lists unprocessed file bullets."""
+    dogfood_dir = root / "dogfood"
+    if not dogfood_dir.is_dir():
+        return None
+    readme = dogfood_dir / "README.md"
+    if not readme.is_file():
+        return None
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not parse_unprocessed_dogfood_items(text):
+        return None
+    return DOGFOOD_INBOX_HINT
+
+
 def main() -> None:
     raw = sys.stdin.read()
     try:
@@ -74,6 +122,10 @@ def main() -> None:
 
     if l0_present(root) and not is_onboarded(root):
         parts.append(FIRST_SESSION_NUDGE)
+
+    dogfood_hint = dogfood_inbox_section(root)
+    if dogfood_hint:
+        parts.append(dogfood_hint)
 
     if handoff:
         parts.append("## Current HANDOFF.md (excerpt)\n\n" + handoff)

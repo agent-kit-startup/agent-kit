@@ -15,7 +15,8 @@ Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-pr
 - [Review layers](review-camadas.md) - final HITL / go-no-go pass
 - [Creating Skills](creating-skills.md) - skill format, placement, registry
 - [Creating Skins](creating-skins.md) - skin pack format, placement, contribute checklist
-- [Workspace skins contract](skins-contract.md) - skin pack schema, mode defaults, acceptance rules
+- [Workspace skins contract](skins-contract.md) - skin pack schema, mode defaults, acceptance rules (also summarized in the root [README Features](../README.md#features))
+- [External plan review](external-plan-review.md) - opt-in Claude Code monitor after plan exhaustion
 - [Cursor 3.0 Features](cursor-3-features.md) - how Agent Kit uses native IDE features
 - [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
 - [Coherence inventory](coherence-inventory.md) - classification of rules, skills, hooks, agents, commands

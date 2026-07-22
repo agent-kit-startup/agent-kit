@@ -121,7 +121,9 @@ export async function resolveRegistryRoot(options: {
   const dest = path.join(homedir(), ".cache", "agent-kit", "registry", cacheKey(url, ref));
 
   if (await hasRegistryIndex(dest)) {
-    if (options.refresh) await refreshCache(dest);
+    // Always refresh so L0 artifacts added after the first clone are visible.
+    // options.refresh / --refresh remains accepted for CLI/docs compatibility (same path).
+    await refreshCache(dest);
     return { root: dest, source: "remote-cache", url, ref };
   }
 
