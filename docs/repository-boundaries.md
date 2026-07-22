@@ -11,7 +11,7 @@ Mental shorthand: **local = scratch · private = factory · public = storefront 
 | Layer | What lives here | Git? | Sync to public? |
 |-------|-----------------|------|-----------------|
 | **Local scratch** | `HANDOFF.md`, `.cursor/plans/**/*.plan.md`, active context packs, `.env`, `.cursor/mcp.json`, personal notes | gitignored / never tracked | **Never** (gitignore + CI guard + sync prohibit) |
-| **Private repo** (`origin` → `agent-kit-dev`) | CLI, sync tooling, docs, Phase A `registry/**`, dogfood `.cursor/memory/` | staging → prod | Only **allowlist** paths in `scripts/public-sync.manifest` |
+| **Private repo** (`origin` → `agent-kit-dev`) | CLI, sync tooling, docs, Phase A `registry/**`, dogfood `.cursor/memory/`, `dogfood/` analysis | staging → prod | Only **allowlist** paths in `scripts/public-sync.manifest` |
 | **Public repo** (`public` / community → `agent-kit`) | Product surface: registry (SoT after Phase B), docs consumers need, L0 samples, LICENSE/README | PRs → `main` | N/A (destination) |
 
 ```text

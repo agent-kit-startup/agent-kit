@@ -8,6 +8,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.4.3] - 2026-07-22
+
+### Docs
+
+- README: Features table covering plans/HITL, handoff, run modes, git spine, memory loop, workspace skins, external plan review, packs, and output hygiene; Docs table links skins + external plan review
+- Getting started: workspace skins subsection and onboard/continue-plan/run-plan skin defaults
+
+### Fixed
+
+- CLI: `resolve.test.ts` execFile mock callback arity (offline path) so `tsc --noEmit` passes in CI after 4.4.2
+
+## [4.4.2] - 2026-07-22
+
+### Added
+
+- Hooks: `sessionStart` (`session-plan-guard.py`) tips when `dogfood/README.md` lists unprocessed inbox files (no watchers; consumers without `dogfood/` unchanged)
+- Dogfood: private analysis surface with inbox contract (naming, index, ingest ritual); sessionStart surfaces unprocessed index entries
+
+### Fixed
+
+- CLI: auto-refresh remote registry cache on every resolve that reuses `~/.cache/agent-kit/registry/*` so new L0 artifacts (e.g. `onboard.md`) appear without requiring `--refresh`; offline/fetch failures still keep the existing cache
+
+### Docs
+
+- Update repository boundaries to document dogfood/ as private analysis folder
+- Document stale remote cache missing L0 onboard error in .cursor/memory/errors/
+
 ## [4.4.1] - 2026-07-22
 
 ### Fixed

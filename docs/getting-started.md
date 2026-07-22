@@ -48,15 +48,19 @@ npx @dadado/agent-kit-cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-0. **`/onboard`** *(first time only)* - Welcome and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
+0. **`/onboard`** *(first time only)* - Welcome, optional **workspace skin** pick, and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker and may write `workspaceSkin` into `.cursor/context/config.json`. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
 1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
-4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project.
+4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project. Chat tone follows the Autopilot skin by default (see [skins contract](skins-contract.md)).
+
+### Workspace skins
+
+Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilot for `/continue-plan`, Night Shift for `/run-plan`, Ghost Runner for `agent-kit run-plan`. They never alter commits, HANDOFF, memory, or product documentation. Pick during `/onboard` / `agent-kit init`, change later via the onboarded menu, or edit `workspaceSkin` in `.cursor/context/config.json`. Contract and contribute path: [skins-contract.md](skins-contract.md), [creating-skins.md](creating-skins.md).
 
 ### Less babysitting
 
-- **`/run-plan`** - the agent works through the plan to the end, checking off to-dos and pushing to staging when there's something to commit. It picks the best execution strategy itself: worker delegation when your setup supports it (keeps the main chat from filling up), a same-chat loop otherwise. It never promotes to production on its own. The old `/run-plan-loop` and `/run-plan-orchestrated` still work as deprecated aliases.
+- **`/run-plan`** - the agent works through the plan to the end, checking off to-dos and pushing to staging when there's something to commit (Night Shift chat chrome by default). It picks the best execution strategy itself: worker delegation when your setup supports it (keeps the main chat from filling up), a same-chat loop otherwise. It never promotes to production on its own. The old `/run-plan-loop` and `/run-plan-orchestrated` still work as deprecated aliases.
 
 > **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
 
