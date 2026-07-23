@@ -1,10 +1,27 @@
 import { EventEmitter } from "node:events";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   armExternalPlanReview,
   isPlanExhaustedReason,
   shouldArmExternalPlanReview,
 } from "./external-review.js";
+
+function mockSpawn(exitCode = 0, stdout = "ok\n") {
+  return vi.fn((_cmd: string, _args: string[], _opts: unknown) => {
+    const ee = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    ee.stdout = new EventEmitter();
+    ee.stderr = new EventEmitter();
+    queueMicrotask(() => {
+      ee.stdout.emit("data", stdout);
+      ee.emit("close", exitCode);
+    });
+    return ee as ReturnType<typeof import("node:child_process").spawn>;
+  });
+}
 
 describe("isPlanExhaustedReason", () => {
   it("matches plan exhausted", () => {
@@ -40,31 +57,75 @@ describe("shouldArmExternalPlanReview", () => {
 });
 
 describe("armExternalPlanReview", () => {
-  it("tips and skips when script missing", async () => {
+  const canonicalRel = path.join(".cursor", "scripts", "plan-external-review.sh");
+  const fallbackRel = path.join("scripts", "plan-external-review.sh");
+
+  it("prefers .cursor/scripts when present", async () => {
+    const log = vi.fn();
+    const spawnFn = mockSpawn();
+    const result = await armExternalPlanReview("/repo", {
+      existsFn: async (p) => p.includes(path.join(".cursor", "scripts")),
+      spawnFn: spawnFn as unknown as typeof import("node:child_process").spawn,
+      log,
+    });
+
+    expect(result.invoked).toBe(true);
+    expect(spawnFn).toHaveBeenCalledWith(
+      "bash",
+      [path.join("/repo", canonicalRel)],
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+  });
+
+  it("falls back to scripts/ when canonical missing", async () => {
+    const log = vi.fn();
+    const spawnFn = mockSpawn();
+    const result = await armExternalPlanReview("/repo", {
+      existsFn: async (p) => p === path.join("/repo", fallbackRel),
+      spawnFn: spawnFn as unknown as typeof import("node:child_process").spawn,
+      log,
+    });
+
+    expect(result.invoked).toBe(true);
+    expect(spawnFn).toHaveBeenCalledWith(
+      "bash",
+      [path.join("/repo", fallbackRel)],
+      expect.objectContaining({ cwd: "/repo" }),
+    );
+  });
+
+  it("tips and skips when both scripts missing", async () => {
     const log = vi.fn();
     const result = await armExternalPlanReview("/repo", {
       existsFn: async () => false,
       log,
     });
     expect(result.invoked).toBe(false);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(canonicalRel));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("missing"));
+  });
+
+  it("passes --force when force option is true", async () => {
+    const log = vi.fn();
+    const spawnFn = mockSpawn();
+    const result = await armExternalPlanReview("/repo", {
+      force: true,
+      existsFn: async (p) => p.includes(path.join(".cursor", "scripts")),
+      spawnFn: spawnFn as unknown as typeof import("node:child_process").spawn,
+      log,
+    });
+
+    expect(result.invoked).toBe(true);
+    expect(spawnFn).toHaveBeenCalledWith(
+      "bash",
+      [path.join("/repo", canonicalRel), "--force"],
+      expect.objectContaining({ cwd: "/repo" }),
+    );
   });
 
   it("invokes script and ignores non-zero exit", async () => {
     const log = vi.fn();
-    const spawnFn = vi.fn((_cmd: string, _args: string[], _opts: unknown) => {
-      const ee = new EventEmitter() as EventEmitter & {
-        stdout: EventEmitter;
-        stderr: EventEmitter;
-      };
-      ee.stdout = new EventEmitter();
-      ee.stderr = new EventEmitter();
-      queueMicrotask(() => {
-        ee.stdout.emit("data", "tip: disabled\n");
-        ee.emit("close", 0);
-      });
-      return ee as ReturnType<typeof import("node:child_process").spawn>;
-    });
+    const spawnFn = mockSpawn(0, "tip: disabled\n");
 
     const result = await armExternalPlanReview("/repo", {
       existsFn: async () => true,

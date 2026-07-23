@@ -48,7 +48,7 @@ npx @dadado/agent-kit-cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-0. **`/onboard`** *(first time only)* - Welcome, optional **workspace skin** pick, and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker and may write `workspaceSkin` into `.cursor/context/config.json`. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
+0. **`/onboard`** *(first time only)* - Welcome, optional **workspace skin** pick, optional **external plan review** Ask (`Enable Claude external review` / `Skip for now`), and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker and may write `workspaceSkin` / `externalPlanReview` into `.cursor/context/config.json`. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
 1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
@@ -66,14 +66,15 @@ Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilo
 
 ### Optional external plan review
 
-When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work:
+When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default).
 
-1. **Enable it:** Add `"externalPlanReview": { "enabled": true }` to `.cursor/context/config.json`
-2. **Auto-arm:** `/run-plan` suggests running `scripts/plan-external-review.sh` when it reaches plan exhausted
-3. **Manual:** Use `/plan-external-review` command anytime after a plan is done
-4. **Triage:** After Claude writes a monitor file, use `/plan-review-triage` to process findings with clickable options
+1. **Enable it:** `/onboard` Ask, or set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`)
+2. **Auto-arm:** when enabled, `/run-plan` arms `.cursor/scripts/plan-external-review.sh` on plan exhausted (wrapper at `scripts/` still works)
+3. **Exhaustion Ask:** if not enabled and `offerOnExhausted` allows it, chat may Ask `Run review now` / `Always enable automatic` / `Not now`
+4. **Manual:** `/plan-external-review` anytime after a plan is done (`--force` for one-shot without persisting opt-in)
+5. **Triage:** after Claude writes a monitor file, use `/plan-review-triage`
 
-This requires Claude Code CLI on your PATH. If disabled or Claude is missing, the kit continues normally without external review.
+Claude Code on PATH is optional. If disabled or `claude` is missing, the kit continues with a tip and exit 0 (no CI failure). Details: [external plan review](external-plan-review.md).
 
 ### Security considerations
 

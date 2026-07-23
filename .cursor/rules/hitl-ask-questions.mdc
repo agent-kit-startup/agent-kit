@@ -24,12 +24,12 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 | Surface | Gate |
 |---------|------|
 | `install.md` (Port B / drag-install) | Registry URL/ref if needed; create first plan yes/no; migrate nested `agent-kit/` confirm; optional git-hooks install |
-| `/onboard` | First-session welcome; workspace skin pick (Keep mode defaults / Autopilot / Night Shift / Ghost Runner / Skip); Create first plan / Skip for now / Learn more; already-onboarded: Start a plan / Continue plan / Change workspace skin / Show commands overview / Done |
+| `/onboard` | First-session welcome; workspace skin pick (Keep mode defaults / Autopilot / Night Shift / Ghost Runner / Skip); External Review Ask after skin (`Enable Claude external review` / `Skip for now`); Create first plan / Skip for now / Learn more; already-onboarded: Start a plan / Continue plan / Change workspace skin / Show commands overview / Done |
 | `context-guardian` onboarding | Defer to `/onboard` when first install / no `onboarded` marker; auto vs manual handoff preference (first time) |
 | `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
 | `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
 | `/git-prod` | Explicit confirm before merge/push to `main` |
-| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick |
+| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. Plan-exhausted external review Ask when not enabled and `offerOnExhausted !== false` (`Run review now` / `Always enable automatic` / `Not now`); must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
 | `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop) |
 | `/handoff` / guardian | Prefer Ask questions when offering auto vs manual handoff |
 | Other commands / docs | Any "stop and ask" / "Want to… (yes/no)" prose in L0 + getting-started / bootstrap |

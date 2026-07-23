@@ -1,0 +1,17 @@
+{
+  "externalPlanReview": {
+    "enabled": false,
+    "backend": "claude",
+    "autoRemediate": false,
+    "offerOnExhausted": true
+  },
+  "autoHandoff": false,
+  "workspaceSkin": {
+    "default": "autopilot",
+    "modes": {
+      "continue-plan": "autopilot",
+      "run-plan": "night-shift", 
+      "cli-run-plan": "ghost-runner"
+    }
+  }
+}

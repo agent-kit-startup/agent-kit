@@ -42,4 +42,29 @@ describe("L3 protected", () => {
     expect(isProtectedPath(".cursor/plans/foo.plan.md", globs)).toBe(true);
     expect(isProtectedPath(".cursor/rules/ux-tone.mdc", globs)).toBe(false);
   });
+
+  it("protects session context but not kit templates or config.example", () => {
+    const globs = resolveProtectedGlobs(null);
+    expect(isProtectedPath(".cursor/context/config.json", globs)).toBe(true);
+    expect(isProtectedPath(".cursor/context/current/task.md", globs)).toBe(true);
+    expect(isProtectedPath(".cursor/context/backups/x.md", globs)).toBe(true);
+    expect(isProtectedPath(".cursor/context/templates/plan-external-review-prompt.md", globs)).toBe(
+      false,
+    );
+    expect(isProtectedPath(".cursor/context/config.example.json", globs)).toBe(false);
+  });
+
+  it("expands legacy .cursor/context/** from manifest into session globs", () => {
+    const manifest: AgentKitManifest = {
+      schemaVersion: 1,
+      version: "3.0.0",
+      protected: [".cursor/context/**"],
+    };
+    const globs = resolveProtectedGlobs(manifest);
+    expect(globs).not.toContain(".cursor/context/**");
+    expect(isProtectedPath(".cursor/context/config.json", globs)).toBe(true);
+    expect(isProtectedPath(".cursor/context/templates/plan-external-review-prompt.md", globs)).toBe(
+      false,
+    );
+  });
 });

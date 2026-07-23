@@ -74,6 +74,32 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/git-staging.md",
   },
   { source: ".cursor/commands/git-prod.md", target: ".cursor/commands/git-prod.md" },
+  {
+    source: ".cursor/commands/plan-external-review.md",
+    target: ".cursor/commands/plan-external-review.md",
+  },
+  {
+    source: ".cursor/commands/plan-review-triage.md",
+    target: ".cursor/commands/plan-review-triage.md",
+  },
+  // Context (templates + example config; private config.json is not L0)
+  {
+    source: ".cursor/context/templates/plan-external-review-prompt.md",
+    target: ".cursor/context/templates/plan-external-review-prompt.md",
+  },
+  {
+    source: ".cursor/context/templates/plan-monitor.md",
+    target: ".cursor/context/templates/plan-monitor.md",
+  },
+  {
+    source: ".cursor/context/config.example.json",
+    target: ".cursor/context/config.example.json",
+  },
+  // Scripts (canonical launcher; consumers never receive repo-root scripts/)
+  {
+    source: ".cursor/scripts/plan-external-review.sh",
+    target: ".cursor/scripts/plan-external-review.sh",
+  },
   // Secrets gate (structural)
   {
     source: ".cursor/hooks/pre-commit/check-secrets.sh",

@@ -39,8 +39,12 @@ Every install should protect session and project-unique state (also gitignored w
 .cursor/HANDOFF.md
 .cursor/plans/**
 .cursor/memory/**
-.cursor/context/**
+.cursor/context/config.json
+.cursor/context/current/**
+.cursor/context/backups/**
 ```
+
+Do **not** protect the whole `.cursor/context/**` tree: kit L0 ships `templates/**` and `config.example.json` there. Older manifests that listed `.cursor/context/**` are normalized on `install`/`update` to the session globs above.
 
 Add your project's own rules/skills/commands as extra patterns or `overrides` entries. Don't list a kit file as protected just to keep a local edit - that quietly forks it. Use an override or contribute the change upstream instead.
 
@@ -58,7 +62,9 @@ Add your project's own rules/skills/commands as extra patterns or `overrides` en
     ".cursor/HANDOFF.md",
     ".cursor/plans/**",
     ".cursor/memory/**",
-    ".cursor/context/**",
+    ".cursor/context/config.json",
+    ".cursor/context/current/**",
+    ".cursor/context/backups/**",
     ".cursor/rules/my-domain-context.mdc"
   ],
   "overrides": [],

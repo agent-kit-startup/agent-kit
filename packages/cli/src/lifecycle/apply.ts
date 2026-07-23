@@ -8,7 +8,7 @@ import {
 } from "../manifest/types.js";
 import { writeJson } from "../utils/fs.js";
 import { resolveContained, toPosixRel } from "./paths.js";
-import { isProtectedPath, resolveProtectedGlobs } from "./protected.js";
+import { isProtectedPath, normalizeProtectedGlobs, resolveProtectedGlobs } from "./protected.js";
 
 export type CopyOutcome = "written" | "skipped-protected" | "missing-source" | "unchanged";
 
@@ -113,7 +113,7 @@ export function buildManifest(input: {
   const manifest: AgentKitManifest = {
     schemaVersion: 1,
     version: input.version,
-    protected: input.protected ?? [...DEFAULT_PROTECTED_PATHS],
+    protected: normalizeProtectedGlobs(input.protected ?? [...DEFAULT_PROTECTED_PATHS]),
   };
   if (input.profile) manifest.profile = input.profile;
   if (input.packs?.length) manifest.packs = [...new Set(input.packs)].sort();

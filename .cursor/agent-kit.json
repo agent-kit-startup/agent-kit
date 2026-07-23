@@ -5,7 +5,9 @@
     ".cursor/HANDOFF.md",
     ".cursor/plans/**",
     ".cursor/memory/**",
-    ".cursor/context/**"
+    ".cursor/context/config.json",
+    ".cursor/context/current/**",
+    ".cursor/context/backups/**"
   ],
   "profile": "default",
   "skills": [

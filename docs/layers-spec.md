@@ -120,6 +120,16 @@ The minimum structural set every install ships with:
 | `summary.md` / `context-status.md` | Orientation |
 | `git-staging.md` | Promote to staging (canonical) |
 | `git-prod.md` | Promote to main (**explicit confirmation**) |
+| `plan-external-review.md` | Manual arm for optional Claude Code post-exhaustion review |
+| `plan-review-triage.md` | Triage monitor residuals (Ask: residuals plan / nits / ack) |
+
+Optional external plan review ships with L0 (commands above, templates below, launcher, `config.example.json`) but stays **config-disabled** by default (`externalPlanReview.enabled: false`). Never forces a Claude install. See [external-plan-review.md](external-plan-review.md).
+
+### Scripts (under `.cursor/`)
+
+| Artifact | Role |
+|----------|------|
+| `.cursor/scripts/plan-external-review.sh` | Canonical launcher for external plan review (`--force` one-shot); thin wrapper may exist at `scripts/` |
 
 ### Native Cursor hooks (agent runtime)
 
@@ -140,13 +150,16 @@ Requires `python3` on PATH (standard on macOS/Linux agent hosts). Distinct from 
 | `autogit/gitupdate.md` | Staging → prod prompts (spine) |
 | `autogit/plan-routine.md` | Plan modes: manual / loop / orchestrated; context budget fields |
 
-### Context templates
+### Context templates and example config
 
 | Artifact | Role |
 |----------|------|
 | `.cursor/context/templates/plan.md` | Canonical plan scaffold; optional per-todo `read_scope` / `worker_contract` / `max_ticks` |
+| `.cursor/context/templates/plan-monitor.md` | Monitor document scaffold for external plan review |
+| `.cursor/context/templates/plan-external-review-prompt.md` | Prompt passed to Claude Code for post-exhaustion review |
+| `.cursor/context/config.example.json` | Example keys including `externalPlanReview` (`enabled`, `offerOnExhausted`, …) |
 
-Shipped with the kit tree / public sync / `cursor-handoff` template copy. Not re-applied by `agent-kit update` over `.cursor/context/**` (L3-protected session tree).
+Shipped with L0 install (and public sync). Session `config.json`, `current/**`, and `backups/**` stay L3-protected; `update` does not overwrite that session state. Kit templates and `config.example.json` are **not** under the protected blanket (legacy manifests with `.cursor/context/**` are normalized on update).
 
 ### Explicitly not L0
 
