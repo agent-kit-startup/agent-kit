@@ -51,7 +51,7 @@ Rejected when any of these apply:
 
 | Check | Examples |
 |-------|----------|
-| Session / L3 paths | `HANDOFF.md`, `plans/**`, `memory/**`, `context/**` |
+| Session / L3 paths | `HANDOFF.md`, `plans/**`, `memory/**`, `context/config.json`, `context/current/**`, `context/backups/**` (not blanket `context/**`) |
 | Secrets | AWS keys, `ghp_*`, private key blocks, inline `token=` / `password=` |
 | Hygiene / anti-slop | Agent metalinguage, “conforme falamos”, chat-transient wording |
 | Size | File larger than 200 KiB |

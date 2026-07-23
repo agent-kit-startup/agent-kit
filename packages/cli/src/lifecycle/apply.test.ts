@@ -37,6 +37,18 @@ describe("lifecycle apply L3", () => {
     expect(stats.written.some((p) => p === "autogit/plan-routine.md")).toBe(true);
   });
 
+  it("installL0 writes external-review templates (not L3-blocked)", async () => {
+    const project = await mkdtemp(path.join(tmpdir(), "agent-kit-l0-tpl-"));
+    const stats = await installL0(kitRoot, project, [...DEFAULT_PROTECTED_PATHS]);
+    expect(
+      stats.written.some((p) => p === ".cursor/context/templates/plan-external-review-prompt.md"),
+    ).toBe(true);
+    expect(stats.written.some((p) => p === ".cursor/context/config.example.json")).toBe(true);
+    expect(stats.skippedProtected).not.toContain(
+      ".cursor/context/templates/plan-external-review-prompt.md",
+    );
+  });
+
   it("copyRegistryFile reports unchanged when content matches", async () => {
     const project = await mkdtemp(path.join(tmpdir(), "agent-kit-unchanged-"));
     const rel = ".cursor/rules/ux-tone.mdc";

@@ -16,6 +16,8 @@ Triage residuals from a **Claude external plan review** monitor. Read the latest
 - Monitor has "Current state" or "Full review" section with residuals
 - Plan referenced in the monitor has exhausted implementable to-dos
 
+If no `plan-monitor-*.md` exists (external review never completed, or launcher tip/no-op): say so once, suggest `/plan-external-review` after prefight files exist, and **stop**. Do not invent residuals.
+
 ## What to Do
 
 ### Step 1: Read the monitor

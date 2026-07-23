@@ -8,6 +8,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.4.7] - 2026-07-23
+
+### Fixed
+
+- CI: Biome format in `glob.test.ts` so tag CI can publish after 4.4.6 lint failure
+
+## [4.4.6] - 2026-07-23
+
+### Fixed
+
+- CLI: stop blanket-protecting `.cursor/context/**` so L0 templates and `config.example.json` install; legacy manifest globs expand to session-only paths on install/update
+- Launcher: missing external-review prompt tips and exits 0 (no hard error); commands prefight templates before claiming a review ran
+
+### Added
+
+- Onboard / run-plan: External Review Ask (opt-in after skin; exhaustion Ask Run now / Always / Not now) and hitl-ask-questions gates
+- CLI: external plan review arm prefers `.cursor/scripts/` launcher, falls back to `scripts/`; `--force` one-shot bypass of config opt-in
+- L0: ship external plan review artifacts (commands, templates, `config.example.json`, canonical launcher under `.cursor/scripts/`)
+- Public sync: allowlist `.cursor/scripts/**` and `.cursor/context/config.example.json`
+
+### Changed
+
+- Launcher: `scripts/plan-external-review.sh` is a thin wrapper; canonical path is `.cursor/scripts/plan-external-review.sh`
+
+### Docs
+
+- ADR / guides: external plan review promoted to L0 (still opt-in); paths and `offerOnExhausted` / `--force` / exhaustion Ask documented in `docs/external-plan-review.md`, `docs/getting-started.md`, `docs/layers-spec.md`
+
 ## [4.4.5] - 2026-07-22
 
 ### Fixed

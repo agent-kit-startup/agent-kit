@@ -67,13 +67,26 @@ Optional per-to-do budget fields (`read_scope`, `worker_contract`, `max_ticks`, 
 
 #### Optional external plan review (plan exhausted only)
 
-After Final HANDOFF when the run stopped because all implementable to-dos are done (`Mode: STOPPED` / plan exhausted, any strategy):
+After Final HANDOFF when the run stopped because all implementable to-dos are done (`Mode: STOPPED` / plan exhausted, any strategy), and **after** suggesting `/git-prod` if staging is ahead of `main` (that suggestion is a **separate** HITL gate; never steal `/git-prod` confirmation):
 
-1. **Arm (opt-in):** run `scripts/plan-external-review.sh` from the repo root, or tell the user to run it / `/plan-external-review`. The script owns config (`externalPlanReview.enabled`) and missing-`claude` tips (exit 0 no-op).
-2. **Triage findings:** after Claude completes the monitor, use `/plan-review-triage` to process residuals and decide next steps.
-3. **Not a native stop hook:** do **not** register or rely on a Cursor `hooks.json` `stop` follow-up. Arming must not steal HITL turns (especially not `/git-prod` confirmation).
-4. **Still never `/git-prod`** from this path. Suggesting prod when staging is ahead of `main` stays a human next step.
-4. Headless `agent-kit run-plan` arms the same script after logging stop on plan exhausted; tips/disabled do not fail the loop.
+1. Read `.cursor/context/config.json` for `externalPlanReview`.
+2. **Prefight (before arm or Ask):** confirm these exist relative to the repo root:
+   - Launcher: `.cursor/scripts/plan-external-review.sh` (or fallback `scripts/plan-external-review.sh`)
+   - Prompt: `.cursor/context/templates/plan-external-review-prompt.md`
+   - Monitor scaffold: `.cursor/context/templates/plan-monitor.md`
+   If any are missing: do **not** claim a review ran. Tell the user to run `agent-kit update --refresh` (templates are L0; older manifests that listed `.cursor/context/**` as protected blocked them until the kit normalizes that glob). Manual `/plan-external-review` only after the files exist. Skip the Ask/arm below.
+3. **If `externalPlanReview.enabled === true`:** arm the launcher (prefer `.cursor/scripts/plan-external-review.sh`; fallback `scripts/plan-external-review.sh`). The script owns missing-`claude` / missing-template tips (exit 0 no-op). After the monitor finishes, suggest `/plan-review-triage`.
+4. **Else if `offerOnExhausted !== false`** (missing or `true`): use **Ask questions** (chat fallback if tool unavailable) with labels exactly:
+   - `Run review now`
+   - `Always enable automatic`
+   - `Not now`
+5. **Handlers:**
+   - `Run review now`: one-shot arm with `--force` (do **not** persist `enabled: true`). Then suggest `/plan-review-triage` after the monitor.
+   - `Always enable automatic`: merge `enabled: true` into `externalPlanReview` (keep other fields), then arm normally (no `--force`). Then suggest `/plan-review-triage` after the monitor.
+   - `Not now`: merge `offerOnExhausted: false` (no nag on later exhaustion). Manual `/plan-external-review` still works.
+6. **Not a native stop hook:** do **not** register or rely on a Cursor `hooks.json` `stop` follow-up. This Ask runs only after Final HANDOFF / prod suggestion as a separate gate.
+7. **Still never `/git-prod`** from this path. Suggesting prod when staging is ahead of `main` stays a human next step.
+8. Headless `agent-kit run-plan` arms the same launcher after logging stop on plan exhausted (dual path: `.cursor/scripts/` then `scripts/`; CLI may pass `--force`). Tips/disabled do not fail the loop.
 
 ### 3. Execute only this to-do
 
@@ -201,11 +214,11 @@ For CI / cron / terminal runs. Canonical entrypoint: **`agent-kit run-plan`** (T
 - Everything else in the tick contract applies: one to-do per tick, plan status, HANDOFF, `/git-staging` if there is a diff, **never** `/git-prod`.
 - Stop mid-run: `touch .cursor/loop.stop` or Ctrl+C.
 - Options: `--max-ticks N`, `--model M`, `--sleep S`, `--backend cursor-agent|claude`, `--dry-run`. Default backend is `cursor-agent` (`claude` reserved for a later wiring).
-- **Tick close / plan exhausted:** when the runner stops because pending to-dos are 0 or the agent sentinel is `stop - plan exhausted` (or equivalent), it invokes `scripts/plan-external-review.sh` (opt-in + `claude` checks inside the script). Disabled / missing `claude` → tip + exit 0; the loop still exits 0. This is not a Cursor `stop` hook and never runs `/git-prod`.
+- **Tick close / plan exhausted:** when the runner stops because pending to-dos are 0 or the agent sentinel is `stop - plan exhausted` (or equivalent), the CLI arms the external review launcher (prefer `.cursor/scripts/plan-external-review.sh`, fallback `scripts/plan-external-review.sh`; opt-in + `claude` checks inside the script; `--force` supported for one-shot). Disabled / missing `claude` → tip + exit 0; the loop still exits 0. This is not a Cursor `stop` hook and never runs `/git-prod`. Chat exhaustion Ask (`Run review now` / `Always enable automatic` / `Not now`) is session-only; headless relies on config/`--force`.
 
 ## HITL (invariants)
 
 - `/git-prod` **never** from this command, any strategy
 - Risk (PII, secrets, ambiguous scope): stop and ask
 - Human gate between phases only in manual mode (`/continue-plan`); `/run-plan` is the explicit opt-out
-- Optional external plan review after exhaustion does **not** replace or auto-confirm `/git-prod`
+- Optional external plan review after exhaustion (auto-arm or Ask) does **not** replace or auto-confirm `/git-prod`; Ask only after Final HANDOFF / prod suggestion as a separate gate

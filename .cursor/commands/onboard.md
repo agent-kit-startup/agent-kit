@@ -48,22 +48,24 @@ Read `.cursor/context/config.json` (create nothing yet).
 
 3. Run **Step Skin** (workspace chrome preference).
 
-4. Use **Ask questions** (chat fallback if tool unavailable):
+4. Run **Step External Review** (opt-in Claude plan review; default Skip).
+
+5. Use **Ask questions** (chat fallback if tool unavailable):
    > Want to create your first plan?
    - Options: `Create first plan` / `Skip for now` / `Learn more`
 
-5. **On `Create first plan`:**
+6. **On `Create first plan`:**
    - Tell the user to run `/start-project` with their goal (1-2 sentences), **or** offer to run `/start-project`'s flow next in this chat.
    - Do **not** write a plan file inside `/onboard`.
-   - Then set the marker (Step 5).
+   - Then set the marker (Step Marker).
 
-6. **On `Learn more`:**
+7. **On `Learn more`:**
    - 2-4 sentences: plan with to-dos → work one phase → `/handoff` when pausing or context is full → `/git-staging` for pre-prod → `/git-prod` only after staging approval.
    - Re-ask with the same Ask questions options: `Create first plan` / `Skip for now` / `Learn more` (or omit Learn more on the re-ask if they already saw it).
 
-7. **On `Skip for now`:**
+8. **On `Skip for now`:**
    - Confirm structure is ready. They can run `/onboard` or `/start-project` later.
-   - Then set the marker (Step 5).
+   - Then set the marker (Step Marker).
 
 ### Step Skin: Workspace skin preference
 
@@ -96,19 +98,47 @@ Skins affect **chat tone chrome and CLI banners only** (see `docs/skins-contract
 }
 ```
 
-### Step 5: Set `onboarded` marker
+### Step External Review: Claude plan review opt-in
+
+Default UX is **Skip** (opt-in). Never force a Claude install.
+
+1. Use **Ask questions** (chat fallback if tool unavailable):
+   > Enable Claude external plan review after plans finish?
+   - Options: `Enable Claude external review` / `Skip for now`
+
+2. **Persist** by merging into `.cursor/context/config.json` under `externalPlanReview`. Ensure `.cursor/context/` exists. **Preserve** existing keys (`onboarded`, `autoHandoff`, `workspaceSkin`, etc.). Do not wipe the file.
+
+   | Choice | Write |
+   |--------|-------|
+   | `Enable Claude external review` | Full block: `enabled: true`, `backend: "claude"`, `autoRemediate: false`, `offerOnExhausted: true` |
+   | `Skip for now` | Prefer full default block with `enabled: false` if missing; else merge `enabled: false` (keep other keys; ensure `offerOnExhausted: true` when writing the block for the first time) |
+
+3. Example Enable payload:
+
+```json
+{
+  "externalPlanReview": {
+    "enabled": true,
+    "backend": "claude",
+    "autoRemediate": false,
+    "offerOnExhausted": true
+  }
+}
+```
+
+### Step Marker: Set `onboarded` marker
 
 After **Create first plan** (once bridged to `/start-project`) **or** **Skip for now**:
 
 1. Ensure `.cursor/context/` exists.
 2. Merge into `.cursor/context/config.json`: set `"onboarded": true`.
-3. Preserve other keys (e.g. `autoHandoff`, `workspaceSkin`). If the file is missing, create `{ "onboarded": true }`.
+3. Preserve other keys (e.g. `autoHandoff`, `workspaceSkin`, `externalPlanReview`). If the file is missing, create `{ "onboarded": true }`.
 
 Do **not** set the marker on `Learn more` alone (wait for Create or Skip).
 
 ## Ask questions requirement
 
-First-session skin pick, first-session plan choice, and the already-onboarded menu **MUST** use Ask questions (`AskQuestion` / ACP `cursor/ask_question`) instead of "type yes to continue."
+First-session skin pick, first-session External Review Ask, first-session plan choice, and the already-onboarded menu **MUST** use Ask questions (`AskQuestion` / ACP `cursor/ask_question`) instead of "type yes to continue."
 
 **Fallback:** if the tool is not in the session toolset, say so once, then present the same options as a numbered list. Tip: a model that supports Ask questions restores the clickable UI.
 
@@ -117,7 +147,7 @@ Kit-wide contract: [`.cursor/rules/hitl-ask-questions.mdc`](../rules/hitl-ask-qu
 ## Relationship to `/start-project`
 
 ```
-/onboard (welcome + skin HITL + plan HITL) -> user picks Create first plan
+/onboard (welcome + skin HITL + external review HITL + plan HITL) -> user picks Create first plan
   -> /start-project (Gate A: write plan file; Gate B: first unit)
 ```
 

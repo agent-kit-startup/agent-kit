@@ -113,7 +113,9 @@ Create if it doesn't exist (adjust `version` / `registry` to current SoT):
     ".cursor/HANDOFF.md",
     ".cursor/plans/**",
     ".cursor/memory/**",
-    ".cursor/context/**"
+    ".cursor/context/config.json",
+    ".cursor/context/current/**",
+    ".cursor/context/backups/**"
   ],
   "registry": {
     "url": "https://github.com/agent-kit-startup/agent-kit",
