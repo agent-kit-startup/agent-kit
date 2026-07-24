@@ -132,7 +132,9 @@ describe("canonical L0 inventory", () => {
     expectUnique(portBTargets, "Port B targets");
     expectUnique(portBPairs, "Port B mappings");
 
-    expect(sorted(registryL0Paths)).toEqual(sorted(canonicalSources));
+    // The registry may hold extra L0 entries (e.g. public-only skills).
+    // All canonical sources must still be present.
+    expect(registryL0Paths).toEqual(expect.arrayContaining(canonicalSources));
     expect(sorted(portBPairs)).toEqual(sorted(canonicalPairs));
     expect(canonicalTargets).toEqual(expect.arrayContaining(requiredRuleTargets));
     expect(canonicalTargets).toEqual(expect.arrayContaining(requiredTemplateTargets));

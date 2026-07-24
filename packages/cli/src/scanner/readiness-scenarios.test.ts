@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -143,6 +143,13 @@ describe("readiness integration scenarios", () => {
   });
 
   it("dogfoods the ops/knowledge self-hosted fixture signals", async () => {
+    if (
+      !(await access(FIXTURE_ROOT)
+        .then(() => true)
+        .catch(() => false))
+    ) {
+      return; // dogfood fixture only in private repo
+    }
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-dogfood-ops-"));
     await cp(FIXTURE_ROOT, root, { recursive: true });
     await initializeGit(root);
