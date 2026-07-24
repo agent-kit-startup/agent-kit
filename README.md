@@ -68,17 +68,6 @@ Two ways to drive a plan:
 
 **Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 
-### Dashboard
-
-A live dashboard for the Agent Kit runtime state — plans, agents, git, terminals, processes, skills, health, activity. Open in Cursor Simple Browser:
-
-```bash
-npm run start:dashboard
-# or: node dashboard/serve.mjs
-```
-
-Then visit `http://localhost:3333` or open `dashboard/dashboard.html` in Simple Browser.
-
 Full routine: `autogit/gitupdate.md` after install.
 
 ## Docs
