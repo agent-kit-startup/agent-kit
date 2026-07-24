@@ -2,6 +2,36 @@ export type GitWorkflow = "trunk-based" | "feature-pr" | "gitflow" | "homolog-pr
 
 export type GitProvider = "github" | "gitlab" | "bitbucket" | "azure-devops" | "gitea" | "other";
 
+export type EvidenceConfidence = "high" | "medium" | "low";
+
+export interface DetectionEvidence {
+  source: "file" | "git" | "configuration" | "derived";
+  value: string;
+}
+
+export interface DetectedFact<T> {
+  value: T;
+  confidence: EvidenceConfidence;
+  evidence: DetectionEvidence[];
+}
+
+export type RepositoryPurpose =
+  | "application"
+  | "library"
+  | "monorepo"
+  | "documentation"
+  | "knowledge"
+  | "operations"
+  | "automation"
+  | "mixed"
+  | "unknown";
+
+export interface RepositoryPurposeDetection extends DetectedFact<RepositoryPurpose> {
+  categories: RepositoryPurpose[];
+}
+
+export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
+
 export type CiPlatform =
   | "github-actions"
   | "gitlab-ci"
@@ -39,15 +69,39 @@ export type IdePlan =
 export interface StackDetection {
   language: string;
   framework?: string;
-  packageManager?: string;
+  packageManager?: PackageManager;
+  packageManagerEvidence?: DetectionEvidence[];
+  scripts?: Record<string, string>;
+  workspaces: boolean;
+  testCommands: string[];
+  validationCommands: string[];
   hasProjectFiles: boolean;
 }
 
+export type GitRepositoryMode = "none" | "local-only" | "remote-hosted";
+export type GitProviderKind =
+  | "github"
+  | "gitlab-saas"
+  | "gitlab-self-hosted"
+  | "known-other"
+  | "custom"
+  | "unknown";
+
 export interface GitDetection {
   provider?: GitProvider;
+  providerKind: GitProviderKind;
+  providerConfidence: EvidenceConfidence;
+  providerEvidence: DetectionEvidence[];
   remoteUrl?: string;
+  remoteName?: string;
+  remotes: Array<{ name: string; url: string }>;
+  mode: GitRepositoryMode;
   workflow: GitWorkflow;
   currentBranch?: string;
+  defaultBranch?: string;
+  isDirty: boolean;
+  hasLocalStaging: boolean;
+  hasRemoteStaging: boolean;
 }
 
 export interface IdeDetection {
@@ -59,6 +113,9 @@ export interface InfraDetection {
   docker: boolean;
   kubernetes: boolean;
   ci: CiPlatform;
+  ciFiles: string[];
+  infrastructureFiles: string[];
+  deploymentFiles: string[];
 }
 
 export interface ServicesDetection {
@@ -67,14 +124,148 @@ export interface ServicesDetection {
   projectManagement?: ProjectManagementTool[];
 }
 
+export interface ContextDetection {
+  sources: DetectionEvidence[];
+  hasReadme: boolean;
+  hasArchitecture: boolean;
+  hasRunbooks: boolean;
+  hasAgentGuidance: boolean;
+}
+
+export interface AgentKitDetection {
+  installed: boolean;
+  manifestPath?: string;
+  version?: string;
+  hasPlans: boolean;
+  hasHandoff: boolean;
+  hasMemory: boolean;
+}
+
+export interface SafetyDetection {
+  hasGitignore: boolean;
+  ignoredSecretPatterns: string[];
+  missingSecretPatterns: string[];
+  trackedSensitiveFiles: string[];
+  hasHooks: boolean;
+  hasMainBranchGuard: boolean;
+}
+
+export interface QualityDetection {
+  testCommands: string[];
+  validationCommands: string[];
+  ci: CiPlatform;
+  hasTests: boolean;
+}
+
 export interface ScanResult {
   rootDir: string;
   isGreenfield: boolean;
+  purpose: RepositoryPurposeDetection;
   stack: StackDetection;
   git: GitDetection;
   ide: IdeDetection;
   infra: InfraDetection;
   services: ServicesDetection;
+  context: ContextDetection;
+  agentKit: AgentKitDetection;
+  safety: SafetyDetection;
+  quality: QualityDetection;
+}
+
+export type ReadinessStatus = "ready" | "auto_fix" | "needs_choice" | "manual" | "blocked";
+export type ReadinessOwner = "system" | "user" | "administrator";
+export type ReadinessPillar =
+  | "workspace"
+  | "purpose-context"
+  | "source-control"
+  | "safety"
+  | "stack-tooling"
+  | "quality-ci"
+  | "deploy-infrastructure"
+  | "collaboration"
+  | "agent-kit-personalization";
+
+export interface ReadinessAction {
+  id: string;
+  status: ReadinessStatus;
+  recommendation: string;
+  owner: ReadinessOwner;
+}
+
+export interface ReadinessCheck {
+  id: string;
+  title: string;
+  status: ReadinessStatus;
+  essential: boolean;
+  evidence: DetectionEvidence[];
+  actions: ReadinessAction[];
+}
+
+export interface ReadinessPillarReport {
+  pillar: ReadinessPillar;
+  checks: ReadinessCheck[];
+}
+
+export interface ReadinessReport {
+  schemaVersion: 1;
+  generatorVersion: string;
+  generatedAt: string;
+  repositoryFingerprint: string;
+  summary: Record<ReadinessStatus, number>;
+  scan: Omit<ScanResult, "rootDir">;
+  pillars: ReadinessPillarReport[];
+  appliedSafeFixes: ReadinessAction[];
+  pendingActions: ReadinessAction[];
+  deferredChecks: Array<{ checkId: string; reason: string; recoveryCommand?: string }>;
+}
+
+export type SafeReadinessChangeStatus = "planned" | "applied" | "skipped";
+
+export interface SafeReadinessChange {
+  id: string;
+  path: string;
+  status: SafeReadinessChangeStatus;
+  evidence: string[];
+}
+
+export interface RepositoryProfile {
+  schemaVersion: 1;
+  contractVersion: 1;
+  purpose: RepositoryPurposeDetection;
+  stack: StackDetection;
+  git: Partial<GitDetection>;
+  infra: InfraDetection;
+  services: ServicesDetection;
+  context: ContextDetection;
+  detection: {
+    generatedAt: string;
+    repositoryFingerprint: string;
+    providerConfidence: EvidenceConfidence;
+    providerEvidence: DetectionEvidence[];
+  };
+}
+
+export type OnboardingStatus = "not_started" | "in_progress" | "completed";
+
+export interface OnboardingCheckEvidence {
+  status: ReadinessStatus;
+  essential: boolean;
+  evidence: DetectionEvidence[];
+}
+
+export interface OnboardingState {
+  contractVersion: 1;
+  status: OnboardingStatus;
+  updatedAt: string;
+  checks: Record<string, OnboardingCheckEvidence>;
+  deferredItems: Array<{ checkId: string; reason: string; recoveryCommand?: string }>;
+}
+
+export interface SafeReadinessExecution {
+  dryRun: boolean;
+  changes: SafeReadinessChange[];
+  before: ReadinessReport;
+  after: ReadinessReport;
 }
 
 /** Built-in workspace skin ids (`registry/skins/core/`). */

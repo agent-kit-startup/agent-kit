@@ -97,6 +97,29 @@
       },
       "description": "Where install/update resolved artifacts from."
     },
+    "personalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "generatorVersion", "origin", "resultPath"],
+      "properties": {
+        "contractVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "generatorVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "origin": {
+          "const": "repository-profile"
+        },
+        "resultPath": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "Origin and contract metadata for project-owned personalized artifacts."
+    },
     "installedAt": {
       "type": "string",
       "format": "date-time",

@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ---
 
+## [4.5.0] - 2026-07-24
+
+### Added
+
+- Design contract and dogfood acceptance criteria for repository-readiness onboarding, including install-to-agent discovery handoff and the namespaced `/agent-kit-onboard` decision
+- CLI readiness model, repository scanner, provider evidence, and portable snapshot contract for application and non-application repositories
+- Idempotent safe-readiness fixes with dry-run evidence, merge-safe repository profiles, and versioned onboarding state
+- Unified install, init, doctor, and status readiness workflow with canonical L0 inventory and version parity checks
+- Namespaced `/agent-kit-onboard` readiness journey with managed legacy-command migration and resume-aware session guidance
+- Evidence-based repository personalization with protected ownership metadata and prepared `/start-project` profile reuse
+- Readiness integration scenarios, L0 inventory parity guards, prompts unit coverage, and ops/knowledge self-hosted dogfood fixture
+
+### Changed
+
+- Docs and installer brief: single readiness narrative around `/agent-kit-onboard`; skins and external review stay optional after essentials
+- Legacy welcome-only `/onboard` completion semantics superseded by verified readiness (see memory decisions)
+- Built-in workspace skins (Autopilot, Night Shift, Ghost Runner) now include thematic emojis in chat hints and CLI banners
+
 ## [Unreleased]
 
 ## [4.4.7] - 2026-07-23

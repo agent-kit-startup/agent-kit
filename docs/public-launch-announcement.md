@@ -32,7 +32,7 @@ Diga-se de passagem, meu primeiro repositório público. 🥶
 2️⃣ *Ou no chat do Cursor, cole o prompt de instalação rápida:*
 (Se for preguiçoso feito eu, encontre o prompt completo no README e LEIA antes de executar, mané!)
 
-Depois de instalado, você ganha comandos como `/onboard`, `/start-project` e `/continue-plan` diretamente no chat do seu editor.
+Depois de instalado, você ganha comandos como `/agent-kit-onboard`, `/start-project` e `/continue-plan` diretamente no chat do seu editor.
 
 ---
 

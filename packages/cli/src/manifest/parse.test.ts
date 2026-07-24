@@ -18,11 +18,18 @@ describe("parseAgentKitManifest", () => {
       protected: [".cursor/HANDOFF.md"],
       overrides: [{ path: ".cursor/rules/domain.mdc", replaces: ".cursor/rules/ux-tone.mdc" }],
       registry: { url: "https://example.com", ref: "main" },
+      personalization: {
+        contractVersion: 1,
+        generatorVersion: "4.4.7",
+        origin: "repository-profile",
+        resultPath: ".cursor/context/personalization.json",
+      },
       installedAt: "2026-07-16T00:00:00.000Z",
     });
     expect(m.packs).toEqual(["clean-code"]);
     expect(m.skills).toEqual(["json-data-config"]);
     expect(m.overrides?.[0]?.path).toBe(".cursor/rules/domain.mdc");
+    expect(m.personalization?.origin).toBe("repository-profile");
   });
 
   it("rejects bad semver and unknown fields", () => {

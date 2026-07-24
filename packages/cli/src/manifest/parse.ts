@@ -140,6 +140,27 @@ export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
     }
   }
 
+  let personalization: AgentKitManifest["personalization"];
+  if (rest.personalization !== undefined) {
+    if (!isPlainObject(rest.personalization)) {
+      issues.push("personalization must be an object");
+    } else if (
+      typeof rest.personalization.contractVersion !== "number" ||
+      typeof rest.personalization.generatorVersion !== "string" ||
+      rest.personalization.origin !== "repository-profile" ||
+      typeof rest.personalization.resultPath !== "string"
+    ) {
+      issues.push("personalization must contain a valid origin and version contract");
+    } else {
+      personalization = {
+        contractVersion: rest.personalization.contractVersion,
+        generatorVersion: rest.personalization.generatorVersion,
+        origin: "repository-profile",
+        resultPath: rest.personalization.resultPath,
+      };
+    }
+  }
+
   if (rest.installedAt !== undefined && typeof rest.installedAt !== "string") {
     issues.push("installedAt must be a string");
   }
@@ -153,6 +174,7 @@ export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
     "protected",
     "overrides",
     "registry",
+    "personalization",
     "installedAt",
   ]);
   for (const key of Object.keys(rest)) {
@@ -175,6 +197,7 @@ export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
   if (protectedPaths) manifest.protected = protectedPaths;
   if (overrides) manifest.overrides = overrides;
   if (registry) manifest.registry = registry;
+  if (personalization) manifest.personalization = personalization;
   if (typeof rest.installedAt === "string") manifest.installedAt = rest.installedAt;
   return manifest;
 }

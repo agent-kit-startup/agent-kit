@@ -24,20 +24,28 @@ npx @dadado/agent-kit-cli install --pack clean-code,context-management
 
 > Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
 
-There's also a guided setup that scans your project and asks a few questions before installing:
+`install` also scans the repository, applies safe local preparation, and writes `.cursor/context/readiness.json`. Guided entry still works through `init`, which reuses the same install and readiness path:
 
 ```bash
 npx @dadado/agent-kit-cli init
+```
+
+Diagnose without installing:
+
+```bash
+npx @dadado/agent-kit-cli doctor --json
+npx @dadado/agent-kit-cli doctor --fix-safe
 ```
 
 ## The commands you get
 
 | Command | What it does |
 |---------|-------------|
-| `agent-kit install [profile]` | Install the base kit into your project (add packs with `--pack`) |
-| `agent-kit init` | Guided setup: scan your project, ask a few questions, then install |
+| `agent-kit install [profile]` | Install the base kit, run readiness, apply safe local fixes |
+| `agent-kit init` | Compatibility entry that runs the same install and readiness workflow |
+| `agent-kit doctor` | Print or repair repository readiness (`--json`, `--fix-safe`) |
 | `agent-kit add <id>` | Add one skill or pack later |
-| `agent-kit status` | Show what's installed (version, packs, protected files) |
+| `agent-kit status` | Show install state, readiness summary, and profile origin |
 | `agent-kit update` | Pull the latest rules and commands; leaves your own files alone |
 | `agent-kit diff` | Show what changed between what you have and the latest |
 | `agent-kit contribute` | Send an improvement you made locally back upstream |
@@ -48,15 +56,15 @@ npx @dadado/agent-kit-cli init
 
 The idea is simple: work against a plan, save your place before a conversation gets too big, and (in manual mode) keep **one phase per chat**.
 
-0. **`/onboard`** *(first time only)* - Welcome, optional **workspace skin** pick, optional **external plan review** Ask (`Enable Claude external review` / `Skip for now`), and introduction to core commands via **Ask questions** tool (clickable options); sets onboarded marker and may write `workspaceSkin` / `externalPlanReview` into `.cursor/context/config.json`. Path after CLI install: open the folder in Cursor → `/onboard` → `/start-project`.
-1. **`/start-project`** - Broad Intake Review, then two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
+0. **`/agent-kit-onboard`** *(first time / incomplete readiness)* - Repository preparation only: show detected facts, safe fixes, and one pending decision at a time via **Ask questions**. Completes when essential readiness checks pass (or allowed non-essential items are deferred with a recovery action). Skins and external review stay optional after essentials. Path after CLI install: open the folder in Cursor → `/agent-kit-onboard` → `/start-project`. Contract: [repository-readiness-onboarding.md](repository-readiness-onboarding.md).
+1. **`/start-project`** - After the repository is prepared, Broad Intake Review and two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
 2. **Work one phase.** The agent implements the current phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and stops. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs an explicit mode below.
 3. **`/handoff`** - when the chat is getting long (or the IDE is about to compact context), the agent writes down where things stand (and suggests pushing to staging if there's something worth committing).
 4. **New chat → `/continue-plan`** - it reads the handoff and continues, without you re-explaining the project. Chat tone follows the Autopilot skin by default (see [skins contract](skins-contract.md)).
 
 ### Workspace skins
 
-Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilot for `/continue-plan`, Night Shift for `/run-plan`, Ghost Runner for `agent-kit run-plan`. They never alter commits, HANDOFF, memory, or product documentation. Pick during `/onboard` / `agent-kit init`, change later via the onboarded menu, or edit `workspaceSkin` in `.cursor/context/config.json`. Contract and contribute path: [skins-contract.md](skins-contract.md), [creating-skins.md](creating-skins.md).
+Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilot for `/continue-plan`, Night Shift for `/run-plan`, Ghost Runner for `agent-kit run-plan`. They never alter commits, HANDOFF, memory, or product documentation. Configure them after readiness (personalization step or edit `workspaceSkin` in `.cursor/context/config.json`). Contract and contribute path: [skins-contract.md](skins-contract.md), [creating-skins.md](creating-skins.md).
 
 ### Less babysitting
 
@@ -68,7 +76,7 @@ Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilo
 
 When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default).
 
-1. **Enable it:** `/onboard` Ask, or set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`)
+1. **Enable it:** set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`), or accept the exhaustion Ask when a plan finishes
 2. **Auto-arm:** when enabled, `/run-plan` arms `.cursor/scripts/plan-external-review.sh` on plan exhausted (wrapper at `scripts/` still works)
 3. **Exhaustion Ask:** if not enabled and `offerOnExhausted` allows it, chat may Ask `Run review now` / `Always enable automatic` / `Not now`
 4. **Manual:** `/plan-external-review` anytime after a plan is done (`--force` for one-shot without persisting opt-in)

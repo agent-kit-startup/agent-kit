@@ -8,7 +8,7 @@ L0 ships the commands, templates, launcher, and `config.example.json` with the b
 
 ## Setup
 
-1. **Enable configuration** (or accept Enable during `/onboard` External Review Ask):
+1. **Enable configuration** (or accept Enable when a plan reaches exhaustion):
    ```json
    // .cursor/context/config.json
    {

@@ -52,7 +52,7 @@ Full acceptance criteria detailed in [skins-contract.md](skins-contract.md).
 
 ## Registry discovery
 
-Skins are installed via workspace configuration in `.cursor/context/config.json`. Users select workspace skin preferences during `/onboard` or by editing configuration directly. 
+Skins are installed via workspace configuration in `.cursor/context/config.json`. Users select workspace skin preferences after repository readiness or by editing configuration directly.
 
 Unlike skills and packs, skins do not require `registry.json` entries. They are discovered by directory structure under `registry/skins/`.
 

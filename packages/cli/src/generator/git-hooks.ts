@@ -1,7 +1,7 @@
 import { chmod, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ProjectProfile } from "../types.js";
-import { ensureDir } from "../utils/fs.js";
+import { ensureDir, fileExists } from "../utils/fs.js";
 
 export async function generateGitHooks(profile: ProjectProfile): Promise<void> {
   if (!profile.installHooks) return;
@@ -10,6 +10,7 @@ export async function generateGitHooks(profile: ProjectProfile): Promise<void> {
   await ensureDir(hooksDir);
 
   const preCommitPath = path.join(hooksDir, "pre-commit");
+  if (await fileExists(preCommitPath)) return;
   const preCommit = `#!/usr/bin/env bash
 set -euo pipefail
 

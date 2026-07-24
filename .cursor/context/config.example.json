@@ -1,4 +1,12 @@
 {
+  "onboarded": false,
+  "onboarding": {
+    "contractVersion": 1,
+    "status": "not_started",
+    "updatedAt": null,
+    "checks": {},
+    "deferredItems": []
+  },
   "externalPlanReview": {
     "enabled": false,
     "backend": "claude",
@@ -10,7 +18,7 @@
     "default": "autopilot",
     "modes": {
       "continue-plan": "autopilot",
-      "run-plan": "night-shift", 
+      "run-plan": "night-shift",
       "cli-run-plan": "ghost-runner"
     }
   }

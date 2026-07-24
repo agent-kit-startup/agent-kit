@@ -9,6 +9,7 @@ import {
   recordOutcome,
 } from "./apply.js";
 import { L0_ARTIFACTS } from "./l0.js";
+import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
 import { resolveProtectedGlobs } from "./protected.js";
 
 export async function installL0(
@@ -26,6 +27,12 @@ export async function installL0(
       protectedGlobs,
     );
     recordOutcome(stats, artifact.target, outcome);
+  }
+  const migration = await migrateLegacyOnboardCommand(projectRoot);
+  if (migration === "removed-managed") {
+    stats.removed.push(".cursor/commands/onboard.md");
+  } else if (migration === "preserved-customized") {
+    stats.collisions.push(".cursor/commands/onboard.md");
   }
   return stats;
 }
