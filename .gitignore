@@ -6,6 +6,10 @@
 # User preferences config
 .cursor/context/config.json
 
+# Generated readiness snapshot and init/scan profile (local workspace state)
+.cursor/context/readiness.json
+.cursor/agent-kit.config.json
+
 # Active Context Packs (are local)
 .cursor/context/current/*.md
 !.cursor/context/current/.gitkeep
@@ -45,3 +49,7 @@ dist/
 coverage/
 .turbo/
 *.tsbuildinfo
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
