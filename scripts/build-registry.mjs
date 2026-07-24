@@ -79,13 +79,13 @@ async function listPacks() {
 }
 
 /**
- * L0 artifacts are curated by hand (layers-spec), not derived from pack
- * manifests. Preserve them from the existing registry.json across rebuilds.
+ * Only L1 artifacts are derived from pack manifests. L0 and L2 are curated by
+ * hand (layers-spec), so they must survive a rebuild or they are silently lost.
  */
-async function readExistingL0Artifacts(outPath) {
+async function readCuratedArtifacts(outPath) {
   try {
     const existing = JSON.parse(await readFile(outPath, "utf8"));
-    return (existing.artifacts ?? []).filter((a) => a.layer === "L0");
+    return (existing.artifacts ?? []).filter((a) => a.layer !== "L1");
   } catch {
     return [];
   }
@@ -95,13 +95,13 @@ const core = await listSkillTier("core");
 const community = await listSkillTier("community");
 const { packs, artifacts } = await listPacks();
 const outPath = path.join(root, "registry", "registry.json");
-const l0Artifacts = await readExistingL0Artifacts(outPath);
+const curatedArtifacts = await readCuratedArtifacts(outPath);
 
 const index = {
   schemaVersion: 2,
   skills: { core, community },
   packs,
-  artifacts: [...l0Artifacts, ...artifacts],
+  artifacts: [...curatedArtifacts, ...artifacts],
 };
 
 const allIds = [...core, ...community].map((s) => s.id);

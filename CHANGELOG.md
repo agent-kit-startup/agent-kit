@@ -8,11 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
-## [4.6.0] - 2026-07-24
-
-### Added
-
-- Local Agent Kit dashboard (`npm run start:dashboard`) with live activity indicators, SSE heartbeat, process/terminal diffing, and responsive/a11y polish
+## [4.5.1] - 2026-07-24
 
 ### Fixed
 
