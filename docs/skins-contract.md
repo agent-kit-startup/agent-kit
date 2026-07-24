@@ -65,7 +65,7 @@ Workspace skin preferences stored in `.cursor/context/config.json`:
 }
 ```
 
-Users select workspace skin during `/onboard` (or `agent-kit init` wizard) or by editing configuration directly. Community contribute path: Phase 5 (`docs/creating-skins.md` when published).
+Users configure workspace skins after repository readiness (personalization step) or by editing configuration directly. Community contribute path: [creating-skins.md](creating-skins.md).
 
 ## Acceptance Rules
 

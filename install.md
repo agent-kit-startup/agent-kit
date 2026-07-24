@@ -77,7 +77,9 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/rules/docs-professional-standard.mdc` | idem |
 | `.cursor/rules/memory-loop.mdc` | idem |
 | `.cursor/rules/hitl-ask-questions.mdc` | idem |
+| `.cursor/rules/git-secrets-safety.mdc` | `registry/rules/git-secrets-safety.mdc` |
 | `.cursor/commands/start-project.md` | idem |
+| `.cursor/commands/agent-kit-onboard.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |
 | `.cursor/commands/run-plan.md` | idem |
 | `.cursor/commands/run-plan-loop.md` | idem (deprecated alias) |
@@ -86,6 +88,17 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/summary.md` | idem |
 | `.cursor/commands/git-staging.md` | idem |
 | `.cursor/commands/git-prod.md` | idem |
+| `.cursor/commands/plan-external-review.md` | idem |
+| `.cursor/commands/plan-review-triage.md` | idem |
+| `.cursor/context/templates/plan.md` | idem |
+| `.cursor/context/templates/context-pack.md` | idem |
+| `.cursor/context/templates/task-brief.md` | idem |
+| `.cursor/context/templates/handoff.md` | idem |
+| `.cursor/context/templates/adr.md` | idem |
+| `.cursor/context/templates/plan-monitor.md` | idem |
+| `.cursor/context/templates/plan-external-review-prompt.md` | idem |
+| `.cursor/context/config.example.json` | idem |
+| `.cursor/scripts/plan-external-review.sh` | idem |
 | `.cursor/hooks.json` | idem |
 | `.cursor/hooks/pre-commit/check-secrets.sh` | idem |
 | `.cursor/hooks/agent/session-plan-guard.py` | idem |
@@ -105,7 +118,7 @@ Create if it doesn't exist (adjust `version` / `registry` to current SoT):
 ```json
 {
   "schemaVersion": 1,
-  "version": "3.0.0",
+  "version": "4.4.7",
   "profile": "default",
   "packs": [],
   "skills": [],
@@ -145,20 +158,17 @@ cp .cursor/hooks/pre-commit/check-secrets.sh .git/hooks/  # only if repo flow re
 # source in kit: git-hooks/prepare-commit-msg → .git/hooks/prepare-commit-msg
 ```
 
-### 6. Onboarding (first installation)
+### 6. Repository readiness onboarding
 
-After L0 files are written (Port B or chat install), **run or offer `/onboard`**. That slash command is the SoT for first-session welcome and HITL; do not invent a parallel welcome here. Follow [`.cursor/commands/onboard.md`](.cursor/commands/onboard.md).
+After L0 files are written, run `agent-kit doctor --json` or `npx @dadado/agent-kit-cli doctor --json` to refresh `.cursor/context/readiness.json`, then run or offer `/agent-kit-onboard`. The command is the sole coordinator for progressive repository preparation. Follow [`.cursor/commands/agent-kit-onboard.md`](.cursor/commands/agent-kit-onboard.md).
 
-**Ask questions** options (must match `/onboard`):
+The first useful message reports current readiness progress, detected facts, safe fixes, and exactly one next action. It does not ask about skins, external review, or a first deliverable before essential readiness passes.
 
-- First install: `Create first plan` / `Skip for now` / `Learn more`
-- Already onboarded or existing structure: use the already-onboarded menu in `onboard.md` (`Start a plan (/start-project)` / `Continue plan (/continue-plan)` / `Show commands overview` / `Done`), or if still mid-setup without the marker: `Show commands overview` / `Create first plan` / `Skip for now`
+Use **Ask questions** one decision at a time when scanner evidence cannot resolve intent. Confirm branch, remote, hooks, CI, deployment, protection, and other external or destructive mutations before acting. A skipped or cancelled answer stops the proposed action.
 
-On `Create first plan`, bridge to `/start-project` (do not write a plan file from install alone). Port B post-install ends at `/onboard`, not a jump straight to `/start-project`.
+**Fallback:** if Ask questions is unavailable, present the same concrete options as a numbered list and accept a number, label, or custom answer.
 
-**Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
-
-**Note:** Install via chat uses **Ask questions** for confirmations (clickable options in IDE UI). CLI wizard uses `@clack/prompts` (terminal interface); its Next block points at `/onboard` in chat.
+**Note:** CLI setup uses terminal prompts where needed. Its Next block points at `/agent-kit-onboard` when readiness has pending actions.
 
 ### 7. Migrate old copy
 

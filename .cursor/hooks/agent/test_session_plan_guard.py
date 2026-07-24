@@ -22,6 +22,7 @@ guard = _load_guard()
 parse_unprocessed_dogfood_items = guard.parse_unprocessed_dogfood_items
 dogfood_inbox_section = guard.dogfood_inbox_section
 DOGFOOD_INBOX_HINT = guard.DOGFOOD_INBOX_HINT
+readiness_section = guard.readiness_section
 
 
 class ParseUnprocessedDogfoodItemsTests(unittest.TestCase):
@@ -91,6 +92,47 @@ class DogfoodInboxSectionTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertIsNone(dogfood_inbox_section(root))
+
+
+class ReadinessSectionTests(unittest.TestCase):
+    def test_missing_onboarded_marker_without_snapshot_does_not_nudge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(readiness_section(Path(tmp)))
+
+    def test_first_pending_action_is_resumed_exactly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "readiness.json").write_text(
+                """{
+  "pendingActions": [
+    {"id": "git.provider", "recommendation": "Confirm the remote provider."},
+    {"id": "git.staging", "recommendation": "Choose a staging strategy."}
+  ]
+}
+""",
+                encoding="utf-8",
+            )
+
+            section = readiness_section(root)
+
+            self.assertIsNotNone(section)
+            self.assertIn("`git.provider`", section)
+            self.assertIn("Confirm the remote provider.", section)
+            self.assertNotIn("git.staging", section)
+            self.assertIn("active plan or HANDOFF", section)
+
+    def test_ready_snapshot_does_not_nudge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "readiness.json").write_text(
+                '{"pendingActions": []}\n',
+                encoding="utf-8",
+            )
+            self.assertIsNone(readiness_section(root))
 
 
 if __name__ == "__main__":

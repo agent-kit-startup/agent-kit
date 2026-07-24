@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Monitor the Context Window
 
-Monitor context size during the conversation (heuristic: message count, token estimate, system indicator if available). Native hooks also help: `sessionStart` injects HANDOFF + hard rules; `preCompact` warns on compaction; `stop` reminds phase boundaries.
+Monitor context size during the conversation (heuristic: message count, token estimate, system indicator if available). Native hooks also help: `sessionStart` injects HANDOFF + hard rules, and `preCompact` warns on compaction.
 
 ## When the user asks about context
 
@@ -65,15 +65,14 @@ Try to detect the OS (via environment variable or the `uname` command):
 
 If detection fails, just tell the user the command without copying it.
 
-## Onboarding (First Install)
+## Repository Readiness
 
-**SoT:** slash command [`/onboard`](../commands/onboard.md) (welcome, Ask questions, `onboarded` marker in `.cursor/context/config.json`). Do not duplicate the full Ask options flow here.
+**SoT:** [`/agent-kit-onboard`](../commands/agent-kit-onboard.md).
 
-When this is a **first install** or `.cursor/context/config.json` has no `"onboarded": true`:
-
-1. Short tip: Agent Kit uses plans + handoff so long chats do not lose state.
-2. **Run or offer `/onboard`** (prefer the user sending `/onboard`, or follow that command's steps in-session).
-3. Plan bootstrap stays in `/start-project` after they choose Create first plan inside `/onboard`.
+- Do not block unrelated work because the legacy `onboarded` marker is missing.
+- When `.cursor/context/readiness.json` has pending actions, surface only the first unresolved check and offer `/agent-kit-onboard` to resume it.
+- Preserve an active plan and HANDOFF as the current work. Readiness guidance must not restart or replace them.
+- `/start-project` remains responsible for deliverable planning after essential readiness passes.
 
 ## Err on the Safe Side
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -5,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import { copyRegistryFile } from "./apply.js";
+import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
 import { installL0 } from "./sync.js";
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -33,8 +35,50 @@ describe("lifecycle apply L3", () => {
     const stats = await installL0(kitRoot, project, [...DEFAULT_PROTECTED_PATHS]);
     expect(stats.written.some((p) => p.includes(".cursor/rules/"))).toBe(true);
     expect(stats.written.some((p) => p.includes(".cursor/commands/"))).toBe(true);
+    expect(stats.written).toContain(".cursor/commands/agent-kit-onboard.md");
+    expect(stats.written).not.toContain(".cursor/commands/onboard.md");
     expect(stats.written.some((p) => p === "autogit/gitupdate.md")).toBe(true);
     expect(stats.written.some((p) => p === "autogit/plan-routine.md")).toBe(true);
+  });
+
+  it("removes a managed legacy onboard command after installing the namespaced command", async () => {
+    const project = await mkdtemp(path.join(tmpdir(), "agent-kit-onboard-managed-"));
+    await mkdir(path.join(project, ".cursor/commands"), { recursive: true });
+    const legacyContent = "# Command: /onboard\n\nManaged legacy version.\n";
+    await writeFile(path.join(project, ".cursor/commands/onboard.md"), legacyContent, "utf8");
+    await writeFile(
+      path.join(project, ".cursor/commands/agent-kit-onboard.md"),
+      "# Command: /agent-kit-onboard\n",
+      "utf8",
+    );
+    const managedHash = createHash("sha256").update(legacyContent).digest("hex");
+
+    const migration = await migrateLegacyOnboardCommand(project, new Set([managedHash]));
+
+    await expect(
+      readFile(path.join(project, ".cursor/commands/onboard.md"), "utf8"),
+    ).rejects.toThrow();
+    expect(migration).toBe("removed-managed");
+    expect(
+      await readFile(path.join(project, ".cursor/commands/agent-kit-onboard.md"), "utf8"),
+    ).toContain("# Command: /agent-kit-onboard");
+  });
+
+  it("preserves a customized legacy onboard command and reports the slash collision", async () => {
+    const project = await mkdtemp(path.join(tmpdir(), "agent-kit-onboard-custom-"));
+    await mkdir(path.join(project, ".cursor/commands"), { recursive: true });
+    await writeFile(
+      path.join(project, ".cursor/commands/onboard.md"),
+      "# Custom onboard\n",
+      "utf8",
+    );
+
+    const stats = await installL0(kitRoot, project, [...DEFAULT_PROTECTED_PATHS]);
+
+    expect(await readFile(path.join(project, ".cursor/commands/onboard.md"), "utf8")).toBe(
+      "# Custom onboard\n",
+    );
+    expect(stats.collisions).toContain(".cursor/commands/onboard.md");
   });
 
   it("installL0 writes external-review templates (not L3-blocked)", async () => {

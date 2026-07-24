@@ -15,7 +15,7 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 
 3. **Options must be concrete labels** (e.g. `Write plan file`, `Create first plan`, `Skip for now`, `Install via CLI`, `Install via chat`, `Start first unit`, `Switch to /run-plan`).
 
-4. **Fallback when tool unavailable:** some models/modes do not expose the tool (dogfood 2026-07-20: Auto mode routed picks and Grok 4.5 absent; Opus, Sonnet 4.6, Composer 2.5 Fast, GPT, Gemini present — see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`). When it is not in the session toolset, say so once, then present the same options in chat as a **numbered list**. Tell the user they can **reply with the number** (or the label), and that they can always **type their own answer** (the equivalent of the built-in "Other" choice) if none fit. Do not invent a fake tool call. Tip: switching to a model that supports Ask questions restores the clickable UI.
+4. **Fallback when tool unavailable:** some models/modes do not expose the tool (dogfood 2026-07-20: Auto mode routed picks and Grok 4.5 absent; Opus, Sonnet 4.6, Composer 2.5 Fast, GPT, Gemini present; see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`). When it is not in the session toolset, say so once, then present the same options in chat as a **numbered list**. Tell the user they can **reply with the number** (or the label), and that they can always **type their own answer** (the equivalent of the built-in "Other" choice) if none fit. Do not invent a fake tool call. Tip: switching to a model that supports Ask questions restores the clickable UI.
 
 5. **This does not weaken HITL:** skipped/cancelled answers mean **stop** (same as no yes).
 
@@ -23,9 +23,9 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 
 | Surface | Gate |
 |---------|------|
-| `install.md` (Port B / drag-install) | Registry URL/ref if needed; create first plan yes/no; migrate nested `agent-kit/` confirm; optional git-hooks install |
-| `/onboard` | First-session welcome; workspace skin pick (Keep mode defaults / Autopilot / Night Shift / Ghost Runner / Skip); External Review Ask after skin (`Enable Claude external review` / `Skip for now`); Create first plan / Skip for now / Learn more; already-onboarded: Start a plan / Continue plan / Change workspace skin / Show commands overview / Done |
-| `context-guardian` onboarding | Defer to `/onboard` when first install / no `onboarded` marker; auto vs manual handoff preference (first time) |
+| `install.md` (Port B / drag-install) | Registry URL/ref if needed; migrate nested `agent-kit/` confirm; optional git-hooks install |
+| `/agent-kit-onboard` | One unresolved readiness decision at a time; confirm Git, branch, remote, hooks, CI, deploy, protection, and external mutations before acting |
+| `context-guardian` readiness | Surface the first pending readiness check without blocking active plan/HANDOFF work; auto vs manual handoff preference (first time) |
 | `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
 | `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
 | `/git-prod` | Explicit confirm before merge/push to `main` |

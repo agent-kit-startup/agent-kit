@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 HARD_RULES = """
-# Agent Kit — session hard rules (manual mode default)
+# Agent Kit session hard rules (manual mode default)
 
 1. **One phase per chat.** Finish the current phase (or one to-do if the phase is huge), update `.cursor/HANDOFF.md`, then STOP and ask the user before starting the next phase.
 2. **Do not burn the window.** Never run an entire multi-phase plan in one conversation unless the user explicitly ran `/run-plan` (or a deprecated alias `/run-plan-loop` / `/run-plan-orchestrated`).
@@ -19,12 +19,6 @@ HARD_RULES = """
 6. **HITL slash commands win.** When waiting for confirmation on `/git-staging` or `/git-prod` (or similar), do not divert to continue-plan / phase-boundary chatter; stay on that routine until the user answers.
 7. **`/start-project` is plan bootstrap, not execute.** Broad Intake Review first, then two gates: (A) approve/write the plan file only, (B) approve the first unit. Goal text in the same message is NOT permission to edit product files. Never "create plan and start Phase 1" in one turn. If HANDOFF already has an active plan, park it and proceed. Gates use Ask questions per `.cursor/rules/hitl-ask-questions.mdc`.
 8. **`/continue-plan` waits for yes.** Summarize next `[to-do-id]`, then stop until the user confirms before editing.
-""".strip()
-
-FIRST_SESSION_NUDGE = """
-## First session
-
-Agent Kit L0 is installed but onboarding has not run (`onboarded` marker missing). Offer or run `/onboard` before other work (welcome + Ask questions). Do not skip to coding. `/onboard` does not write plan files; plan bootstrap is `/start-project`.
 """.strip()
 
 DOGFOOD_INBOX_HINT = """
@@ -49,22 +43,37 @@ def l0_present(root: Path) -> bool:
     cursor = root / ".cursor"
     return (
         (cursor / "agent-kit.json").is_file()
-        or (cursor / "commands" / "onboard.md").is_file()
+        or (cursor / "commands" / "agent-kit-onboard.md").is_file()
         or (cursor / "commands" / "start-project.md").is_file()
     )
 
 
-def is_onboarded(root: Path) -> bool:
-    """True when `.cursor/context/config.json` has `"onboarded": true`."""
-    config_path = root / ".cursor" / "context" / "config.json"
+def readiness_section(root: Path) -> str | None:
+    """Return the first unresolved readiness action without blocking active work."""
+    snapshot_path = root / ".cursor" / "context" / "readiness.json"
     try:
-        raw = config_path.read_text(encoding="utf-8")
+        raw = snapshot_path.read_text(encoding="utf-8")
         data = json.loads(raw)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-        return False
+        return None
     if not isinstance(data, dict):
-        return False
-    return data.get("onboarded") is True
+        return None
+    actions = data.get("pendingActions")
+    if not isinstance(actions, list) or not actions:
+        return None
+    first = actions[0]
+    if not isinstance(first, dict):
+        return None
+    action_id = first.get("id")
+    recommendation = first.get("recommendation")
+    if not isinstance(action_id, str) or not isinstance(recommendation, str):
+        return None
+    return (
+        "## Repository readiness\n\n"
+        f"First unresolved check: `{action_id}`. {recommendation} "
+        "Run `/agent-kit-onboard` to resume this check. "
+        "An active plan or HANDOFF remains the current work and is not replaced."
+    )
 
 
 def parse_unprocessed_dogfood_items(readme_text: str) -> list[str]:
@@ -120,8 +129,10 @@ def main() -> None:
     handoff = read_text(root / ".cursor" / "HANDOFF.md")
     parts = [HARD_RULES]
 
-    if l0_present(root) and not is_onboarded(root):
-        parts.append(FIRST_SESSION_NUDGE)
+    if l0_present(root):
+        readiness = readiness_section(root)
+        if readiness:
+            parts.append(readiness)
 
     dogfood_hint = dogfood_inbox_section(root)
     if dogfood_hint:

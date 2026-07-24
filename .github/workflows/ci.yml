@@ -22,7 +22,7 @@ jobs:
       - name: Guard public tree (no tracked local-only Cursor paths)
         run: |
           set -euo pipefail
-          bad="$(git ls-files | grep -E '^\.cursor/HANDOFF\.md$|\.cursor/plans/.+\.plan\.md$' || true)"
+          bad="$(git ls-files | grep -E '^\.cursor/HANDOFF\.md$|^\.cursor/plans/.+\.plan\.md$' || true)"
           if [ -n "$bad" ]; then
             echo "::error::These paths must not be tracked:"
             echo "$bad"

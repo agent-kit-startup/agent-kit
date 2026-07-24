@@ -22,12 +22,22 @@ These are non-negotiable in manual mode:
    - **Gate B (approve first unit):** only after Gate A is accepted → run **one** phase or one heavy to-do → update HANDOFF → stop again.
 5. **Forbidden phrasing / behavior:** "I'll create a plan and start Phase 1", chaining Gate A+B in one turn, or running the whole plan unless the user explicitly used `/run-plan`.
 
+## Prepared repository contract
+
+Before intake, read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`.
+
+- If readiness has an unresolved essential check, stop and point to `/agent-kit-onboard`. Do not resolve repository setup in this command.
+- If readiness is complete, reuse verified purpose, stack, Git, context, and validation facts. Do not ask the user to confirm them again.
+- Ask only for the deliverable goal. Repository purpose is setup context, not the goal of the new plan.
+- If either state file is missing or stale, point to `/agent-kit-onboard`. Do not reconstruct onboarding inside `/start-project`.
+
 ## Broad Intake Review (required before plan proposal)
 
 Before proposing or writing a new plan, **scan** these sources (read/skim; do not deep-dive every file) and use findings for conflict triage:
 
 | Bucket | What to check | How / typical paths |
 |--------|---------------|---------------------|
+| **Prepared repository** | Verified profile and readiness state | `.cursor/agent-kit.config.json`, `.cursor/context/readiness.json` |
 | **Active session** | HANDOFF, Context Pack | `.cursor/HANDOFF.md`, `.cursor/context/current/` |
 | **Plans** | In-progress + recent parked/related | `.cursor/plans/*.plan.md` (status in frontmatter) |
 | **Archived context** | Prior packs for same theme | `.cursor/context/archive/**` (if present; glob by topic) |

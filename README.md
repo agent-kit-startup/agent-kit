@@ -21,7 +21,8 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 | **Manual or continuous run** | `/continue-plan` (one phase per chat) or `/run-plan` (runs to the end; picks worker orchestration or in-session loop; headless via `agent-kit run-plan`). |
 | **Staging → prod git** | `/git-staging` for automatic promote to `origin/staging`; `/git-prod` only after explicit confirmation. Direct commits to `main` are blocked. |
 | **Memory loop** | Resolved errors and tradeoff decisions in `.cursor/memory/` so the next chat can reuse them. |
-| **Workspace skins** | Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Pick in `/onboard` or set `workspaceSkin` in `.cursor/context/config.json`. Never changes commits, HANDOFF, memory, or product docs. |
+| **Repository readiness** | Install scans the repo, applies safe local fixes, and writes a readiness snapshot. `/agent-kit-onboard` resolves remaining decisions one at a time before `/start-project`. |
+| **Workspace skins** | Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Configure after readiness or set `workspaceSkin` in `.cursor/context/config.json`. Never changes commits, HANDOFF, memory, or product docs. |
 | **Optional external plan review** | After a plan is exhausted, arm Claude Code for a gap monitor; triage with `/plan-review-triage`. Opt-in via config. |
 | **Skills + domain packs** | Registry skills and optional L1 packs (clean code, context tools, and more). Install/update via CLI; contribute upstream with `agent-kit contribute`. |
 | **Output hygiene** | Chat can be light; commits, docs, HANDOFF, and memory stay professional and inheritable. |
@@ -35,7 +36,7 @@ Deep dives: [getting started](docs/getting-started.md), [skins contract](docs/sk
 Open your project in Cursor and copy-paste this into chat:
 
 ```
-You are the installer for Agent Kit L0. Please confirm the absolute workspace root path via Ask questions before any write operations. If Node.js and npx are available, run `npx @dadado/agent-kit-cli install` in the confirmed root directory. Otherwise, fetch the install contract from https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install.md and follow the Port B instructions. Detect missing Node.js or git and inform the user if either is unavailable. Handle existing `.cursor/` directories appropriately. After successful installation, run or offer `/onboard` (first-install gates; SoT: `.cursor/commands/onboard.md`, install.md §6) using Ask questions for confirmations (chat fallback when tool unavailable). On Create first plan, proceed to `/start-project`; do not skip `/onboard` and jump only to `/start-project`.
+You are the installer for Agent Kit L0. Confirm the absolute workspace root path via Ask questions before any write operations. If Node.js and npx are available, run `npx @dadado/agent-kit-cli install` in the confirmed root directory. Otherwise, fetch the install contract from https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install.md and follow the Port B instructions. Detect missing Node.js or Git and report either prerequisite. Preserve existing `.cursor/` content. After successful installation, run or offer `/agent-kit-onboard` (SoT: `.cursor/commands/agent-kit-onboard.md`, install.md section 6). Use Ask questions for unresolved readiness choices and confirmations, with chat fallback when unavailable. Do not ask about skins, external review, or a first deliverable before essential readiness passes.
 ```
 
 > **Source:** [install-prompt.md](install-prompt.md) - Copy from raw URL: https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install-prompt.md
@@ -54,8 +55,8 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 
 ## Usage
 
-1. **First-time setup:** `/onboard` - welcome, optional workspace skin pick, and clickable options via Ask questions; sets onboarded marker (then `/start-project` when you have a goal).
-2. **Start a plan:** `/start-project` - Broad Intake Review, then two gates with Ask questions: (A) write plan file, (B) run first unit only after explicit confirmation.
+1. **Prepare the repository:** `/agent-kit-onboard` - progressive readiness (detect, safe fixes, one decision at a time). Completes only with verified essentials.
+2. **Start a plan:** `/start-project` - after readiness, Broad Intake Review and two gates with Ask questions: (A) write plan file, (B) run first unit only after explicit confirmation.
 3. **Work one phase:** agent implements the current phase, updates handoff, and stops.
 4. **Continue later:** `/continue-plan` in a fresh chat picks up where you left off (Autopilot chat chrome by default).
 5. **Ship to staging:** `/git-staging` - branches, commits, merges automatically.
@@ -74,6 +75,7 @@ Full routine: `autogit/gitupdate.md` after install.
 | Guide | What's in it |
 |-------|--------------|
 | [Getting started](docs/getting-started.md) | Install, commands, day-to-day workflow |
+| [Repository readiness](docs/repository-readiness-onboarding.md) | Install discovery, `/agent-kit-onboard`, and deliverable boundary |
 | [Bootstrap](docs/bootstrap.md) | Exactly what lands in your project, and why there's no nested folder |
 | [Layers](docs/layers-spec.md) | How the base install, optional packs, and your local files layer together |
 | [Domain packs](docs/domain-packs.md) | Optional bundles: clean code, DevOps, testing, and more |

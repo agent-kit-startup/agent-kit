@@ -38,6 +38,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   },
   { source: ".cursor/rules/memory-loop.mdc", target: ".cursor/rules/memory-loop.mdc" },
   {
+    source: ".cursor/rules/hitl-ask-questions.mdc",
+    target: ".cursor/rules/hitl-ask-questions.mdc",
+  },
+  {
     source: "registry/rules/git-secrets-safety.mdc",
     target: ".cursor/rules/git-secrets-safety.mdc",
   },
@@ -47,8 +51,8 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/start-project.md",
   },
   {
-    source: ".cursor/commands/onboard.md",
-    target: ".cursor/commands/onboard.md",
+    source: ".cursor/commands/agent-kit-onboard.md",
+    target: ".cursor/commands/agent-kit-onboard.md",
   },
   {
     source: ".cursor/commands/continue-plan.md",
@@ -86,6 +90,26 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/context/templates/plan-external-review-prompt.md",
     target: ".cursor/context/templates/plan-external-review-prompt.md",
+  },
+  {
+    source: ".cursor/context/templates/plan.md",
+    target: ".cursor/context/templates/plan.md",
+  },
+  {
+    source: ".cursor/context/templates/context-pack.md",
+    target: ".cursor/context/templates/context-pack.md",
+  },
+  {
+    source: ".cursor/context/templates/task-brief.md",
+    target: ".cursor/context/templates/task-brief.md",
+  },
+  {
+    source: ".cursor/context/templates/handoff.md",
+    target: ".cursor/context/templates/handoff.md",
+  },
+  {
+    source: ".cursor/context/templates/adr.md",
+    target: ".cursor/context/templates/adr.md",
   },
   {
     source: ".cursor/context/templates/plan-monitor.md",

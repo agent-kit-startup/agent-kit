@@ -14,6 +14,13 @@ export interface AgentKitManifestOverride {
   note?: string;
 }
 
+export interface AgentKitPersonalizationMetadata {
+  contractVersion: number;
+  generatorVersion: string;
+  origin: "repository-profile";
+  resultPath: string;
+}
+
 export interface AgentKitManifest {
   schemaVersion: 1;
   version: string;
@@ -23,6 +30,7 @@ export interface AgentKitManifest {
   protected?: string[];
   overrides?: AgentKitManifestOverride[];
   registry?: AgentKitManifestRegistry;
+  personalization?: AgentKitPersonalizationMetadata;
   installedAt?: string;
 }
 

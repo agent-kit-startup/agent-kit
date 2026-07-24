@@ -3,6 +3,7 @@ import { defineCommand, runMain } from "citty";
 import { addCommand } from "./commands/add.js";
 import { contributeCommand } from "./commands/contribute.js";
 import { diffCommand } from "./commands/diff.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { handoffCommand } from "./commands/handoff.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
@@ -21,6 +22,7 @@ const main = defineCommand({
     install: installCommand,
     scan: scanCommand,
     add: addCommand,
+    doctor: doctorCommand,
     status: statusCommand,
     update: updateCommand,
     diff: diffCommand,

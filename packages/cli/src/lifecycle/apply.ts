@@ -14,17 +14,28 @@ export type CopyOutcome = "written" | "skipped-protected" | "missing-source" | "
 
 export interface ApplyStats {
   written: string[];
+  removed: string[];
+  collisions: string[];
   skippedProtected: string[];
   missing: string[];
   unchanged: string[];
 }
 
 export function emptyStats(): ApplyStats {
-  return { written: [], skippedProtected: [], missing: [], unchanged: [] };
+  return {
+    written: [],
+    removed: [],
+    collisions: [],
+    skippedProtected: [],
+    missing: [],
+    unchanged: [],
+  };
 }
 
 export function mergeStats(into: ApplyStats, from: ApplyStats): ApplyStats {
   into.written.push(...from.written);
+  into.removed.push(...from.removed);
+  into.collisions.push(...from.collisions);
   into.skippedProtected.push(...from.skippedProtected);
   into.missing.push(...from.missing);
   into.unchanged.push(...from.unchanged);
@@ -107,6 +118,7 @@ export function buildManifest(input: {
   packs?: string[];
   skills?: string[];
   protected?: string[];
+  personalization?: AgentKitManifest["personalization"];
   registryUrl?: string;
   registryRef?: string;
 }): AgentKitManifest {
@@ -118,6 +130,7 @@ export function buildManifest(input: {
   if (input.profile) manifest.profile = input.profile;
   if (input.packs?.length) manifest.packs = [...new Set(input.packs)].sort();
   if (input.skills?.length) manifest.skills = [...new Set(input.skills)].sort();
+  if (input.personalization) manifest.personalization = input.personalization;
   if (input.registryUrl || input.registryRef) {
     manifest.registry = {};
     if (input.registryUrl) manifest.registry.url = input.registryUrl;

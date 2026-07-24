@@ -116,7 +116,7 @@ async function askProjectManagement(
   ) as ProjectManagementTool[];
 }
 
-/** Optional workspace skin (mirrors `/onboard` Ask questions; clack only, not IDE AskQuestion). */
+/** Optional workspace skin for the CLI wizard; clack only, not IDE AskQuestion. */
 async function askWorkspaceSkin(): Promise<WorkspaceSkinChoice> {
   type SkinSelect = "mode-defaults" | WorkspaceSkinId | "skip";
   const value = ensureNotCancelled(
@@ -242,6 +242,9 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
     stack: {
       language,
       framework: framework === "none" ? undefined : framework,
+      workspaces: false,
+      testCommands: [],
+      validationCommands: [],
       hasProjectFiles: false,
     },
     git: {

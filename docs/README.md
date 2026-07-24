@@ -6,6 +6,7 @@ Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-pr
 
 - [Getting Started](getting-started.md) - install, commands, workflow
 - [Bootstrap](bootstrap.md) - install without nested `agent-kit/` folder
+- [Repository readiness onboarding](repository-readiness-onboarding.md) - install discovery, guided preparation, and handoff to `/start-project`
 - [Migrate consumer](migrate-consumer.md) - generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
 - [Contribute upstream](contribute-upstream.md) - `agent-kit contribute` return channel + gate
 - [Public launch](public-launch.md) - go/no-go + append-only sync

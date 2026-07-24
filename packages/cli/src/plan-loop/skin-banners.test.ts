@@ -53,9 +53,9 @@ describe("skin-banners", () => {
       id: "ghost-runner",
       displayName: "Ghost Runner",
       cliBanners: {
-        tickStart: "[GR] spectre online",
-        tickEnd: "[GR] spectre clear",
-        phaseComplete: "[GR] phase ghosted",
+        tickStart: "👻 [GR] spectre online",
+        tickEnd: "💨 [GR] spectre clear",
+        phaseComplete: "✅ [GR] phase ghosted",
       },
       ansiPalette: { primary: "white", secondary: "gray", accent: "green" },
     });
