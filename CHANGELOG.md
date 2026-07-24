@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ---
 
+## [Unreleased]
+
+## [4.6.0] - 2026-07-24
+
+### Added
+
+- Local Agent Kit dashboard (`npm run start:dashboard`) with live activity indicators, SSE heartbeat, process/terminal diffing, and responsive/a11y polish
+
+### Fixed
+
+- CI and tests made portable to the public mirror (root-scoped plans guard, dogfood fixture skip, L0 registry assertions that tolerate public-owned `registry.json` drift)
+- Version manifests (`.cursor/agent-kit.json`, `.cursor-plugin/plugin.json`) kept in sync with package SemVer on release
+
+### Changed
+
+- `.gitignore`: ignore PKCS12/PFX and credential JSON patterns; ignore local readiness snapshot and `agent-kit.config.json`
+
 ## [4.5.0] - 2026-07-24
 
 ### Added
@@ -23,8 +40,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 - Docs and installer brief: single readiness narrative around `/agent-kit-onboard`; skins and external review stay optional after essentials
 - Legacy welcome-only `/onboard` completion semantics superseded by verified readiness (see memory decisions)
 - Built-in workspace skins (Autopilot, Night Shift, Ghost Runner) now include thematic emojis in chat hints and CLI banners
-
-## [Unreleased]
 
 ## [4.4.7] - 2026-07-23
 
