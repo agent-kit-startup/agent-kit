@@ -24,6 +24,7 @@
 
 # Cursor plans (local; any subfolder, e.g. archive/)
 .cursor/plans/**/*.plan.md
+.cursor/plans/assets/
 !.cursor/plans/.gitkeep
 
 # MCP config (may contain tokens/keys)

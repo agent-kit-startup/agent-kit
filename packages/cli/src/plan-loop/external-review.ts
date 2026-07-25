@@ -58,6 +58,11 @@ export interface ArmExternalPlanReviewOptions {
  * Pass `force: true` to append `--force` (one-shot arm without config opt-in).
  * Opt-in / missing-claude tips live in the script (exit 0).
  * Never throws; never fails the headless run-loop.
+ *
+ * Headless / CI only (`agent-kit run-plan`). Chat Ask "Run review now" must
+ * use `--force --paste-only` and tell the user to paste in their Cursor
+ * Terminal; do not call this from a chat session as if the review is visible.
+ * See decisions/2026-07-25_external-review-chat-visible-vs-ci-headless.md.
  */
 export async function armExternalPlanReview(
   root: string,

@@ -155,5 +155,9 @@ describe("repository personalization", () => {
     expect(command).toContain(".cursor/context/readiness.json");
     expect(command).toContain("Ask only for the deliverable goal");
     expect(command).toContain("point to `/agent-kit-onboard`");
+    expect(command).toContain("essential: true");
+    expect(command).toContain("Do **not** treat `pendingActions` as an essential-only queue");
+    expect(command).toContain("confirm-provider");
+    expect(command).toContain("warnings only");
   });
 });

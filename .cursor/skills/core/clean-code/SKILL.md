@@ -1,6 +1,6 @@
 ---
 name: clean-code
-description: Remove AI slop (redundant comments, noisy try/catch, any casts, deep nesting, em dash "—" in text). Alias: code-deslop. Use after AI sessions or before review.
+description: Remove AI code slop (redundant comments, noisy try/catch, any casts, deep nesting). Alias: code-deslop. Use after AI sessions or before review.
 version: 0.1.0
 category: quality
 ---

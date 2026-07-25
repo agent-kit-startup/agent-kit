@@ -1,18 +1,31 @@
 {
   "schemaVersion": 1,
-  "version": "4.5.1",
+  "version": "4.7.0",
   "protected": [
     ".cursor/HANDOFF.md",
-    ".cursor/plans/**",
-    ".cursor/memory/**",
+    ".cursor/agents/test-suites.md",
+    ".cursor/context/backups/**",
     ".cursor/context/config.json",
     ".cursor/context/current/**",
-    ".cursor/context/backups/**"
+    ".cursor/memory/**",
+    ".cursor/plans/**",
+    ".cursor/project-context.md",
+    ".cursor/rules/cursor-skills-devops.mdc",
+    ".cursor/rules/cursor-skills-testing.mdc",
+    ".cursor/skills/community/cursor-skills-node/SKILL.md",
+    ".cursor/skills/core/docs-repo/SKILL.md",
+    "AGENTS.md",
+    "templates/CODEOWNERS",
+    "templates/gitlab-ci-content.yml",
+    "templates/gitlab-ci-docker.yml",
+    "templates/gitlab-ci-firebase.yml"
   ],
   "profile": "default",
   "skills": [
     "clean-code",
     "clickup",
+    "cursor-skills-node",
+    "docs-repo",
     "json-data-config",
     "n8n-workflows",
     "prompts-markdown",
@@ -23,5 +36,15 @@
     "url": "https://github.com/agent-kit-startup/agent-kit-dev",
     "ref": "staging"
   },
-  "installedAt": "2026-07-16T18:34:33.749Z"
+  "packs": [
+    "devops",
+    "quality"
+  ],
+  "personalization": {
+    "contractVersion": 1,
+    "generatorVersion": "4.5.1",
+    "origin": "repository-profile",
+    "resultPath": ".cursor/context/personalization.json"
+  },
+  "installedAt": "2026-07-25T12:09:19.292Z"
 }

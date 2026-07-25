@@ -70,7 +70,9 @@ If detection fails, just tell the user the command without copying it.
 **SoT:** [`/agent-kit-onboard`](../commands/agent-kit-onboard.md).
 
 - Do not block unrelated work because the legacy `onboarded` marker is missing.
-- When `.cursor/context/readiness.json` has pending actions, surface only the first unresolved check and offer `/agent-kit-onboard` to resume it.
+- Derive blockers from `pillars[].checks[]` with `essential: true` and `status` not `ready`. Do not treat `pendingActions` as essential-only.
+- Essential unresolved: surface the first one and offer `/agent-kit-onboard`. `/start-project` must stop until essentials are ready.
+- Non-essential unresolved (for example provider confirm / local-only collaboration): advisory only; do not halt `/start-project` or active plan work.
 - Preserve an active plan and HANDOFF as the current work. Readiness guidance must not restart or replace them.
 - `/start-project` remains responsible for deliverable planning after essential readiness passes.
 

@@ -77,10 +77,11 @@ Skins change **chat tone and CLI tick banners only**. Defaults by mode: Autopilo
 When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default).
 
 1. **Enable it:** set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`), or accept the exhaustion Ask when a plan finishes
-2. **Auto-arm:** when enabled, `/run-plan` arms `.cursor/scripts/plan-external-review.sh` on plan exhausted (wrapper at `scripts/` still works)
-3. **Exhaustion Ask:** if not enabled and `offerOnExhausted` allows it, chat may Ask `Run review now` / `Always enable automatic` / `Not now`
-4. **Manual:** `/plan-external-review` anytime after a plan is done (`--force` for one-shot without persisting opt-in)
-5. **Triage:** after Claude writes a monitor file, use `/plan-review-triage`
+2. **Chat path:** when enabled or you pick `Run review now`, the agent prepares a paste command (`--paste-only` / `--force --paste-only`); you run it in **your** Cursor Terminal (not a silent agent-shell `claude -p`)
+3. **Headless / CI:** `agent-kit run-plan` may arm the launcher with `--force` (`claude -p`) in the runner shell
+4. **Exhaustion Ask:** if not enabled and `offerOnExhausted` allows it, chat may Ask `Run review now` / `Always enable automatic` / `Not now`
+5. **Manual:** `/plan-external-review` anytime after a plan is done
+6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage`
 
 Claude Code on PATH is optional. If disabled or `claude` is missing, the kit continues with a tip and exit 0 (no CI failure). Details: [external plan review](external-plan-review.md).
 

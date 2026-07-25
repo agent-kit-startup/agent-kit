@@ -41,11 +41,13 @@ A thin wrapper at `scripts/plan-external-review.sh` remains for dogfood and olde
 
 **Exhaustion Ask (when not yet enabled):** If `enabled` is false and `offerOnExhausted` is not false, chat `/run-plan` may Ask once-style:
 
-- `Run review now` (one-shot via `--force`, no persist)
-- `Always enable automatic` (sets `enabled: true`, then arms)
+- `Run review now` (one-shot via `--force --paste-only`; user pastes interactive command in **their** Cursor Terminal; no persist; never silent headless `--force` from the agent shell)
+- `Always enable automatic` (sets `enabled: true`, then same paste-only UX)
 - `Not now` (sets `offerOnExhausted: false`; manual command still works)
 
 Onboard also offers a light Ask after workspace skin: `Enable Claude external review` / `Skip for now`.
+
+**Chat vs CI:** Chat paths are paste/interactive (visible). Headless `agent-kit run-plan` may arm default/`--force` (`claude -p`) in the runner shell. Agents must not claim a review is "running" in a place the user cannot see.
 
 **Manual:** Use `/plan-external-review` anytime after completion.
 
@@ -98,18 +100,26 @@ Use `/plan-review-triage` to process the monitor with clickable options:
 
 Canonical launcher: `.cursor/scripts/plan-external-review.sh` (wrapper: `scripts/plan-external-review.sh`).
 
+The launcher starts Claude with `--permission-mode auto` in interactive and headless modes. This removes the need to toggle auto mode manually while retaining Claude's permission policy; it does not use `bypassPermissions`.
+
 ```bash
-# Default: non-interactive claude -p
+# Chat "Run review now": clipboard + print (does not start Claude)
+.cursor/scripts/plan-external-review.sh --force --paste-only
+
+# Then paste in YOUR Cursor terminal (script prints/copies this):
+.cursor/scripts/plan-external-review.sh --force --interactive my-plan.plan.md
+
+# CI / headless: bypass enabled check, claude -p (no IDE panel)
+.cursor/scripts/plan-external-review.sh --force
+
+# Default when enabled: non-interactive claude -p
 .cursor/scripts/plan-external-review.sh
 
-# Interactive Claude session
+# Interactive Claude session (already in Cursor terminal)
 .cursor/scripts/plan-external-review.sh --interactive
 
-# Print prompt for copy-paste
+# Print ready-to-paste command + prompt (clipboard when available)
 .cursor/scripts/plan-external-review.sh --paste-only
-
-# One-shot: bypass enabled check without persisting opt-in
-.cursor/scripts/plan-external-review.sh --force
 
 # Explicit plan file
 .cursor/scripts/plan-external-review.sh my-plan.plan.md

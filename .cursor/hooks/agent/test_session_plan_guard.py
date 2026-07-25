@@ -99,7 +99,113 @@ class ReadinessSectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(readiness_section(Path(tmp)))
 
-    def test_first_pending_action_is_resumed_exactly(self) -> None:
+    def test_essential_unresolved_blocks_start_project_wording(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "readiness.json").write_text(
+                """{
+  "pillars": [
+    {
+      "pillar": "safety",
+      "checks": [
+        {
+          "id": "safety.secrets",
+          "title": "Secrets hygiene",
+          "status": "blocked",
+          "essential": true,
+          "actions": [
+            {
+              "id": "remove-tracked-secrets",
+              "recommendation": "Remove tracked sensitive files."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "pillar": "collaboration",
+      "checks": [
+        {
+          "id": "collaboration.provider",
+          "title": "Repository provider",
+          "status": "needs_choice",
+          "essential": false,
+          "actions": [
+            {
+              "id": "confirm-provider",
+              "recommendation": "Confirm the remote provider."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "pendingActions": [
+    {"id": "remove-tracked-secrets", "recommendation": "Remove tracked sensitive files."},
+    {"id": "confirm-provider", "recommendation": "Confirm the remote provider."}
+  ]
+}
+""",
+                encoding="utf-8",
+            )
+
+            section = readiness_section(root)
+
+            self.assertIsNotNone(section)
+            self.assertIn("Unresolved essential check", section)
+            self.assertIn("`remove-tracked-secrets`", section)
+            self.assertIn("before `/start-project`", section)
+            self.assertNotIn("confirm-provider", section)
+
+    def test_nonessential_provider_does_not_block_start_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "readiness.json").write_text(
+                """{
+  "pillars": [
+    {
+      "pillar": "collaboration",
+      "checks": [
+        {
+          "id": "collaboration.provider",
+          "title": "Repository provider",
+          "status": "needs_choice",
+          "essential": false,
+          "actions": [
+            {
+              "id": "confirm-provider",
+              "recommendation": "Confirm the remote provider or local-only model"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "pendingActions": [
+    {
+      "id": "confirm-provider",
+      "recommendation": "Confirm the remote provider or local-only model"
+    }
+  ]
+}
+""",
+                encoding="utf-8",
+            )
+
+            section = readiness_section(root)
+
+            self.assertIsNotNone(section)
+            self.assertIn("Optional readiness item", section)
+            self.assertIn("`confirm-provider`", section)
+            self.assertIn("does not block `/start-project`", section)
+            self.assertNotIn("Unresolved essential check", section)
+            self.assertNotIn("First unresolved check", section)
+
+    def test_legacy_pending_actions_are_advisory_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             context = root / ".cursor" / "context"
@@ -121,7 +227,7 @@ class ReadinessSectionTests(unittest.TestCase):
             self.assertIn("`git.provider`", section)
             self.assertIn("Confirm the remote provider.", section)
             self.assertNotIn("git.staging", section)
-            self.assertIn("active plan or HANDOFF", section)
+            self.assertIn("does not block `/start-project`", section)
 
     def test_ready_snapshot_does_not_nudge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

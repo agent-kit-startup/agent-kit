@@ -1,0 +1,21 @@
+# Kit template: .gitlab-ci.yml for frontend + Firebase repos.
+# Copy to the repo as .gitlab-ci.yml and adjust variables / include paths.
+
+stages:
+  - secret-scan
+  - validate
+  - deploy-staging
+  - deploy-prod
+
+include:
+  - project: 'YOUR_ORG/infra/ci-templates'
+    ref: main
+    file:
+      - '/templates/secret-scan.yml'
+      - '/templates/node-lint-test.yml'
+      - '/templates/deploy-firebase.yml'
+
+variables:
+  NODE_VERSION: "20"
+  # FIREBASE_TOKEN: set as a masked CI/CD variable (project level)
+  # FIREBASE_PROJECT: Firebase project id (optional if .firebaserc exists)

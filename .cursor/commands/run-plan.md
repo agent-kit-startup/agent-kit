@@ -75,18 +75,31 @@ After Final HANDOFF when the run stopped because all implementable to-dos are do
    - Prompt: `.cursor/context/templates/plan-external-review-prompt.md`
    - Monitor scaffold: `.cursor/context/templates/plan-monitor.md`
    If any are missing: do **not** claim a review ran. Tell the user to run `agent-kit update --refresh` (templates are L0; older manifests that listed `.cursor/context/**` as protected blocked them until the kit normalizes that glob). Manual `/plan-external-review` only after the files exist. Skip the Ask/arm below.
-3. **If `externalPlanReview.enabled === true`:** arm the launcher (prefer `.cursor/scripts/plan-external-review.sh`; fallback `scripts/plan-external-review.sh`). The script owns missing-`claude` / missing-template tips (exit 0 no-op). After the monitor finishes, suggest `/plan-review-triage`.
+3. **If `externalPlanReview.enabled === true` (chat session):** do **not** exec headless `claude -p` in the agent shell. Run paste-prep (or tell the user the same command):
+   ```bash
+   .cursor/scripts/plan-external-review.sh --paste-only
+   ```
+   Then show the user-facing message below. After the user finishes Claude in **their** terminal and a monitor exists, suggest `/plan-review-triage`.
 4. **Else if `offerOnExhausted !== false`** (missing or `true`): use **Ask questions** (chat fallback if tool unavailable) with labels exactly:
    - `Run review now`
    - `Always enable automatic`
    - `Not now`
-5. **Handlers:**
-   - `Run review now`: one-shot arm with `--force` (do **not** persist `enabled: true`). Then suggest `/plan-review-triage` after the monitor.
-   - `Always enable automatic`: merge `enabled: true` into `externalPlanReview` (keep other fields), then arm normally (no `--force`). Then suggest `/plan-review-triage` after the monitor.
+5. **Handlers (chat path — visible only):**
+   - `Run review now`: **MUST NOT** arm headless `--force` alone (agent shell has no Cursor Terminal; Claude HITL can block invisibly; no monitor appears). Instead:
+     1. Run (or equivalent): `.cursor/scripts/plan-external-review.sh --force --paste-only` (copies interactive command via `pbcopy` / `xclip` when available; does **not** start Claude).
+     2. Tell the user honestly that the review is **not** running yet.
+     3. Show this exact next step (adapt plan name if known):
+        > External review is ready to paste (not running in this chat).
+        > 1. Open a **Cursor Terminal** in the repo root.
+        > 2. Paste (already on clipboard if `pbcopy` worked):
+        >    `.cursor/scripts/plan-external-review.sh --force --interactive <plan.plan.md>`
+        > 3. When Claude writes the monitor, run `/plan-review-triage`.
+     4. Do **not** persist `enabled: true`. Do **not** claim a review "started" or "is running".
+   - `Always enable automatic`: merge `enabled: true` into `externalPlanReview` (keep other fields), then same **paste-only** UX as enabled-true above (not headless arm). Suggest `/plan-review-triage` after the user finishes the monitor.
    - `Not now`: merge `offerOnExhausted: false` (no nag on later exhaustion). Manual `/plan-external-review` still works.
 6. **Not a native stop hook:** do **not** register or rely on a Cursor `hooks.json` `stop` follow-up. This Ask runs only after Final HANDOFF / prod suggestion as a separate gate.
 7. **Still never `/git-prod`** from this path. Suggesting prod when staging is ahead of `main` stays a human next step.
-8. Headless `agent-kit run-plan` arms the same launcher after logging stop on plan exhausted (dual path: `.cursor/scripts/` then `scripts/`; CLI may pass `--force`). Tips/disabled do not fail the loop.
+8. **Headless / CI only:** `agent-kit run-plan` may arm `.cursor/scripts/plan-external-review.sh` or `--force` (print / `claude -p`). That path is not chat; tips/disabled do not fail the loop. Chat and CI stay split on purpose (see memory decision `2026-07-25_external-review-chat-visible-vs-ci-headless`).
 
 ### 3. Execute only this to-do
 
@@ -214,7 +227,7 @@ For CI / cron / terminal runs. Canonical entrypoint: **`agent-kit run-plan`** (T
 - Everything else in the tick contract applies: one to-do per tick, plan status, HANDOFF, `/git-staging` if there is a diff, **never** `/git-prod`.
 - Stop mid-run: `touch .cursor/loop.stop` or Ctrl+C.
 - Options: `--max-ticks N`, `--model M`, `--sleep S`, `--backend cursor-agent|claude`, `--dry-run`. Default backend is `cursor-agent` (`claude` reserved for a later wiring).
-- **Tick close / plan exhausted:** when the runner stops because pending to-dos are 0 or the agent sentinel is `stop - plan exhausted` (or equivalent), the CLI arms the external review launcher (prefer `.cursor/scripts/plan-external-review.sh`, fallback `scripts/plan-external-review.sh`; opt-in + `claude` checks inside the script; `--force` supported for one-shot). Disabled / missing `claude` → tip + exit 0; the loop still exits 0. This is not a Cursor `stop` hook and never runs `/git-prod`. Chat exhaustion Ask (`Run review now` / `Always enable automatic` / `Not now`) is session-only; headless relies on config/`--force`.
+- **Tick close / plan exhausted:** when the runner stops because pending to-dos are 0 or the agent sentinel is `stop - plan exhausted` (or equivalent), the CLI arms the external review launcher in **headless** mode (prefer `.cursor/scripts/plan-external-review.sh`, fallback `scripts/`; opt-in + `claude` checks inside the script; `--force` = `claude -p`). Disabled / missing `claude` → tip + exit 0; the loop still exits 0. This is not a Cursor `stop` hook and never runs `/git-prod`. Chat exhaustion Ask is session-only and **must** use `--force --paste-only` (visible paste), never silent headless `--force` from the agent shell.
 
 ## HITL (invariants)
 

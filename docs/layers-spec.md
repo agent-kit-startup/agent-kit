@@ -129,7 +129,7 @@ Optional external plan review ships with L0 (commands above, templates below, la
 
 | Artifact | Role |
 |----------|------|
-| `.cursor/scripts/plan-external-review.sh` | Canonical launcher for external plan review (`--force` one-shot); thin wrapper may exist at `scripts/` |
+| `.cursor/scripts/plan-external-review.sh` | Canonical launcher (`--paste-only` chat; `--force` / default headless for CI); thin wrapper may exist at `scripts/` |
 
 ### Native Cursor hooks (agent runtime)
 

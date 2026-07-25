@@ -2,6 +2,7 @@
 import { defineCommand, runMain } from "citty";
 import { addCommand } from "./commands/add.js";
 import { contributeCommand } from "./commands/contribute.js";
+import { dashboardCommand } from "./commands/dashboard.js";
 import { diffCommand } from "./commands/diff.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { handoffCommand } from "./commands/handoff.js";
@@ -29,6 +30,7 @@ const main = defineCommand({
     contribute: contributeCommand,
     handoff: handoffCommand,
     "run-plan": runPlanCommand,
+    dashboard: dashboardCommand,
   },
 });
 
