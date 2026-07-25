@@ -1,0 +1,4667 @@
+<!-- Mission Control -- open in Cursor Simple Browser or visit http://localhost:3333 after starting: node dashboard/serve.mjs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-primary: #0b0e14;
+  --bg-secondary: #111620;
+  --bg-card: #161c2a;
+  --bg-card-hover: #1b2335;
+  --border: #1e2a3a;
+  --border-active: #2a3a5a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899aa;
+  --text-muted: #6d8094;
+  --green: #22c55e;
+  --green-bg: rgba(34,197,94,0.12);
+  --yellow: #eab308;
+  --yellow-bg: rgba(234,179,8,0.12);
+  --red: #ef4444;
+  --red-bg: rgba(239,68,68,0.12);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59,130,246,0.12);
+  --purple: #a855f7;
+  --purple-bg: rgba(168,85,247,0.12);
+  --cyan: #06b6d4;
+  --orange: #f97316;
+  --header-height: 56px;
+  --top-tabs-height: 40px;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Mono', ui-monospace, monospace; background: var(--bg-primary); color: var(--text-primary); }
+body { display: flex; flex-direction: column; }
+::selection { background: rgba(59,130,246,0.3); }
+
+/* ===== Accessibility: focus rings ===== */
+:focus { outline: none; }
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+.status-bar-btn:focus-visible,
+.git-action-btn:focus-visible,
+.git-file-copy-btn:focus-visible,
+.process-copy-btn:focus-visible,
+.terminal-expand-btn:focus-visible,
+.error-stack-toggle:focus-visible,
+.top-tab:focus-visible,
+.top-nav-anchor:focus-visible,
+.nav-more-btn:focus-visible,
+.nav-more-item:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+
+/* ===== Header ===== */
+.header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header h1 .logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  background: transparent;
+}
+.header-version {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.last-updated {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.header-status,
+.header-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.header-transport #statusLabel {
+  white-space: nowrap;
+}
+.header-transport .sse-timer {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.header-transport .sse-timer:not(:empty)::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--border-active);
+}
+.btn-refresh {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-refresh:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+.btn-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Layout ===== */
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ===== Top nav: Cockpit anchors + more dropdown (narrow panel primary) ===== */
+.top-tabs {
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  min-height: var(--top-tabs-height);
+  z-index: 9;
+}
+.top-tabs-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  min-width: 0;
+}
+.cockpit-anchors {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.top-nav-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.top-nav-anchor .top-nav-anchor-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.top-nav-anchor:hover { background: var(--bg-card); color: var(--text-primary); }
+.top-nav-anchor.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--blue);
+}
+.top-nav-anchor.active .space-icon,
+.top-nav-anchor:hover .space-icon {
+  color: var(--text-primary);
+}
+.nav-more {
+  position: relative;
+  flex-shrink: 0;
+}
+.nav-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nav-more-btn:hover,
+.nav-more-btn[aria-expanded="true"] {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+.nav-more-menu {
+  /* Fixed so the menu escapes the nav row's overflow clip (JS sets top/left). */
+  position: fixed;
+  top: 0;
+  left: 0;
+  min-width: 200px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.nav-more-menu[hidden] {
+  display: none;
+}
+.nav-more-menu.is-closing {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+.top-tab,
+.nav-more-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+  background: transparent;
+  text-align: left;
+  box-sizing: border-box;
+}
+.top-tab:hover,
+.nav-more-item:hover { background: var(--bg-card); color: var(--text-primary); }
+.top-tab.active,
+.nav-more-item.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--blue);
+}
+.top-tab-badge {
+  font-size: 10px;
+  background: var(--bg-card);
+  padding: 1px 6px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.top-nav-anchor .top-tab-badge {
+  margin-left: 0;
+  padding: 0 4px;
+  font-size: 9px;
+}
+#now-execution-panel,
+#attention-panel,
+#recent-plans-panel,
+#hero-activity {
+  scroll-margin-top: 8px;
+}
+
+/* ===== Content ===== */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  min-height: 0;
+}
+.content-section { display: none; }
+.content-section.active { display: block; }
+
+/* ===== Grid ===== */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 1200px) {
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ===== Cards ===== */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.2s;
+}
+.card:hover { border-color: var(--border-active); }
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+/* Space-theme section/nav icons: scale with surrounding type (1em). */
+.space-icon {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  color: var(--text-muted);
+  opacity: 0.9;
+  vertical-align: -0.125em;
+}
+.card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.card-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* ===== Status Dots ===== */
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  position: relative;
+}
+.dot-green { background: var(--green); box-shadow: 0 0 6px var(--green-bg); }
+.dot-yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow-bg); }
+.dot-red { background: var(--red); box-shadow: 0 0 6px var(--red-bg); }
+.dot-blue { background: var(--blue); box-shadow: 0 0 6px var(--blue-bg); }
+.dot-purple { background: var(--purple); box-shadow: 0 0 6px var(--purple-bg); }
+.dot-gray { background: #3a4a5a; box-shadow: 0 0 6px rgba(58,74,90,0.3); }
+.dot-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: pulse 2s ease-out infinite;
+  opacity: 0;
+}
+.dot-green.dot-pulse::after { border-color: var(--green); }
+.dot-blue.dot-pulse::after { border-color: var(--blue); }
+.dot-yellow.dot-pulse::after { border-color: var(--yellow); }
+@keyframes pulse {
+  0% { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.5); }
+}
+
+/* ===== Data Refresh Animation ===== */
+@keyframes data-flash {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+.content.data-refreshing .card,
+.content.data-refreshing .plan-card,
+.content.data-refreshing .health-item {
+  animation: data-flash 0.4s ease;
+}
+
+/* ===== Header Status Flash ===== */
+.header-status-flash {
+  animation: headerFlash 0.6s ease;
+}
+@keyframes headerFlash {
+  0% { background: transparent; }
+  30% { background: rgba(59,130,246,0.15); border-radius: 6px; padding: 2px 8px; margin: -2px -8px; }
+  100% { background: transparent; padding: 2px 8px; margin: -2px -8px; }
+}
+
+/* ===== SSE Connection indicator ===== */
+.sse-timer {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+
+/* ===== Activity Timeline (color-coded) ===== */
+.activity-item.activity-blue { border-left: 3px solid var(--blue); padding-left: 10px; }
+.activity-item.activity-green { border-left: 3px solid var(--green); padding-left: 10px; }
+.activity-item.activity-yellow { border-left: 3px solid var(--yellow); padding-left: 10px; }
+.activity-item.activity-red { border-left: 3px solid var(--red); padding-left: 10px; }
+.activity-item.activity-purple { border-left: 3px solid var(--purple); padding-left: 10px; }
+
+/* ===== Progress Bar ===== */
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.progress-fill.green { background: var(--green); }
+.progress-fill.yellow { background: var(--yellow); }
+.progress-fill.blue { background: var(--blue); }
+.progress-fill.red { background: var(--red); }
+
+/* ===== Plan Card ===== */
+.plan-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.2s;
+}
+.plan-card:hover { border-color: var(--border-active); }
+.plan-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.plan-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.plan-card-overview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.plan-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.plan-todo-list {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.plan-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.plan-todo-item .dot { width: 7px; height: 7px; flex-shrink: 0; }
+.plan-todo-item-action {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: 0 -6px;
+}
+.plan-todo-item-action:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+  color: var(--text-primary);
+}
+.plan-todo-item-action:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* ===== Agent List ===== */
+.agent-list { display: flex; flex-direction: column; gap: 4px; }
+.agent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.agent-item:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.agent-item .agent-icon {
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ===== Terminal List ===== */
+.terminal-list { display: flex; flex-direction: column; gap: 4px; }
+.terminal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+.terminal-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.terminal-item:hover { background: var(--bg-card-hover); }
+
+/* ===== Health ===== */
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.health-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.2s;
+}
+.health-item:hover { border-color: var(--border-active); }
+
+/* ===== Git ===== */
+.git-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.git-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.git-label { color: var(--text-muted); }
+.git-value { color: var(--text-secondary); font-family: 'SF Mono', ui-monospace, monospace; font-size: 12px; }
+
+/* ===== Memory ===== */
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.memory-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.memory-item:hover { background: var(--bg-card-hover); }
+
+/* ===== Activity Timeline ===== */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-time {
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 48px;
+}
+.activity-label {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* ===== Commands ===== */
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px;
+}
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+.command-item:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+/* ===== Loading ===== */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: 14px;
+  gap: 10px;
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Section Title ===== */
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title .dot { width: 12px; height: 12px; }
+.section-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ===== Processes ===== */
+.processes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+.processes-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.processes-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.processes-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+.processes-table .process-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.processes-table .process-label .dot { width: 8px; height: 8px; }
+.processes-table .process-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.process-copy-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.process-copy-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+/* ===== Skills ===== */
+.skills-category {
+  margin-bottom: 20px;
+}
+.skills-category-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+.skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: default;
+  transition: all 0.15s;
+  max-width: 280px;
+}
+.skill-tag:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+.skill-tag .skill-cat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.skill-tag .skill-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.skill-tag .skill-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== Context Packs ===== */
+.context-pack-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--blue-bg);
+  border: 1px solid rgba(59,130,246,0.25);
+  font-size: 11px;
+  color: var(--blue);
+  margin: 2px 4px 2px 0;
+}
+
+/* ===== SSE Badge ===== */
+.sse-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.sse-badge.live {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.sse-badge.polling {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  border: 1px solid rgba(234,179,8,0.3);
+}
+.sse-badge.reconnecting {
+  background: rgba(234,179,8,0.2);
+  color: var(--yellow);
+  border: 1px solid rgba(234,179,8,0.3);
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+
+/* ===== Compact action buttons (shared) ===== */
+.status-bar-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.status-bar-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+/* ===== Live Activity Feed ===== */
+.live-activity-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--green);
+  letter-spacing: 0.05em;
+}
+.live-indicator.live-polling,
+.live-indicator.live-reconnecting {
+  color: var(--yellow);
+}
+.live-indicator.live-reconnecting {
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+.live-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  position: relative;
+}
+.live-pulse-dot.live-dot-yellow {
+  background: var(--yellow);
+}
+/* Decorative ring pulses removed; header transport owns freshness */
+.live-activity-feed {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.live-activity-feed .activity-item {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.live-activity-feed .activity-item:last-child {
+  border-bottom: none;
+}
+.live-activity-feed .activity-item .feed-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.live-activity-feed .activity-item .feed-time {
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  min-width: 40px;
+}
+.live-activity-feed .activity-item .feed-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-feed-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ===== Delta Badge ===== */
+.delta-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+.delta-badge.positive {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.delta-badge.negative {
+  background: var(--red-bg);
+  color: var(--red);
+}
+.delta-badge.new {
+  display: none;
+}
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ===== Card Flash Animation ===== */
+@keyframes card-flash {
+  0% { border-color: var(--border); }
+  50% { border-color: var(--blue); box-shadow: 0 0 12px rgba(59,130,246,0.2); }
+  100% { border-color: var(--border); }
+}
+.card-flash {
+  animation: card-flash 0.8s ease;
+}
+
+/* ===== Reconnecting Overlay ===== */
+.reconnecting-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--yellow);
+  animation: pulse-text 1.5s ease-in-out infinite;
+}
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===== Server Badge ===== */
+.server-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid rgba(34,197,94,0.25);
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ===== Clickable Cursors (Phase 1) ===== */
+.plan-card { cursor: pointer; }
+.command-item { cursor: pointer; }
+.agent-item { cursor: pointer; }
+.health-item { cursor: pointer; }
+.terminal-item { cursor: pointer; }
+.memory-item { cursor: pointer; }
+
+/* ===== Agent Expanded View ===== */
+.agent-details {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+  padding: 0 10px;
+}
+.agent-details.open {
+  max-height: 200px;
+  opacity: 1;
+  padding: 8px 10px;
+}
+.agent-details p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.agent-details .agent-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+/* ===== Copied Toast ===== */
+.copied-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-card);
+  border: 1px solid var(--green);
+  color: var(--green);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.copied-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== Inline Spinner ===== */
+.inline-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
+/* ===== Health Investigation Message ===== */
+.health-message {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Terminal Preview ===== */
+.terminal-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  padding: 6px 10px;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 80px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.terminal-expand-btn {
+  font-size: 10px;
+  color: var(--blue);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.terminal-expand-btn:hover {
+  background: var(--blue-bg);
+}
+
+/* ===== Terminal Popup Overlay ===== */
+.terminal-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+.terminal-popup {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  max-width: 80vw;
+  max-height: 80vh;
+  width: 640px;
+  overflow: auto;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  position: relative;
+}
+.terminal-popup-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+.terminal-popup-close:hover { color: var(--text-primary); }
+
+/* ===== Restart Button (Phase 2) ===== */
+.btn-restart {
+  background: var(--red-bg);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: var(--red);
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.btn-restart:hover {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+}
+
+/* ===== Pulsing Yellow Reconnecting (Phase 2) ===== */
+.reconnecting-pulse {
+  animation: reconnectPulse 1.5s ease-in-out infinite;
+}
+@keyframes reconnectPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px rgba(234,179,8,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 12px rgba(234,179,8,0.6); }
+}
+
+/* ===== Git File List (Phase 2) ===== */
+.git-file-list {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.git-file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+.git-file-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.git-file-status.untracked { color: var(--orange); border-color: rgba(249,115,22,0.3); }
+.git-file-status.staged { color: var(--green); border-color: rgba(34,197,94,0.3); }
+.git-file-status.unstaged { color: var(--yellow); border-color: rgba(234,179,8,0.3); }
+.git-file-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.git-file-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.git-file-copy-btn {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.git-file-copy-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+.git-action-btn {
+  font-size: 11px;
+  padding: 3px 12px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.git-action-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+.git-action-btn.primary {
+  background: var(--blue-bg);
+  border-color: rgba(59,130,246,0.3);
+  color: var(--blue);
+}
+.git-action-btn.primary:hover {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+/* ===== Phase 3: Visual Hierarchy ===== */
+.section-hero {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: box-shadow 0.3s ease;
+}
+.section-hero.glow {
+  box-shadow: 0 0 16px rgba(59,130,246,0.15);
+  border-color: var(--blue);
+}
+.section-hero .card-title {
+  font-size: 16px;
+}
+.section-secondary {
+  margin-bottom: 16px;
+}
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--border) 0%, var(--border-active) 50%, var(--border) 100%);
+  margin: 16px 0;
+  border: none;
+}
+
+/* ===== Phase 3: Card Interactions & Hover ===== */
+.card:hover {
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 1px var(--border-active), 0 4px 12px rgba(0,0,0,0.2);
+}
+.card:active {
+  transform: scale(0.98);
+}
+.plan-card:active {
+  transform: scale(0.98);
+}
+.health-item:active {
+  transform: scale(0.98);
+}
+/* ===== Phase 3: Micro-animations ===== */
+.sse-status-indicator {
+  transition: opacity 0.3s ease;
+}
+.sse-status-indicator.fade {
+  opacity: 0;
+}
+.sse-status-indicator.show {
+  opacity: 1;
+}
+
+.count-up {
+  /* count-up animation removed for narrow plugin shell */
+}
+
+@keyframes toast-slide-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+}
+.copied-toast.animating {
+  animation: toast-slide-in 2s ease forwards;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+@keyframes stagger-fade-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.activity-item.stagger-fade {
+  animation: stagger-fade-in 0.3s ease both;
+}
+
+/* ===== Phase 3: Empty State CTAs ===== */
+.empty-state-cta {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.empty-state-cta p {
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.empty-state-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.empty-state-btn:hover {
+  background: var(--blue-bg);
+  border-color: rgba(59,130,246,0.3);
+  color: var(--blue);
+}
+.empty-state-btn:active {
+  transform: scale(0.98);
+}
+
+/* ===== Phase 3: Loading Skeletons ===== */
+@keyframes skeleton-pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+  100% { opacity: 0.3; }
+}
+.skeleton-card {
+  background: var(--border);
+  border-radius: var(--radius-lg);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  min-height: 80px;
+}
+.skeleton-line {
+  background: var(--border);
+  border-radius: 4px;
+  height: 12px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+.skeleton-line-sm {
+  background: var(--border);
+  border-radius: 4px;
+  height: 8px;
+  width: 60%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+.skeleton-fade-in {
+  animation: skeleton-fade-in 0.4s ease;
+}
+@keyframes skeleton-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ===== Phase 3: Error State ===== */
+.error-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  margin-top: 12px;
+  transition: all 0.15s;
+}
+.error-retry-btn:hover {
+  background: var(--blue-bg);
+  border-color: rgba(59,130,246,0.3);
+  color: var(--blue);
+}
+.error-stack-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.error-stack-toggle:hover {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+.error-stack-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  display: none;
+}
+.error-stack-detail.open {
+  display: block;
+}
+
+/* ===== Narrow Cursor plugin panel (primary: ~360–520px) ===== */
+@media (max-width: 520px) {
+  :root { --header-height: 48px; --top-tabs-height: 36px; }
+  .header { padding: 0 10px; gap: 8px; height: var(--header-height); }
+  .header h1 { font-size: 13px; gap: 8px; }
+  .header h1 .logo { width: 20px; height: 20px; border-radius: 5px; }
+  .header-right { gap: 6px; }
+  .header-transport { font-size: 11px; gap: 4px; }
+  .header-transport .sse-timer { display: none; }
+  .btn-refresh { font-size: 11px; padding: 4px 8px; }
+  .top-tabs-row { padding: 3px 4px; gap: 1px; }
+  .top-nav-anchor { font-size: 10px; padding: 4px 2px; gap: 2px; }
+  .nav-more-btn { width: 26px; height: 26px; }
+  .top-tab-badge { font-size: 9px; padding: 0 4px; }
+  .content { padding: 10px; }
+  .section-title { font-size: 15px; margin-bottom: 12px; }
+  .section-subtitle { display: block; margin-left: 0; margin-top: 4px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; gap: 10px; }
+  .card { padding: 12px; }
+  .card-value { font-size: 22px; }
+  .live-activity-feed { max-height: 220px; }
+  .live-activity-header { flex-wrap: wrap; gap: 6px; }
+  .live-activity-header .section-subtitle { margin-left: 0 !important; }
+  .plan-card { padding: 12px; }
+  .plan-card-header { flex-wrap: wrap; }
+  .plan-card-footer { flex-wrap: wrap; gap: 4px; }
+  .health-grid { grid-template-columns: 1fr 1fr; }
+  .command-grid { grid-template-columns: 1fr 1fr; }
+  .git-row { flex-wrap: wrap; gap: 4px; }
+  .terminal-popup { max-width: 95vw; padding: 14px; }
+  .overview-inventory-note { font-size: 11px; }
+}
+
+/* ===== Wider Simple Browser / desktop ===== */
+@media (min-width: 521px) and (max-width: 700px) {
+  .header { padding: 0 12px; gap: 8px; }
+  .header h1 { font-size: 14px; }
+  .header h1 .logo { width: 22px; height: 22px; }
+  .content { padding: 12px; }
+  .card { padding: 12px; }
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .btn-refresh { font-size: 11px; padding: 4px 10px; }
+  .section-title { font-size: 16px; }
+  .terminal-popup { max-width: 95vw; padding: 14px; }
+}
+
+.overview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.overview-inventory-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  line-height: 1.45;
+}
+.overview-inventory-note code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ===== Recent plan cards (Overview) ===== */
+.recent-plans-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.recent-plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-left-width: 3px;
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+.recent-plan-card:hover { border-color: var(--border-active); background: var(--bg-card-hover); }
+.recent-plan-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.recent-plan-card-executing { border-left-color: var(--blue); }
+.recent-plan-card-awaiting { border-left-color: var(--yellow); }
+.recent-plan-card-parked { border-left-color: var(--purple); }
+.recent-plan-card-incomplete { border-left-color: var(--orange); }
+.recent-plan-card-completed { border-left-color: var(--green); }
+.recent-plan-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.recent-plan-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.recent-plan-progress {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.recent-plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.lifecycle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.lifecycle-pill-executing { border-color: var(--blue); color: var(--blue); }
+.lifecycle-pill-awaiting { border-color: var(--yellow); color: var(--yellow); }
+.lifecycle-pill-parked { border-color: var(--purple); color: var(--purple); }
+.lifecycle-pill-incomplete { border-color: var(--orange); color: var(--orange); }
+.lifecycle-pill-completed { border-color: var(--green); color: var(--green); }
+
+/* ===== Plans tab accordions ===== */
+.plan-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-accordion-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.plan-accordion-item.open { border-color: var(--border-active); }
+.plan-accordion-trigger {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.plan-accordion-trigger:hover { background: var(--bg-card-hover); }
+.plan-accordion-trigger:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+.plan-accordion-trigger-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.plan-accordion-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.plan-accordion-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.plan-accordion-overview {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.plan-accordion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.plan-accordion-chevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+  margin-top: 4px;
+}
+.plan-accordion-panel {
+  display: none;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+.plan-accordion-item.open .plan-accordion-panel { display: block; }
+.plan-accordion-item.open .plan-accordion-chevron { transform: rotate(180deg); }
+.plan-accordion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 4px;
+}
+.plan-accordion-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.plan-todo-list-full {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.plan-todo-list-full .plan-todo-item {
+  padding: 4px 0;
+}
+
+/* ===== Attention stack (Needs attention) ===== */
+.attention-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.attention-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-left-width: 3px;
+  background: var(--bg-secondary, transparent);
+}
+.attention-item-action { border-left-color: var(--yellow); }
+.attention-item-warning { border-left-color: var(--orange); }
+.attention-item-info { border-left-color: var(--blue); }
+.attention-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.attention-severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.attention-severity-action {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+.attention-severity-warning {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.attention-severity-info {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.attention-kind {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.attention-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+.attention-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.attention-meta code {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.attention-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.attention-empty {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.attention-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  margin: 4px 0 6px;
+}
+.attention-group-label + .attention-stack {
+  margin-bottom: 10px;
+}
+.recent-plans-grid + .attention-group-label {
+  margin-top: 12px;
+}
+
+/* ===== Now execution panel (primary Current work) ===== */
+.now-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.now-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-secondary, transparent);
+}
+.now-status-mark {
+  font-size: 10px;
+  line-height: 1;
+}
+/* Executing: green + live pulse/glow (mark ▶ distinguishes without color alone) */
+.now-status-executing {
+  border-style: solid;
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-bg);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25), 0 0 10px rgba(34, 197, 94, 0.28);
+}
+.now-status-live {
+  animation: now-status-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes now-status-live-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25), 0 0 8px rgba(34, 197, 94, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5), 0 0 14px rgba(34, 197, 94, 0.42);
+  }
+}
+/* Awaiting: dashed border + pause mark (shape cue, not color-only) */
+.now-status-awaiting {
+  border-style: dashed;
+  border-color: var(--yellow);
+  color: var(--yellow);
+  background: var(--yellow-bg);
+}
+/* Idle: pill shape + hollow mark (shape cue vs solid executing chip) */
+.now-status-idle {
+  border-style: solid;
+  border-radius: 999px;
+  border-color: var(--border);
+  color: var(--text-muted);
+  background: transparent;
+}
+.now-plan-name {
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  word-break: break-word;
+}
+/* Step progress bar: completed / current / remaining segments vs plan total */
+.now-stepbar-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.now-stepbar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+.now-stepbar-seg {
+  flex: 1;
+  min-width: 2px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.now-stepbar-seg-done { background: var(--green); }
+.now-stepbar-seg-current { background: var(--blue); }
+.now-stepbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+/* Stepper: connected previous → current → next blocks */
+.now-stepper {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.now-step {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+.now-step:last-child { padding-bottom: 0; }
+.now-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 20px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.now-step-done:not(:last-child)::before { background: var(--green); }
+.now-step-marker {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.now-step-done .now-step-marker {
+  border-color: var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+}
+.now-step-current .now-step-marker {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.now-step-current.now-step-done .now-step-marker {
+  border-color: var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+}
+.now-step-body {
+  flex: 1;
+  min-width: 0;
+}
+.now-step-current .now-step-body {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-active);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.now-step-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.now-step-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.now-step-current .now-step-text {
+  -webkit-line-clamp: 3;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.now-step-empty .now-step-text {
+  color: var(--text-muted);
+  font-style: italic;
+}
+/* Discreet icon-led metadata under the stepper (Mode, Updated). */
+.now-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.now-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+.now-meta-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+.now-meta-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.now-todo-id {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.now-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ===== Accessibility: reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .dot-pulse,
+  .pulse,
+  .pulse-badge,
+  .pulse-text,
+  .reconnecting-pulse,
+  .card-flash,
+  .count-up,
+  .data-refreshing .plan-card,
+  .data-refreshing .health-item,
+  .header-status-flash,
+  .activity-item.stagger-fade,
+  .copied-toast.animating,
+  .skeleton-card,
+  .skeleton-line,
+  .skeleton-line-sm,
+  .skeleton-fade-in,
+  .inline-spinner,
+  .now-status-live {
+    animation: none !important;
+  }
+  /* Live executing badge stays green and legible without pulse */
+  .now-status-executing {
+    box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
+  }
+  .section-hero.glow {
+    box-shadow: none !important;
+    border-color: var(--border-active);
+  }
+  .card:active,
+  .plan-card:active,
+  .health-item:active,
+  .empty-state-btn:active {
+    transform: none !important;
+  }
+}
+</style>
+</head>
+<body>
+<!-- Header: identity + one transport/freshness signal + refresh -->
+<div class="header">
+  <h1><img class="logo" src="/logo.svg" width="28" height="28" alt="" aria-hidden="true"> Mission Control</h1>
+  <span class="header-version" id="version" hidden>v—</span>
+  <div class="header-right">
+    <span class="header-transport sse-status-indicator show" id="headerStatus" role="status" aria-live="polite" title="Transport and freshness">
+      <span class="dot dot-green" id="statusDot"></span>
+      <span id="statusLabel">Loading...</span>
+      <span class="sse-timer" id="sseTimer"></span>
+    </span>
+    <span id="serverBadgeContainer" hidden></span>
+    <span id="sseBadgeContainer" hidden></span>
+    <span class="header-version" id="dataVersion" hidden>schema —</span>
+    <span class="last-updated" id="lastUpdated" hidden></span>
+    <button class="btn-refresh" onclick="refresh()" id="refreshBtn" aria-label="Refresh data"><span class="btn-refresh-text">Refresh</span></button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <!-- Top nav: Cockpit anchors + more sections dropdown -->
+  <nav class="top-tabs" id="topTabs" aria-label="Dashboard sections">
+    <div class="top-tabs-row">
+      <div class="cockpit-anchors" role="navigation" aria-label="Cockpit sections">
+        <a class="top-nav-anchor active" href="#now-execution-panel" data-anchor="now-execution-panel" data-icon="current-mission" onclick="return goCockpitAnchor('now-execution-panel')" aria-current="true">
+          <span class="top-nav-anchor-label">Cockpit</span>
+          <span class="top-tab-badge" id="navOverviewBadge">0</span>
+        </a>
+        <a class="top-nav-anchor" href="#hero-activity" data-anchor="hero-activity" data-icon="monitor" onclick="return goCockpitAnchor('hero-activity')">
+          <span class="top-nav-anchor-label">Monitor</span>
+        </a>
+        <a class="top-nav-anchor" href="#attention-panel" data-anchor="attention-panel" data-icon="field-report" onclick="return goCockpitAnchor('attention-panel')">
+          <span class="top-nav-anchor-label">Field Report</span>
+        </a>
+        <a class="top-nav-anchor" href="#recent-plans-panel" data-anchor="recent-plans-panel" data-icon="checklist" onclick="return goCockpitAnchor('recent-plans-panel')">
+          <span class="top-nav-anchor-label">Checklist</span>
+        </a>
+      </div>
+      <div class="nav-more">
+        <button type="button" class="nav-more-btn" id="navMoreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="navMoreMenu" title="More sections"></button>
+        <div class="nav-more-menu" id="navMoreMenu" role="menu" aria-label="More sections" hidden>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="plans" tabindex="0" onclick="return showSection('plans')" aria-label="Plans section">
+            <span class="dot dot-green" aria-hidden="true"></span> Plans
+            <span class="top-tab-badge" id="navPlansBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="activity" tabindex="0" onclick="return showSection('activity')" aria-label="Activity section">
+            <span class="dot dot-blue" style="background:var(--cyan)" aria-hidden="true"></span> Activity
+            <span class="top-tab-badge" id="navActivityBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="agents" tabindex="0" onclick="return showSection('agents')" aria-label="Agents section">
+            <span class="dot dot-purple" aria-hidden="true"></span> Agents
+            <span class="top-tab-badge" id="navAgentsBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="skills" tabindex="0" onclick="return showSection('skills')" aria-label="Skills section">
+            <span class="dot dot-orange" style="background:var(--orange)" aria-hidden="true"></span> Skills
+            <span class="top-tab-badge" id="navSkillsBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="commands" tabindex="0" onclick="return showSection('commands')" aria-label="Commands section">
+            <span class="dot dot-cyan" style="background:var(--cyan)" aria-hidden="true"></span> Commands
+            <span class="top-tab-badge" id="navCommandsBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="health" tabindex="0" onclick="return showSection('health')" aria-label="Health section">
+            <span class="dot dot-green" id="navHealthDot" aria-hidden="true"></span> Health
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="git" tabindex="0" onclick="return showSection('git')" aria-label="Git section">
+            <span class="dot dot-gray" id="navGitDot" aria-hidden="true"></span> Git
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="memory" tabindex="0" onclick="return showSection('memory')" aria-label="Memory section">
+            <span class="dot dot-yellow" aria-hidden="true"></span> Memory
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="terminals" tabindex="0" onclick="return showSection('terminals')" aria-label="Terminals section">
+            <span class="dot dot-blue" id="navTerminalsDot" aria-hidden="true"></span> Terminals
+            <span class="top-tab-badge" id="navTerminalsBadge">0</span>
+          </a>
+          <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="processes" tabindex="0" onclick="return showSection('processes')" aria-label="Processes section">
+            <span class="dot dot-green" id="navProcessesDot" aria-hidden="true"></span> Processes
+            <span class="top-tab-badge" id="navProcessesBadge">0</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Content Area -->
+  <div class="content" id="content" role="region" aria-label="Dashboard content">
+    <div id="loading">
+      <div style="padding:24px">
+        <!-- Skeleton: narrow plugin primary stack -->
+        <div class="skeleton-card" style="height:88px;margin-bottom:12px;padding:16px">
+          <div class="skeleton-line" style="width:40%;margin-bottom:10px"></div>
+          <div class="skeleton-line" style="width:70%;margin-bottom:6px"></div>
+          <div class="skeleton-line" style="width:55%"></div>
+        </div>
+        <div class="skeleton-card" style="height:160px;margin-bottom:12px;padding:16px">
+          <div class="skeleton-line" style="width:30%;margin-bottom:12px"></div>
+          <div class="skeleton-line" style="width:90%;margin-bottom:6px"></div>
+          <div class="skeleton-line" style="width:75%;margin-bottom:6px"></div>
+          <div class="skeleton-line" style="width:85%"></div>
+        </div>
+        <div class="skeleton-card" style="height:48px;padding:12px">
+          <div class="skeleton-line" style="width:80%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== State =====
+let data = null;
+let refreshInterval = 5000;
+let timer = null;
+let sseSource = null;
+let sseFailedAttempts = 0;
+let sseMode = 'polling';
+let activityLog = [];
+let prevData = null;
+let lastEventTime = Date.now();
+/** Last SSE data payload only (poll must not reset silence detection). */
+let lastSseDataTime = Date.now();
+let sseTimerInterval = null;
+let dataLoading = false;
+let renderTimeout = null;
+let sseReconnecting = false;
+/** True when poll resumed because SSE delivered no data for SSE_SILENCE_MS. */
+let sseSilentFallback = false;
+let prevMetrics = {
+  plans: 0, agents: 0, skills: 0, commands: 0, memory: 0, terminals: 0, processes: 0, activity: 0
+};
+let prevSectionHash = null;
+let statusBarInterval = null;
+/** Full capped terminal output for expand popup (keyed by terminal id). */
+const terminalOutputStore = new Map();
+/** Open Plans-tab accordion keys (survive SSE re-renders). */
+const openPlanAccordions = new Set();
+/** When true, narrow panels keep multiple accordions open. */
+let planAccordionAllowMulti = false;
+const RECENT_PLAN_CARD_LIMIT = 5;
+/** Resume poll when SSE stays open but delivers no data payloads (ms). */
+const SSE_SILENCE_MS = 45000;
+const LIFECYCLE_SORT_RANK = {
+  executing: 0,
+  awaiting_user: 1,
+  parked: 2,
+  incomplete: 3,
+  completed: 4,
+};
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function isNarrowPanel() {
+  return window.matchMedia('(max-width: 520px)').matches;
+}
+
+// ===== Debounce =====
+function debounce(fn, ms) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+// ===== Escape helpers (XSS hardening) =====
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function escapeJsString(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+// ===== Sections =====
+/** Active pane id (overview = Cockpit page; others = dropdown destinations). */
+let activeSectionId = 'overview';
+/** Last Cockpit in-page anchor while overview is active. */
+let activeCockpitAnchor = 'now-execution-panel';
+
+function setActiveCockpitAnchor(anchorId) {
+  activeCockpitAnchor = anchorId || 'now-execution-panel';
+  document.querySelectorAll('.top-nav-anchor').forEach((el) => {
+    const selected = el.dataset.anchor === activeCockpitAnchor;
+    el.classList.toggle('active', selected);
+    if (selected) el.setAttribute('aria-current', 'true');
+    else el.removeAttribute('aria-current');
+  });
+}
+
+function clearCockpitAnchorActive() {
+  document.querySelectorAll('.top-nav-anchor').forEach((el) => {
+    el.classList.remove('active');
+    el.removeAttribute('aria-current');
+  });
+}
+
+function showSection(id) {
+  activeSectionId = id || 'overview';
+  const menuWasOpen = isNavMoreOpen();
+  closeNavMore({ restoreFocus: menuWasOpen });
+
+  const tabs = document.querySelectorAll('.top-tab[data-section]');
+  tabs.forEach((el) => {
+    const selected = el.dataset.section === activeSectionId;
+    el.classList.toggle('active', selected);
+    el.setAttribute('aria-selected', selected ? 'true' : 'false');
+  });
+
+  document.querySelectorAll('.content-section').forEach((el) => el.classList.remove('active'));
+  const section = document.getElementById(`section-${activeSectionId}`);
+  if (section) section.classList.add('active');
+
+  if (activeSectionId === 'overview') {
+    setActiveCockpitAnchor(activeCockpitAnchor || 'now-execution-panel');
+  } else {
+    clearCockpitAnchorActive();
+  }
+
+  const content = document.getElementById('content');
+  if (content) content.scrollTop = 0;
+  return false;
+}
+
+/**
+ * Anchor scroll still travelling. A snapshot re-render restores the scroll
+ * position captured when it started, which would strand a smooth scroll part
+ * way to its section, so the render re-issues the scroll while this is set.
+ */
+let pendingAnchorScroll = null;
+const ANCHOR_SCROLL_SETTLE_MS = 1200;
+
+function scrollToCockpitAnchor(anchorId, { track = true } = {}) {
+  const el = document.getElementById(anchorId);
+  if (!el || typeof el.scrollIntoView !== 'function') {
+    pendingAnchorScroll = null;
+    return;
+  }
+  const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+  if (track) {
+    // An instant scroll lands before any render can interrupt it.
+    pendingAnchorScroll =
+      behavior === 'smooth'
+        ? { id: anchorId, until: Date.now() + ANCHOR_SCROLL_SETTLE_MS }
+        : null;
+  }
+  el.scrollIntoView({ block: 'start', behavior });
+}
+
+/** Switch to Cockpit (overview) and scroll to an in-page section anchor. */
+function goCockpitAnchor(anchorId) {
+  const targetId = anchorId || 'now-execution-panel';
+  activeCockpitAnchor = targetId;
+  showSection('overview');
+  setActiveCockpitAnchor(targetId);
+  scrollToCockpitAnchor(targetId);
+  return false;
+}
+
+// ===== More-sections dropdown =====
+function isNavMoreOpen() {
+  const menu = document.getElementById('navMoreMenu');
+  return !!(menu && !menu.hidden);
+}
+
+/** Anchor the fixed menu under the trigger, right-aligned, clamped to the viewport. */
+function positionNavMore() {
+  const btn = document.getElementById('navMoreBtn');
+  const menu = document.getElementById('navMoreMenu');
+  if (!btn || !menu || menu.hidden) return;
+  const gap = 4;
+  const margin = 8;
+  const rect = btn.getBoundingClientRect();
+  const top = rect.bottom + gap;
+  // Cap height to the space below the trigger so it scrolls internally, not off screen.
+  const maxHeight = Math.max(120, window.innerHeight - top - margin);
+  menu.style.maxHeight = `${maxHeight}px`;
+  const width = menu.offsetWidth;
+  let left = rect.right - width;
+  const maxLeft = window.innerWidth - width - margin;
+  if (left > maxLeft) left = maxLeft;
+  if (left < margin) left = margin;
+  menu.style.top = `${Math.round(top)}px`;
+  menu.style.left = `${Math.round(left)}px`;
+}
+
+function openNavMore() {
+  const btn = document.getElementById('navMoreBtn');
+  const menu = document.getElementById('navMoreMenu');
+  if (!btn || !menu || !menu.hidden) return;
+  menu.hidden = false;
+  menu.classList.remove('is-closing');
+  btn.setAttribute('aria-expanded', 'true');
+  positionNavMore();
+  const first = menu.querySelector('.nav-more-item');
+  if (first) first.focus();
+}
+
+function closeNavMore(opts) {
+  const restoreFocus = !opts || opts.restoreFocus !== false;
+  const btn = document.getElementById('navMoreBtn');
+  const menu = document.getElementById('navMoreMenu');
+  if (!btn || !menu || menu.hidden) return;
+  const finish = () => {
+    menu.hidden = true;
+    menu.classList.remove('is-closing');
+    btn.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) btn.focus();
+  };
+  if (prefersReducedMotion()) {
+    finish();
+    return;
+  }
+  menu.classList.add('is-closing');
+  window.setTimeout(finish, 150);
+}
+
+function toggleNavMore() {
+  if (isNavMoreOpen()) closeNavMore({ restoreFocus: true });
+  else openNavMore();
+}
+
+function injectCockpitNavIcons() {
+  document.querySelectorAll('.top-nav-anchor[data-icon]').forEach((el) => {
+    if (el.querySelector('.space-icon')) return;
+    const kind = el.getAttribute('data-icon');
+    if (!kind) return;
+    el.insertAdjacentHTML('afterbegin', spaceIconSvg(kind, { decorative: true }));
+  });
+  const moreBtn = document.getElementById('navMoreBtn');
+  if (moreBtn && !moreBtn.querySelector('.space-icon')) {
+    moreBtn.innerHTML = spaceIconSvg('more-sections', { decorative: false });
+  }
+}
+
+// ===== Cockpit nav + more-menu keyboard / outside click =====
+document.addEventListener('DOMContentLoaded', () => {
+  injectCockpitNavIcons();
+
+  const moreBtn = document.getElementById('navMoreBtn');
+  const menu = document.getElementById('navMoreMenu');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleNavMore();
+    });
+  }
+  if (menu) {
+    menu.addEventListener('click', (e) => e.stopPropagation());
+    menu.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeNavMore({ restoreFocus: true });
+        return;
+      }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const items = [...menu.querySelectorAll('.nav-more-item')];
+      const i = items.indexOf(document.activeElement);
+      if (i < 0 && items.length === 0) return;
+      e.preventDefault();
+      let next = i < 0 ? 0 : i;
+      if (e.key === 'ArrowDown') next = (i + 1) % items.length;
+      else if (e.key === 'ArrowUp') next = (i - 1 + items.length) % items.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = items.length - 1;
+      items[next]?.focus();
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isNavMoreOpen()) {
+      e.preventDefault();
+      closeNavMore({ restoreFocus: true });
+    }
+  });
+  document.addEventListener('click', () => {
+    if (isNavMoreOpen()) closeNavMore({ restoreFocus: true });
+  });
+  window.addEventListener('resize', () => {
+    if (isNavMoreOpen()) positionNavMore();
+  });
+
+  // Manual scrolling wins over an anchor scroll still in flight.
+  const releaseAnchorScroll = () => {
+    pendingAnchorScroll = null;
+  };
+  window.addEventListener('wheel', releaseAnchorScroll, { passive: true });
+  window.addEventListener('touchmove', releaseAnchorScroll, { passive: true });
+});
+
+// ===== Keyboard activation for interactive rows (Phase 3 a11y) =====
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target.closest('[role="button"][tabindex="0"]');
+  if (!el || el.tagName === 'BUTTON' || el.tagName === 'A') return;
+  e.preventDefault();
+  el.click();
+});
+
+// ===== Format helpers =====
+function fmtTime(iso) {
+  if (!iso) return '\u2014';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function fmtDate(iso) {
+  if (!iso) return '\u2014';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function progressColor(pct) {
+  if (pct >= 100) return 'green';
+  if (pct >= 50) return 'blue';
+  if (pct >= 25) return 'yellow';
+  return 'red';
+}
+
+function statusDot(status) {
+  const map = {
+    completed: 'dot-green',
+    in_progress: 'dot-blue dot-pulse',
+    pending: 'dot-gray',
+    cancelled: 'dot-red',
+  };
+  return map[status] || 'dot-gray';
+}
+
+// ===== Activity Log =====
+function addActivity(label, type) {
+  type = type || 'info';
+  activityLog.push({ time: new Date().toISOString(), label, type });
+  if (activityLog.length > 100) activityLog.shift();
+}
+
+// ===== Activity type CSS class =====
+function activityClass(type) {
+  const map = { info: 'activity-blue', started: 'activity-green', stopped: 'activity-yellow', error: 'activity-red', fetch: 'activity-purple' };
+  return map[type] || 'activity-blue';
+}
+
+// ===== Relative time helper =====
+function relativeTime(iso) {
+  if (!iso) return '\u2014';
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  const diff = Math.max(0, now - then);
+  const secs = Math.floor(diff / 1000);
+  if (secs < 5) return 'just now';
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ===== Feed event icon/color based on type =====
+function feedEventInfo(type) {
+  const map = {
+    started:  { icon: '\u25b6', color: 'var(--green)', bg: 'rgba(34,197,94,0.15)' },
+    stopped:  { icon: '\u23f9', color: 'var(--yellow)', bg: 'rgba(234,179,8,0.15)' },
+    info:     { icon: '\u229e', color: 'var(--blue)', bg: 'rgba(59,130,246,0.15)' },
+    git:      { icon: '\u21bb', color: 'var(--orange)', bg: 'rgba(249,115,22,0.15)' },
+    fetch:    { icon: '\u27f3', color: 'var(--purple)', bg: 'rgba(168,85,247,0.15)' },
+    error:    { icon: '\u2715', color: 'var(--red)', bg: 'rgba(239,68,68,0.15)' },
+    warning:  { icon: '\u26a0', color: 'var(--yellow)', bg: 'rgba(234,179,8,0.15)' },
+  };
+  return map[type] || { icon: '\u25cf', color: 'var(--text-muted)', bg: 'var(--border)' };
+}
+
+// ===== Semantic activity feed (missionControl.activity) =====
+/** First-seen timestamps per semantic event id, so events without a source
+ * timestamp still show a stable relative time across SSE snapshots. */
+const semanticSeenAt = new Map();
+
+function semanticEventInfo(kind) {
+  const map = {
+    run_plan:      { icon: '\u25b6', tag: 'tick',    color: 'var(--blue)',   bg: 'rgba(59,130,246,0.15)' },
+    handoff:       { icon: '\u23f8', tag: 'handoff', color: 'var(--yellow)', bg: 'rgba(234,179,8,0.15)' },
+    merge:         { icon: '\u2934', tag: 'merge',   color: 'var(--green)',  bg: 'rgba(34,197,94,0.15)' },
+    staging:       { icon: '\u2191', tag: 'staging', color: 'var(--purple)', bg: 'rgba(168,85,247,0.15)' },
+    commit:        { icon: '\u25cf', tag: 'commit',  color: 'var(--orange)', bg: 'rgba(249,115,22,0.15)' },
+    plan_progress: { icon: '\u2691', tag: 'plan',    color: 'var(--cyan)',   bg: 'rgba(6,182,212,0.15)' },
+  };
+  return map[kind] || { icon: '\u25cf', tag: kind || 'event', color: 'var(--text-muted)', bg: 'var(--border)' };
+}
+
+/** Snapshot activity events with first-seen tracking (dedupe is by server id). */
+function semanticFeedEvents(d) {
+  const events = d.missionControl?.activity || [];
+  const nowIso = new Date().toISOString();
+  const currentIds = new Set();
+  for (const ev of events) {
+    if (!ev?.id) continue;
+    currentIds.add(ev.id);
+    if (!semanticSeenAt.has(ev.id)) semanticSeenAt.set(ev.id, nowIso);
+  }
+  // Bound the store: drop ids no longer present once it grows past the feed cap
+  if (semanticSeenAt.size > 100) {
+    for (const id of semanticSeenAt.keys()) {
+      if (!currentIds.has(id)) semanticSeenAt.delete(id);
+    }
+  }
+  return events;
+}
+
+/** Time column: real source timestamp when present, else kind tag (no invented times). */
+function semanticEventTime(ev, info) {
+  if (ev.at && /^\d{4}-\d{2}-\d{2}T/.test(ev.at)) return relativeTime(ev.at);
+  if (ev.at) return escapeHtml(ev.at);
+  return escapeHtml(info.tag);
+}
+
+/**
+ * Mission Control is read-only: it copies text to the clipboard and a human
+ * pastes it. The panel cannot open a file, a chat, or an editor, so no label,
+ * tooltip, aria-label, or confirmation may promise an open. These are the only
+ * destinations an action is allowed to name.
+ */
+const PASTE_DESTINATIONS = {
+  filePicker: 'file picker (Cmd+P / Ctrl+P)',
+  chatInput: 'chat input',
+  pastChatPicker: 'past-chat picker',
+  terminal: 'terminal',
+};
+
+/** Accepts a key from PASTE_DESTINATIONS or an already-resolved label. */
+function pasteDestinationLabel(destination) {
+  return PASTE_DESTINATIONS[destination] || destination || PASTE_DESTINATIONS.chatInput;
+}
+
+/** Confirmation: what was copied, and where it is pasted. */
+function copyToastMessage(subject, destination) {
+  return `Copied ${subject}. Paste into the ${pasteDestinationLabel(destination)}.`;
+}
+
+/** Control tooltip: same contract as the confirmation. */
+function copyActionTitle(subject, destination) {
+  return `Copy ${subject}. Paste into the ${pasteDestinationLabel(destination)}.`;
+}
+
+/** Copy and confirm in one call, so every action states its destination. */
+function copyForPaste(text, subject, destination) {
+  return copyToClipboard(text, {
+    toastMessage: copyToastMessage(subject || text, destination),
+  });
+}
+
+/**
+ * Inline handler attribute value: escape the arguments for the JS string
+ * context, then escape the whole expression for the double-quoted attribute.
+ */
+function copyForPasteHandler(text, subject, destination) {
+  return escapeAttr(
+    `copyForPaste('${escapeJsString(text)}', '${escapeJsString(subject)}', '${escapeJsString(destination)}')`,
+  );
+}
+
+function copyRepoPathHandler(relPath) {
+  return escapeAttr(`copyRepoPath('${escapeJsString(relPath)}')`);
+}
+
+/** Path actions are copy-only; the label never says Open. */
+const PATH_COPY_LABEL = 'Copy path';
+
+function pathCopyToastMessage(relPath) {
+  return copyToastMessage(relPath, 'filePicker');
+}
+
+function pathActionTitle(relPath) {
+  return copyActionTitle(`path ${relPath}`, 'filePicker');
+}
+
+/** Keep in sync with dashboard/lib/guards.mjs isSafeRepoRelativePath. */
+function isSafeRepoRelativePath(relPath) {
+  if (typeof relPath !== 'string') return false;
+  const p = relPath.trim().replace(/\\/g, '/');
+  if (!p || p.length > 240) return false;
+  if (p.startsWith('/') || /^[A-Za-z]:\//.test(p)) return false;
+  if (p.includes('\0') || p.includes('://')) return false;
+  const parts = p.split('/');
+  if (parts.some((part) => part === '' || part === '.' || part === '..')) return false;
+  return true;
+}
+
+function looksLikeCommitSha(target) {
+  return typeof target === 'string' && /^[0-9a-f]{7,40}$/i.test(target.trim());
+}
+
+/** Copy a repo-relative path and name the destination that receives it. */
+async function copyRepoPath(relPath) {
+  if (!relPath) return;
+  await copyToClipboard(relPath, {
+    toastMessage: pathCopyToastMessage(relPath),
+  });
+}
+
+/** Activity rows: copy a repo path, or copy a commit sha for the terminal. */
+function activateSemanticTarget(target) {
+  if (!target) return;
+  if (isSafeRepoRelativePath(target)) {
+    copyRepoPath(target);
+    return;
+  }
+  copyForPaste(target, `commit ${target}`, 'terminal');
+}
+
+// ===== Plan file path action (copy + paste destination) =====
+function copyPlanPath(planPath) {
+  if (!planPath) return;
+  copyRepoPath(planPath);
+}
+
+// ===== Copy /git-staging (no server-side git mutation) =====
+function copyGitStagingCommand() {
+  copyForPaste('/git-staging', '/git-staging', 'chatInput');
+}
+
+// ===== Git file helpers (Phase 2) =====
+function shellQuotePath(path) {
+  return `"${String(path ?? '').replace(/"/g, '\\"')}"`;
+}
+
+function gitFileStatusLabel(f) {
+  if (f.untracked) return 'untracked';
+  const parts = [];
+  if (f.staged) parts.push('staged');
+  if (f.unstaged) parts.push('unstaged');
+  if (parts.length) return parts.join(' + ');
+  return f.status || 'changed';
+}
+
+function gitFileStatusClass(f) {
+  if (f.untracked) return 'untracked';
+  if (f.staged && !f.unstaged) return 'staged';
+  if (f.unstaged) return 'unstaged';
+  return '';
+}
+
+function gitFileDiffCommand(f, kind) {
+  const q = shellQuotePath(f.path);
+  if (kind === 'staged') return `git diff --cached -- ${q}`;
+  return `git diff -- ${q}`;
+}
+
+function renderGitFileRow(f) {
+  const label = gitFileStatusLabel(f);
+  const statusClass = gitFileStatusClass(f);
+  const title = f.oldPath ? `${f.oldPath} → ${f.path}` : f.path;
+  let actions = '';
+  if (f.untracked) {
+    actions = '<span style="font-size:10px;color:var(--text-muted)">no diff vs HEAD</span>';
+  } else {
+    const btns = [];
+    if (f.unstaged) {
+      const cmd = gitFileDiffCommand(f, 'unstaged');
+      const subject = 'unstaged diff command';
+      btns.push(`<button type="button" class="git-file-copy-btn" onclick="event.stopPropagation();${copyForPasteHandler(cmd, subject, 'terminal')}" title="${escapeAttr(copyActionTitle(subject, 'terminal'))}">Copy unstaged diff</button>`);
+    }
+    if (f.staged) {
+      const cmd = gitFileDiffCommand(f, 'staged');
+      const subject = 'staged diff command';
+      btns.push(`<button type="button" class="git-file-copy-btn" onclick="event.stopPropagation();${copyForPasteHandler(cmd, subject, 'terminal')}" title="${escapeAttr(copyActionTitle(subject, 'terminal'))}">Copy staged diff</button>`);
+    }
+    actions = btns.join('');
+  }
+  return `
+    <div class="git-file-item">
+      <span class="git-file-status ${escapeAttr(statusClass)}" title="${escapeAttr(f.status || '')}">${escapeHtml(label)}</span>
+      <span class="git-file-path" title="${escapeAttr(title)}">${escapeHtml(f.path)}</span>
+      <span class="git-file-actions">${actions}</span>
+    </div>
+  `;
+}
+
+function renderGitFileList(git) {
+  const files = git?.files || [];
+  if (!files.length) return '';
+  const hasStaged = files.some(f => f.staged);
+  const hasUnstaged = files.some(f => f.unstaged);
+  const truncatedNote = git.filesTruncated
+    ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Showing first ${files.length} of ${git.dirtyCount} files</div>`
+    : '';
+  return `
+    <div class="git-file-list">
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;font-weight:600">${git.dirtyCount} changed file${git.dirtyCount !== 1 ? 's' : ''}</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button type="button" class="git-action-btn primary" onclick="copyGitStagingCommand()" title="${escapeAttr(copyActionTitle('/git-staging', 'chatInput'))}">Copy /git-staging</button>
+        ${hasUnstaged ? `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler('git diff', 'git diff for all files', 'terminal')}" title="${escapeAttr(copyActionTitle('git diff for all files', 'terminal'))}">Copy git diff</button>` : ''}
+        ${hasStaged ? `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler('git diff --cached', 'git diff --cached for all files', 'terminal')}" title="${escapeAttr(copyActionTitle('git diff --cached for all files', 'terminal'))}">Copy git diff --cached</button>` : ''}
+      </div>
+      ${files.map(renderGitFileRow).join('')}
+      ${truncatedNote}
+    </div>
+  `;
+}
+
+// ===== Copy to clipboard + toast (Phase 1) =====
+/** Fallback confirmation. Callers should pass a destination-aware message. */
+function copyToastLabel(text) {
+  return text ? `Copied ${text}` : 'Copied';
+}
+
+async function copyToClipboard(text, options) {
+  const opts = options || {};
+  const label = opts.toastMessage || copyToastLabel(text);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      if (!opts.silent) showToast(label, !!opts.isError);
+      return;
+    }
+    throw new Error('Clipboard API unavailable');
+  } catch {
+    showToast(`Copy failed - select manually: ${text}`, true);
+  }
+}
+
+// ===== Show toast notification (Phase 1/3) =====
+let toastTimeout = null;
+function showToast(message, isError) {
+  let toast = document.querySelector('.copied-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'copied-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(toast);
+  }
+  toast.style.borderColor = isError ? 'var(--red)' : 'var(--green)';
+  toast.style.color = isError ? 'var(--red)' : 'var(--green)';
+  toast.innerHTML = (isError ? '<span>\u2715</span> ' : '<span>\u2713</span> ') + escapeHtml(message);
+  // Remove any previous animation class to restart
+  toast.classList.remove('visible', 'animating');
+  void toast.offsetWidth;
+  toast.classList.add('animating');
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove('animating');
+  }, 2000);
+}
+
+// ===== Toggle agent details (Phase 1) =====
+function toggleAgentDetails(id) {
+  const el = document.getElementById('agent-details-' + id);
+  if (!el) return;
+  el.classList.toggle('open');
+  const arrow = document.getElementById('agent-arrow-' + id);
+  if (arrow) {
+    arrow.style.transform = el.classList.contains('open') ? 'rotate(180deg)' : 'rotate(0deg)';
+  }
+}
+
+// ===== Health check info (Phase 1) =====
+function showHealthInfo(el, ok) {
+  // Remove any existing message siblings
+  const parent = el.parentElement;
+  const existing = parent.querySelector('.health-message');
+  if (existing) { existing.remove(); return; }
+  const msg = document.createElement('div');
+  msg.className = 'health-message';
+  msg.textContent = ok
+    ? 'All good \u2014 no action needed.'
+    : 'Check may indicate an issue. Review the relevant logs or configuration.';
+  parent.appendChild(msg);
+}
+
+// ===== Get connection uptime (Phase 2) =====
+function getConnectionUptime() {
+  if (sseMode !== 'live') return '';
+  const secs = Math.round((Date.now() - lastEventTime) / 1000);
+  if (secs < 5) return 'just connected';
+  if (secs < 60) return `Live for ${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remainSecs = secs % 60;
+  if (mins < 60) return `Live for ${mins}m ${remainSecs}s`;
+  const hrs = Math.floor(mins / 60);
+  return `Live for ${hrs}h ${mins % 60}m`;
+}
+
+// ===== Show terminal popup (Phase 2) =====
+function showTerminalPopup(content, title) {
+  const overlay = document.createElement('div');
+  overlay.className = 'terminal-popup-overlay';
+
+  const popup = document.createElement('div');
+  popup.className = 'terminal-popup';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'terminal-popup-close';
+  closeBtn.textContent = '\u2715';
+  closeBtn.addEventListener('click', () => overlay.remove());
+
+  const titleEl = document.createElement('div');
+  titleEl.style.fontWeight = '600';
+  titleEl.style.color = 'var(--text-primary)';
+  titleEl.style.marginBottom = '10px';
+  titleEl.textContent = title;
+
+  const pre = document.createElement('pre');
+  pre.style.margin = '0';
+  pre.style.whiteSpace = 'pre-wrap';
+  pre.style.wordBreak = 'break-all';
+  pre.textContent = content;
+
+  popup.appendChild(closeBtn);
+  popup.appendChild(titleEl);
+  popup.appendChild(pre);
+  overlay.appendChild(popup);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function wireTerminalExpandButtons() {
+  document.querySelectorAll('.terminal-expand-btn[data-terminal-id]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const entry = terminalOutputStore.get(btn.dataset.terminalId);
+      if (entry) showTerminalPopup(entry.content, entry.title);
+    });
+  });
+}
+
+// ===== Reset refresh button (Phase 1) =====
+function resetRefreshBtn() {
+  const btn = document.getElementById('refreshBtn');
+  if (!btn) return;
+  btn.disabled = false;
+  const btnText = btn.querySelector('.btn-refresh-text');
+  if (btnText) btnText.textContent = 'Refresh';
+  const spinner = btn.querySelector('.inline-spinner');
+  if (spinner) spinner.remove();
+}
+
+// ===== Single header transport + freshness signal =====
+function updateTransportChrome() {
+  const statusDot = document.getElementById('statusDot');
+  const statusLabel = document.getElementById('statusLabel');
+  const sseTimer = document.getElementById('sseTimer');
+  const headerStatus = document.getElementById('headerStatus');
+  if (!statusDot || !statusLabel) return;
+
+  const healthStatus = data?.health?.status || 'ok';
+  const healthTone = healthStatus === 'ok' ? 'green' : healthStatus === 'warning' ? 'yellow' : 'red';
+
+  if (sseReconnecting) {
+    statusDot.className = 'dot dot-yellow dot-pulse reconnecting-pulse';
+    statusLabel.textContent = sseFailedAttempts > 0
+      ? `Reconnecting (${sseFailedAttempts})`
+      : 'Reconnecting…';
+  } else if (sseMode === 'live') {
+    // Steady dot while healthy; pulse only when health is not ok
+    statusDot.className = healthStatus === 'ok'
+      ? 'dot dot-green'
+      : `dot dot-${healthTone} dot-pulse`;
+    statusLabel.textContent = healthStatus === 'ok' ? 'Live' : healthStatus === 'warning' ? 'Warning' : 'Degraded';
+  } else {
+    statusDot.className = `dot dot-${healthStatus === 'ok' ? 'yellow' : healthTone}`;
+    statusLabel.textContent = healthStatus === 'ok' ? 'Polling' : healthStatus === 'warning' ? 'Warning' : 'Degraded';
+  }
+
+  if (sseTimer) {
+    if (sseMode === 'live') {
+      const secs = Math.round((Date.now() - lastEventTime) / 1000);
+      sseTimer.textContent = secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`;
+    } else if (sseMode === 'polling') {
+      sseTimer.textContent = 'every 5s';
+    } else {
+      sseTimer.textContent = '';
+    }
+  }
+
+  if (headerStatus) {
+    const secs = Math.round((Date.now() - lastEventTime) / 1000);
+    const freshness = Number.isFinite(secs)
+      ? (secs < 60 ? `${secs}s since last event` : `${Math.floor(secs / 60)}m since last event`)
+      : 'awaiting first event';
+    headerStatus.title = `${statusLabel.textContent} · ${freshness}`;
+  }
+}
+
+function startStatusBarTimer() {
+  stopStatusBarTimer();
+  updateTransportChrome();
+  statusBarInterval = setInterval(updateTransportChrome, 2000);
+}
+function stopStatusBarTimer() {
+  if (statusBarInterval) { clearInterval(statusBarInterval); statusBarInterval = null; }
+}
+
+// ===== SSE Timer =====
+function startSSETimer() {
+  stopSSETimer();
+  sseTimerInterval = setInterval(() => {
+    updateSSETimer();
+    checkSseSilence();
+  }, 2000);
+}
+function stopSSETimer() {
+  if (sseTimerInterval) { clearInterval(sseTimerInterval); sseTimerInterval = null; }
+}
+function updateSSETimer() {
+  updateTransportChrome();
+}
+
+// ===== Diffing helpers =====
+function diffProcesses(prev, curr) {
+  if (!prev || !curr) return;
+  const prevPids = new Set(prev.map(p => p.pid));
+  const currPids = new Set(curr.map(p => p.pid));
+  for (const p of curr) {
+    if (!prevPids.has(p.pid)) {
+      addActivity(`Process started: ${p.label} (PID ${p.pid})`, 'started');
+    }
+  }
+  for (const p of prev) {
+    if (!currPids.has(p.pid)) {
+      addActivity(`Process stopped: ${p.label} (PID ${p.pid})`, 'stopped');
+    }
+  }
+}
+
+function diffTerminals(prev, curr) {
+  if (!prev || !curr) return;
+  const prevMap = new Map(prev.map(t => [t.id, t]));
+  const currMap = new Map(curr.map(t => [t.id, t]));
+  for (const t of curr) {
+    const prevT = prevMap.get(t.id);
+    if (!prevT) {
+      addActivity(`Terminal added: ${t.id}`, 'started');
+    } else if (t.outputLines > prevT.outputLines) {
+      addActivity(`Terminal activity: ${t.id} (${prevT.outputLines} -> ${t.outputLines} lines)`, 'info');
+    }
+  }
+  for (const t of prev) {
+    if (!currMap.has(t.id)) {
+      addActivity(`Terminal removed: ${t.id}`, 'stopped');
+    }
+  }
+}
+
+function computeSectionHash(d) {
+  return JSON.stringify({
+    handoff: d.system?.handoff,
+    now: d.missionControl?.now || null,
+    attentionIds: (d.missionControl?.attention || []).map((item) => item.id),
+    checklistNoteIds: (d.missionControl?.checklistNotes || []).map((item) => item.id),
+    git: { branch: d.git?.branch, dirty: d.git?.dirty, dirtyCount: d.git?.dirtyCount },
+    health: d.health?.status,
+    activityIds: (d.missionControl?.activity || []).map((ev) => ev.id),
+    activityLen: activityLog.length,
+  });
+}
+
+function nowFingerprint(now) {
+  if (!now) return null;
+  return JSON.stringify({
+    status: now.status,
+    planFile: now.planFile,
+    mode: now.mode,
+    progress: now.progress,
+    previousTodo: now.previousTodo?.id || null,
+    currentTodo: now.currentTodo?.id || null,
+    nextTodo: now.nextTodo?.id || null,
+    modifiedAt: now.modifiedAt,
+    lifecycle: now.lifecycle,
+  });
+}
+
+function snapshotPrevData(d) {
+  return {
+    processes: (d.processes || []).map(p => ({ pid: p.pid, label: p.label })),
+    terminals: (d.terminals || []).map(t => ({ id: t.id, outputLines: t.outputLines })),
+    health: d.health ? { status: d.health.status } : null,
+    git: d.git ? { dirty: d.git.dirty, dirtyCount: d.git.dirtyCount, branch: d.git.branch } : null,
+    system: d.system?.handoff != null ? { handoff: d.system.handoff } : undefined,
+    now: d.missionControl?.now || null,
+    attention: (d.missionControl?.attention || []).map((item) => item.id),
+  };
+}
+
+function captureUiState() {
+  const contentEl = document.getElementById('content');
+  const active = document.activeElement;
+  let focusKey = null;
+  if (active && contentEl && contentEl.contains(active)) {
+    if (active.id) focusKey = { type: 'id', value: active.id };
+    else if (active.getAttribute('data-focus-key')) {
+      focusKey = { type: 'focus-key', value: active.getAttribute('data-focus-key') };
+    } else if (active.classList.contains('status-bar-btn') || active.classList.contains('empty-state-btn')) {
+      focusKey = { type: 'text', value: (active.textContent || '').trim() };
+    }
+  }
+  return {
+    scrollTop: contentEl ? contentEl.scrollTop : 0,
+    focusKey,
+    openAgents: Array.from(document.querySelectorAll('.agent-details.open')).map((el) => el.id),
+  };
+}
+
+function restoreUiState(state) {
+  if (!state) return;
+  for (const id of state.openAgents || []) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.classList.add('open');
+    const arrowId = id.replace(/^agent-details-/, 'agent-arrow-');
+    const arrow = document.getElementById(arrowId);
+    if (arrow) arrow.style.transform = 'rotate(180deg)';
+  }
+  const contentEl = document.getElementById('content');
+  if (contentEl) {
+    if (pendingAnchorScroll && Date.now() < pendingAnchorScroll.until) {
+      // Keep the deadline: repeated ticks must not extend the takeover.
+      scrollToCockpitAnchor(pendingAnchorScroll.id, { track: false });
+    } else {
+      pendingAnchorScroll = null;
+      contentEl.scrollTop = state.scrollTop || 0;
+    }
+  }
+  if (!state.focusKey) return;
+  let target = null;
+  if (state.focusKey.type === 'id') {
+    target = document.getElementById(state.focusKey.value);
+  } else if (state.focusKey.type === 'focus-key') {
+    target = document.querySelector(`[data-focus-key="${CSS.escape(state.focusKey.value)}"]`);
+  } else if (state.focusKey.type === 'text') {
+    target = Array.from(document.querySelectorAll('button')).find(
+      (btn) => (btn.textContent || '').trim() === state.focusKey.value,
+    );
+  }
+  if (target && typeof target.focus === 'function') {
+    try {
+      target.focus({ preventScroll: true });
+    } catch {
+      target.focus();
+    }
+  }
+}
+
+function nowStatusMeta(status) {
+  if (status === 'executing') {
+    return { key: 'executing', label: 'Executing', mark: '\u25B6', live: true };
+  }
+  if (status === 'awaiting_user') {
+    return { key: 'awaiting', label: 'Awaiting user', mark: '\u23F8', live: false };
+  }
+  return { key: 'idle', label: 'Idle', mark: '\u25CB', live: false };
+}
+
+function lifecycleMeta(lifecycle) {
+  const map = {
+    executing: { key: 'executing', label: 'Executing', mark: '\u25B6', dot: 'dot-blue' },
+    awaiting_user: { key: 'awaiting', label: 'Awaiting user', mark: '\u23F8', dot: 'dot-yellow' },
+    parked: { key: 'parked', label: 'Parked', mark: '\u23F8', dot: 'dot-purple' },
+    incomplete: { key: 'incomplete', label: 'Incomplete', mark: '\u25CF', dot: 'dot-yellow' },
+    completed: { key: 'completed', label: 'Completed', mark: '\u2713', dot: 'dot-green' },
+  };
+  return map[lifecycle] || { key: 'unknown', label: lifecycle || 'Unknown', mark: '\u25CB', dot: 'dot-gray' };
+}
+
+function planDomKey(plan) {
+  return String(plan?.file || plan?.id || plan?.path || 'plan')
+    .replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+/** Merge snapshot plans with missionControl lifecycle enrichment. */
+function mergePlansForUi(d) {
+  const classified = d.missionControl?.plans || [];
+  const byKey = new Map();
+  for (const c of classified) {
+    const key = String(c.file || c.path || c.id || '')
+      .split('/')
+      .pop();
+    if (key) byKey.set(key, c);
+  }
+  return (d.plans || []).map((raw) => {
+    const key = String(raw.file || raw.path || raw.id || '')
+      .split('/')
+      .pop();
+    const enriched = byKey.get(key) || {};
+    const completed = raw.todos?.completed ?? enriched.progress?.completed ?? 0;
+    const total = raw.todos?.total ?? enriched.progress?.total ?? 0;
+    let lifecycle = enriched.lifecycle;
+    if (!lifecycle) {
+      if (total > 0 && completed >= total && (raw.todos?.inProgress || 0) === 0) {
+        lifecycle = 'completed';
+      } else {
+        lifecycle = 'incomplete';
+      }
+    }
+    return {
+      id: raw.id,
+      file: raw.file,
+      path: raw.path || enriched.path || '',
+      overview: raw.overview || enriched.overview || '',
+      modifiedAt: raw.modifiedAt || enriched.modifiedAt || null,
+      progressPct:
+        typeof raw.progress === 'number'
+          ? raw.progress
+          : total > 0
+            ? Math.round((completed / total) * 100)
+            : 0,
+      progressLabel: enriched.progress?.label || `${completed} of ${total}`,
+      progressCompleted: completed,
+      progressTotal: total,
+      lifecycle,
+      todos: raw.todos || {
+        items: [],
+        total: 0,
+        completed: 0,
+        pending: 0,
+        inProgress: 0,
+      },
+    };
+  });
+}
+
+/** executing first, attention states next, then most recently modified. */
+function sortPlansForPortfolio(plans) {
+  return [...plans].sort((a, b) => {
+    const ra = LIFECYCLE_SORT_RANK[a.lifecycle] ?? 9;
+    const rb = LIFECYCLE_SORT_RANK[b.lifecycle] ?? 9;
+    if (ra !== rb) return ra - rb;
+    const ta = a.modifiedAt ? new Date(a.modifiedAt).getTime() : 0;
+    const tb = b.modifiedAt ? new Date(b.modifiedAt).getTime() : 0;
+    return tb - ta;
+  });
+}
+
+function togglePlanAccordion(planKey, event) {
+  if (!planKey) return;
+  const exclusive =
+    isNarrowPanel() &&
+    !planAccordionAllowMulti &&
+    !(event && (event.shiftKey || event.metaKey || event.ctrlKey));
+  if (openPlanAccordions.has(planKey)) {
+    openPlanAccordions.delete(planKey);
+  } else {
+    if (exclusive) openPlanAccordions.clear();
+    openPlanAccordions.add(planKey);
+  }
+  applyPlanAccordionState();
+}
+
+function setPlanAccordionMulti(enabled) {
+  planAccordionAllowMulti = !!enabled;
+  const toggle = document.getElementById('plan-accordion-multi-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', planAccordionAllowMulti ? 'true' : 'false');
+    toggle.textContent = planAccordionAllowMulti
+      ? 'Multiple open: on'
+      : 'Multiple open: off';
+  }
+  if (!planAccordionAllowMulti && isNarrowPanel() && openPlanAccordions.size > 1) {
+    const keep = [...openPlanAccordions].pop();
+    openPlanAccordions.clear();
+    if (keep) openPlanAccordions.add(keep);
+    applyPlanAccordionState();
+  }
+}
+
+function applyPlanAccordionState() {
+  document.querySelectorAll('.plan-accordion-item').forEach((item) => {
+    const key = item.getAttribute('data-plan-key');
+    const open = openPlanAccordions.has(key);
+    item.classList.toggle('open', open);
+    const trigger = item.querySelector('.plan-accordion-trigger');
+    if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const panel = item.querySelector('.plan-accordion-panel');
+    if (panel) panel.hidden = !open;
+  });
+  const toggle = document.getElementById('plan-accordion-multi-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', planAccordionAllowMulti ? 'true' : 'false');
+    toggle.textContent = planAccordionAllowMulti
+      ? 'Multiple open: on'
+      : 'Multiple open: off';
+  }
+}
+
+/**
+ * Pure half of the Checklist notes group: a note whose plan already renders as
+ * a card in the same section is dropped, so a parked or incomplete plan is
+ * never stated twice. Readiness notes carry no plan and always survive.
+ */
+function checklistNotesForRender(notes, renderedPlans) {
+  const shown = new Set(
+    (renderedPlans || [])
+      .map((p) => String(p?.file || '').split('/').pop())
+      .filter(Boolean),
+  );
+  return orderAttentionBySeverity(
+    (notes || []).filter(
+      (note) => !note?.planFile || !shown.has(String(note.planFile).split('/').pop()),
+    ),
+  );
+}
+
+/** Plan-state and readiness rows that moved out of Field Report. */
+function renderChecklistNotes(d, renderedPlans) {
+  const notes = checklistNotesForRender(
+    d.missionControl?.checklistNotes,
+    renderedPlans,
+  );
+  if (notes.length === 0) return '';
+  const rows = notes
+    .map((item, idx) => renderAttentionItem(item, idx))
+    .join('');
+  return `
+    <div class="attention-group-label">Plan states and readiness needing a decision</div>
+    <div class="attention-stack" role="list">${rows}</div>
+  `;
+}
+
+function renderRecentPlanCards(d) {
+  const sorted = sortPlansForPortfolio(mergePlansForUi(d));
+  const recent = sorted.slice(0, RECENT_PLAN_CARD_LIMIT);
+  if (recent.length === 0) {
+    return `
+      <div class="card" id="recent-plans-panel">
+        <div class="card-header now-panel-header">
+          <span class="card-title">${spaceIconSvg('checklist')}Checklist</span>
+          <span class="section-subtitle" style="margin-left:auto">0</span>
+        </div>
+        <div class="attention-empty">No plans yet. Use /start-project to create one.</div>
+        ${renderChecklistNotes(d, [])}
+      </div>
+    `;
+  }
+  const cards = recent
+    .map((p, idx) => {
+      const life = lifecycleMeta(p.lifecycle);
+      const focusKey = `recent-plan-${idx}-${escapeAttr(planDomKey(p))}`;
+      return `
+        <button type="button"
+          class="recent-plan-card recent-plan-card-${life.key}"
+          data-focus-key="${focusKey}"
+          aria-label="Copy path for plan ${escapeAttr(p.id)} (${escapeAttr(p.progressLabel)}, ${escapeAttr(life.label)})"
+          title="${escapeAttr(pathActionTitle(p.path))}"
+          onclick="${copyRepoPathHandler(p.path)}">
+          <div class="recent-plan-card-header">
+            <span class="lifecycle-pill lifecycle-pill-${life.key}">
+              <span class="dot ${life.dot}" aria-hidden="true"></span>
+              ${escapeHtml(life.label)}
+            </span>
+            <span class="recent-plan-progress" aria-label="Progress ${escapeAttr(p.progressLabel)}">${escapeHtml(p.progressLabel)}</span>
+          </div>
+          <div class="recent-plan-name">${escapeHtml(p.id)}</div>
+          <div class="recent-plan-meta">
+            <span>${fmtDate(p.modifiedAt)}</span>
+            <span>${escapeHtml(PATH_COPY_LABEL)}</span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+  return `
+    <div class="card" id="recent-plans-panel">
+      <div class="card-header now-panel-header">
+        <span class="card-title">${spaceIconSvg('checklist')}Checklist</span>
+        <span class="section-subtitle" style="margin-left:auto">${recent.length} of ${sorted.length}</span>
+      </div>
+      <div class="recent-plans-grid" role="list">${cards}</div>
+      ${renderChecklistNotes(d, recent)}
+    </div>
+  `;
+}
+
+function renderPlansAccordion(d) {
+  const sorted = sortPlansForPortfolio(mergePlansForUi(d));
+  if (sorted.length === 0) {
+    return `<div class="empty-state-cta">
+    <p>No plans yet \u2014 use <code>/start-project</code> to create one</p>
+    <button class="empty-state-btn" onclick="${copyForPasteHandler('/start-project', '/start-project', 'chatInput')}" title="${escapeAttr(copyActionTitle('/start-project', 'chatInput'))}"><span>\u2192</span> Copy /start-project</button>
+  </div>`;
+  }
+  const items = sorted
+    .map((p) => {
+      const life = lifecycleMeta(p.lifecycle);
+      const key = planDomKey(p);
+      const open = openPlanAccordions.has(key);
+      const todos = p.todos?.items || [];
+      const pct = p.progressPct;
+      const color = progressColor(pct);
+      return `
+        <div class="plan-accordion-item${open ? ' open' : ''}" data-plan-key="${escapeAttr(key)}" id="plan-item-${escapeAttr(key)}">
+          <button type="button"
+            class="plan-accordion-trigger"
+            id="plan-trigger-${escapeAttr(key)}"
+            data-focus-key="plan-acc-${escapeAttr(key)}"
+            aria-expanded="${open ? 'true' : 'false'}"
+            aria-controls="plan-panel-${escapeAttr(key)}"
+            onclick="togglePlanAccordion('${escapeJsString(key)}', event)">
+            <span class="dot ${life.dot}" aria-hidden="true"></span>
+            <span class="plan-accordion-trigger-body">
+              <span class="plan-accordion-title-row">
+                <span class="plan-accordion-title">${escapeHtml(p.id)}</span>
+                <span class="lifecycle-pill lifecycle-pill-${life.key}">${escapeHtml(life.label)}</span>
+                <span class="recent-plan-progress">${escapeHtml(p.progressLabel)}</span>
+              </span>
+              <span class="plan-accordion-overview">${escapeHtml(p.overview || '\u2014')}</span>
+              <span class="plan-accordion-meta">
+                <span>${fmtDate(p.modifiedAt)}</span>
+                <span>${pct}%</span>
+              </span>
+            </span>
+            <span class="plan-accordion-chevron" aria-hidden="true">\u25BC</span>
+          </button>
+          <div class="plan-accordion-panel" id="plan-panel-${escapeAttr(key)}" role="region" aria-labelledby="plan-trigger-${escapeAttr(key)}"${open ? '' : ' hidden'}>
+            <div class="progress-bar" style="margin:10px 0 8px">
+              <div class="progress-fill ${color}" style="width:${pct}%"></div>
+            </div>
+            <p class="plan-accordion-hint">Narrow panels open one plan at a time. Shift-click a header (or turn Multiple open on) to keep more expanded.</p>
+            <div class="plan-accordion-actions">
+              <button type="button" class="status-bar-btn" data-focus-key="plan-copy-${escapeAttr(key)}" onclick="event.stopPropagation();${copyRepoPathHandler(p.path)}" title="${escapeAttr(pathActionTitle(p.path))}" style="font-size:11px;padding:3px 10px">Copy plan path</button>
+            </div>
+            ${todos.length > 0
+              ? `<div class="plan-todo-list plan-todo-list-full" role="list">
+                ${todos
+                  .map(
+                    (t) => `
+                  <div class="plan-todo-item plan-todo-item-action" role="listitem" tabindex="0"
+                    data-focus-key="plan-todo-${escapeAttr(key)}-${escapeAttr(t.id || '')}"
+                    aria-label="Copy the plan path for to-do ${escapeAttr(t.id || '')}"
+                    title="${escapeAttr(pathActionTitle(p.path))}"
+                    onclick="${copyRepoPathHandler(p.path)}"
+                    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${copyRepoPathHandler(p.path)}}">
+                    <span class="dot ${statusDot(t.status)}"></span>
+                    <span style="flex:1"><code style="font-size:11px">${escapeHtml(t.id || '')}</code>${t.content ? ` \u2014 ${escapeHtml(t.content)}` : ''}</span>
+                    <span style="color:var(--text-muted);font-size:11px">${escapeHtml(t.status)}</span>
+                  </div>`,
+                  )
+                  .join('')}
+              </div>`
+              : '<div class="attention-empty">No to-dos in this plan.</div>'}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+  return `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button type="button" class="status-bar-btn" id="plan-accordion-multi-toggle" data-focus-key="plan-acc-multi"
+        aria-pressed="${planAccordionAllowMulti ? 'true' : 'false'}"
+        onclick="setPlanAccordionMulti(!planAccordionAllowMulti)"
+        style="font-size:11px;padding:3px 10px"
+        title="On narrow panels, keep more than one plan accordion expanded">${planAccordionAllowMulti ? 'Multiple open: on' : 'Multiple open: off'}</button>
+    </div>
+    <div class="plan-accordion-list" role="list">${items}</div>
+  `;
+}
+
+function formatNowUpdated(modifiedAt) {
+  if (!modifiedAt) return '\u2014';
+  if (/^\d{4}-\d{2}-\d{2}T/.test(modifiedAt)) return fmtDate(modifiedAt);
+  return escapeHtml(modifiedAt);
+}
+
+/** Plain display string for tooltips (no HTML entities). */
+function formatNowUpdatedPlain(modifiedAt) {
+  if (!modifiedAt) return '\u2014';
+  if (/^\d{4}-\d{2}-\d{2}T/.test(modifiedAt)) return fmtDate(modifiedAt);
+  return String(modifiedAt);
+}
+
+/** Inline SVG meta icons (no icon font). Accessible name via aria-label + title. */
+function nowMetaIconSvg(kind) {
+  if (kind === 'mode') {
+    return `<svg class="now-meta-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Mode" title="Mode"><circle cx="8" cy="8" r="2.25"/><path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.4 3.4l1.06 1.06M11.54 11.54l1.06 1.06M12.6 3.4l-1.06 1.06M4.46 11.54l-1.06 1.06"/></svg>`;
+  }
+  // kind === 'updated' (clock)
+  return `<svg class="now-meta-icon" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Updated" title="Updated"><circle cx="8" cy="8" r="5.25"/><path d="M8 5.25V8l1.75 1.75"/></svg>`;
+}
+
+/**
+ * Space-theme Cockpit/nav icon set (inline SVG, no font/fetch/dependency).
+ * Same stroke idiom as nowMetaIconSvg: viewBox 0 0 16 16, stroke 1.5, round caps/joins.
+ * Static path markup only; never concatenate untrusted text into the SVG.
+ * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'} kind
+ * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
+ *   decorative false: role=img + aria-label + title for icon-only controls (e.g. more-sections).
+ */
+function spaceIconSvg(kind, opts) {
+  const decorative = !opts || opts.decorative !== false;
+  const names = {
+    'current-mission': 'Current mission',
+    monitor: 'Monitor',
+    'field-report': 'Field Report',
+    checklist: 'Checklist',
+    'more-sections': 'More sections',
+  };
+  const paths = {
+    // Rocket (mission)
+    'current-mission':
+      '<path d="M8 1.75c1.6 2.1 2.85 4.15 2.85 6.35a2.85 2.85 0 01-5.7 0C5.15 5.9 6.4 3.85 8 1.75z"/>' +
+      '<circle cx="8" cy="7.25" r="1"/>' +
+      '<path d="M5.6 11.1L4.25 13.5M10.4 11.1L11.75 13.5M6.75 13.75h2.5"/>',
+    // Radar sweep (monitor)
+    monitor:
+      '<circle cx="8" cy="8" r="5.25"/>' +
+      '<path d="M8 8l3.6-3.2"/>' +
+      '<path d="M8 2.75a5.25 5.25 0 014.35 2.5"/>' +
+      '<path d="M8 4.85a3.15 3.15 0 012.7 1.55"/>' +
+      '<circle cx="8" cy="8" r="0.85"/>',
+    // Antenna + signal arcs (field report)
+    'field-report':
+      '<path d="M8 13.25V7.5"/>' +
+      '<circle cx="8" cy="5.5" r="1.65"/>' +
+      '<path d="M4.75 8.75a3.75 3.75 0 016.5 0"/>' +
+      '<path d="M3.15 10.6a5.75 5.75 0 019.7 0"/>',
+    // Checklist with check (checklist)
+    checklist:
+      '<path d="M3.25 4.25h9.5M3.25 8h6.25M3.25 11.75h5"/>' +
+      '<path d="M10.25 10.35l1.35 1.35 2.4-2.55"/>',
+    // Constellation dots (more sections / overflow)
+    'more-sections':
+      '<circle cx="3.5" cy="8" r="1.1"/>' +
+      '<circle cx="8" cy="8" r="1.1"/>' +
+      '<circle cx="12.5" cy="8" r="1.1"/>',
+  };
+  const body = paths[kind];
+  const label = names[kind];
+  if (!body || !label) return '';
+  const a11y = decorative
+    ? 'aria-hidden="true"'
+    : `role="img" aria-label="${label}" title="${label}"`;
+  return `<svg class="space-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ${a11y}>${body}</svg>`;
+}
+
+/** Discreet Mode + Updated row: icons replace bold text labels. */
+function renderNowMeta(modeLabel, updatedSource) {
+  const updatedLabel = formatNowUpdated(updatedSource);
+  const updatedPlain = formatNowUpdatedPlain(updatedSource);
+  const modeItem = modeLabel
+    ? `<span class="now-meta-item" title="${escapeAttr('Mode: ' + modeLabel)}">${nowMetaIconSvg('mode')}<span class="now-meta-value">${escapeHtml(modeLabel)}</span></span>`
+    : '';
+  const updatedItem = `<span class="now-meta-item" title="${escapeAttr('Updated: ' + updatedPlain)}">${nowMetaIconSvg('updated')}<span class="now-meta-value">${updatedLabel}</span></span>`;
+  return `<div class="now-meta" role="group" aria-label="Plan metadata">${modeItem}${updatedItem}</div>`;
+}
+
+function attentionFingerprint(items) {
+  return JSON.stringify(
+    (items || []).map((item) => (typeof item === 'string' ? item : item?.id || '')),
+  );
+}
+
+function attentionSeverityMeta(severity) {
+  if (severity === 'action') {
+    return { key: 'action', label: 'Action', mark: '\u23F8' };
+  }
+  if (severity === 'warning') {
+    return { key: 'warning', label: 'Warning', mark: '\u26A0' };
+  }
+  return { key: 'info', label: 'Note', mark: '\u2139' };
+}
+
+function attentionKindLabel(kind) {
+  const map = {
+    prompt: 'Agent prompt',
+    report: 'External review',
+    handoff: 'Handoff',
+    parked: 'Parked',
+    incomplete: 'Incomplete',
+    readiness: 'Readiness',
+  };
+  return map[kind] || kind || 'Attention';
+}
+
+/**
+ * Every Field Report and Checklist action copies. The label, tooltip, and
+ * confirmation name what was copied and which destination receives the paste.
+ */
+function attentionActionButton(item, idx) {
+  const action = item?.action;
+  if (!action?.target) return '';
+  let label;
+  let onclick;
+  let title;
+  if (action.type === 'copy') {
+    const subject = action.subject || action.target;
+    const destination = action.pasteDestination || 'chatInput';
+    label = action.label || 'Copy';
+    onclick = copyForPasteHandler(action.target, subject, destination);
+    title = copyActionTitle(subject, destination);
+  } else if (isSafeRepoRelativePath(action.target)) {
+    label = PATH_COPY_LABEL;
+    onclick = copyRepoPathHandler(action.target);
+    title = pathActionTitle(action.target);
+  } else {
+    label = 'Copy reference';
+    onclick = copyForPasteHandler(action.target, 'reference', 'chatInput');
+    title = copyActionTitle('reference', 'chatInput');
+  }
+  const focusKey = `attention-action-${idx}-${escapeAttr(item.id || 'item')}`;
+  return `<button type="button" class="status-bar-btn" data-focus-key="${focusKey}" onclick="${onclick}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(title)}">${escapeHtml(label)}</button>`;
+}
+
+// One Field Report row. `item.label` is derived from untrusted conversation
+// text, so every dynamic value is escaped on the way into the document.
+function renderAttentionItem(item, idx) {
+  const sev = attentionSeverityMeta(item.severity);
+  const progressLabel = item.progress?.label
+    || (item.progress && item.progress.total > 0
+      ? `${item.progress.completed} of ${item.progress.total}`
+      : '');
+  const updated = item.modifiedAt ? formatNowUpdated(item.modifiedAt) : '';
+  const metaParts = [];
+  if (progressLabel) metaParts.push(escapeHtml(progressLabel));
+  // Prompts have no plan progress; show when the question went quiet instead.
+  // Reports show when the review landed in memory.
+  if (updated) {
+    if (item.kind === 'prompt') metaParts.push(`Quiet since ${updated}`);
+    else if (item.kind === 'report') metaParts.push(`Landed ${updated}`);
+    else metaParts.push(`Updated ${updated}`);
+  }
+  if (item.sourcePath) metaParts.push(`<code>${escapeHtml(item.sourcePath)}</code>`);
+  return `
+    <div class="attention-item attention-item-${sev.key}" role="listitem" data-attention-id="${escapeAttr(item.id || '')}">
+      <div class="attention-item-header">
+        <span class="attention-severity attention-severity-${sev.key}" aria-label="Severity: ${escapeAttr(sev.label)}">
+          <span aria-hidden="true">${sev.mark}</span>
+          ${escapeHtml(sev.label)}
+        </span>
+        <span class="attention-kind">${escapeHtml(attentionKindLabel(item.kind))}</span>
+      </div>
+      <div class="attention-label">${escapeHtml(item.label || 'Attention item')}</div>
+      ${metaParts.length ? `<div class="attention-meta">${metaParts.join(' \u00b7 ')}</div>` : ''}
+      <div class="attention-actions">${attentionActionButton(item, idx)}</div>
+    </div>
+  `;
+}
+
+/** Severity-first ordering shared by Field Report rows and Checklist notes. */
+function orderAttentionBySeverity(items) {
+  const actionable = items.filter(
+    (item) => item.severity === 'action' || item.severity === 'warning',
+  );
+  const notes = items.filter(
+    (item) => item.severity !== 'action' && item.severity !== 'warning',
+  );
+  return [...actionable, ...notes];
+}
+
+function renderAttentionPanel(d, attentionChanged) {
+  const items = d.missionControl?.attention || [];
+  const prompts = items.filter((item) => item.kind === 'prompt');
+  const reports = items.filter((item) => item.kind === 'report');
+  const rest = items.filter((item) => item.kind !== 'prompt' && item.kind !== 'report');
+  const ordered = orderAttentionBySeverity(rest);
+  const total = prompts.length + reports.length + ordered.length;
+  const countLabel = total === 0 ? 'Clear' : `${total}`;
+
+  // Distinct labelled group so the transcript-derived source stays legible next
+  // to the active handoff gate.
+  const promptGroup = prompts.length
+    ? `<div class="attention-group-label">Agent prompts awaiting a reply</div>
+       <div class="attention-stack" role="list">${prompts.map((item, idx) => renderAttentionItem(item, idx)).join('')}</div>`
+    : '';
+
+  // Same treatment for reviews that never reached a triage outcome.
+  const reportGroup = reports.length
+    ? `<div class="attention-group-label">External reviews awaiting triage</div>
+       <div class="attention-stack" role="list">${reports.map((item, idx) => renderAttentionItem(item, prompts.length + idx)).join('')}</div>`
+    : '';
+
+  const restGroup = ordered.length
+    ? `<div class="attention-stack" role="list">${ordered.map((item, idx) => renderAttentionItem(item, prompts.length + reports.length + idx)).join('')}</div>`
+    : '';
+
+  const rows = total === 0
+    ? `<div class="attention-empty">Nothing needs attention. Agent prompts awaiting a reply, external reviews awaiting triage, and active handoff gates appear here. Plan states and readiness notes live in Checklist.</div>`
+    : `${promptGroup}${reportGroup}${restGroup}`;
+
+  return `
+    <div class="card${attentionChanged ? ' card-flash' : ''}" id="attention-panel">
+      <div class="card-header now-panel-header">
+        <span class="card-title">${spaceIconSvg('field-report')}Field Report</span>
+        <span class="section-subtitle" style="margin-left:auto">${escapeHtml(countLabel)}</span>
+      </div>
+      ${rows}
+    </div>
+  `;
+}
+
+// Step progress bar: one segment per plan step (completed / current / remaining).
+function renderNowStepBar(now) {
+  const total = now?.progress?.total ?? 0;
+  if (total <= 0) return '';
+  const completed = Math.min(Math.max(now?.progress?.completed ?? 0, 0), total);
+  const hasCurrent = !!now?.currentTodo && completed < total;
+  const remaining = Math.max(0, total - completed - (hasCurrent ? 1 : 0));
+  const segs =
+    '<span class="now-stepbar-seg now-stepbar-seg-done" aria-hidden="true"></span>'.repeat(completed) +
+    (hasCurrent ? '<span class="now-stepbar-seg now-stepbar-seg-current" aria-hidden="true"></span>' : '') +
+    '<span class="now-stepbar-seg" aria-hidden="true"></span>'.repeat(remaining);
+  const aria = `Step progress: ${completed} of ${total} steps complete${hasCurrent ? ', 1 in progress' : ''}`;
+  return `
+    <div class="now-stepbar-row">
+      <div class="now-stepbar" role="img" aria-label="${escapeAttr(aria)}">${segs}</div>
+      <span class="now-stepbar-label" aria-hidden="true">${completed} of ${total}</span>
+    </div>
+  `;
+}
+
+function nowStepTodoText(todo) {
+  return `<span class="now-todo-id">${escapeHtml(todo.id)}</span>${todo.content ? ` \u2014 ${escapeHtml(todo.content)}` : ''}`;
+}
+
+// Connected previous → current → next blocks derived from plan todo statuses.
+function renderNowStepper(now, handoff, status, meta) {
+  const total = now?.progress?.total ?? 0;
+  const completed = now?.progress?.completed ?? 0;
+  const planDone = total > 0 && completed >= total;
+  const previousTodo = now?.previousTodo || null;
+  const currentTodo = now?.currentTodo || null;
+  const nextTodo = now?.nextTodo || null;
+
+  const prevText = previousTodo
+    ? nowStepTodoText(previousTodo)
+    : escapeHtml('None \u2014 first step');
+  const currentText = currentTodo
+    ? nowStepTodoText(currentTodo)
+    : escapeHtml(
+        planDone
+          ? 'Plan complete'
+          : status === 'awaiting_user'
+            ? 'Awaiting user decision'
+            : '\u2014',
+      );
+  const nextText = nextTodo
+    ? nowStepTodoText(nextTodo)
+    : escapeHtml(
+        planDone
+          ? 'None \u2014 plan complete'
+          : handoff?.instruction
+            ? handoff.instruction
+            : status === 'awaiting_user'
+              ? 'Awaiting user decision'
+              : 'None \u2014 last step',
+      );
+
+  const currentMark = planDone ? '\u2713' : meta.mark;
+  return `
+    <ol class="now-stepper" aria-label="Work progression: previous, current, next">
+      <li class="now-step now-step-previous${previousTodo ? ' now-step-done' : ' now-step-empty'}">
+        <span class="now-step-marker" aria-hidden="true">${previousTodo ? '\u2713' : '\u25CB'}</span>
+        <div class="now-step-body">
+          <span class="now-step-label">Previous</span>
+          <div class="now-step-text">${prevText}</div>
+        </div>
+      </li>
+      <li class="now-step now-step-current${planDone ? ' now-step-done' : ''}${currentTodo || planDone ? '' : ' now-step-empty'}">
+        <span class="now-step-marker" aria-hidden="true">${currentMark}</span>
+        <div class="now-step-body">
+          <span class="now-step-label">Current</span>
+          <div class="now-step-text">${currentText}</div>
+        </div>
+      </li>
+      <li class="now-step now-step-next${nextTodo ? '' : ' now-step-empty'}">
+        <span class="now-step-marker" aria-hidden="true">\u25CB</span>
+        <div class="now-step-body">
+          <span class="now-step-label">Next</span>
+          <div class="now-step-text">${nextText}</div>
+        </div>
+      </li>
+    </ol>
+  `;
+}
+
+function renderNowExecutionPanel(d, nowChanged) {
+  const now = d.missionControl?.now || null;
+  const handoff = d.system?.handoff || null;
+  const hasPlan = !!(now?.planFile || handoff?.plan);
+  const status = now?.status || (hasPlan ? 'awaiting_user' : 'idle');
+  const meta = nowStatusMeta(status);
+  const planName = now?.planId || now?.planFile || handoff?.plan || '';
+  const planPath =
+    now?.planPath ||
+    handoff?.planPath ||
+    (handoff?.plan ? `.cursor/plans/${handoff.plan}` : '');
+  const modeLabel = now?.mode || handoff?.mode || null;
+  const updatedSource = now?.modifiedAt || handoff?.lastUpdated || null;
+
+  const statusClass = `now-status now-status-${meta.key}${meta.live ? ' now-status-live' : ''}`;
+
+  if (!hasPlan) {
+    return `
+      <div class="card" id="now-execution-panel">
+        <div class="card-header now-panel-header">
+          <span class="card-title">${spaceIconSvg('current-mission')}Current mission</span>
+          <span class="${statusClass}" aria-label="Status: Idle">
+            <span class="now-status-mark" aria-hidden="true">${meta.mark}</span>
+            Idle
+          </span>
+        </div>
+        <div class="empty-state" style="padding:16px 8px">
+          <div style="margin-bottom:8px">No active plan</div>
+          <button class="empty-state-btn" data-focus-key="cta-start-project" onclick="${copyForPasteHandler('/start-project', '/start-project', 'chatInput')}" title="${escapeAttr(copyActionTitle('/start-project', 'chatInput'))}">\u2192 Copy /start-project</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="card${nowChanged ? ' card-flash' : ''}" id="now-execution-panel">
+      <div class="card-header now-panel-header">
+        <span class="card-title">${spaceIconSvg('current-mission')}Current mission</span>
+        <span class="${statusClass}" aria-label="Status: ${escapeAttr(meta.label)}">
+          <span class="now-status-mark" aria-hidden="true">${meta.mark}</span>
+          ${escapeHtml(meta.label)}
+        </span>
+      </div>
+      <div class="now-plan-name">${escapeHtml(planName)}</div>
+      ${renderNowStepBar(now)}
+      ${renderNowStepper(now, handoff, status, meta)}
+      ${renderNowMeta(modeLabel, updatedSource)}
+      <div class="now-actions">
+        <button class="status-bar-btn" data-focus-key="cta-copy-plan-path" onclick="${escapeAttr(`copyPlanPath('${escapeJsString(planPath)}')`)}" style="font-size:11px;padding:4px 14px" title="${escapeAttr(pathActionTitle(planPath))}">Copy plan path</button>
+        <button class="status-bar-btn" data-focus-key="cta-copy-staging" onclick="copyGitStagingCommand()" style="font-size:11px;padding:4px 14px" title="${escapeAttr(copyActionTitle('/git-staging', 'chatInput'))}">Copy /git-staging</button>
+      </div>
+    </div>
+  `;
+}
+
+// ===== Render =====
+function render() {
+  if (!data) return;
+  try {
+    renderUnsafe();
+  } catch (err) {
+    console.error('Dashboard render failed', err);
+    dataLoading = false;
+    const contentEl = document.getElementById('content');
+    if (contentEl) {
+      const errMsg = err && err.message ? err.message : String(err);
+      const errStack = err && err.stack ? err.stack : '';
+      contentEl.innerHTML = `
+        <div class="empty-state" style="padding:60px 20px">
+          <div style="font-size:16px;font-weight:600;color:var(--red)">Render Failed</div>
+          <div style="margin-top:8px;font-size:12px;color:var(--text-secondary)">${escapeHtml(errMsg)}</div>
+          <button class="error-retry-btn" onclick="refresh()">
+            <span>\u21bb</span> Retry
+          </button>
+          ${errStack ? `
+            <div style="margin-top:12px">
+              <button class="error-stack-toggle" onclick="(function(el){
+                var detail = el.nextElementSibling;
+                if(detail) detail.classList.toggle('open');
+              })(this)">Show stack trace \u25bc</button>
+              <div class="error-stack-detail">${escapeHtml(errStack)}</div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+    const btn = document.getElementById('refreshBtn');
+    if (btn) {
+      btn.disabled = false;
+      const btnText = btn.querySelector('.btn-refresh-text');
+      if (btnText) btnText.textContent = 'Refresh';
+      const spinner = btn.querySelector('.inline-spinner');
+      if (spinner) spinner.remove();
+    }
+  }
+}
+
+function renderUnsafe() {
+  const d = data;
+
+  // Diffing (compare with prevData)
+  if (prevData) {
+    diffProcesses(prevData.processes, d.processes);
+    diffTerminals(prevData.terminals, d.terminals);
+  }
+  // Metric diff tracking for delta badges (only non-zero deltas animate)
+  const delta = {};
+  const currMetrics = {
+    plans: d.plans.length,
+    agents: d.agents.length,
+    skills: d.skills.length,
+    commands: d.commands.length,
+    memory: (d.memory.errors || 0) + (d.memory.decisions || 0),
+    terminals: d.terminals.length,
+    processes: d.processes.length,
+    activity: activityLog.length,
+  };
+  if (prevData) {
+    for (const key of Object.keys(currMetrics)) {
+      const diff = currMetrics[key] - prevMetrics[key];
+      if (diff !== 0) delta[key] = diff;
+    }
+    // Health status change
+    if (prevData.health && d.health && prevData.health.status !== d.health.status) {
+      addActivity(`Health status changed: ${prevData.health.status} \u2192 ${d.health.status}`, 'warning');
+    }
+    // Git dirty status change
+    if (prevData.git && d.git) {
+      if (!prevData.git.dirty && d.git.dirty) {
+        addActivity(`Git: ${d.git.dirtyCount} file${d.git.dirtyCount !== 1 ? 's' : ''} modified`, 'git');
+      } else if (prevData.git.dirty && !d.git.dirty) {
+        addActivity('Git: working tree clean', 'git');
+      }
+    }
+  }
+  prevMetrics = { ...currMetrics };
+  const isFirstRender = !prevData;
+  const sectionHash = computeSectionHash(d);
+  const sectionChanged = prevData && prevSectionHash !== sectionHash;
+  prevSectionHash = sectionHash;
+  const handoffChanged = prevData && JSON.stringify(d.system?.handoff) !== JSON.stringify(prevData.system?.handoff);
+  const nowChanged = prevData && nowFingerprint(d.missionControl?.now) !== nowFingerprint(prevData.now);
+  const attentionChanged = prevData && attentionFingerprint(d.missionControl?.attention) !== attentionFingerprint(prevData.attention);
+  const gitChanged = prevData && d.git && prevData.git && (
+    prevData.git.dirty !== d.git.dirty ||
+    prevData.git.dirtyCount !== d.git.dirtyCount ||
+    prevData.git.branch !== d.git.branch
+  );
+  const hasMetricDelta = Object.keys(delta).length > 0;
+  const hasVisualChange = isFirstRender || hasMetricDelta || sectionChanged || nowChanged || attentionChanged;
+  const healthStatusChanged = prevData && prevData.health && d.health &&
+    prevData.health.status !== d.health.status;
+  prevData = snapshotPrevData(d);
+
+  dataLoading = false;
+
+  const contentEl = document.getElementById('content');
+  const uiState = captureUiState();
+
+  // Flash animations only when payload actually changed (skip if reduced motion)
+  if (hasVisualChange && !isFirstRender && !prefersReducedMotion()) {
+    contentEl.classList.remove('data-refreshing');
+    void contentEl.offsetWidth;
+    contentEl.classList.add('data-refreshing');
+
+    const headerStatus = document.getElementById('headerStatus');
+    headerStatus.classList.remove('header-status-flash');
+    void headerStatus.offsetWidth;
+    headerStatus.classList.add('header-status-flash');
+
+    const heroEl = document.getElementById('hero-activity');
+    if (heroEl && !prefersReducedMotion()) {
+      heroEl.classList.remove('glow');
+      void heroEl.offsetWidth;
+      heroEl.classList.add('glow');
+      setTimeout(() => heroEl.classList.remove('glow'), 1500);
+    }
+  } else if (isFirstRender) {
+    contentEl.classList.remove('data-refreshing');
+  }
+
+  // Update SSE timer
+  updateSSETimer();
+
+  // Meta (hidden chrome; kept for tooling / future use)
+  const versionEl = document.getElementById('version');
+  if (versionEl) versionEl.textContent = `v${d.system?.version || '\u2014'}`;
+  const dataVersionEl = document.getElementById('dataVersion');
+  if (dataVersionEl) dataVersionEl.textContent = `schema ${d.dashboardDataVersion || '\u2014'}`;
+  const lastUpdatedEl = document.getElementById('lastUpdated');
+  if (lastUpdatedEl) lastUpdatedEl.textContent = `Updated ${fmtTime(d.generatedAt)}`;
+
+  const health = d.health;
+  updateTransportChrome();
+
+  // Nav badges (counts only; no decorative pulse)
+  const navOverviewBadge = document.getElementById('navOverviewBadge');
+  navOverviewBadge.textContent = d.plans.length;
+  navOverviewBadge.className = 'top-tab-badge';
+  const navPlansBadge = document.getElementById('navPlansBadge');
+  navPlansBadge.textContent = d.plans.length;
+  navPlansBadge.className = 'top-tab-badge';
+  const navAgentsBadge = document.getElementById('navAgentsBadge');
+  navAgentsBadge.textContent = d.agents.length;
+  navAgentsBadge.className = 'top-tab-badge';
+  const navSkillsBadge = document.getElementById('navSkillsBadge');
+  navSkillsBadge.textContent = d.skills.length;
+  navSkillsBadge.className = 'top-tab-badge';
+  const navCommandsBadge = document.getElementById('navCommandsBadge');
+  navCommandsBadge.textContent = d.commands.length;
+  navCommandsBadge.className = 'top-tab-badge';
+  const navTerminalsBadge = document.getElementById('navTerminalsBadge');
+  navTerminalsBadge.textContent = d.terminals.length;
+  navTerminalsBadge.className = 'top-tab-badge';
+  const navProcessesBadge = document.getElementById('navProcessesBadge');
+  navProcessesBadge.textContent = d.processes.length;
+  navProcessesBadge.className = 'top-tab-badge';
+  const navActivityBadge = document.getElementById('navActivityBadge');
+  navActivityBadge.textContent = activityLog.length;
+  navActivityBadge.className = 'top-tab-badge';
+
+  // Nav health dot
+  const healthDot = document.getElementById('navHealthDot');
+  healthDot.className = `dot dot-${health.status === 'ok' ? 'green' : health.status === 'warning' ? 'yellow' : 'red'}`;
+
+  // Git nav dot
+  const gitDot = document.getElementById('navGitDot');
+  if (d.git?.dirty) {
+    gitDot.className = 'dot dot-yellow';
+  } else if (d.git?.branch) {
+    gitDot.className = 'dot dot-green';
+  }
+
+  // Terminals / processes: steady state color only
+  const termDot = document.getElementById('navTerminalsDot');
+  termDot.className = `dot dot-${d.terminals.length > 0 ? 'blue' : 'gray'}`;
+
+  const procDot = document.getElementById('navProcessesDot');
+  if (procDot) {
+    procDot.className = `dot dot-${d.processes.length > 0 ? 'green' : 'gray'}`;
+  }
+
+  // Build full HTML string once
+  const parts = [];
+
+  // ===== Overview (narrow plugin shell: now stack first, inventory demoted) =====
+  // Primary history = semantic sequence (run-plan ticks, merges, staging, plan progress).
+  // Raw terminal/process churn stays in the Activity diagnostic tab.
+  const feedEvents = semanticFeedEvents(d).slice(0, 12);
+  const activePlanName = d.missionControl?.now?.planFile || d.system?.handoff?.plan || '';
+  parts.push(`
+    <div class="content-section active" id="section-overview">
+      <div class="overview-stack">
+        ${renderNowExecutionPanel(d, !!(nowChanged || handoffChanged))}
+
+        <div class="section-hero" id="hero-activity">
+          <div class="live-activity-header">
+            <span class="card-title">${spaceIconSvg('monitor')}Monitor</span>
+            <span class="section-subtitle" style="margin-left:auto">${feedEvents.length} shown</span>
+          </div>
+          <div class="live-activity-feed">
+            ${feedEvents.length === 0 ? '<div class="activity-feed-empty">No plan, staging, or merge history yet. Events appear as plans and commits progress.</div>' : feedEvents.map((ev, idx) => {
+              const info = semanticEventInfo(ev.kind);
+              const staggerIdx = Math.min(idx, 5);
+              const pathTarget = ev.sourcePath && isSafeRepoRelativePath(ev.sourcePath) ? ev.sourcePath : '';
+              const shaTarget = !pathTarget && looksLikeCommitSha(ev.refs?.sha || '') ? ev.refs.sha : '';
+              const target = pathTarget || shaTarget || '';
+              const actionable = !!target;
+              let actionAttrs = ` style="border-left:3px solid ${info.color}"`;
+              if (actionable) {
+                const verb = pathTarget ? 'Copy path for' : 'Copy commit sha for';
+                const title = pathTarget
+                  ? pathActionTitle(pathTarget)
+                  : copyActionTitle(`commit ${shaTarget}`, 'terminal');
+                const handler = escapeAttr(`activateSemanticTarget('${escapeJsString(target)}')`);
+                actionAttrs = ` role="button" tabindex="0" data-focus-key="activity-${escapeAttr(ev.id)}" aria-label="${escapeAttr(verb)}: ${escapeAttr(ev.label)}" title="${escapeAttr(title)}" onclick="${handler}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${handler}}" style="border-left:3px solid ${info.color};cursor:pointer"`;
+              }
+              return `
+                <div class="activity-item stagger-fade stagger-${staggerIdx}"${actionAttrs}>
+                  <span class="feed-icon" style="background:${info.bg};color:${info.color}" aria-hidden="true">${info.icon}</span>
+                  <span class="feed-time">${semanticEventTime(ev, info)}</span>
+                  <span class="feed-label">${escapeHtml(ev.label)}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        ${renderAttentionPanel(d, !!attentionChanged)}
+
+        ${renderRecentPlanCards(d)}
+
+        <div class="overview-inventory-note" id="overview-inventory-note">
+          Inventory (agents, commands, terminals, processes) and Git details live in the
+          More sections menu, next to the Cockpit links.
+          ${activePlanName ? ` Active plan: <code>${escapeHtml(activePlanName)}</code>.` : ''}
+        </div>
+      </div>
+    </div>
+  `);
+
+  // ===== Plans (accordion portfolio) =====
+  parts.push(`
+    <div class="content-section" id="section-plans">
+      <div class="section-title">
+        <span class="dot dot-green"></span> Plans
+        <span class="section-subtitle">${d.plans.length} total</span>
+      </div>
+      ${renderPlansAccordion(d)}
+    </div>
+  `);
+
+  // ===== Agents =====
+  parts.push(`
+    <div class="content-section" id="section-agents">
+      <div class="section-title">
+        <span class="dot dot-purple"></span> Agents
+        <span class="section-subtitle">${d.agents.length} available</span>
+      </div>
+      ${d.agents.length === 0 ? '<div class="empty-state-cta"><p>No agents found \u2014 add <code>.md</code> files to <code>.cursor/agents/</code></p></div>' : ''}
+      <div class="agent-list">
+        ${d.agents.map(a => {
+          const colors = ['#3b82f6','#a855f7','#22c55e','#eab308','#ef4444','#06b6d4','#f97316','#ec4899'];
+          const c = colors[a.id.length % colors.length];
+          const agentId = a.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+          return `
+            <div class="agent-item" role="button" tabindex="0" aria-label="Toggle details for ${escapeAttr(a.id)}" onclick="toggleAgentDetails('${escapeJsString(agentId)}')">
+              <span class="agent-icon" style="background:${c}20;color:${c}">${escapeHtml(a.id.slice(0, 2).toUpperCase())}</span>
+              <span style="flex:1">${escapeHtml(a.id)}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.description || '')}</span>
+              <span style="font-size:10px;color:var(--text-muted);transition:transform 0.2s" id="agent-arrow-${escapeAttr(agentId)}">\u25bc</span>
+            </div>
+            <div class="agent-details" id="agent-details-${escapeAttr(agentId)}">
+              <p>${escapeHtml(a.description || 'No description available.')}</p>
+              <div class="agent-path">${escapeHtml(a.path || 'Path not available')}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `);
+
+  // ===== Commands =====
+  parts.push(`
+    <div class="content-section" id="section-commands">
+      <div class="section-title">
+        <span class="dot" style="background:var(--cyan)"></span> Commands
+        <span class="section-subtitle">${d.commands.length} slash commands</span>
+      </div>
+      ${d.commands.length === 0 ? '<div class="empty-state-cta"><p>No commands registered \u2014 L0 setup required</p></div>' : ''}
+      <div class="command-grid">
+        ${d.commands.map(c => {
+          const slash = `/${c.id}`;
+          return `
+          <div class="command-item" role="button" tabindex="0" aria-label="Copy ${escapeAttr(slash)}" onclick="${copyForPasteHandler(slash, slash, 'chatInput')}" title="${escapeAttr(copyActionTitle(slash, 'chatInput'))}">
+            <span class="dot" style="background:var(--cyan);width:6px;height:6px"></span>
+            ${escapeHtml(slash)}
+          </div>
+        `;
+        }).join('')}
+      </div>
+    </div>
+  `);
+
+  // ===== Health =====
+  const checks = health.checks || [];
+  parts.push(`
+    <div class="content-section" id="section-health">
+      <div class="section-title">
+        <span class="dot dot-${health.status === 'ok' ? 'green' : health.status === 'warning' ? 'yellow' : 'red'}"></span>
+        Health
+        <span class="section-subtitle">${checks.filter(c => c.ok).length}/${checks.length} checks passing</span>
+      </div>
+      ${checks.length === 0 ? '<div class="empty-state-cta"><p>No health data available</p></div>' : ''}
+      <div class="health-grid">
+        ${checks.map(c => `
+          <div style="position:relative">
+            <div class="health-item" role="button" tabindex="0" aria-label="Show info for ${escapeAttr(c.label)}" onclick="showHealthInfo(this, ${c.ok})">
+              <span class="dot dot-${c.ok ? 'green' : 'red'}"></span>
+              <span>${escapeHtml(c.label)}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `);
+
+  // ===== Git =====
+  parts.push(`
+    <div class="content-section" id="section-git">
+      <div class="section-title">
+        <span class="dot dot-${d.git?.dirty ? 'yellow' : 'green'}"></span>
+        Git
+        <span class="section-subtitle">${escapeHtml(d.git?.branch || '\u2014')}</span>
+      </div>
+      ${!d.git?.branch ? '<div class="empty-state-cta"><p>No Git data available</p></div>' : ''}
+      <div class="card" style="${d.git?.branch ? '' : 'display:none'}">
+        <div class="git-info">
+          <div class="git-row">
+            <span class="git-label">Branch</span>
+            <span class="git-value">${escapeHtml(d.git?.branch || '\u2014')}</span>
+          </div>
+          <div class="git-row">
+            <span class="git-label">Working tree</span>
+            <span class="git-value">${d.git?.dirty ? `${d.git.dirtyCount} file${d.git.dirtyCount !== 1 ? 's' : ''} modified` : 'Clean'}</span>
+          </div>
+          <div class="git-row">
+            <span class="git-label">Last commit</span>
+            <span class="git-value">${escapeHtml(d.git?.lastCommit || '\u2014')}</span>
+          </div>
+          <div class="git-row">
+            <span class="git-label">Ahead of origin/main</span>
+            <span class="git-value">${d.git?.ahead ?? '\u2014'}</span>
+          </div>
+          <div class="git-row">
+            <span class="git-label">Behind origin/main</span>
+            <span class="git-value">${d.git?.behind ?? '\u2014'}</span>
+          </div>
+        </div>
+        ${d.git?.dirty ? renderGitFileList(d.git) : ''}
+      </div>
+    </div>
+  `);
+
+  // ===== Memory =====
+  const recentDecisions = d.memory?.recentDecisions || [];
+  parts.push(`
+    <div class="content-section" id="section-memory">
+      <div class="section-title">
+        <span class="dot dot-yellow"></span> Memory
+        <span class="section-subtitle">${d.memory.errors || 0} errors \u00b7 ${d.memory.decisions || 0} decisions</span>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Error Records</span>
+            <span class="dot dot-red"></span>
+          </div>
+          <div class="card-value">${d.memory.errors || 0}</div>
+          <div class="card-subtitle">resolved errors in memory</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Decisions</span>
+            <span class="dot dot-yellow"></span>
+          </div>
+          <div class="card-value">${d.memory.decisions || 0}</div>
+          <div class="card-subtitle">architectural decisions</div>
+        </div>
+      </div>
+      ${recentDecisions.length > 0 ? `
+        <div class="card" style="margin-top:16px">
+          <div class="card-header">
+            <span class="card-title">Recent Decisions</span>
+          </div>
+          <div class="memory-list">
+            ${recentDecisions.map(dd => {
+              const memPath = dd.path || `.cursor/memory/decisions/${dd.id || dd}.md`;
+              const memId = dd.id || dd;
+              return `
+              <div class="memory-item" role="button" tabindex="0" aria-label="Copy path for ${escapeAttr(memId)}" onclick="${copyRepoPathHandler(memPath)}" title="${escapeAttr(pathActionTitle(memPath))}">
+                <span class="dot dot-yellow"></span>
+                <span>${escapeHtml(memId)}</span>
+              </div>
+            `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `);
+
+  // ===== Terminals =====
+  terminalOutputStore.clear();
+  parts.push(`
+    <div class="content-section" id="section-terminals">
+      <div class="section-title">
+        <span class="dot dot-${d.terminals.length > 0 ? 'blue dot-pulse' : 'gray'}"></span>
+        Terminals
+        <span class="section-subtitle">${d.terminals.length} active</span>
+      </div>
+      ${d.terminals.length === 0 ? '<div class="empty-state-cta"><p>No active terminal sessions</p></div>' : ''}
+      <div class="terminal-list">
+        ${d.terminals.map(t => {
+          const exitOk = t.lastExitCode === '0' || !t.lastExitCode;
+          const cwd = t.cwd || t.id;
+          const outputPreview = t.lastOutput || '';
+          if (outputPreview) {
+            terminalOutputStore.set(t.id, {
+              content: outputPreview,
+              title: `Terminal: ${t.id}`,
+            });
+          }
+          return `
+            <div class="terminal-item" role="button" tabindex="0" aria-label="Copy the working directory for terminal ${escapeAttr(t.id)}" onclick="${copyForPasteHandler(cwd, 'terminal working directory', 'terminal')}" title="${escapeAttr(copyActionTitle('terminal working directory', 'terminal'))}">
+              <div class="terminal-item-row">
+                <span class="dot dot-${exitOk ? 'green' : 'red'} ${t.lastCommand ? 'dot-pulse' : ''}"></span>
+                <span style="flex:1">
+                  <span style="color:var(--text-primary)">${escapeHtml(t.id)}</span>
+                  ${t.lastCommand ? `\u2014 <span style="color:var(--text-muted)">${escapeHtml(t.lastCommand)}</span>` : ''}
+                </span>
+                <span style="color:var(--text-muted)">${t.outputLines} lines</span>
+                ${t.pid ? `<span style="color:var(--text-muted)">PID ${escapeHtml(t.pid)}</span>` : ''}
+                ${outputPreview ? `<button type="button" class="terminal-expand-btn" data-terminal-id="${escapeAttr(t.id)}" aria-label="Expand the captured output for terminal ${escapeAttr(t.id)}" title="Expand the captured output for terminal ${escapeAttr(t.id)}">(expand)</button>` : ''}
+              </div>
+              ${outputPreview ? `<div class="terminal-preview">${escapeHtml(outputPreview)}</div>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `);
+
+  // ===== Processes =====
+  const processes = d.processes || [];
+  parts.push(`
+    <div class="content-section" id="section-processes">
+      <div class="section-title">
+        <span class="dot dot-${processes.length > 0 ? 'green' : 'gray'}"></span>
+        Processes
+        <span class="section-subtitle">${processes.length} running</span>
+      </div>
+      ${processes.length === 0 ? '<div class="empty-state-cta"><p>No relevant processes running</p></div>' : `
+        <div class="card" style="overflow-x:auto">
+          <table class="processes-table">
+            <thead>
+              <tr>
+                <th>Process</th>
+                <th>PID</th>
+                <th>CPU%</th>
+                <th>MEM%</th>
+                <th>Command</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${processes.map(p => {
+                const dotClass = p.label === 'dashboard-server' ? 'dot-green dot-pulse'
+                  : p.label === 'node' ? 'dot-blue'
+                  : p.label === 'git' ? 'dot-yellow'
+                  : 'dot-gray';
+                const pidStr = String(p.pid ?? '');
+                return `
+                  <tr>
+                    <td>
+                      <span class="process-label">
+                        <span class="dot ${dotClass}"></span>
+                        <span>${escapeHtml(p.label || 'other')}</span>
+                      </span>
+                    </td>
+                    <td style="color:var(--text-muted)">${escapeHtml(pidStr)}</td>
+                    <td>${escapeHtml(p.cpu || '\u2014')}</td>
+                    <td>${escapeHtml(p.mem || '\u2014')}</td>
+                    <td style="color:var(--text-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeAttr(p.command || '\u2014')}">${escapeHtml(p.command || '\u2014')}</td>
+                    <td class="process-actions">
+                      <button type="button" class="process-copy-btn" onclick="event.stopPropagation();${copyForPasteHandler(pidStr, `PID ${pidStr}`, 'terminal')}" title="${escapeAttr(copyActionTitle(`PID ${pidStr}`, 'terminal'))}">Copy PID</button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
+    </div>
+  `);
+
+  // ===== Skills =====
+  const skills = d.skills || [];
+  const categories = {};
+  skills.forEach(s => {
+    const cat = s.category || 'other';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(s);
+  });
+  const catColors = ['#a855f7','#3b82f6','#22c55e','#eab308','#f97316','#06b6d4','#ec4899','#ef4444'];
+  let catIdx = 0;
+  parts.push(`
+    <div class="content-section" id="section-skills">
+      <div class="section-title">
+        <span class="dot dot-orange" style="background:var(--orange)"></span> Skills
+        <span class="section-subtitle">${skills.length} discovered</span>
+      </div>
+      ${skills.length === 0 ? '<div class="empty-state-cta"><p>No skills discovered</p></div>' : Object.entries(categories).map(([cat, items]) => {
+        const catColor = catColors[catIdx++ % catColors.length];
+        return `
+          <div class="skills-category">
+            <div class="skills-category-title">${escapeHtml(cat)}</div>
+            <div class="skills-tags">
+              ${items.map(s => `
+                <div class="skill-tag" title="${escapeAttr(s.description || '')}">
+                  <span class="skill-cat-dot" style="background:${catColor}"></span>
+                  <span class="skill-title">${escapeHtml(s.title)}</span>
+                  ${s.description ? `<span class="skill-desc">\u2014 ${escapeHtml(s.description)}</span>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `);
+
+  // Activity log entry only when payload meaningfully changed (avoids false activity delta)
+  const payloadChanged = hasMetricDelta || handoffChanged || nowChanged || gitChanged || healthStatusChanged;
+  if (payloadChanged) {
+    addActivity('Data refreshed', 'fetch');
+  }
+
+  // ===== Activity =====
+  parts.push(`
+    <div class="content-section" id="section-activity">
+      <div class="section-title">
+        <span class="dot" style="background:var(--cyan)"></span> Activity
+        <span class="section-subtitle">${activityLog.length} diagnostic events (terminals, processes, refresh)</span>
+      </div>
+      ${activityLog.length === 0 ? '<div class="empty-state-cta"><p>No events recorded yet \u2014 activity appears as data refreshes</p></div>' : `
+        <div class="card">
+          <div class="activity-list">
+            ${activityLog.slice().reverse().map((a, idx) => {
+              const stgIdx = Math.min(idx, 5);
+              return `
+              <div class="activity-item ${activityClass(a.type)} stagger-fade stagger-${stgIdx}">
+                <span class="activity-time">${fmtTime(a.time)}</span>
+                <span class="activity-label">${escapeHtml(a.label)}</span>
+              </div>
+            `;
+            }).join('')}
+          </div>
+        </div>
+      `}
+    </div>
+  `);
+
+  // Single innerHTML assignment — no layout thrashing
+  contentEl.innerHTML = parts.join('');
+
+  wireTerminalExpandButtons();
+
+  updateTransportChrome();
+
+  // Restore the section the user had selected (Cockpit/overview on first paint)
+  showSection(activeSectionId || 'overview');
+
+  // Keep expanded agent rows / focus / scroll across SSE snapshot refreshes
+  restoreUiState(uiState);
+  applyPlanAccordionState();
+}
+
+// ===== Auto-refresh (paused while SSE is healthy) =====
+function syncPollingWithSseMode() {
+  if (sseMode === 'live' && !sseReconnecting && !sseSilentFallback) {
+    stopAutoRefresh();
+  } else {
+    startAutoRefresh();
+  }
+}
+
+function clearSseSilentFallback() {
+  if (!sseSilentFallback) return;
+  sseSilentFallback = false;
+  syncPollingWithSseMode();
+}
+
+/** Open-but-silent SSE: resume poll without tearing down EventSource. */
+function checkSseSilence() {
+  if (sseMode !== 'live' || !sseSource) return;
+  if (Date.now() - lastSseDataTime <= SSE_SILENCE_MS) {
+    clearSseSilentFallback();
+    return;
+  }
+  if (!sseSilentFallback) {
+    sseSilentFallback = true;
+    syncPollingWithSseMode();
+    updateTransportChrome();
+  }
+}
+
+// ===== SSE =====
+function connectSSE() {
+  if (sseSource) {
+    sseSource.close();
+    sseSource = null;
+  }
+  try {
+    sseSource = new EventSource('/api/events');
+    sseSource.onopen = () => {
+      sseFailedAttempts = 0;
+      sseMode = 'live';
+      sseReconnecting = false;
+      lastEventTime = Date.now();
+      lastSseDataTime = Date.now();
+      clearSseSilentFallback();
+      startSSETimer();
+      syncPollingWithSseMode();
+      if (data) render();
+    };
+
+    // Debounced SSE handler avoids rapid re-renders.
+    // Do NOT set dataLoading here: that wiped the pane and skipped render forever.
+    const debouncedRender = debounce(() => {
+      render();
+    }, 150);
+
+    sseSource.onmessage = (event) => {
+      try {
+        lastEventTime = Date.now();
+        lastSseDataTime = Date.now();
+        clearSseSilentFallback();
+        const newData = JSON.parse(event.data);
+        if (newData && typeof newData === 'object' && Array.isArray(newData.plans)) {
+          data = newData;
+          debouncedRender();
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    };
+    sseSource.onerror = () => {
+      sseFailedAttempts++;
+      if (sseFailedAttempts >= 3) {
+        sseReconnecting = true;
+        syncPollingWithSseMode();
+        if (data) render();
+        // Give it a few more attempts before falling back to polling
+        setTimeout(() => {
+          if (sseFailedAttempts >= 6) {
+            if (sseSource) { sseSource.close(); sseSource = null; }
+            sseMode = 'polling';
+            sseReconnecting = false;
+            sseSilentFallback = false;
+            stopSSETimer();
+            syncPollingWithSseMode();
+            if (data) render();
+          }
+        }, 10000);
+      }
+    };
+  } catch (e) {
+    sseMode = 'polling';
+    sseSilentFallback = false;
+    syncPollingWithSseMode();
+  }
+}
+
+// ===== Fetch =====
+async function fetchData({ force = false } = {}) {
+  // When SSE is healthy, skip poll fetches unless forced (Refresh button)
+  // or silence fallback has re-enabled polling beside the open stream.
+  if (!force && sseMode === 'live' && !sseReconnecting && !sseSilentFallback && data) return;
+
+  const btn = document.getElementById('refreshBtn');
+  const btnText = btn.querySelector('.btn-refresh-text');
+  btn.disabled = true;
+  if (btnText) {
+    btnText.textContent = 'Refreshing...';
+  } else {
+    btn.textContent = 'Refreshing...';
+  }
+  // Add inline spinner
+  let spinner = btn.querySelector('.inline-spinner');
+  if (!spinner) {
+    spinner = document.createElement('span');
+    spinner.className = 'inline-spinner';
+    spinner.style.marginRight = '4px';
+    btn.insertBefore(spinner, btn.firstChild);
+  }
+
+  // Only wipe the pane on the first load; background refresh keeps the last good render.
+  if (!data) {
+    dataLoading = true;
+  }
+
+  // Try multiple URLs — works when served by dashboard/serve.mjs or a static server
+  const urls = [
+    '/dashboard-data.json?_=' + Date.now(),
+    '/api/data?_=' + Date.now(),
+    'dashboard-data.json?_=' + Date.now(),
+  ];
+
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const next = await resp.json();
+      // Validate it looks like our data
+      if (next && typeof next === 'object' && Array.isArray(next.plans)) {
+        data = next;
+        lastEventTime = Date.now();
+        if (sseMode !== 'live') {
+          updateSSETimer();
+        }
+        render();
+        resetRefreshBtn();
+        return;
+      }
+    } catch {
+      // try next url
+    }
+  }
+
+  // Fallback: show instructions only when we have no data yet
+  resetRefreshBtn();
+  btn.textContent = data ? 'Refresh' : 'Start server';
+  dataLoading = false;
+  if (data) return;
+  document.getElementById('loading').innerHTML = `
+    <div class="empty-state">
+      <div style="font-size:40px;margin-bottom:16px">\u26a1</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Dashboard Server</div>
+      <div style="margin-top:8px;font-size:13px;color:var(--text-secondary)">Start the data server to get live data:</div>
+      <div style="margin-top:12px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+        <code style="background:var(--bg-card);padding:8px 14px;border-radius:6px;border:1px solid var(--border);font-size:13px;color:var(--cyan)">node dashboard/serve.mjs</code>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Or generate static data once:</div>
+      <div style="margin-top:6px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+        <code style="background:var(--bg-card);padding:6px 12px;border-radius:6px;border:1px solid var(--border);font-size:12px;color:var(--text-muted)">node dashboard/dashboard-data.mjs > dashboard/dashboard-data.json</code>
+      </div>
+    </div>
+  `;
+}
+
+// ===== Auto-refresh =====
+function refresh() {
+  fetchData({ force: true });
+}
+function startAutoRefresh() {
+  stopAutoRefresh();
+  timer = setInterval(() => fetchData(), refreshInterval);
+}
+function stopAutoRefresh() {
+  if (timer) { clearInterval(timer); timer = null; }
+}
+
+// ===== Init =====
+fetchData();
+connectSSE();
+syncPollingWithSseMode();
+startStatusBarTimer();
+</script>
+</body>
+</html>

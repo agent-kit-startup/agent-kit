@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "4.7.0",
+  "version": "4.7.2",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
   "type": "module",
   "bin": {
@@ -8,7 +8,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "dev": "tsx src/index.ts",
