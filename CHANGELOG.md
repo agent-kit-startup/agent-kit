@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.7.1] - 2026-07-25
+
+### Fixed
+
+- Public sync allowlists `dashboard/**` so Mission Control sources reach the mirror with the CLI dashboard tests that import them
+- Regression guard: `packages/cli/src/dashboard/public-sync-manifest-guard.test.ts` fails when synced dashboard tests depend on paths outside the allowlist
+
 ## [4.7.0] - 2026-07-25
 
 Follows 4.5.1. Version 4.6.0 was withdrawn after release because it carried an unfinished dashboard; that number stays retired and is not reused. This release ships the completed Mission Control panel.
