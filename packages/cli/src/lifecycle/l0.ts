@@ -74,6 +74,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   { source: ".cursor/commands/handoff.md", target: ".cursor/commands/handoff.md" },
   { source: ".cursor/commands/summary.md", target: ".cursor/commands/summary.md" },
   {
+    source: ".cursor/commands/dashboard.md",
+    target: ".cursor/commands/dashboard.md",
+  },
+  {
     source: ".cursor/commands/git-staging.md",
     target: ".cursor/commands/git-staging.md",
   },

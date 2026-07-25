@@ -48,8 +48,53 @@ def l0_present(root: Path) -> bool:
     )
 
 
+def _check_label_and_recommendation(check: dict) -> tuple[str, str] | None:
+    """Prefer the first action id/recommendation; fall back to check id/title."""
+    check_id = check.get("id")
+    if not isinstance(check_id, str) or not check_id:
+        return None
+    actions = check.get("actions")
+    if isinstance(actions, list):
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            action_id = action.get("id")
+            recommendation = action.get("recommendation")
+            if isinstance(action_id, str) and isinstance(recommendation, str):
+                return action_id, recommendation
+    title = check.get("title")
+    if isinstance(title, str) and title:
+        return check_id, title
+    return check_id, "Resolve this readiness check"
+
+
+def unresolved_readiness_checks(data: dict) -> tuple[list[dict], list[dict]]:
+    """Split unresolved pillar checks into essential vs non-essential (report order)."""
+    essential: list[dict] = []
+    nonessential: list[dict] = []
+    pillars = data.get("pillars")
+    if not isinstance(pillars, list):
+        return essential, nonessential
+    for pillar in pillars:
+        if not isinstance(pillar, dict):
+            continue
+        checks = pillar.get("checks")
+        if not isinstance(checks, list):
+            continue
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            if check.get("status") == "ready":
+                continue
+            if check.get("essential") is True:
+                essential.append(check)
+            else:
+                nonessential.append(check)
+    return essential, nonessential
+
+
 def readiness_section(root: Path) -> str | None:
-    """Return the first unresolved readiness action without blocking active work."""
+    """Surface the first unresolved readiness item; only essentials imply a planning stop."""
     snapshot_path = root / ".cursor" / "context" / "readiness.json"
     try:
         raw = snapshot_path.read_text(encoding="utf-8")
@@ -58,6 +103,32 @@ def readiness_section(root: Path) -> str | None:
         return None
     if not isinstance(data, dict):
         return None
+
+    essential, nonessential = unresolved_readiness_checks(data)
+    if essential:
+        labeled = _check_label_and_recommendation(essential[0])
+        if labeled is None:
+            return None
+        action_id, recommendation = labeled
+        return (
+            "## Repository readiness\n\n"
+            f"Unresolved essential check: `{action_id}`. {recommendation} "
+            "Run `/agent-kit-onboard` before `/start-project`. "
+            "An active plan or HANDOFF remains the current work and is not replaced."
+        )
+    if nonessential:
+        labeled = _check_label_and_recommendation(nonessential[0])
+        if labeled is None:
+            return None
+        action_id, recommendation = labeled
+        return (
+            "## Repository readiness\n\n"
+            f"Optional readiness item: `{action_id}`. {recommendation} "
+            "This does not block `/start-project` or active plan work. "
+            "Resume later with `/agent-kit-onboard` if useful."
+        )
+
+    # Legacy snapshots without pillars: pendingActions are advisory only.
     actions = data.get("pendingActions")
     if not isinstance(actions, list) or not actions:
         return None
@@ -70,9 +141,9 @@ def readiness_section(root: Path) -> str | None:
         return None
     return (
         "## Repository readiness\n\n"
-        f"First unresolved check: `{action_id}`. {recommendation} "
-        "Run `/agent-kit-onboard` to resume this check. "
-        "An active plan or HANDOFF remains the current work and is not replaced."
+        f"Optional readiness item: `{action_id}`. {recommendation} "
+        "This does not block `/start-project` or active plan work. "
+        "Resume later with `/agent-kit-onboard` if useful."
     )
 
 

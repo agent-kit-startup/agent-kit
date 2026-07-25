@@ -116,11 +116,15 @@ describe("armExternalPlanReview", () => {
     });
 
     expect(result.invoked).toBe(true);
+    // Headless CI path: --force alone (claude -p). Chat uses --force --paste-only instead.
     expect(spawnFn).toHaveBeenCalledWith(
       "bash",
       [path.join("/repo", canonicalRel), "--force"],
       expect.objectContaining({ cwd: "/repo" }),
     );
+    const args = spawnFn.mock.calls[0]?.[1] as string[];
+    expect(args).not.toContain("--paste-only");
+    expect(args).not.toContain("--interactive");
   });
 
   it("invokes script and ignores non-zero exit", async () => {

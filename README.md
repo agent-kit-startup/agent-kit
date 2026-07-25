@@ -68,6 +68,35 @@ Two ways to drive a plan:
 
 **Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 
+### Dashboard
+
+**Mission Control** is a local, read-only panel over the Agent Kit runtime state. It binds to loopback, serves only its own static files, and never mutates the repository.
+
+```bash
+# Start (or reuse) the panel and open the URL — terminal counterpart to /dashboard
+npm run dashboard
+# or: agent-kit dashboard
+# or: node dashboard/start.mjs
+
+# Foreground serve only (debugging; does not open a browser)
+npm run start:dashboard
+```
+
+Then open `http://localhost:3333` if the browser did not open. In Cursor chat, `/dashboard` does the same start-and-open flow via the IDE browser.
+
+The Cockpit reads as one page in four sections, each reachable from the primary navigation:
+
+| Section | What it answers |
+|---------|------------------|
+| Current mission | The plan in flight: status, progress, and previous/current/next todo |
+| Monitor | What just happened: plan ticks, staging merges, and commits |
+| Field Report | What waits on a reply: agent prompts with no answer, external reviews awaiting triage, and the active handoff gate |
+| Checklist | What remains: recent plan cards, parked and incomplete plans, and readiness notes |
+
+Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, and Processes live in the More sections menu next to those links, with their counts.
+
+Every action copies text and names where to paste it: repo-relative paths go to the file picker, slash commands to the chat input, chat references to the past-chat picker, and shell commands, PIDs, and commit shas to the terminal. The panel cannot open a file or a chat, and no label claims it can.
+
 Full routine: `autogit/gitupdate.md` after install.
 
 ## Docs

@@ -26,10 +26,17 @@ These are non-negotiable in manual mode:
 
 Before intake, read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`.
 
-- If readiness has an unresolved essential check, stop and point to `/agent-kit-onboard`. Do not resolve repository setup in this command.
-- If readiness is complete, reuse verified purpose, stack, Git, context, and validation facts. Do not ask the user to confirm them again.
+**Planning blockers** (stop and point to `/agent-kit-onboard`; do not resolve setup here):
+
+- Derive unresolved essentials from `pillars[].checks[]` where `essential: true` and `status` is not `ready`. Preserve report order.
+- Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending items (for example `collaboration.provider` / action `confirm-provider`) are **warnings only**: mention once, continue Broad Intake, and do not halt planning.
+- Missing readiness or config files, unsupported snapshot schema, or a fingerprint mismatch that invalidates the snapshot: point to `/agent-kit-onboard`. Do not reconstruct onboarding inside `/start-project`.
+
+**When essentials are ready** (non-essential pending allowed):
+
+- Reuse verified purpose, stack, Git, context, and validation facts. Do not ask the user to confirm them again.
 - Ask only for the deliverable goal. Repository purpose is setup context, not the goal of the new plan.
-- If either state file is missing or stale, point to `/agent-kit-onboard`. Do not reconstruct onboarding inside `/start-project`.
+- Gate A and Gate B remain mandatory; readiness does not skip HITL.
 
 ## Broad Intake Review (required before plan proposal)
 

@@ -86,6 +86,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/run-plan-orchestrated.md` | idem (deprecated alias) |
 | `.cursor/commands/handoff.md` | idem |
 | `.cursor/commands/summary.md` | idem |
+| `.cursor/commands/dashboard.md` | idem |
 | `.cursor/commands/git-staging.md` | idem |
 | `.cursor/commands/git-prod.md` | idem |
 | `.cursor/commands/plan-external-review.md` | idem |

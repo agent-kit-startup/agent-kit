@@ -29,7 +29,7 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 | `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
 | `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
 | `/git-prod` | Explicit confirm before merge/push to `main` |
-| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. Plan-exhausted external review Ask when not enabled and `offerOnExhausted !== false` (`Run review now` / `Always enable automatic` / `Not now`); must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
+| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. Plan-exhausted external review Ask when not enabled and `offerOnExhausted !== false` (`Run review now` / `Always enable automatic` / `Not now`); chat handlers use `--force --paste-only` (visible paste), never silent headless `--force`; must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
 | `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop) |
 | `/handoff` / guardian | Prefer Ask questions when offering auto vs manual handoff |
 | Other commands / docs | Any "stop and ask" / "Want to… (yes/no)" prose in L0 + getting-started / bootstrap |

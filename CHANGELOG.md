@@ -8,6 +8,91 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-07-25
+
+Follows 4.5.1. Version 4.6.0 was withdrawn after release because it carried an unfinished dashboard; that number stays retired and is not reused. This release ships the completed Mission Control panel.
+
+### Added
+
+- `agent-kit dashboard` / `npm run dashboard` (`dashboard/start.mjs`): terminal counterpart to `/dashboard`; detach-starts Mission Control if needed, waits for HTTP 200, prints the URL, and opens the default browser
+- Decision record: Mission Control actions are copy-only and name a paste destination ([mission-control-copy-only-paste-destinations](.cursor/memory/decisions/2026-07-25_mission-control-copy-only-paste-destinations.md)), superseding the 2026-07-24 protocol-open record
+- Mission Control plugin UX validation suite (`packages/cli/src/dashboard/plugin-ux-validation.test.ts`): narrow/mid layout media queries, reduced-motion, keyboard accordion/focus preservation, empty states, copy-only CTAs that name their paste destination, SSE+polling fallback, Cockpit anchors plus the More sections menu with no horizontal tab track, Cockpit order (Current mission → Monitor → Field Report → Checklist), nav/heading label parity, the space icon set, lifecycle visual keys, and hardening regressions (XSS helpers, read-only serve, loopback CORS)
+- Mission Control Field Report renders `missionControl.attention` below Current mission and carries only what waits on a human reply: agent prompts awaiting an answer, external reviews awaiting triage, and the active handoff gate, each with a copy CTA and an empty state
+- Mission Control Field Report source, agent prompts awaiting a reply: a transcript surfaces when its last agent-question tool call has no user entry after it, read from the project transcript store (30-day window, 60 files, 1 MB per file, 8 items rendered, `subagents/` transcripts ignored), with a copy action for the past-chat picker (`packages/cli/src/dashboard/field-report-prompts.test.ts`)
+- Mission Control Field Report source, external reviews awaiting triage: a `.cursor/memory/plan-monitor-<slug>.md` report counts as triaged when it carries a triage heading or when a plan other than the reviewed plan names the report slug or the reviewed plan; untriaged reports copy the triage command with the report path (`packages/cli/src/dashboard/external-reports.test.ts`)
+- Decision record: Mission Control Field Report source contract, covering both detection rules and the weaker signals rejected against real local data ([mission-control-field-report-source-contract](.cursor/memory/decisions/2026-07-25_mission-control-field-report-source-contract.md))
+- Shared inline SVG space-theme icon set with accessible names, used by the Cockpit section headings and the navigation, with no icon font, sprite fetch, or frontend dependency
+- Static asset regression test (`packages/cli/src/dashboard/static-assets.test.ts`): every root-absolute `src`/`href` in the panel markup must resolve to a real file under `dashboard/`, so an asset URL cannot 404 silently
+- Mission Control semantic snapshot model (`missionControl.now` / `activity` / `attention` / classified `plans`) in `dashboard/lib/semantic-model.mjs`, wired into `dashboard-data.mjs` (schema 1.2.0) with fixture tests
+- Mission Control guard unit tests (config allowlist, git.files shape, static path lockdown, CORS, loopback bind); helpers in `dashboard/lib/guards.mjs`
+- Local Agent Kit dashboard, branded **Mission Control** (`npm run start:dashboard`, port 3333), with live activity indicators, SSE heartbeat, process/terminal diffing, and responsive/a11y polish
+- `/dashboard` command: starts `dashboard/serve.mjs` if port 3333 is free and opens Mission Control in Cursor Simple Browser; registered in the L0 inventory
+- Mission Control git section lists staged/unstaged/untracked files with copy-only diff commands
+- **Observability overhaul** in Mission Control: status bar with live system metrics, real-time activity feed with delta badges, clickable CTAs (plans, commands, agents, memory, terminals, git, health), SSE connectivity indicators, process health monitoring, terminal popups, git diff viewer, micro-animations, loading skeletons, and responsive layout
+- Mission Control terminal list shows capped `lastOutput` previews from the snapshot payload
+- Mission Control Processes section: Copy PID CTA per process row (no kill/restart)
+- Mission Control Git section: bounded dirty `files[]` from `git status --short` (paths only), status badges, and copy-to-clipboard staged/unstaged `git diff` commands per file
+- Error memory entry: public sync PR merge-blocked by ruleset and merge-commit method ([public-sync-pr-merge-blocked-ruleset](errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md))
+- Decision record: Mission Control local-only security posture ([mission-control-local-only-security](.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md))
+- Repository personalization profile (`.cursor/context/personalization.json`, `.cursor/project-context.md`, `AGENTS.md`) with matching manifest packs and protected paths in `.cursor/agent-kit.json`
+- `docs-repo` core skill and `cursor-skills-node` community skill
+- DevOps scaffolding templates: `templates/CODEOWNERS` and GitLab CI templates for content, Node plus Docker, and frontend plus Firebase repositories
+
+### Changed
+
+- Mission Control Cockpit page drops the redundant page-level `Cockpit` section title; the primary nav link remains the name for that page
+- External review chat prepares a visible paste for an interactive Claude run, while CI remains headless; the launcher uses `--permission-mode auto`
+- `/start-project` and session readiness block only unresolved essential checks; non-essential provider confirmation remains advisory
+- Mission Control actions are copy-only and name the destination that receives the paste: repo-relative paths go to the file picker (Cmd+P / Ctrl+P), slash commands to the chat input, chat references to the past-chat picker, and shell commands, PIDs, working directories, and commit shas to the terminal. No label, tooltip, aria-label, or confirmation claims a native editor open, and there are no Stage or Restart controls the panel cannot perform. The snapshot action contract carries `path` / `copy` types with `subject` and `pasteDestination`
+- Mission Control navigation: four Cockpit anchors (Cockpit, Monitor, Field Report, Checklist) plus a More sections menu holding Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, and Processes with their counts, replacing the hamburger drawer and the horizontally scrolling tab track; the menu is keyboard operable, closes on Escape and on outside click, and returns focus to its trigger, and the narrow panel no longer shows a horizontal scrollbar
+- Mission Control Cockpit sections read Current mission, Monitor, Field Report, then Checklist, each led by an icon from the shared set, with navigation labels that match the headings
+- Mission Control Checklist owns plan-state items: parked plans, incomplete plans, and the non-essential readiness note moved out of Field Report and render next to the plan cards, and a note is dropped when its plan already renders as a card
+- Mission Control Current mission card: Previous → Current → Next stepper with a segmented step progress bar, deriving previous from completed todo statuses (`previousTodo` in the semantic view model)
+- Mission Control executing badge: green live pulse (`now-status-live`); remove redundant companion status dot; awaiting/idle stay distinct without color alone; reduced motion kills the pulse
+- Mission Control Current mission meta: Mode and Updated demoted to discreet icon-led rows (inline SVG with accessible names and tooltips)
+- Mission Control Checklist shows a plan card set (lifecycle status, `x of x` progress, datetime, Copy path) sorted executing then attention then mtime; the Plans section uses keyboard-accessible accordions with full todo lists (narrow: one open unless Shift-click or Multiple open)
+- Mission Control Monitor feed renders the semantic `missionControl.activity` sequence (run-plan ticks, merges, staging, commits, plan progress) with copyable plan paths and commit shas; terminal/process churn stays in the Activity diagnostic section
+- Mission Control Current mission panel reads `missionControl.now` (status text, plan, x of x, mode, current/next todo, last update) and refreshes from each SSE snapshot while preserving focus, scroll, and expanded agent rows
+- Mission Control narrow plugin shell: single header transport/freshness signal, removed status-bar and metric-card chrome, demoted inventory behind secondary navigation, and tuned layout for ~360–520px Cursor panels
+- Mission Control render hygiene: pause background polling only when SSE is not live; restore nav hairline active state; remove dead section-loading helpers; dedupe card-flash CSS
+- Mission Control accessibility pass: `:focus-visible` rings on interactive controls, keyboard activation for plan/process/git rows, scoped `aria-live` updates, `prefers-reduced-motion` overrides, and improved muted text contrast
+- Mission Control server binds `127.0.0.1` by default (`HOST` override), serves only `dashboard/` static assets, and applies localhost-only CORS
+- Mission Control branding across the dashboard: SVG logo asset, page title, favicon, server banner, data-model description
+- Active navigation item uses a 1px hairline border instead of a left accent bar, with reserved border space so the active state does not shift layout
+- Dashboard snapshot generation caps terminal file reads (64 KB, 40 files) and process listings (50 entries), and reads git ahead/behind without shell fallbacks
+- Registry rebuilds preserve curated non-L1 artifacts instead of silently dropping them
+- Repository readiness plan triage note: verified CLI tests pass (86/86), residual A closed
+- `/dashboard` open path: try in-IDE browser once, then clipboard + Simple Browser / external browser instructions (no retry loop on localhost crash)
+- Mission Control snapshot allowlists config fields for the dashboard payload instead of exporting full nested onboarding/readiness objects
+
+### Removed
+
+- Mission Control header **Copy start** control (false-positive when Live but process label missing). Start from the terminal with `npm run dashboard` / `agent-kit dashboard`, or from chat with `/dashboard`
+
+### Fixed
+
+- Mission Control header logo and favicon render from a served response: the panel requested `/dashboard/logo.svg` while the static resolver already roots request paths at `dashboard/`, so the URL resolved to a nonexistent `dashboard/dashboard/logo.svg` and returned 404
+- Mission Control More sections menu is no longer clipped by the `overflow: hidden` nav row that suppresses the horizontal scrollbar: the menu anchors with fixed positioning computed from the trigger rect and scrolls internally when the viewport is short
+- Mission Control Cockpit anchors finish their scroll across a live refresh: a snapshot re-render used to restore the scroll position captured while the anchor was still travelling, leaving the reader part way to the section
+- Mission Control terminal expand controls carry an accessible name that says which terminal they belong to
+- Mission Control degrades a failed snapshot into empty panels: the server error payload now carries every collection the panel reads, so a data failure no longer surfaces as a render error
+- `/dashboard` now daemonizes Mission Control so the server survives the agent shell, verifies liveness in a separate call, and treats browser connection errors as a dead-server signal
+- Mission Control live refresh: expand `.cursor` watch coverage (readiness, agents, skills, commands), periodic SSE broadcast for non-file sources (git/terminals/processes), and resume poll on SSE silence so the panel no longer stays stale while transport shows Live
+- Mission Control polling no longer fights SSE-driven renders while the stream is connected
+- Mission Control a11y: keyboard-operable table rows, reduced-motion respect for animations, and less noisy live region announcements
+- Mission Control dashboard server binds `127.0.0.1` by default, serves only `dashboard/` static files, and restricts CORS to localhost origins on the dashboard port
+- Dashboard stayed on the loading pane: the `statusDot` element id shadowed the status helper, and the SSE handler set the loading flag before a debounced render that then bailed on that same flag
+- Concurrent HTTP and SSE requests stacked synchronous snapshot child processes; `serve.mjs` now caches payloads for 2s, reuses in-flight generation, debounces watch broadcasts, and bounds generation with a timeout
+- Background polling no longer wipes the rendered pane, and section selection is preserved across re-renders instead of resetting to Overview
+- Render errors surface an inline failure state with escaped output instead of leaving the panel blank
+- Mission Control terminal expand popup uses `data-terminal-id` listeners and DOM construction (no inline `onclick` with output content)
+- Mission Control HTML: restore missing `</style>` close and fix activity-feed template join syntax
+- Mission Control XSS: escape dynamic HTML, attributes, and JS string contexts in dashboard rendering (`escapeHtml`, `escapeAttr`, `escapeJsString`)
+- Mission Control snapshot truncates terminal, process, and git metadata strings and caps terminal/process list sizes
+- Mission Control change animations only on real deltas (section hash and metric diffs), not every poll/re-render
+- Mission Control LIVE badge tracks transport state (SSE live, polling fallback, reconnecting with attempt count)
+- Mission Control plan and memory copy paths are correct and consistent; every copy CTA shows a toast with clipboard-failure fallback
+
 ## [4.5.1] - 2026-07-24
 
 ### Fixed

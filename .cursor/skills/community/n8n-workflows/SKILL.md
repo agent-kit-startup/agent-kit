@@ -1,6 +1,6 @@
 ---
 name: n8n-workflows
-description: Workflows n8n - only when the project uses n8n (stack, not Core Pack). Edit workflow JSON or when the user mentions n8n.
+description: Workflows n8n: only when the project uses n8n (stack, not Core Pack). Edit workflow JSON or when the user mentions n8n.
 version: 0.1.0
 category: integrations
 ---
@@ -8,6 +8,8 @@ category: integrations
 # n8n Workflows (optional stack)
 
 **Not part of the Core Pack.** Use only when the repository contains or requires n8n workflows.
+
+Support checklist for reviewing workflow changes: [checklist-n8n.md](checklist-n8n.md).
 
 **Routing:** small, in-scope workflow edit: apply this skill in the main window. Large or isolated batch (or when it needs its own context): hand to the `n8n-workflows` Task subagent (demoted, dogfood-only). Docs work routes to the `docs-repo` agent; security review to `security-reviewer`.
 

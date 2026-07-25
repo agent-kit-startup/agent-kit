@@ -1,0 +1,11 @@
+# Kit template: .gitlab-ci.yml for content repos (prompts, docs, configs).
+# Security scan only (no build/deploy). Copy to the repo as .gitlab-ci.yml.
+
+stages:
+  - secret-scan
+
+include:
+  - project: 'YOUR_ORG/infra/ci-templates'
+    ref: main
+    file:
+      - '/templates/secret-scan.yml'

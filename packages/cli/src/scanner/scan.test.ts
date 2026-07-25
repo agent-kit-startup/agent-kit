@@ -71,9 +71,20 @@ describe("runScanner", () => {
     await initializeGit(root);
     await git(root, "remote", "add", "origin", "ssh://git@github.internal.example/team/repo.git");
     const result = await runScanner(root);
+    const report = createReadinessReport(result, {
+      generatorVersion: "test",
+      generatedAt: "2026-07-24T12:00:00.000Z",
+    });
+    const providerCheck = report.pillars
+      .find((item) => item.pillar === "collaboration")
+      ?.checks.find((item) => item.id === "collaboration.provider");
+
     expect(result.git.provider).toBe("other");
     expect(result.git.providerKind).toBe("custom");
     expect(result.git.providerConfidence).toBe("low");
+    expect(providerCheck?.status).toBe("needs_choice");
+    expect(providerCheck?.essential).toBe(false);
+    expect(report.pendingActions.some((item) => item.id === "confirm-provider")).toBe(true);
   }, 15_000);
 
   it("uses GitLab CI as supporting evidence for self-hosted GitLab", async () => {
@@ -106,6 +117,7 @@ describe("runScanner", () => {
 
     expect(scan.git.mode).toBe("local-only");
     expect(providerCheck?.status).toBe("ready");
+    expect(providerCheck?.essential).toBe(false);
     expect(report.pendingActions.some((item) => item.id === "confirm-provider")).toBe(false);
   }, 15_000);
 

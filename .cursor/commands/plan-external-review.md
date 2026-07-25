@@ -32,19 +32,35 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 
 ## Manual arm
 
+### Chat vs CI (do not confuse)
+
+| Path | What to run | Where |
+|------|-------------|--------|
+| Chat Ask **Run review now** | `--force --paste-only` then user pastes `--force --interactive` | User's Cursor Terminal |
+| Chat when `enabled: true` | `--paste-only` (same visible paste UX) | User's Cursor Terminal |
+| Headless `agent-kit run-plan` | default or `--force` (`claude -p`) | CI / cron agent shell |
+
+**Agents in chat MUST NOT** exec headless `--force` alone and claim the review is running. That shell has no IDE terminal; Claude HITL can block invisibly; no monitor file appears.
+
 ### A. Script (preferred)
 
 ```bash
-# Default: non-interactive claude -p (verified CLI flag)
-.cursor/scripts/plan-external-review.sh
+# Chat "Run review now": prepare clipboard + print (does NOT start Claude)
+.cursor/scripts/plan-external-review.sh --force --paste-only
 
-# One-shot without persisting enabled
+# Then paste this in YOUR Cursor terminal (script prints/copies it):
+.cursor/scripts/plan-external-review.sh --force --interactive YOUR-PLAN.plan.md
+
+# CI / headless one-shot (claude -p; no IDE panel)
 .cursor/scripts/plan-external-review.sh --force
 
-# Interactive session in the Cursor terminal
+# Default when enabled: non-interactive claude -p (headless / auto-arm from CLI)
+.cursor/scripts/plan-external-review.sh
+
+# Interactive session already in the Cursor terminal
 .cursor/scripts/plan-external-review.sh --interactive
 
-# Print ready-to-paste prompt only
+# Print ready-to-paste command + prompt (clipboard when available)
 .cursor/scripts/plan-external-review.sh --paste-only
 
 # Explicit plan file (else resolved from .cursor/HANDOFF.md Plan: line)
@@ -57,20 +73,18 @@ Script behavior (ADR):
 
 - Disabled / missing config → tip + exit 0 (does not fail the plan run)
 - Missing template → tip + exit 0 (suggest `agent-kit update --refresh`)
-- `claude` missing → tip + exit 0
+- `claude` missing → tip + exit 0 for print/interactive; `--paste-only` still prints the command
+- Interactive and headless launches pass Claude CLI `--permission-mode auto`; this enables Claude auto mode without bypassing permission policy
+- `--paste-only` copies the interactive one-liner via `pbcopy` / `xclip` / `xsel` / `clip.exe` when available
 - Never `/git-prod`; never broad `git add`
 - Does **not** register a Cursor native `stop` hook
 
 ### B. Paste fallback
 
-1. Open a Cursor terminal in the repo root.
-2. Run `claude` (interactive).
-3. Paste a short prompt that points at:
-   - `.cursor/context/templates/plan-external-review-prompt.md`
-   - Active plan under `.cursor/plans/`
-   - `.cursor/HANDOFF.md`
-   - `git rev-parse HEAD`
-4. Or: `.cursor/scripts/plan-external-review.sh --paste-only` and paste the printed block.
+1. Prefer: `.cursor/scripts/plan-external-review.sh --force --paste-only` (clipboard + printed command).
+2. Open a Cursor Terminal in the repo root and paste the printed interactive command.
+3. Or open `claude` and paste the optional prompt block the script prints.
+4. After the monitor exists: `/plan-review-triage`.
 
 ## What Claude should produce
 

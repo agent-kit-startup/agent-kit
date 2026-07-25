@@ -2,11 +2,12 @@
 # plan-external-review.sh - opt-in launcher for post-hoc Claude Code plan review.
 #
 # ADR: .cursor/memory/decisions/2026-07-20_optional-claude-code-plan-review.md
+# Chat vs CI: .cursor/memory/decisions/2026-07-25_external-review-chat-visible-vs-ci-headless.md
 # Hard constraints:
 #   - No Cursor native `stop` hook (see stop-hook-no-hitl-interference)
 #   - Not the full --backend claude tick runner
 #   - Opt-in via .cursor/context/config.json externalPlanReview.enabled (default false)
-#   - If claude missing: tip + exit 0 (do not fail the plan run)
+#   - If claude missing: tip + exit 0 (do not fail the plan run) for print/interactive
 #   - Never /git-prod; never broad git add
 #
 # Canonical path: .cursor/scripts/plan-external-review.sh
@@ -17,13 +18,17 @@
 #   .cursor/scripts/plan-external-review.sh --paste-only [plan-file.plan.md]
 #   .cursor/scripts/plan-external-review.sh --interactive [plan-file.plan.md]
 #   .cursor/scripts/plan-external-review.sh --print [plan-file.plan.md]   # alias for default launch
-#   .cursor/scripts/plan-external-review.sh --force [plan-file.plan.md]   # one-shot; skip config enabled
+#   .cursor/scripts/plan-external-review.sh --force [plan-file.plan.md]   # CI/headless one-shot
+#   .cursor/scripts/plan-external-review.sh --force --paste-only [plan]   # chat "Run review now"
+#   .cursor/scripts/plan-external-review.sh --force --interactive [plan]  # paste into YOUR terminal
 #
-# Default when enabled + claude on PATH: non-interactive `claude -p` (verified CLI flag).
-# --paste-only: print ready-to-paste prompt for Cursor terminal.
-# --interactive: start interactive `claude` with the prompt (Cursor terminal).
-# --force / -f: skip config_enabled gate (one-shot arm; does not persist opt-in).
-#               Still tips and exits 0 if claude is missing.
+# Modes:
+#   Default / --print: non-interactive `claude -p` (CI / headless agent-kit run-plan).
+#   --paste-only: print + clipboard a ready-to-paste interactive command; never claim review ran.
+#   --interactive: start interactive `claude` (must run in the user's Cursor terminal).
+#   --force / -f: skip config_enabled gate (does not persist opt-in).
+#                 Alone = headless print mode (CI only). Chat MUST use --paste-only or
+#                 give the user --interactive to paste; never arm --force alone from chat.
 
 set -euo pipefail
 
@@ -32,13 +37,15 @@ CONFIG="$ROOT/.cursor/context/config.json"
 TEMPLATE_REL=".cursor/context/templates/plan-external-review-prompt.md"
 HANDOFF_REL=".cursor/HANDOFF.md"
 PLANS_DIR="$ROOT/.cursor/plans"
+LAUNCHER_REL=".cursor/scripts/plan-external-review.sh"
 
 MODE="print" # print | paste-only | interactive
+CLAUDE_PERMISSION_MODE="auto"
 FORCE=0
 PLAN_ARG=""
 
 usage() {
-  sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -83,15 +90,18 @@ tip_enable() {
 tip: external plan review is opt-in and currently disabled (or config missing).
   1. Copy .cursor/context/config.example.json -> .cursor/context/config.json (if needed)
   2. Set externalPlanReview.enabled to true
-  3. Re-run: .cursor/scripts/plan-external-review.sh
-  Manual fallback: /plan-external-review (paste template prompt in Cursor terminal with claude)
+  3. Re-run: $LAUNCHER_REL
+  Chat one-shot (visible): $LAUNCHER_REL --force --paste-only
+  Manual fallback: /plan-external-review
 EOF
 }
 
 tip_no_claude() {
   cat <<EOF
 tip: 'claude' not found on PATH. External plan review skipped (no-op).
-  Install Claude Code CLI, or use manual fallback: /plan-external-review
+  Install Claude Code CLI, or use: $LAUNCHER_REL --force --paste-only
+  Then paste the printed command in your Cursor terminal after installing claude.
+  Manual fallback: /plan-external-review
   Template: $TEMPLATE_REL
 EOF
 }
@@ -187,28 +197,34 @@ resolve_plan() {
   exit 2
 }
 
-if [[ "$FORCE" -ne 1 ]]; then
-  if ! config_enabled; then
-    tip_enable
-    exit 0
+copy_to_clipboard() {
+  local text="$1"
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s' "$text" | pbcopy
+    echo "clipboard: copied (pbcopy)"
+    return 0
   fi
-fi
+  if command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$text" | xclip -selection clipboard
+    echo "clipboard: copied (xclip)"
+    return 0
+  fi
+  if command -v xsel >/dev/null 2>&1; then
+    printf '%s' "$text" | xsel --clipboard --input
+    echo "clipboard: copied (xsel)"
+    return 0
+  fi
+  if command -v clip.exe >/dev/null 2>&1; then
+    printf '%s' "$text" | clip.exe
+    echo "clipboard: copied (clip.exe)"
+    return 0
+  fi
+  echo "clipboard: unavailable (copy the command below manually)"
+  return 1
+}
 
-if ! command -v claude >/dev/null 2>&1; then
-  tip_no_claude
-  exit 0
-fi
-
-PLAN_PATH="$(resolve_plan)"
-PLAN_REL="${PLAN_PATH#"$ROOT/"}"
-HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
-
-if [[ ! -f "$ROOT/$TEMPLATE_REL" ]]; then
-  tip_no_template
-  exit 0
-fi
-
-PROMPT="$(cat <<EOF
+build_prompt() {
+  cat <<EOF
 Conduct post-hoc external plan review for Agent Kit.
 
 Read and follow: $TEMPLATE_REL
@@ -223,36 +239,87 @@ Contract reminders:
 - Never /git-prod; never broad git add (add-by-name if staging monitor)
 - Index new monitors in .cursor/memory/_index.md (Audits table)
 EOF
-)"
+}
 
-echo "external plan review: enabled"
+if [[ "$FORCE" -ne 1 ]]; then
+  if ! config_enabled; then
+    tip_enable
+    exit 0
+  fi
+fi
+
+PLAN_PATH="$(resolve_plan)"
+PLAN_REL="${PLAN_PATH#"$ROOT/"}"
+HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
+
+if [[ ! -f "$ROOT/$TEMPLATE_REL" ]]; then
+  tip_no_template
+  exit 0
+fi
+
+# paste-only does not require claude on PATH (user may install before pasting).
+if [[ "$MODE" != "paste-only" ]]; then
+  if ! command -v claude >/dev/null 2>&1; then
+    tip_no_claude
+    exit 0
+  fi
+fi
+
+INTERACTIVE_FLAGS=()
+if [[ "$FORCE" -eq 1 ]]; then
+  INTERACTIVE_FLAGS+=(--force)
+fi
+INTERACTIVE_FLAGS+=(--interactive)
+# Prefer bare plan basename when under .cursor/plans/
+PLAN_FOR_CMD="$PLAN_REL"
+if [[ "$PLAN_REL" == .cursor/plans/* ]]; then
+  PLAN_FOR_CMD="$(basename "$PLAN_REL")"
+fi
+PASTE_CMD="$LAUNCHER_REL ${INTERACTIVE_FLAGS[*]} $PLAN_FOR_CMD"
+
+echo "external plan review: prepared"
 echo "  plan: $PLAN_REL"
 echo "  head: $HEAD_SHA"
 echo "  mode: $MODE"
-echo "  claude: $(command -v claude)"
+echo "  permission mode: $CLAUDE_PERMISSION_MODE"
+if command -v claude >/dev/null 2>&1; then
+  echo "  claude: $(command -v claude)"
+else
+  echo "  claude: (not on PATH yet)"
+fi
 echo
 
 case "$MODE" in
   paste-only)
+    PROMPT="$(build_prompt)"
+    copy_to_clipboard "$PASTE_CMD" || true
     cat <<EOF
---- paste into Cursor terminal after: claude ---
+=== Run review now (chat path) ===
+The review is NOT running yet. Open a Cursor Terminal in the repo root, then paste:
+
+  $PASTE_CMD
+
+After Claude finishes the monitor, run: /plan-review-triage
+
+--- optional: paste into an already-open \`claude\` session ---
 $PROMPT
 --- end prompt ---
 
-Or run: .cursor/scripts/plan-external-review.sh --interactive
-Or run: .cursor/scripts/plan-external-review.sh --print
+Do not arm headless --force alone from chat (no IDE terminal; HITL can block invisibly).
+CI / headless: $LAUNCHER_REL --force   (claude -p; agent-kit run-plan only)
 EOF
     exit 0
     ;;
   interactive)
     cd "$ROOT"
     # Interactive session in Cursor terminal (user continues the review).
-    exec claude "$PROMPT"
+    exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" "$(build_prompt)"
     ;;
   print)
     cd "$ROOT"
     # Verified Claude Code flag: -p/--print (non-interactive). Do not invent other flags.
-    exec claude -p "$PROMPT"
+    # Headless / CI only. Chat agents must use --paste-only instead.
+    exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" -p "$(build_prompt)"
     ;;
   *)
     echo "error: internal mode bug: $MODE" >&2
