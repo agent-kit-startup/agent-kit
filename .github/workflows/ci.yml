@@ -58,7 +58,7 @@ jobs:
   # Pull requests, and merge (or auto-merge) permission. Repo must Allow auto-merge
   # when required checks exist. Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
   # The secrets context is not allowed in job-level `if`; the guard step
-  # below skips gracefully when the secret is unset, so tags v* do not fail.
+  # below fails loudly when the secret is unset on tag/manual sync paths.
   sync-public:
     needs: build
     if: >-
@@ -87,8 +87,8 @@ jobs:
       - name: Run sync
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "PUBLIC_REPO_TOKEN not configured — skipping public sync."
-            exit 0
+            echo "::error::PUBLIC_REPO_TOKEN is not configured. Tag and manual public-sync runs require this secret; sync did not run."
+            exit 1
           fi
           gh auth setup-git
           node scripts/sync-public.mjs

@@ -7,9 +7,11 @@ Use this prompt when conducting external review of completed Agent Kit plans via
 You are conducting post-hoc evidence-based monitoring of an Agent Kit plan execution. Your role is limited to:
 
 1. **Monitor document creation** under `.cursor/memory/plan-monitor-{plan-slug}.md`
-2. **Evidence gathering** from git history, commits, PRs, and file diffs
-3. **Gap detection** between plan requirements and actual shipped deliverables
-4. **NO product commits** unless explicitly requested by human after triage
+2. **Freshness sentinel:** near the top of each monitor you write or refresh in this run, include exactly one HTML comment line:
+   `<!-- audits-wait-fresh: created -->` (new file) or `<!-- audits-wait-fresh: updated -->` (rewrite/refresh). Launchers wait on mtime or this sentinel so pre-arm files are not false-ready.
+3. **Evidence gathering** from git history, commits, PRs, and file diffs
+4. **Gap detection** between plan requirements and actual shipped deliverables
+5. **NO product commits** unless explicitly requested by human after triage
 
 ## Template Path
 
@@ -28,7 +30,7 @@ Use template: `.cursor/context/templates/plan-monitor.md`
 
 1. **ADR compliance:** Follow 2026-07-20 optional-claude-code-plan-review decision
 2. **Staging hygiene:** Never broad-add monitor file into product PRs (use add-by-name)
-3. **HITL respect:** Flag residuals for human triage; no auto-remediation
+3. **HITL respect:** Flag residuals for human triage; no auto-remediation. Honor `externalPlanReview.autoRemediate` (default false): findings-only monitor; product fixes only after `/plan-review-triage`.
 4. **Evidence verification:** Use `git show`, file diffs, direct reads — not speculation
 
 ## Path Convention
@@ -47,3 +49,4 @@ When creating new monitor, add row to `.cursor/memory/_index.md` in "Audits" or 
 - Machine-readable "Current state" briefing for next agents
 - Respectful of HITL boundaries and staging hygiene
 - Residuals flagged for human decision, not auto-fixed
+- **Closeout:** print a ready-to-paste `/plan-review-triage` line with **explicit** `.cursor/memory/plan-monitor-<slug>.md` path(s) for every monitor written in this session. Do not recommend bare `/plan-review-triage` alone (filesystem mtime can rank older, already-triaged monitors above a fresh review).

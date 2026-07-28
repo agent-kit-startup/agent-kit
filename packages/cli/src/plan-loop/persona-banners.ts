@@ -16,19 +16,19 @@ import { readJson } from "../utils/fs.js";
 /** Config mode key for headless `agent-kit run-plan`. */
 export const CLI_RUN_PLAN_MODE = "cli-run-plan";
 
-/** Default skin when config omits `workspaceSkin.modes["cli-run-plan"]`. */
-export const DEFAULT_CLI_SKIN_ID = "ghost-runner";
+/** Default persona when config omits `agentPersona.modes["cli-run-plan"]`. */
+export const DEFAULT_CLI_PERSONA_ID = "ghost-runner";
 
-export interface SkinCliBanners {
+export interface PersonaCliBanners {
   tickStart?: string;
   tickEnd?: string;
   phaseComplete?: string;
 }
 
-export interface SkinPack {
+export interface PersonaPack {
   id: string;
   displayName?: string;
-  cliBanners?: SkinCliBanners;
+  cliBanners?: PersonaCliBanners;
   ansiPalette?: {
     primary?: string;
     secondary?: string;
@@ -58,7 +58,12 @@ function resolveColor(name: string | undefined, fallback: ColorFn): ColorFn {
   return COLORS[name.toLowerCase()] ?? fallback;
 }
 
-interface WorkspaceSkinConfig {
+interface PersonaConfigFile {
+  agentPersona?: {
+    default?: string;
+    modes?: Record<string, string>;
+  };
+  /** Legacy key; used only when `agentPersona` is absent. */
   workspaceSkin?: {
     default?: string;
     modes?: Record<string, string>;
@@ -66,30 +71,35 @@ interface WorkspaceSkinConfig {
 }
 
 /**
- * Resolve CLI skin id from `.cursor/context/config.json`.
+ * Resolve CLI persona id from `.cursor/context/config.json`.
+ * Prefer `agentPersona`; fall back to legacy `workspaceSkin`.
  * Fail soft: missing/invalid config -> ghost-runner.
  */
-export async function resolveCliSkinId(root: string): Promise<string> {
+export async function resolveCliPersonaId(root: string): Promise<string> {
   try {
-    const cfg = await readJson<WorkspaceSkinConfig>(
+    const cfg = await readJson<PersonaConfigFile>(
       path.join(root, ".cursor", "context", "config.json"),
     );
-    const id = cfg?.workspaceSkin?.modes?.[CLI_RUN_PLAN_MODE];
+    const modes = cfg?.agentPersona?.modes ?? cfg?.workspaceSkin?.modes;
+    const id = modes?.[CLI_RUN_PLAN_MODE];
     if (typeof id === "string" && id.trim()) return id.trim();
   } catch {
     // ignore parse/IO errors
   }
-  return DEFAULT_CLI_SKIN_ID;
+  return DEFAULT_CLI_PERSONA_ID;
 }
 
 /**
- * Load `registry/skins/core/<id>/skin.json` relative to project root.
+ * Load `registry/personas/core/<id>/persona.json` relative to project root.
  * Fail soft: missing/invalid -> null (caller keeps plain console.log).
  */
-export async function loadSkinPack(root: string, skinId: string): Promise<SkinPack | null> {
+export async function loadPersonaPack(
+  root: string,
+  personaId: string,
+): Promise<PersonaPack | null> {
   try {
-    const skinPath = path.join(root, "registry", "skins", "core", skinId, "skin.json");
-    const pack = await readJson<SkinPack>(skinPath);
+    const personaPath = path.join(root, "registry", "personas", "core", personaId, "persona.json");
+    const pack = await readJson<PersonaPack>(personaPath);
     if (!pack || typeof pack.id !== "string") return null;
     return pack;
   } catch {
@@ -97,13 +107,13 @@ export async function loadSkinPack(root: string, skinId: string): Promise<SkinPa
   }
 }
 
-/** Resolve + load the active CLI run-plan skin, or null if unavailable. */
-export async function loadCliRunPlanSkin(root: string): Promise<SkinPack | null> {
-  const id = await resolveCliSkinId(root);
-  return loadSkinPack(root, id);
+/** Resolve + load the active CLI run-plan persona, or null if unavailable. */
+export async function loadCliRunPlanPersona(root: string): Promise<PersonaPack | null> {
+  const id = await resolveCliPersonaId(root);
+  return loadPersonaPack(root, id);
 }
 
-export interface SkinBannerPrinter {
+export interface PersonaBannerPrinter {
   /** Tick start: prefix from `cliBanners.tickStart` + detail line. */
   tickStart(detail: string): void;
   /** Tick end after agent returns. */
@@ -117,17 +127,19 @@ export interface SkinBannerPrinter {
 }
 
 /**
- * Build banner printers from a loaded skin.
+ * Build banner printers from a loaded persona.
  * Returns null when there is no usable `cliBanners` (plain logs).
  */
-export function createSkinBannerPrinter(skin: SkinPack | null): SkinBannerPrinter | null {
-  if (!skin?.cliBanners) return null;
-  const banners = skin.cliBanners;
+export function createPersonaBannerPrinter(
+  persona: PersonaPack | null,
+): PersonaBannerPrinter | null {
+  if (!persona?.cliBanners) return null;
+  const banners = persona.cliBanners;
   if (!banners.tickStart && !banners.tickEnd && !banners.phaseComplete) return null;
 
-  const primary = resolveColor(skin.ansiPalette?.primary, white);
-  const secondary = resolveColor(skin.ansiPalette?.secondary, gray);
-  const accent = resolveColor(skin.ansiPalette?.accent, green);
+  const primary = resolveColor(persona.ansiPalette?.primary, white);
+  const secondary = resolveColor(persona.ansiPalette?.secondary, gray);
+  const accent = resolveColor(persona.ansiPalette?.accent, green);
 
   return {
     tickStart(detail: string) {

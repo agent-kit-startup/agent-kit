@@ -77,10 +77,12 @@ Local-dev only. Read-only view of repo state. No HITL gate required to open.
 
 - Server entry: `dashboard/serve.mjs` (SPA at `/`, data at `/dashboard-data.json` and `/api/data`, SSE at `/api/events`)
 - Port: `PORT` env, default `3333`
-- **Security:** binds `127.0.0.1` by default (`HOST` env to override). Local-only; do not expose on shared networks. Static files are limited to `dashboard/`; no secrets or repo files outside that directory are served.
+- **Security:** binds `127.0.0.1` by default (`HOST` env alone is not enough for LAN). Local-only loopback; do not expose on shared networks via `/dashboard`. For opt-in trusted LAN, use `/dashboard-broadcast` (token gate). Static files are limited to `dashboard/`; no secrets or repo files outside that directory are served.
+- Non-loopback bind without `MISSION_CONTROL_TOKEN` is refused by `serve.mjs` (no warn-only open LAN).
+- For LAN broadcast: `/dashboard-broadcast` / `npm run dashboard:broadcast` / `agent-kit dashboard-broadcast`.
 - **The in-IDE browser MCP (`cursor-ide-browser`) does render this panel.** An earlier revision of this command claimed it crashes on localhost; that was a misdiagnosis of a server that had already been reaped. Treat `chrome-error://chromewebdata/` as a server-liveness signal, not a browser defect.
 - Stop the panel with `kill "$(lsof -nP -iTCP:3333 -sTCP:LISTEN -t)"`. A detached server survives the chat session, so an old instance may still hold the port on the next `/dashboard`. Never use a bare `lsof -ti:3333` to pick the kill target; it also lists connected clients such as the IDE browser host.
-- **File actions:** Mission Control copies the repo-relative path and toasts paste instructions for **Quick Open** (`Cmd+P` / `Ctrl+P`). Native `vscode://file` / `cursor://file` open cannot be confirmed from Simple Browser or agent browser hosts (protocol success is not observable), so path actions are labeled **Copy path**, never `Open`. Commit shas and slash commands stay copy-only.
+- **File actions:** Mission Control copies the repo-relative path and toasts paste instructions for **Quick Open** (`Cmd+P` / `Ctrl+P`). Native `vscode://file` / `cursor://file` open cannot be confirmed from Simple Browser or agent browser hosts (protocol success is not observable), so path actions are labeled **Copy path**, never `Open`. Commit shas and slash commands stay copy-only. Checklist plan Actions: **Run (manual)** / **Run (auto)** / Edit / Cancel / Copy path; header **Run all** copies `/run-plan-all` (never executes from the panel).
 - Not a remote deploy path; do not treat this as production hosting
 
 ## Troubleshooting

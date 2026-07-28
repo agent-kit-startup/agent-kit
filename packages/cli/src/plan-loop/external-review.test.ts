@@ -72,8 +72,11 @@ describe("armExternalPlanReview", () => {
     expect(result.invoked).toBe(true);
     expect(spawnFn).toHaveBeenCalledWith(
       "bash",
-      [path.join("/repo", canonicalRel)],
-      expect.objectContaining({ cwd: "/repo" }),
+      [path.join("/repo", canonicalRel), "--print"],
+      expect.objectContaining({
+        cwd: "/repo",
+        env: expect.objectContaining({ AGENT_KIT_HEADLESS: "1" }),
+      }),
     );
   });
 
@@ -89,7 +92,7 @@ describe("armExternalPlanReview", () => {
     expect(result.invoked).toBe(true);
     expect(spawnFn).toHaveBeenCalledWith(
       "bash",
-      [path.join("/repo", fallbackRel)],
+      [path.join("/repo", fallbackRel), "--print"],
       expect.objectContaining({ cwd: "/repo" }),
     );
   });
@@ -116,15 +119,20 @@ describe("armExternalPlanReview", () => {
     });
 
     expect(result.invoked).toBe(true);
-    // Headless CI path: --force alone (claude -p). Chat uses --force --paste-only instead.
+    // Headless CI path: --force --print (claude -p). Chat uses --autonomous or --paste-only.
     expect(spawnFn).toHaveBeenCalledWith(
       "bash",
-      [path.join("/repo", canonicalRel), "--force"],
-      expect.objectContaining({ cwd: "/repo" }),
+      [path.join("/repo", canonicalRel), "--force", "--print"],
+      expect.objectContaining({
+        cwd: "/repo",
+        env: expect.objectContaining({ AGENT_KIT_HEADLESS: "1" }),
+      }),
     );
     const args = spawnFn.mock.calls[0]?.[1] as string[];
+    expect(args).toContain("--print");
     expect(args).not.toContain("--paste-only");
     expect(args).not.toContain("--interactive");
+    expect(args).not.toContain("--autonomous");
   });
 
   it("invokes script and ignores non-zero exit", async () => {
@@ -142,7 +150,7 @@ describe("armExternalPlanReview", () => {
     expect(result.output).toContain("tip: disabled");
     expect(spawnFn).toHaveBeenCalledWith(
       "bash",
-      [expect.stringContaining("plan-external-review.sh")],
+      [expect.stringContaining("plan-external-review.sh"), "--print"],
       expect.objectContaining({ cwd: "/repo" }),
     );
   });

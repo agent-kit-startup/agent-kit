@@ -29,3 +29,6 @@ Documentation belongs to the **project**: professional, inheritable, without peo
 
 - [README.md](README.md)
 - Rule: `.cursor/rules/docs-professional-standard.mdc`
+
+## Plan-monitor skim
+Before proposing docs sync or rewriting a theme already executed: skim theme-matched `.cursor/memory/plan-monitor-*.md` (and `plan-review-*` audits). No new Ask gates.

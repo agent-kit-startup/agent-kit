@@ -22,12 +22,12 @@ Long AI coding sessions fall apart when the context window fills up. Agent Kit f
 | **Staging → prod git** | `/git-staging` for automatic promote to `origin/staging`; `/git-prod` only after explicit confirmation. Direct commits to `main` are blocked. |
 | **Memory loop** | Resolved errors and tradeoff decisions in `.cursor/memory/` so the next chat can reuse them. |
 | **Repository readiness** | Install scans the repo, applies safe local fixes, and writes a readiness snapshot. `/agent-kit-onboard` resolves remaining decisions one at a time before `/start-project`. |
-| **Workspace skins** | Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Configure after readiness or set `workspaceSkin` in `.cursor/context/config.json`. Never changes commits, HANDOFF, memory, or product docs. |
+| **Agent Personas** | Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Configure after readiness or set `agentPersona` in `.cursor/context/config.json`. Never changes commits, HANDOFF, memory, or product docs. |
 | **Optional external plan review** | After a plan is exhausted, arm Claude Code for a gap monitor; triage with `/plan-review-triage`. Opt-in via config. |
 | **Skills + domain packs** | Registry skills and optional L1 packs (clean code, context tools, and more). Install/update via CLI; contribute upstream with `agent-kit contribute`. |
 | **Output hygiene** | Chat can be light; commits, docs, HANDOFF, and memory stay professional and inheritable. |
 
-Deep dives: [getting started](docs/getting-started.md), [skins contract](docs/skins-contract.md), [creating skins](docs/creating-skins.md), [external plan review](docs/external-plan-review.md), [domain packs](docs/domain-packs.md).
+Deep dives: [getting started](docs/getting-started.md), [personas contract](docs/personas-contract.md), [creating personas](docs/creating-personas.md), [external plan review](docs/external-plan-review.md), [domain packs](docs/domain-packs.md).
 
 ## Install
 
@@ -63,37 +63,46 @@ That's it. You now have a handful of slash commands and a small set of rules. Fu
 
 Two ways to drive a plan:
 
-- **`/continue-plan`** - you drive: one phase per chat, the agent stops and waits between units.
+- **`/continue-plan`** - you drive: one phase per chat, the agent stops and waits between units. Operator playbook: [Getting started - Manual playbook](docs/getting-started.md#manual-playbook-default).
 - **`/run-plan`** - it drives: the agent works through the plan to the end, checking off to-dos and pushing each finished topic to staging (Night Shift chat chrome by default). It picks the best execution strategy itself (worker delegation when available, same-chat loop otherwise). Optional external plan review via Claude Code provides post-completion gap detection. Headless CLI ticks use Ghost Runner banners by default.
+- **`/run-plan-all`** - Order and run multiple plans as a deduplicated queue (PO synthesis → confirm → execute). Pure orchestrator: after you confirm the queue, it dispatches one Task subagent per plan (each runs the `/run-plan` tick contract) instead of implementing in-window.
+
+**Which command next?** Short chooser in [Getting started](docs/getting-started.md#which-command-next). Modes table: [plan-routine §5](autogit/plan-routine.md#5-two-execution-modes).
 
 **Production safety:** `/git-prod` promotes staging to `main` but always asks for confirmation first. Direct commits to `main` are blocked.
 
 ### Dashboard
 
-**Mission Control** is a local, read-only panel over the Agent Kit runtime state. It binds to loopback, serves only its own static files, and never mutates the repository.
+**Mission Control** is a local panel over the Agent Kit runtime state. It binds to loopback by default and serves only its own static files. Actions stay copy-only (clipboard + paste destination). The Config section is a narrow exception: it may merge allowlisted session prefs into `.cursor/context/config.json` via loopback `PUT`/`PATCH /api/config` (no git, process, or prod mutations). Opt-in LAN: `/dashboard-broadcast` (token-gated). Production-ship constraints: [Getting started - Mission Control production-ship constraints](docs/getting-started.md#mission-control-production-ship-constraints).
+
+The panel lives under `dashboard/` in this repository (and the public agent-kit tree). A consumer project that only ran `npx @dadado/agent-kit-cli install` gets kit commands and `/dashboard` docs, not the `dashboard/` server files. Run the start commands from a checkout that contains `dashboard/start.mjs`.
 
 ```bash
-# Start (or reuse) the panel and open the URL — terminal counterpart to /dashboard
+# From an agent-kit tree that includes dashboard/ — start (or reuse) and open the URL
 npm run dashboard
 # or: agent-kit dashboard
 # or: node dashboard/start.mjs
+
+# Opt-in LAN broadcast (token-gated; prints LAN URL + token)
+npm run dashboard:broadcast
+# or: agent-kit dashboard-broadcast
 
 # Foreground serve only (debugging; does not open a browser)
 npm run start:dashboard
 ```
 
-Then open `http://localhost:3333` if the browser did not open. In Cursor chat, `/dashboard` does the same start-and-open flow via the IDE browser.
+Then open `http://localhost:3333` if the browser did not open. In Cursor chat (same kit tree), `/dashboard` does the same start-and-open flow via the IDE browser. For trusted LAN, use `/dashboard-broadcast` (never silent `HOST=0.0.0.0` without a token).
 
 The Cockpit reads as one page in four sections, each reachable from the primary navigation:
 
 | Section | What it answers |
 |---------|------------------|
-| Current mission | The plan in flight: status, progress, and previous/current/next todo |
-| Monitor | What just happened: plan ticks, staging merges, and commits |
-| Field Report | What waits on a reply: agent prompts with no answer, external reviews awaiting triage, and the active handoff gate |
+| Current mission | The plan in flight: status, progress, friendly Mode labels, and previous/current/next todo |
+| Crew Monitor | Live agent/crew feed: ticks, handoffs, deliveries, and denser `agent_step` rows for active-plan to-dos (cap 20) |
+| Flight Log | HANDOFF Gaps log (**Live** / **Earlier**, wipe on new flight; cap 15 within a flight) plus operator Warnings (Quota pause, Heads up); clipboard icon; clickable copy text/path; **All clear** when idle |
 | Checklist | What remains: recent plan cards, parked and incomplete plans, and readiness notes |
 
-Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, and Processes live in the More sections menu next to those links, with their counts.
+Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, and Config live in the More sections menu next to those links, with their counts.
 
 Every action copies text and names where to paste it: repo-relative paths go to the file picker, slash commands to the chat input, chat references to the past-chat picker, and shell commands, PIDs, and commit shas to the terminal. The panel cannot open a file or a chat, and no label claims it can.
 
@@ -108,7 +117,7 @@ Full routine: `autogit/gitupdate.md` after install.
 | [Bootstrap](docs/bootstrap.md) | Exactly what lands in your project, and why there's no nested folder |
 | [Layers](docs/layers-spec.md) | How the base install, optional packs, and your local files layer together |
 | [Domain packs](docs/domain-packs.md) | Optional bundles: clean code, DevOps, testing, and more |
-| [Workspace skins](docs/skins-contract.md) | Mode defaults, `workspaceSkin` config, hygiene boundary ([create / contribute](docs/creating-skins.md)) |
+| [Agent Personas](docs/personas-contract.md) | Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](docs/creating-personas.md)) |
 | [External plan review](docs/external-plan-review.md) | Opt-in Claude Code monitor after `/run-plan` exhaustion |
 | [Manifest](docs/agent-kit-manifest.md) | The `.cursor/agent-kit.json` file |
 | [Contributing](docs/CONTRIBUTING.md) | Working on the kit itself (includes contributor quickstart) |

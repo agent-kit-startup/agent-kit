@@ -59,10 +59,11 @@ export interface ArmExternalPlanReviewOptions {
  * Opt-in / missing-claude tips live in the script (exit 0).
  * Never throws; never fails the headless run-loop.
  *
- * Headless / CI only (`agent-kit run-plan`). Chat Ask "Run review now" must
- * use `--force --paste-only` and tell the user to paste in their Cursor
- * Terminal; do not call this from a chat session as if the review is visible.
- * See decisions/2026-07-25_external-review-chat-visible-vs-ci-headless.md.
+ * Headless / CI only (`agent-kit run-plan`). Always passes `--print` so the
+ * launcher keeps `claude -p` even when config `mode` is `autonomous`.
+ * Chat/session agents must arm `--autonomous` (visible Terminal) or
+ * `--paste-only` (legacy); never call this from chat as if the review is visible.
+ * See decisions/2026-07-27_audits-autonomous-plan-review-contract.md.
  */
 export async function armExternalPlanReview(
   root: string,
@@ -95,12 +96,13 @@ export async function armExternalPlanReview(
 
   log("Plan exhausted: arming optional external plan review (opt-in handled by script)...");
 
-  const args = force ? [scriptPath, "--force"] : [scriptPath];
+  // Explicit --print keeps headless claude -p when config mode is autonomous.
+  const args = force ? [scriptPath, "--force", "--print"] : [scriptPath, "--print"];
 
   return new Promise((resolve) => {
     const child = spawnFn("bash", args, {
       cwd: root,
-      env: process.env,
+      env: { ...process.env, AGENT_KIT_HEADLESS: "1" },
     });
 
     let output = "";

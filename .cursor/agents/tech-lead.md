@@ -32,3 +32,6 @@ rules:
 - New lib/framework choice: ADR mandatory
 - Change affecting multiple projects: validate with team
 - Security or compliance decision: human review
+
+## Plan-monitor skim
+Before proposing rework or a new ADR on a theme already executed: skim theme-matched `.cursor/memory/plan-monitor-*.md` (and `plan-review-*` audits). Do not invent Ask gates; Field Report / `/plan-review-triage` stay attention/HITL SoT.

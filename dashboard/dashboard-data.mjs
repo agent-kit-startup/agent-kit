@@ -4,27 +4,35 @@
 // Scans .cursor/plans, HANDOFF, memory, config, git status, terminals, processes
 // Outputs JSON to stdout (consumed by dashboard.html)
 
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { MAX_STRING, allowlistConfig, parseGitStatusShort, truncateStr } from "./lib/guards.mjs";
 import {
-  MAX_STRING,
-  MAX_REPO_ROOT,
-  truncateStr,
-  parseGitStatusShort,
-  allowlistConfig,
-} from './lib/guards.mjs';
-import {
-  parseHandoffMarkdown,
-  buildMissionControlView,
-  detectAwaitingPrompt,
-  parseExternalReport,
   EXTERNAL_REPORT_FILE_RE,
+  FIELD_REPORT_CADENCE_LEDGER_REL,
+  FLIGHT_LOG_LEDGER_REL,
   MAX_AGENT_PROMPTS,
   MAX_GIT_ACTIVITY,
-} from './lib/semantic-model.mjs';
+  MISSION_TIMING_LEDGER_REL,
+  buildMissionControlView,
+  collectDeferredCheckIds,
+  collectReadinessPendingFromReport,
+  detectAwaitingPrompt,
+  dismissedAttentionIds,
+  extractChatSnippet,
+  parseCadenceLedger,
+  parseExternalReport,
+  parseFieldReportDismissals,
+  parseFieldReportReviewCadenceConfig,
+  parseFlightLogLedger,
+  parseHandoffMarkdown,
+  parseMissionTimingLedger,
+  serializeFlightLogLedger,
+  serializeMissionTimingLedger,
+} from "./lib/semantic-model.mjs";
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, "..");
 const MAX_TERMINALS = 20;
 const MAX_PROCESSES = 25;
 const MAX_TERMINAL_BYTES = 64 * 1024;
@@ -58,7 +66,7 @@ function redactTerminalOutput(text) {
   let out = String(text);
   for (const pat of SECRET_OUTPUT_PATTERNS) {
     out = out.replace(pat, (match) => {
-      const sep = match.includes('=') ? '=' : ':';
+      const sep = match.includes("=") ? "=" : ":";
       const key = match.split(sep)[0];
       return `${key}${sep}***`;
     });
@@ -68,11 +76,11 @@ function redactTerminalOutput(text) {
 
 /** Last N lines of terminal body after YAML header, char-capped and redacted. */
 function extractLastOutput(rawContent) {
-  const lines = rawContent.split('\n');
+  const lines = rawContent.split("\n");
   let headerEnd = 0;
   let dashCount = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === '---') {
+    if (lines[i].trim() === "---") {
       dashCount++;
       if (dashCount === 2) {
         headerEnd = i + 1;
@@ -82,38 +90,39 @@ function extractLastOutput(rawContent) {
   }
   if (headerEnd === 0) headerEnd = 10;
 
-  const bodyLines = lines.slice(headerEnd).filter((l) => l.trim() && !l.startsWith('---'));
+  const bodyLines = lines.slice(headerEnd).filter((l) => l.trim() && !l.startsWith("---"));
   if (bodyLines.length === 0) return null;
 
   const tail = bodyLines.slice(-MAX_LAST_OUTPUT_LINES);
-  let text = redactTerminalOutput(tail.join('\n'));
+  let text = redactTerminalOutput(tail.join("\n"));
   text = truncateStr(text, MAX_LAST_OUTPUT_CHARS);
-  return text && text.trim() ? text : null;
+  return text?.trim() ? text : null;
 }
 
 const SNAPSHOT = {
   _schema: {
-    version: '1.2.0',
-    description: 'Mission Control dashboard data model',
+    version: "1.2.0",
+    description: "Mission Control dashboard data model",
     fields: {
-      generatedAt: 'ISO-8601 timestamp of snapshot generation',
-      dashboardDataVersion: 'Semantic version of the data model schema',
-      plans: 'Active plans from .cursor/plans/*.plan.md with frontmatter parsing',
-      system: 'System metadata: handoff state, allowlisted config summary, package info, version, name, repoRoot, contextPacks',
-      agents: 'Agent definitions from .cursor/agents/*.md',
-      commands: 'Slash commands from .cursor/commands/*.md',
-      memory: 'Memory records: error count, decision count, recent decisions',
-      git: 'Git repository state: branch, dirty status, commit, ahead/behind, bounded files[]',
-      terminals: 'Active Cursor terminal sessions with metadata, output line count, and capped lastOutput',
-      processes: 'Running process snapshots (node, serve.mjs, git operations)',
-      skills: 'Available skills discovered in .cursor/skills/',
-      health: 'Aggregated health status with per-check results',
-      missionControl:
-        'Normalized now/activity/attention/plans view model (source-backed; bounded)',
+      generatedAt: "ISO-8601 timestamp of snapshot generation",
+      dashboardDataVersion: "Semantic version of the data model schema",
+      plans: "Active plans from .cursor/plans/*.plan.md with frontmatter parsing",
+      system:
+        "System metadata: handoff state, allowlisted config summary, package info, version, name, contextPacks",
+      agents: "Agent definitions from .cursor/agents/*.md",
+      commands: "Slash commands from .cursor/commands/*.md",
+      memory: "Memory records: error count, decision count, recent decisions",
+      git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[]",
+      terminals:
+        "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
+      processes: "Running process snapshots (node, serve.mjs, git operations)",
+      skills: "Available skills discovered in .cursor/skills/",
+      health: "Aggregated health status with per-check results",
+      missionControl: "Normalized now/activity/attention/plans view model (source-backed; bounded)",
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: '1.2.0',
+  dashboardDataVersion: "1.2.0",
   plans: [],
   system: {},
   agents: [],
@@ -123,20 +132,21 @@ const SNAPSHOT = {
   terminals: [],
   processes: [],
   skills: [],
-  health: { status: 'ok', checks: [] },
+  health: { status: "ok", checks: [] },
   missionControl: null,
 };
 
 // 1. Plans
-const plansDir = join(ROOT, '.cursor', 'plans');
+const plansDir = join(ROOT, ".cursor", "plans");
 if (existsSync(plansDir)) {
-  const files = readdirSync(plansDir).filter(f => f.endsWith('.plan.md'));
+  const files = readdirSync(plansDir).filter((f) => f.endsWith(".plan.md"));
   for (const file of files) {
-    const content = readFileSync(join(plansDir, file), 'utf-8');
+    const content = readFileSync(join(plansDir, file), "utf-8");
     const stats = statSync(join(plansDir, file));
     const todos = [];
-    let overview = '';
-    let name = file.replace(/\.plan\.md$/, '');
+    let overview = "";
+    let name = file.replace(/\.plan\.md$/, "");
+    let agent = null;
 
     // Parse frontmatter
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -146,17 +156,18 @@ if (existsSync(plansDir)) {
       if (nameMatch) name = nameMatch[1].trim();
       const overviewMatch = fm.match(/^overview:\s*"(.+)"$/m);
       if (overviewMatch) overview = overviewMatch[1];
+      const agentMatch = fm.match(/^agent:\s*(.+)$/m);
+      if (agentMatch) agent = agentMatch[1].trim().replace(/^"(.*)"$/, "$1");
 
       // Parse todos
       const todoRegex = /^\s*-\s+id:\s*(\S+)\s*\n\s*content:\s*"(.+)"\s*\n\s*status:\s*(\S+)/gm;
-      let m;
-      while ((m = todoRegex.exec(fm)) !== null) {
+      for (const m of fm.matchAll(todoRegex)) {
         todos.push({ id: m[1], content: m[2], status: m[3] });
       }
     }
 
     const totalTodos = todos.length;
-    const doneTodos = todos.filter(t => t.status === 'completed').length;
+    const doneTodos = todos.filter((t) => t.status === "completed").length;
     const progress = totalTodos > 0 ? Math.round((doneTodos / totalTodos) * 100) : 0;
 
     SNAPSHOT.plans.push({
@@ -164,12 +175,13 @@ if (existsSync(plansDir)) {
       file,
       path: `.cursor/plans/${file}`,
       overview,
+      agent,
       progress,
       todos: {
         total: totalTodos,
         completed: doneTodos,
-        pending: todos.filter(t => t.status === 'pending').length,
-        inProgress: todos.filter(t => t.status === 'in_progress').length,
+        pending: todos.filter((t) => t.status === "pending").length,
+        inProgress: todos.filter((t) => t.status === "in_progress").length,
         items: todos,
       },
       modifiedAt: stats.mtime.toISOString(),
@@ -177,77 +189,115 @@ if (existsSync(plansDir)) {
   }
 }
 
+// 1b. Archived plans: only basenames are collected. A plan file present under
+// .cursor/plans/archive/ resolves as the terminal `archived` lifecycle, so
+// archiving a plan never promotes its review back into blocking attention.
+const plansArchiveDir = join(plansDir, "archive");
+const archivedPlanFiles = existsSync(plansArchiveDir)
+  ? readdirSync(plansArchiveDir).filter((f) => f.endsWith(".plan.md"))
+  : [];
+
 // 2. HANDOFF (rich parse for Mission Control now/attention)
-const handoffPath = join(ROOT, '.cursor', 'HANDOFF.md');
+const handoffPath = join(ROOT, ".cursor", "HANDOFF.md");
 if (existsSync(handoffPath)) {
-  const content = readFileSync(handoffPath, 'utf-8');
+  const content = readFileSync(handoffPath, "utf-8");
   const handoff = parseHandoffMarkdown(content);
   if (handoff) SNAPSHOT.system.handoff = handoff;
 }
 
 // 3. Agents
-const agentsDir = join(ROOT, '.cursor', 'agents');
+const agentsDir = join(ROOT, ".cursor", "agents");
 if (existsSync(agentsDir)) {
-  const files = readdirSync(agentsDir).filter(f => f.endsWith('.md'));
+  const files = readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
   for (const file of files) {
-    const content = readFileSync(join(agentsDir, file), 'utf-8');
-    const name = file.replace(/\.md$/, '');
+    const content = readFileSync(join(agentsDir, file), "utf-8");
+    const name = file.replace(/\.md$/, "");
     const descMatch = content.match(/(?:description|summary|#+ .+?)\n*([^#\n]{30,200})/);
     SNAPSHOT.agents.push({
       id: name,
       file,
       path: `.cursor/agents/${file}`,
-      description: descMatch ? descMatch[1].trim().slice(0, 120) : '',
+      description: descMatch ? descMatch[1].trim().slice(0, 120) : "",
     });
   }
 }
 
 // 4. Commands
-const commandsDir = join(ROOT, '.cursor', 'commands');
+const commandsDir = join(ROOT, ".cursor", "commands");
 if (existsSync(commandsDir)) {
-  const files = readdirSync(commandsDir).filter(f => f.endsWith('.md'));
+  const files = readdirSync(commandsDir).filter((f) => f.endsWith(".md"));
   for (const file of files) {
-    const name = file.replace(/\.md$/, '');
+    const name = file.replace(/\.md$/, "");
     SNAPSHOT.commands.push({ id: name, file, path: `.cursor/commands/${file}` });
   }
 }
 
 // 5. Memory
-const memoryErrorsDir = join(ROOT, '.cursor', 'memory', 'errors');
-const memoryDecisionsDir = join(ROOT, '.cursor', 'memory', 'decisions');
+const memoryErrorsDir = join(ROOT, ".cursor", "memory", "errors");
+const memoryDecisionsDir = join(ROOT, ".cursor", "memory", "decisions");
 if (existsSync(memoryErrorsDir)) {
-  SNAPSHOT.memory.errors = readdirSync(memoryErrorsDir).filter(f => f.endsWith('.md')).length;
+  const errorFiles = readdirSync(memoryErrorsDir).filter((f) => f.endsWith(".md"));
+  SNAPSHOT.memory.errors = errorFiles.length;
+  SNAPSHOT.memory.errorEntries = errorFiles.map((f) => {
+    const id = f.replace(/\.md$/, "");
+    let modifiedAt = null;
+    try {
+      modifiedAt = statSync(join(memoryErrorsDir, f)).mtime.toISOString();
+    } catch {
+      modifiedAt = null;
+    }
+    return { id, modifiedAt };
+  });
 }
 if (existsSync(memoryDecisionsDir)) {
-  const files = readdirSync(memoryDecisionsDir).filter(f => f.endsWith('.md'));
+  const files = readdirSync(memoryDecisionsDir).filter((f) => f.endsWith(".md"));
   SNAPSHOT.memory.decisions = files.length;
-  SNAPSHOT.memory.recentDecisions = files.slice(-5).reverse().map(f => ({
-    id: f.replace(/\.md$/, ''),
-    path: `.cursor/memory/decisions/${f}`,
-  }));
+  SNAPSHOT.memory.decisionEntries = files.map((f) => {
+    const id = f.replace(/\.md$/, "");
+    let modifiedAt = null;
+    try {
+      modifiedAt = statSync(join(memoryDecisionsDir, f)).mtime.toISOString();
+    } catch {
+      modifiedAt = null;
+    }
+    return { id, modifiedAt };
+  });
+  SNAPSHOT.memory.recentDecisions = files
+    .slice(-5)
+    .reverse()
+    .map((f) => ({
+      id: f.replace(/\.md$/, ""),
+      path: `.cursor/memory/decisions/${f}`,
+    }));
 }
 
 // 6. Git
 try {
-  const gitOpts = { cwd: ROOT, encoding: 'utf-8', timeout: 5000 };
-  const branch = execSync('git rev-parse --abbrev-ref HEAD', gitOpts).trim();
-  const status = execSync('git status --short', gitOpts).trim();
-  const lastCommit = execSync('git log -1 --oneline', gitOpts).trim();
+  const gitOpts = { cwd: ROOT, encoding: "utf-8", timeout: 5000 };
+  const branch = execSync("git rev-parse --abbrev-ref HEAD", gitOpts).trim();
+  const status = execSync("git status --short", gitOpts).trim();
+  const lastCommit = execSync("git log -1 --oneline", gitOpts).trim();
   let ahead = 0;
   let behind = 0;
   try {
-    ahead = parseInt(execSync('git rev-list --count origin/main..HEAD', gitOpts).trim(), 10) || 0;
-  } catch { /* no upstream */ }
+    ahead =
+      Number.parseInt(execSync("git rev-list --count origin/main..HEAD", gitOpts).trim(), 10) || 0;
+  } catch {
+    /* no upstream */
+  }
   try {
-    behind = parseInt(execSync('git rev-list --count HEAD..origin/main', gitOpts).trim(), 10) || 0;
-  } catch { /* no upstream */ }
+    behind =
+      Number.parseInt(execSync("git rev-list --count HEAD..origin/main", gitOpts).trim(), 10) || 0;
+  } catch {
+    /* no upstream */
+  }
 
   const parsed = parseGitStatusShort(status);
   let recentLog = [];
   try {
     recentLog = execSync(`git log --oneline -n ${MAX_GIT_ACTIVITY}`, gitOpts)
       .trim()
-      .split('\n')
+      .split("\n")
       .filter(Boolean);
   } catch {
     recentLog = [];
@@ -265,35 +315,37 @@ try {
   };
   SNAPSHOT._gitRecentLog = recentLog;
 } catch {
-  SNAPSHOT.git = { error: 'unable to read git state' };
+  SNAPSHOT.git = { error: "unable to read git state" };
   SNAPSHOT._gitRecentLog = [];
 }
 
 // 7. Terminals (read from Cursor terminal files)
-const terminalsDir = resolve(process.env.HOME || '~', '.cursor', 'projects');
+const terminalsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
 // Derive project path from ROOT rather than hardcoding a specific slug
-const projectSlug = ROOT.replace(/\//g, '-').replace(/^-/, '');
-const terminalProjectPath = join(terminalsDir, projectSlug, 'terminals');
+const projectSlug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+const terminalProjectPath = join(terminalsDir, projectSlug, "terminals");
 
 if (existsSync(terminalProjectPath)) {
   try {
-    const files = readdirSync(terminalProjectPath).filter(f => f.endsWith('.txt')).slice(0, MAX_TERMINALS);
+    const files = readdirSync(terminalProjectPath)
+      .filter((f) => f.endsWith(".txt"))
+      .slice(0, MAX_TERMINALS);
     for (const file of files) {
       const full = join(terminalProjectPath, file);
-      const raw = readFileSync(full, 'utf-8');
+      const raw = readFileSync(full, "utf-8");
       // Cap huge terminal dumps: only header meta + a line count estimate is needed
       const content = raw.length > MAX_TERMINAL_BYTES ? raw.slice(0, MAX_TERMINAL_BYTES) : raw;
-      const lines = content.split('\n');
+      const lines = content.split("\n");
       const meta = {};
       for (const line of lines.slice(0, 15)) {
-        if (line.startsWith('pid:')) meta.pid = line.slice(4).trim();
-        if (line.startsWith('cwd:')) meta.cwd = line.slice(4).trim();
-        if (line.startsWith('command:')) meta.lastCommand = line.slice(8).trim();
-        if (line.startsWith('last_command:')) meta.lastCommand = line.slice(13).trim();
-        if (line.startsWith('last_exit_code:')) meta.lastExitCode = line.slice(15).trim();
+        if (line.startsWith("pid:")) meta.pid = line.slice(4).trim();
+        if (line.startsWith("cwd:")) meta.cwd = line.slice(4).trim();
+        if (line.startsWith("command:")) meta.lastCommand = line.slice(8).trim();
+        if (line.startsWith("last_command:")) meta.lastCommand = line.slice(13).trim();
+        if (line.startsWith("last_exit_code:")) meta.lastExitCode = line.slice(15).trim();
       }
-      const outputLines = lines.slice(10).filter(l => {
-        return l.trim() && !l.startsWith('---');
+      const outputLines = lines.slice(10).filter((l) => {
+        return l.trim() && !l.startsWith("---");
       }).length;
       const lastOutput = extractLastOutput(content);
       const entry = {
@@ -310,22 +362,21 @@ if (existsSync(terminalProjectPath)) {
 }
 
 // 8. Config
-const configPath = join(ROOT, '.cursor', 'context', 'config.json');
+const configPath = join(ROOT, ".cursor", "context", "config.json");
 if (existsSync(configPath)) {
   try {
-    const rawConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+    const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
     SNAPSHOT.system.config = allowlistConfig(rawConfig);
   } catch {
-    SNAPSHOT.system.config = { error: 'parse error' };
+    SNAPSHOT.system.config = { error: "parse error" };
   }
 }
 
-// 9. Package.json + workspace root (for Cursor-native file open URIs)
-SNAPSHOT.system.repoRoot = truncateStr(ROOT, MAX_REPO_ROOT);
-const pkgPath = join(ROOT, 'package.json');
+// 9. Package.json
+const pkgPath = join(ROOT, "package.json");
 if (existsSync(pkgPath)) {
   try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     SNAPSHOT.system.version = pkg.version;
     SNAPSHOT.system.name = pkg.name;
   } catch {
@@ -334,12 +385,12 @@ if (existsSync(pkgPath)) {
 }
 
 // 11. Context Packs
-const contextCurrentDir = join(ROOT, '.cursor', 'context', 'current');
+const contextCurrentDir = join(ROOT, ".cursor", "context", "current");
 if (existsSync(contextCurrentDir)) {
   try {
-    const contextFiles = readdirSync(contextCurrentDir).filter(f => f.endsWith('.md'));
-    SNAPSHOT.system.contextPacks = contextFiles.map(f => ({
-      id: f.replace(/\.md$/, ''),
+    const contextFiles = readdirSync(contextCurrentDir).filter((f) => f.endsWith(".md"));
+    SNAPSHOT.system.contextPacks = contextFiles.map((f) => ({
+      id: f.replace(/\.md$/, ""),
       file: f,
       path: `.cursor/context/current/${f}`,
     }));
@@ -349,26 +400,26 @@ if (existsSync(contextCurrentDir)) {
 }
 
 // 12. Skills discovery
-const skillsDir = join(ROOT, '.cursor', 'skills');
+const skillsDir = join(ROOT, ".cursor", "skills");
 if (existsSync(skillsDir)) {
   try {
-    function scanSkills(dir, category = '') {
+    function scanSkills(dir, category = "") {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
         const fullPath = join(dir, entry.name);
         if (entry.isDirectory()) {
           scanSkills(fullPath, entry.name);
-        } else if (entry.name === 'SKILL.md') {
-          const relativeDir = dir.replace(skillsDir + '/', '');
-          const raw = readFileSync(fullPath, 'utf-8');
+        } else if (entry.name === "SKILL.md") {
+          const relativeDir = dir.replace(`${skillsDir}/`, "");
+          const raw = readFileSync(fullPath, "utf-8");
           const titleMatch = raw.match(/^# (.+)$/m);
           const descMatch = raw.match(/\n\n(.{20,200})/);
           SNAPSHOT.skills.push({
             id: relativeDir,
-            category: category || 'root',
-            title: titleMatch ? titleMatch[1].trim() : relativeDir.split('/').pop(),
-            description: descMatch ? descMatch[1].trim().slice(0, 150) : '',
-            file: fullPath.replace(ROOT + '/', ''),
+            category: category || "root",
+            title: titleMatch ? titleMatch[1].trim() : relativeDir.split("/").pop(),
+            description: descMatch ? descMatch[1].trim().slice(0, 150) : "",
+            file: fullPath.replace(`${ROOT}/`, ""),
           });
         }
       }
@@ -381,13 +432,13 @@ if (existsSync(skillsDir)) {
 
 // 13. Process scanning (capped list: the UI only needs a sample of relevant procs)
 try {
-  const psOutput = execSync('ps -axo pid=,pcpu=,pmem=,command=', {
-    encoding: 'utf-8',
+  const psOutput = execSync("ps -axo pid=,pcpu=,pmem=,command=", {
+    encoding: "utf-8",
     timeout: 3000,
   }).trim();
   if (psOutput) {
     const interesting = [];
-    for (const line of psOutput.split('\n')) {
+    for (const line of psOutput.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       if (!/node|git|serve\.mjs|dashboard/i.test(trimmed)) continue;
@@ -396,11 +447,11 @@ try {
       const pid = parts[0];
       const cpu = parts[1];
       const mem = parts[2];
-      const cmd = parts.slice(3).join(' ') || 'unknown';
-      let label = 'other';
-      if (cmd.includes('serve.mjs') || cmd.includes('node dashboard')) label = 'dashboard-server';
-      else if (/\bgit\b/.test(cmd)) label = 'git';
-      else if (cmd.includes('node')) label = 'node';
+      const cmd = parts.slice(3).join(" ") || "unknown";
+      let label = "other";
+      if (cmd.includes("serve.mjs") || cmd.includes("node dashboard")) label = "dashboard-server";
+      else if (/\bgit\b/.test(cmd)) label = "git";
+      else if (cmd.includes("node")) label = "node";
       interesting.push({
         pid,
         cpu,
@@ -418,17 +469,26 @@ try {
 
 // 10. Health checks (originally)
 const checks = [
-  { id: 'plans', label: 'Plans directory', ok: existsSync(plansDir) && SNAPSHOT.plans.length > 0 },
-  { id: 'handoff', label: 'HANDOFF.md', ok: !!SNAPSHOT.system.handoff?.plan },
-  { id: 'agents', label: 'Agents', ok: SNAPSHOT.agents.length > 0 },
-  { id: 'commands', label: 'Commands', ok: SNAPSHOT.commands.length > 0 },
-  { id: 'memory', label: 'Memory (errors + decisions)', ok: (SNAPSHOT.memory.errors || 0) + (SNAPSHOT.memory.decisions || 0) > 0 },
-  { id: 'git', label: 'Git repository', ok: !!SNAPSHOT.git.branch },
-  { id: 'config', label: 'Config', ok: !!SNAPSHOT.system.config },
+  { id: "plans", label: "Plans directory", ok: existsSync(plansDir) && SNAPSHOT.plans.length > 0 },
+  // Present + parseable HANDOFF is healthy even when Plan is none/null (idle).
+  { id: "handoff", label: "HANDOFF.md", ok: !!SNAPSHOT.system.handoff },
+  { id: "agents", label: "Agents", ok: SNAPSHOT.agents.length > 0 },
+  { id: "commands", label: "Commands", ok: SNAPSHOT.commands.length > 0 },
+  {
+    id: "memory",
+    label: "Memory (errors + decisions)",
+    ok: (SNAPSHOT.memory.errors || 0) + (SNAPSHOT.memory.decisions || 0) > 0,
+  },
+  { id: "git", label: "Git repository", ok: !!SNAPSHOT.git.branch },
+  { id: "config", label: "Config", ok: !!SNAPSHOT.system.config },
 ];
 
 SNAPSHOT.health.checks = checks;
-SNAPSHOT.health.status = checks.every(c => c.ok) ? 'ok' : checks.filter(c => !c.ok).length <= 2 ? 'warning' : 'degraded';
+SNAPSHOT.health.status = checks.every((c) => c.ok)
+  ? "ok"
+  : checks.filter((c) => !c.ok).length <= 2
+    ? "warning"
+    : "degraded";
 
 /**
  * Agent-prompt detection contract (fs half).
@@ -447,9 +507,9 @@ SNAPSHOT.health.status = checks.every(c => c.ok) ? 'ok' : checks.filter(c => !c.
  * never an error state.
  */
 function collectAgentPrompts() {
-  const projectsDir = resolve(process.env.HOME || '~', '.cursor', 'projects');
-  const slug = ROOT.replace(/\//g, '-').replace(/^-/, '');
-  const transcriptsDir = join(projectsDir, slug, 'agent-transcripts');
+  const projectsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
+  const slug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+  const transcriptsDir = join(projectsDir, slug, "agent-transcripts");
   if (!existsSync(transcriptsDir)) return [];
 
   const prompts = [];
@@ -476,12 +536,12 @@ function collectAgentPrompts() {
     for (const candidate of candidates.slice(0, MAX_TRANSCRIPT_FILES)) {
       let raw;
       try {
-        raw = readFileSync(candidate.file, 'utf-8');
+        raw = readFileSync(candidate.file, "utf-8");
       } catch {
         continue;
       }
       const entries = [];
-      for (const line of raw.split('\n')) {
+      for (const line of raw.split("\n")) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         try {
@@ -495,6 +555,9 @@ function collectAgentPrompts() {
       prompts.push({
         chatId: candidate.id,
         label: awaiting.label,
+        // Untruncated detection value for lifecycle clear (FR-SAC-01); not rendered.
+        labelFull: awaiting.labelFull,
+        chatSnippet: extractChatSnippet(entries),
         quietAt: candidate.mtime.toISOString(),
       });
       if (prompts.length >= MAX_AGENT_PROMPTS) break;
@@ -518,7 +581,7 @@ function collectAgentPrompts() {
  * directory yields an empty list, never an error state.
  */
 function collectExternalReports() {
-  const memoryDir = join(ROOT, '.cursor', 'memory');
+  const memoryDir = join(ROOT, ".cursor", "memory");
   if (!existsSync(memoryDir)) return [];
 
   const reports = [];
@@ -544,7 +607,7 @@ function collectExternalReports() {
     for (const candidate of candidates.slice(0, MAX_REPORT_FILES)) {
       let content;
       try {
-        content = readFileSync(candidate.file, 'utf-8');
+        content = readFileSync(candidate.file, "utf-8");
       } catch {
         continue;
       }
@@ -564,27 +627,176 @@ function collectExternalReports() {
 
 // 14. Mission Control semantic view model (now / activity / attention)
 let readinessPending = [];
-const readinessPath = join(ROOT, '.cursor', 'context', 'readiness.json');
+const readinessPath = join(ROOT, ".cursor", "context", "readiness.json");
 if (existsSync(readinessPath)) {
   try {
-    const readiness = JSON.parse(readFileSync(readinessPath, 'utf-8'));
-    if (Array.isArray(readiness.pendingActions)) {
-      readinessPending = readiness.pendingActions;
-    }
+    const readiness = JSON.parse(readFileSync(readinessPath, "utf-8"));
+    readinessPending = collectReadinessPendingFromReport(readiness);
   } catch {
     readinessPending = [];
   }
 }
 
-SNAPSHOT.missionControl = buildMissionControlView({
-  plans: SNAPSHOT.plans,
-  handoff: SNAPSHOT.system.handoff || null,
-  gitLogLines: SNAPSHOT._gitRecentLog || [],
-  terminals: SNAPSHOT.terminals,
-  readinessPending,
-  agentPrompts: collectAgentPrompts(),
-  externalReports: collectExternalReports(),
-});
-delete SNAPSHOT._gitRecentLog;
+/**
+ * Explicit non-essential deferrals from config (checkId + reason).
+ * allowlistConfig strips deferredItems from the public snapshot; Mission Control
+ * still needs them so Checklist can clear advisories without inventing ready.
+ */
+function collectOnboardingDeferredCheckIds() {
+  if (!existsSync(configPath)) return [];
+  try {
+    const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+    return collectDeferredCheckIds(rawConfig);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Local Field Report dismissals (IDs only). Missing or unreadable file → [].
+ * Path is gitignored like readiness.json; never carries transcript body.
+ */
+function collectFieldReportDismissedIds() {
+  const dismissalsPath = join(ROOT, ".cursor", "context", "field-report-dismissals.json");
+  if (!existsSync(dismissalsPath)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(dismissalsPath, "utf-8"));
+    return dismissedAttentionIds(parseFieldReportDismissals(raw));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Local Current mission timing ledger. Missing or unreadable → empty ledger.
+ * Gitignored observation store; not a UI mutation API.
+ */
+function collectMissionTimingLedger() {
+  const ledgerPath = join(ROOT, MISSION_TIMING_LEDGER_REL);
+  if (!existsSync(ledgerPath)) return parseMissionTimingLedger(null);
+  try {
+    const raw = JSON.parse(readFileSync(ledgerPath, "utf-8"));
+    return parseMissionTimingLedger(raw);
+  } catch {
+    return parseMissionTimingLedger(null);
+  }
+}
+
+/**
+ * Field Report activity cadence ledger. Missing or unreadable → empty.
+ * Agents bump via field-report-cadence-bump.sh; dashboard only reads.
+ */
+function collectCadenceLedger() {
+  const ledgerPath = join(ROOT, FIELD_REPORT_CADENCE_LEDGER_REL);
+  if (!existsSync(ledgerPath)) return parseCadenceLedger(null);
+  try {
+    const raw = JSON.parse(readFileSync(ledgerPath, "utf-8"));
+    return parseCadenceLedger(raw);
+  } catch {
+    return parseCadenceLedger(null);
+  }
+}
+
+/** Cadence config from local config.json (defaults when missing). */
+function collectCadenceConfig() {
+  if (!existsSync(configPath)) return parseFieldReportReviewCadenceConfig(null);
+  try {
+    const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+    return parseFieldReportReviewCadenceConfig(rawConfig);
+  } catch {
+    return parseFieldReportReviewCadenceConfig(null);
+  }
+}
+
+/** Persist ledger only when serialized content changes (avoids SSE watch loops). */
+function persistMissionTimingLedger(nextLedger) {
+  const ledgerPath = join(ROOT, MISSION_TIMING_LEDGER_REL);
+  const nextText = serializeMissionTimingLedger(nextLedger);
+  let prevText = "";
+  if (existsSync(ledgerPath)) {
+    try {
+      prevText = readFileSync(ledgerPath, "utf-8");
+    } catch {
+      prevText = "";
+    }
+  }
+  if (prevText === nextText) return;
+  mkdirSync(dirname(ledgerPath), { recursive: true });
+  writeFileSync(ledgerPath, nextText, "utf-8");
+}
+
+/** Flight Log history ledger (past Gaps). Write-on-change like mission timing. */
+function collectFlightLogLedger() {
+  const ledgerPath = join(ROOT, FLIGHT_LOG_LEDGER_REL);
+  if (!existsSync(ledgerPath)) return parseFlightLogLedger(null);
+  try {
+    const raw = JSON.parse(readFileSync(ledgerPath, "utf-8"));
+    return parseFlightLogLedger(raw);
+  } catch {
+    return parseFlightLogLedger(null);
+  }
+}
+
+function persistFlightLogLedger(nextLedger) {
+  const ledgerPath = join(ROOT, FLIGHT_LOG_LEDGER_REL);
+  const nextText = serializeFlightLogLedger(nextLedger);
+  let prevText = "";
+  if (existsSync(ledgerPath)) {
+    try {
+      prevText = readFileSync(ledgerPath, "utf-8");
+    } catch {
+      prevText = "";
+    }
+  }
+  if (prevText === nextText) return;
+  mkdirSync(dirname(ledgerPath), { recursive: true });
+  writeFileSync(ledgerPath, nextText, "utf-8");
+}
+
+/** Prior inventory baseline from serve.mjs (JSON); cold start → no inventory events. */
+function readPreviousInventory() {
+  const raw = process.env.AGENT_KIT_PREV_INVENTORY;
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+{
+  const missionControl = buildMissionControlView({
+    plans: SNAPSHOT.plans,
+    handoff: SNAPSHOT.system.handoff || null,
+    gitLogLines: SNAPSHOT._gitRecentLog || [],
+    terminals: SNAPSHOT.terminals,
+    readinessPending,
+    deferredCheckIds: collectOnboardingDeferredCheckIds(),
+    agentPrompts: collectAgentPrompts(),
+    externalReports: collectExternalReports(),
+    dismissedIds: collectFieldReportDismissedIds(),
+    archivedPlanFiles,
+    agents: SNAPSHOT.agents,
+    skills: SNAPSHOT.skills,
+    commands: SNAPSHOT.commands,
+    memory: SNAPSHOT.memory,
+    previousInventory: readPreviousInventory(),
+    timingLedger: collectMissionTimingLedger(),
+    flightLogLedger: collectFlightLogLedger(),
+    cadenceLedger: collectCadenceLedger(),
+    cadenceConfig: collectCadenceConfig(),
+  });
+  persistMissionTimingLedger(missionControl.timingLedger);
+  persistFlightLogLedger(missionControl.flightLogLedger);
+  // Do not expose the writable ledger blobs on the public snapshot wire.
+  const {
+    timingLedger: _timingLedger,
+    flightLogLedger: _flightLogLedger,
+    ...missionControlPublic
+  } = missionControl;
+  SNAPSHOT.missionControl = missionControlPublic;
+}
+SNAPSHOT._gitRecentLog = undefined;
 
 process.stdout.write(JSON.stringify(SNAPSHOT, null, 2));

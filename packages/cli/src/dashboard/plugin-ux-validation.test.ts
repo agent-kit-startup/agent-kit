@@ -4,11 +4,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HOST,
+  MAX_GIT_PATH,
   allowlistConfig,
   isAllowedOrigin,
   resolveBindHost,
 } from "../../../../dashboard/lib/guards.mjs";
 import {
+  MONITOR_FEED_CAP,
   buildMissionControlView,
   classifyPlan,
   parseHandoffMarkdown,
@@ -22,6 +24,7 @@ const lifecycleStates = [
   "executing",
   "awaiting_user",
   "parked",
+  "backlog",
   "incomplete",
   "completed",
 ] as const;
@@ -38,6 +41,92 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("@media (prefers-reduced-motion: reduce)");
     expect(dashboardHtml).toContain("animation: none !important");
     expect(dashboardHtml).toMatch(/function prefersReducedMotion\(\)/);
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.btn-refresh\.is-refreshing \.btn-refresh-icon,[\s\S]*?animation:\s*none !important/,
+    );
+  });
+
+  it("keeps press/scale :active only on interactive Mission Control controls", () => {
+    expect(dashboardHtml).toMatch(/\.health-item:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
+    expect(dashboardHtml).toMatch(/\.empty-state-btn:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
+    expect(dashboardHtml).not.toMatch(/\.card:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
+    expect(dashboardHtml).not.toMatch(/\.plan-card:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.health-item:active,[\s\S]*?\.empty-state-btn:active\s*\{[\s\S]*?transform:\s*none !important/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.card:active,[\s\S]*?\.plan-card:active,/,
+    );
+  });
+
+  it("keeps an icon-only header-height refresh control with accessible states", () => {
+    expect(dashboardHtml).toMatch(
+      /id="refreshBtn"[^>]*(aria-label="Refresh"[^>]*title="Refresh"|title="Refresh"[^>]*aria-label="Refresh")/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.btn-refresh\s*\{[^}]*width:\s*var\(--mc-header-control-size\)[^}]*height:\s*var\(--mc-header-control-size\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.btn-refresh\s*\{[^}]*border:\s*none;/);
+    expect(dashboardHtml).toMatch(/\.btn-refresh\s*\{[^}]*background:\s*transparent;/);
+    expect(dashboardHtml).toMatch(
+      /\.btn-refresh:hover\s*\{[^}]*background:\s*var\(--bg-card-hover\)/,
+    );
+    expect(dashboardHtml).toContain("transform-origin: 50% 50%");
+    expect(dashboardHtml).toMatch(
+      /class="btn-refresh-icon"[^>]*viewBox="0 0 16 16"[^>]*stroke-width="1\.5"/,
+    );
+    expect(dashboardHtml).not.toContain('viewBox="0 0 24 24"');
+    expect(dashboardHtml).toContain("@media (prefers-reduced-motion: no-preference)");
+    expect(dashboardHtml).toMatch(
+      /\.btn-refresh\.is-refreshing\s+\.btn-refresh-icon\s*\{[^}]*animation:\s*spin/,
+    );
+    expect(dashboardHtml).toContain("btn.classList.add('is-refreshing')");
+    expect(dashboardHtml).toContain("btn.setAttribute('aria-label', 'Start server')");
+    expect(dashboardHtml).toContain("btn.title = 'Start server'");
+    expect(dashboardHtml).not.toContain("btn-refresh-text");
+    expect(dashboardHtml).not.toMatch(/refreshBtn[\s\S]{0,80}textContent/);
+    expect(dashboardHtml).not.toMatch(/getElementById\('refreshBtn'\)[\s\S]{0,400}inline-spinner/);
+  });
+
+  it("insets header icon hitboxes and trails More toward the IDE edge", () => {
+    expect(dashboardHtml).toContain("--mc-header-control-size: 24px");
+    expect(dashboardHtml).toContain("--mc-header-pad-x-end: 8px");
+    expect(dashboardHtml).toMatch(
+      /\.header\s*\{[^}]*padding:\s*0 var\(--mc-header-pad-x-end\) 0 var\(--mc-header-pad-x\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.header-home-btn\s*\{[^}]*width:\s*var\(--mc-header-control-size\)[^}]*height:\s*var\(--mc-header-control-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.header-right \.nav-more-btn\s*\{[^}]*width:\s*var\(--mc-header-control-size\)[^}]*height:\s*var\(--mc-header-control-size\)/,
+    );
+    // positionNavMore stays right-edge anchored (fixed menu from trigger rect).
+    expect(dashboardHtml).toContain("function positionNavMore()");
+    expect(dashboardHtml).toMatch(/let left = rect\.right - width/);
+  });
+
+  it("escapes nav More menu from header overflow via fixed positioning", () => {
+    // Absolute menus clip under overflow-hidden ancestors (nav row); a11y tree alone
+    // is insufficient — see errors/2026-07-25_dropdown-clipped-by-overflow-hidden-nav-row.md.
+    // Mirror: "escapes Checklist Actions menu from panel overflow via fixed positioning".
+    expect(dashboardHtml).toMatch(/\.nav-more-menu\s*\{[^}]*position:\s*fixed/);
+    expect(dashboardHtml).toContain("function positionNavMore()");
+    expect(dashboardHtml).toContain("getBoundingClientRect()");
+    expect(dashboardHtml).toMatch(/let left = rect\.right - width/);
+    expect(dashboardHtml).toMatch(
+      /window\.addEventListener\(\s*['"]resize['"][\s\S]*?positionNavMore/,
+    );
+    // CSS contract must not reintroduce absolute clip under overflow ancestors.
+    expect(dashboardHtml).not.toMatch(/\.nav-more-menu\s*\{[^}]*position:\s*absolute/);
+    // MANUAL DOGFOOD GATE (painted clip) — ADR 2026-07-26 keeps string/regex in CI
+    // (no JSDOM/Playwright). Structure/CSS above is CI-checkable; painted result is not.
+    // After header/nav chrome edits that touch .nav-more-menu / positionNavMore /
+    // .top-tabs-row overflow: (1) agent-kit dashboard, (2) open #navMoreBtn,
+    // (3) DevTools: compare #navMoreMenu.getBoundingClientRect() to each ancestor
+    // with overflow != visible up to body; last .nav-more-item bottom must be inside
+    // the menu's visible box (not clipped to the 32px nav row). Screenshot OK.
+    // Fail = menu items listed in a11y tree but invisible. See plan
+    // mc-nav-more-painted-clip-e2e + errors/2026-07-25_dropdown-clipped-by-overflow-hidden-nav-row.md.
   });
 
   it("keeps keyboard activation for role=button rows and accordion triggers", () => {
@@ -48,7 +137,120 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toMatch(/onkeydown="if\(event\.key==='Enter'\|\|event\.key===' '/);
   });
 
-  it("uses Cockpit anchors plus a more-sections dropdown (no horizontal tab track)", () => {
+  it("shares Cursor workbench typography for chrome labels and space icons", () => {
+    expect(dashboardHtml).toContain(
+      '--mc-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    );
+    expect(dashboardHtml).toContain("--mc-ui-font-size: 13px");
+    expect(dashboardHtml).toContain("--mc-chrome-label-size: 13px");
+    expect(dashboardHtml).toContain("--mc-chrome-label-weight: 500");
+    expect(dashboardHtml).toContain("--mc-chrome-icon-size: 16px");
+    expect(dashboardHtml).toContain("--mc-status-dot-size: 7px");
+    expect(dashboardHtml).toContain("--mc-chrome-subtitle-size: 12px");
+    expect(dashboardHtml).toContain("--mc-chrome-meta-size: 11px");
+    expect(dashboardHtml).toMatch(/font-family:\s*var\(--mc-font-sans\)/);
+    expect(dashboardHtml).toMatch(
+      /\.top-nav-anchor\s*\{[^}]*font-size:\s*var\(--mc-chrome-label-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.card-title\s*\{[^}]*font-size:\s*var\(--mc-chrome-label-size\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.space-icon\s*\{[^}]*width:\s*var\(--mc-chrome-icon-size\)/);
+    expect(dashboardHtml).toMatch(/\.space-icon\s*\{[^}]*display:\s*block/);
+    expect(dashboardHtml).toMatch(
+      /\.btn-refresh \.btn-refresh-icon\s*\{[^}]*width:\s*var\(--mc-chrome-icon-size\)[^}]*height:\s*var\(--mc-chrome-icon-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /function spaceIconSvg[\s\S]*?viewBox="0 0 16 16"[\s\S]*?stroke-width="0\.5"/,
+    );
+    expect(dashboardHtml).toMatch(
+      /function nowMetaIconSvg[\s\S]*?viewBox="0 0 16 16"[\s\S]*?stroke-width="1\.5"/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.empty-state-cta \.empty-state-icon \.space-icon\s*\{[^}]*width:\s*calc\(var\(--mc-chrome-icon-size\) \* 2\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.empty-state-cta\.compact \.empty-state-icon \.space-icon\s*\{[^}]*width:\s*calc\(var\(--mc-chrome-icon-size\) \* 1\.75\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.nav-more-group-label\s*\{[^}]*font-size:\s*var\(--mc-chrome-subtitle-size\)[^}]*font-weight:\s*var\(--mc-chrome-subtitle-weight\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.top-tab-badge\s*\{[^}]*font-size:\s*var\(--mc-chrome-subtitle-size\)[^}]*font-weight:\s*var\(--mc-chrome-subtitle-weight\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.now-meta-icon\s*\{[^}]*width:\s*var\(--mc-chrome-subtitle-size\)[^}]*height:\s*var\(--mc-chrome-subtitle-size\)/,
+    );
+    expect(dashboardHtml).not.toMatch(/\.space-icon\s*\{[^}]*width:\s*1em/);
+    expect(dashboardHtml).not.toMatch(/\.top-tab-badge\s*\{[^}]*font-size:\s*\d+px/);
+    expect(dashboardHtml).not.toMatch(/\.top-nav-anchor \.top-tab-badge\s*\{[^}]*font-size:/);
+    expect(dashboardHtml).not.toMatch(
+      /@media \(max-width: 520px\)[\s\S]*?\.top-tab-badge\s*\{[^}]*font-size:/,
+    );
+    expect(dashboardHtml).not.toContain(".section-hero .card-title");
+    expect(dashboardHtml).not.toMatch(/html,\s*body\s*\{[^}]*'SF Mono'/);
+  });
+
+  it("consolidates structure tokens for tabs, headers, and cards", () => {
+    expect(dashboardHtml).toContain("--mc-header-height: 32px");
+    expect(dashboardHtml).toContain("--mc-header-control-size: 24px");
+    expect(dashboardHtml).toContain("--mc-radius-sm: 4px");
+    expect(dashboardHtml).toContain("--mc-radius-chrome: 6px");
+    expect(dashboardHtml).toContain("--mc-radius: 8px");
+    expect(dashboardHtml).toContain("--mc-radius-lg: 12px");
+    expect(dashboardHtml).toContain("--mc-radius-pill: 999px");
+    expect(dashboardHtml).toContain("--mc-card-padding: 16px");
+    expect(dashboardHtml).toContain("--mc-header-pad-x: 24px");
+    expect(dashboardHtml).toContain("--mc-header-pad-x-end: 8px");
+    expect(dashboardHtml).toContain("--mc-content-pad: 24px");
+    expect(dashboardHtml).toContain("--mc-scroll-gutter: 8px");
+    expect(dashboardHtml).toContain("--header-height: var(--mc-header-height)");
+    expect(dashboardHtml).toContain("--radius: var(--mc-radius)");
+    expect(dashboardHtml).toContain("--radius-lg: var(--mc-radius-lg)");
+    expect(dashboardHtml).toMatch(
+      /\.header\s*\{[^}]*padding:\s*0 var\(--mc-header-pad-x-end\) 0 var\(--mc-header-pad-x\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.header-brand \.logo\s*\{[^}]*width:\s*var\(--mc-chrome-icon-size\)[^}]*height:\s*var\(--mc-chrome-icon-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.dot\s*\{[^}]*width:\s*var\(--mc-status-dot-size\)[^}]*height:\s*var\(--mc-status-dot-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.btn-refresh\s*\{[^}]*width:\s*var\(--mc-header-control-size\)[^}]*height:\s*var\(--mc-header-control-size\)/,
+    );
+    expect(dashboardHtml).not.toContain("--mc-header-height: 56px");
+    expect(dashboardHtml).not.toMatch(/\.header-brand \.logo\s*\{[^}]*width:\s*28px/);
+    expect(dashboardHtml).toMatch(
+      /\.top-nav-anchor\s*\{[^}]*border-radius:\s*var\(--mc-radius-chrome\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.card\s*\{[^}]*padding:\s*var\(--mc-card-padding\)/);
+    expect(dashboardHtml).toMatch(/\.plan-card\s*\{[^}]*padding:\s*var\(--mc-card-padding\)/);
+    expect(dashboardHtml).toMatch(
+      /\.header-version\s*\{[^}]*font-size:\s*var\(--mc-chrome-meta-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.recent-plan-name\s*\{[^}]*font-size:\s*var\(--mc-chrome-label-size\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.plan-accordion-overview\s*\{[^}]*font-size:\s*var\(--mc-chrome-subtitle-size\)/,
+    );
+    // Skins stay color/surface swaps; structure tokens live on :root / legacy.
+    const cursorBlock = dashboardHtml.match(/html\[data-dashboard-skin="cursor"\]\s*\{([^}]+)\}/);
+    expect(cursorBlock).not.toBeNull();
+    expect(cursorBlock?.[1]).not.toMatch(/--mc-radius/);
+    expect(cursorBlock?.[1]).not.toMatch(/--mc-card-padding/);
+    expect(cursorBlock?.[1]).not.toMatch(/--mc-chrome-meta-size/);
+    // Capsule token feeds slash-command pill geometry (not --mc-radius-sm chrome).
+    expect(dashboardHtml).toMatch(
+      /\.lifecycle-pill\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.queue-role-pill\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/,
+    );
+  });
+
+  it("uses Cockpit anchors plus a more-sections dropdown in the header (no horizontal tab track)", () => {
     expect(dashboardHtml).toContain('class="top-tabs"');
     expect(dashboardHtml).toContain('class="cockpit-anchors"');
     expect(dashboardHtml).toContain('class="top-nav-anchor');
@@ -57,10 +259,21 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain('data-anchor="attention-panel"');
     expect(dashboardHtml).toContain('data-anchor="recent-plans-panel"');
     expect(dashboardHtml).toContain("function goCockpitAnchor(");
-    expect(dashboardHtml).toContain('id="navMoreBtn"');
-    expect(dashboardHtml).toContain('id="navMoreMenu"');
+    expect(dashboardHtml).toMatch(
+      /class="header-right"[\s\S]*?id="navMoreBtn"[\s\S]*?id="navMoreMenu"/,
+    );
     expect(dashboardHtml).toContain('role="menu"');
     expect(dashboardHtml).toContain("spaceIconSvg('more-sections', { decorative: false })");
+    expect(dashboardHtml).toContain("#navMoreMenu .nav-more-item[data-section]");
+    // Section icons are injected at runtime; template must not duplicate inline SVG.
+    const moreMenuBlock =
+      dashboardHtml.match(/id="navMoreMenu"[\s\S]*?id="navSkinsLabel"/)?.[0] ?? "";
+    expect(moreMenuBlock.length).toBeGreaterThan(0);
+    expect(moreMenuBlock).not.toMatch(/<svg\b/);
+    expect(moreMenuBlock).toContain('id="navHealthDot"');
+    expect(moreMenuBlock).toContain('id="navGitDot"');
+    expect(moreMenuBlock).toContain('id="navTerminalsDot"');
+    expect(moreMenuBlock).toContain('id="navProcessesDot"');
     expect(dashboardHtml).toContain("function closeNavMore(");
     expect(dashboardHtml).toContain("function openNavMore(");
     expect(dashboardHtml).toContain("Escape");
@@ -78,6 +291,73 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain('data-section="processes"');
     expect(dashboardHtml).toContain("function showSection(id)");
     expect(dashboardHtml).toContain("onclick=\"return showSection('plans')\"");
+    // Home is the first More-menu item and returns to Overview.
+    expect(dashboardHtml).toMatch(
+      /id="navMoreMenu"[\s\S]*?data-section="overview"[\s\S]*?data-section="plans"/,
+    );
+    expect(dashboardHtml).toContain("onclick=\"return showSection('overview')\"");
+    expect(dashboardHtml).toContain('aria-label="Home, Overview"');
+    expect(dashboardHtml).toMatch(/data-section="overview"[^>]*>[\s\S]*?\bHome\b/);
+  });
+
+  it("exposes a primary Home return outside the More menu", () => {
+    // Header brand + persistent Home control call goHome → showSection('overview').
+    expect(dashboardHtml).toContain('id="headerBrand"');
+    expect(dashboardHtml).toContain('id="headerHomeBtn"');
+    expect(dashboardHtml).toContain("function goHome()");
+    expect(dashboardHtml).toContain("function updateHeaderHomeChrome()");
+    expect(dashboardHtml).toContain('onclick="return goHome()"');
+    expect(dashboardHtml).toMatch(
+      /id="headerBrand"[^>]*aria-label="Home, Overview"|aria-label="Home, Overview"[^>]*id="headerBrand"/,
+    );
+    expect(dashboardHtml).toMatch(
+      /id="headerHomeBtn"[^>]*aria-label="Home, Overview"|aria-label="Home, Overview"[^>]*id="headerHomeBtn"/,
+    );
+    expect(dashboardHtml).toMatch(
+      /class="header-right"[\s\S]*?id="headerHomeBtn"[\s\S]*?id="refreshBtn"[\s\S]*?id="navMoreBtn"/,
+    );
+    expect(dashboardHtml).toContain("spaceIconSvg('overview', { decorative: true })");
+    expect(dashboardHtml).toContain("section-home-back");
+    // Overflow Home remains as secondary path.
+    expect(dashboardHtml).toMatch(
+      /id="navMoreMenu"[\s\S]*?data-section="overview"[\s\S]*?aria-label="Home, Overview"/,
+    );
+  });
+
+  it("exposes Legacy and Cursor dashboard skins in the More menu with local persistence", () => {
+    // Interface Skins group lives in the More menu, separate from Agent Persona packs.
+    expect(dashboardHtml).toContain('id="navSkinsLabel"');
+    expect(dashboardHtml).toMatch(/navSkinsLabel[\s\S]*?>Skins</);
+    expect(dashboardHtml).toContain('data-dashboard-skin-option="legacy"');
+    expect(dashboardHtml).toContain('data-dashboard-skin-option="cursor"');
+    expect(dashboardHtml).toContain('role="menuitemradio"');
+    expect(dashboardHtml).toContain("aria-checked");
+    expect(dashboardHtml).toContain("onclick=\"return setDashboardSkin('legacy')\"");
+    expect(dashboardHtml).toContain("onclick=\"return setDashboardSkin('cursor')\"");
+    // Namespaced localStorage preference; no repo config writes.
+    expect(dashboardHtml).toContain("agent-kit:dashboard-skin");
+    expect(dashboardHtml).toContain("function applyDashboardSkin(");
+    expect(dashboardHtml).toContain("function setDashboardSkin(");
+    expect(dashboardHtml).toContain("localStorage.setItem(DASHBOARD_SKIN_KEY");
+    expect(dashboardHtml).toContain("localStorage.getItem(key)");
+    expect(dashboardHtml).toContain("data-dashboard-skin");
+    // Legacy keeps the pre-change palette; Cursor overrides base chrome only.
+    expect(dashboardHtml).toContain("--bg-primary: #0b0e14");
+    expect(dashboardHtml).toContain('html[data-dashboard-skin="cursor"]');
+    expect(dashboardHtml).toContain("--bg-primary: #141414");
+    const cursorBlock = dashboardHtml.match(/html\[data-dashboard-skin="cursor"\]\s*\{([^}]+)\}/);
+    expect(cursorBlock).not.toBeNull();
+    expect(cursorBlock?.[1]).not.toMatch(/--green\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--red\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--yellow\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--blue\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--purple\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--cyan\s*:/);
+    expect(cursorBlock?.[1]).not.toMatch(/--orange\s*:/);
+    // Skin options stay in the keyboard-navigable .nav-more-item set.
+    expect(dashboardHtml).toMatch(
+      /data-dashboard-skin-option="legacy"[^>]*class="nav-more-item"|class="nav-more-item"[^>]*data-dashboard-skin-option="legacy"/,
+    );
   });
 
   it("preserves focus and scroll across SSE re-renders", () => {
@@ -85,6 +365,34 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("function restoreUiState(state)");
     expect(dashboardHtml).toContain("data-focus-key");
     expect(dashboardHtml).toContain("openPlanAccordions");
+    // Panel inner scroll (.panel-scroll-body) survives live refresh, not only #content.
+    expect(dashboardHtml).toContain("function capturePanelScrollOffsets()");
+    expect(dashboardHtml).toContain("function restorePanelScrollOffsets(panelScrolls)");
+    expect(dashboardHtml).toContain("panelScrolls: capturePanelScrollOffsets()");
+    expect(dashboardHtml).toContain("restorePanelScrollOffsets(state.panelScrolls)");
+    // Re-open Checklist Actions when the same plan key still exists after render.
+    expect(dashboardHtml).toContain("openRecentPlanActionsKey,");
+    expect(dashboardHtml).toMatch(
+      /state\.openRecentPlanActionsKey[\s\S]*?openRecentPlanActions\(key\)/,
+    );
+  });
+
+  it("keeps live refresh layout stable without forced content reflow", () => {
+    expect(dashboardHtml).not.toContain("contentEl.offsetWidth");
+    expect(dashboardHtml).not.toContain("data-refreshing");
+    expect(dashboardHtml).not.toContain("header-status-flash");
+    expect(dashboardHtml).not.toContain("section-hero.glow");
+    expect(dashboardHtml).not.toContain(".count-up");
+    expect(dashboardHtml).not.toContain(".section-secondary");
+    expect(dashboardHtml).not.toContain(".section-divider");
+    expect(dashboardHtml).toMatch(/\.top-tab-badge\s*\{[^}]*font-variant-numeric:\s*tabular-nums/);
+  });
+
+  it("keeps keyboard focus visible without blanket outline suppression", () => {
+    expect(dashboardHtml).toContain(":focus:not(:focus-visible)");
+    expect(dashboardHtml).not.toContain(":focus { outline: none; }");
+    expect(dashboardHtml).toContain("button:focus-visible");
+    expect(dashboardHtml).toContain('[role="button"]:focus-visible');
   });
 
   it("lets an anchor scroll finish across a live refresh instead of restoring mid-flight", () => {
@@ -104,18 +412,121 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(restoreFn?.[0]).toContain(
       "scrollToCockpitAnchor(pendingAnchorScroll.id, { track: false })",
     );
+    // Panel scroll restore must not run while an anchor takeover is active.
+    expect(restoreFn?.[0]).toMatch(
+      /pendingAnchorScroll\.until[\s\S]*?scrollToCockpitAnchor[\s\S]*?else \{\s*pendingAnchorScroll = null[\s\S]*?restorePanelScrollOffsets/,
+    );
     // Manual scrolling releases the takeover instead of fighting the user.
     expect(dashboardHtml).toContain("window.addEventListener('wheel', releaseAnchorScroll");
     expect(dashboardHtml).toContain("window.addEventListener('touchmove', releaseAnchorScroll");
   });
 
   it("ships empty-state copy for now, activity, attention, and plans", () => {
+    expect(dashboardHtml).toContain("function renderEmptyStateCta");
     expect(dashboardHtml).toContain("activity-feed-empty");
     expect(dashboardHtml).toContain("attention-empty");
-    expect(dashboardHtml).toContain("Nothing needs attention");
-    expect(dashboardHtml).toContain("No plan, staging, or merge history yet");
-    expect(dashboardHtml).toContain("No plans yet. Use /start-project");
+    // Flight Log empty (Gaps + Warnings; attention inbox retired from this card).
+    expect(dashboardHtml).toContain("All clear");
+    expect(dashboardHtml).toContain("Quiet cockpit. Residuals show up here when Gaps change.");
+    expect(dashboardHtml).not.toContain("No pending attention items.");
+    expect(dashboardHtml).toContain("No agent activity yet");
+    expect(dashboardHtml).toContain("Listening");
+    expect(dashboardHtml).toContain("Quiet cockpit");
+    expect(dashboardHtml).toContain("No active plan");
+    expect(dashboardHtml).toContain("Empty board");
+    expect(dashboardHtml).toContain("No plans yet. Copy /start-project");
+    expect(dashboardHtml).toContain("Empty hangar");
     expect(dashboardHtml).toContain("No to-dos in this plan");
+  });
+
+  it("centers Cockpit section icons in empty-state CTAs via spaceIconSvg", () => {
+    expect(dashboardHtml).toContain("empty-state-icon");
+    expect(dashboardHtml).toMatch(
+      /\.empty-state-cta\s+\.empty-state-icon\s*\{[^}]*justify-content:\s*center/,
+    );
+    expect(dashboardHtml).toContain("iconKind: 'current-mission'");
+    expect(dashboardHtml).toContain("iconKind: 'monitor'");
+    expect(dashboardHtml).toContain("iconKind: 'field-report'");
+    expect(dashboardHtml).toContain("iconKind: 'checklist'");
+    // Four Cockpit heroes + Plans hangar share helper; secondary empties omit iconKind.
+    expect(dashboardHtml).toMatch(
+      /headline:\s*'Quiet cockpit',\s*\n\s*iconKind:\s*'current-mission'/,
+    );
+    expect(dashboardHtml).toMatch(/headline:\s*'Listening',\s*\n\s*iconKind:\s*'monitor'/);
+    expect(dashboardHtml).toMatch(/headline:\s*'All clear',\s*\n\s*iconKind:\s*'field-report'/);
+    expect(dashboardHtml).toMatch(/headline:\s*'Empty board',\s*\n\s*iconKind:\s*'checklist'/);
+    expect(dashboardHtml).toMatch(/headline:\s*'Empty hangar',\s*\n\s*iconKind:\s*'checklist'/);
+    expect(dashboardHtml).toMatch(
+      /headline:\s*'Bare plan',\s*\n\s*support:\s*'No to-dos in this plan\.'/,
+    );
+    expect(dashboardHtml).not.toMatch(/headline:\s*'Bare plan'[\s\S]{0,80}iconKind:/);
+  });
+
+  it("wires empty-state CTAs as copy-only with named paste destinations", () => {
+    expect(dashboardHtml).toContain("cta-start-project");
+    expect(dashboardHtml).toContain("cta-checklist-start-project");
+    expect(dashboardHtml).toContain("cta-plans-start-project");
+    expect(dashboardHtml).toContain("cta-agents-path");
+    expect(dashboardHtml).toContain("cta-commands-path");
+    expect(dashboardHtml).toContain("cta-skills-path");
+    expect(dashboardHtml).toContain("cta-dashboard-serve");
+    expect(dashboardHtml).toContain("label: 'Copy /start-project'");
+    expect(dashboardHtml).toContain("destination: 'chatInput'");
+    expect(dashboardHtml).toContain("destination: 'filePicker'");
+    expect(dashboardHtml).toContain("destination: 'terminal'");
+    // Empty CTA button labels stay clipboard-honest (no Open wording).
+    const emptyCtaLabels = [
+      "Copy /start-project",
+      "Copy .cursor/agents/ path",
+      "Copy .cursor/commands/ path",
+      "Copy .cursor/skills/ path",
+      "Copy serve command",
+    ];
+    for (const label of emptyCtaLabels) {
+      expect(dashboardHtml).toContain(label);
+      expect(label).not.toMatch(/\bOpen\b/i);
+    }
+    // Idle Current mission CTA still targets chatInput via the shared helper.
+    expect(dashboardHtml).toMatch(
+      /destination:\s*'chatInput',\s*\n\s*label:\s*'Copy \/start-project',\s*\n\s*focusKey:\s*'cta-start-project'/,
+    );
+  });
+
+  it("renders Flight Log Gaps stack (live + earlier) without Field Report review CTAs", () => {
+    expect(dashboardHtml).toContain("function renderFlightLogCard(entry, idx)");
+    expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
+    expect(dashboardHtml).toContain("flight-log-stack");
+    expect(dashboardHtml).toContain("flight-log-card-current");
+    expect(dashboardHtml).toContain("flight-log-card-past");
+    expect(dashboardHtml).toContain("'Live'");
+    expect(dashboardHtml).toContain("'Earlier'");
+    expect(dashboardHtml).not.toContain("Current Gaps");
+    expect(dashboardHtml).not.toContain("Past Gaps");
+    expect(dashboardHtml).toContain("Copy text");
+    expect(dashboardHtml).not.toContain("Review all</button>");
+    expect(dashboardHtml).not.toContain("Resolve all</button>");
+    expect(dashboardHtml).not.toContain("vscode://");
+    expect(dashboardHtml).not.toContain("cursor://");
+  });
+
+  it("renders Flight Log operator Warnings lane without cadence Review/Resolve CTAs", () => {
+    expect(dashboardHtml).toContain("function renderFlightLogWarningCard(warning, idx)");
+    expect(dashboardHtml).toContain("flight-log-warnings");
+    expect(dashboardHtml).toContain("flight-log-card-warning");
+    expect(dashboardHtml).toContain("fl?.warnings");
+    expect(dashboardHtml).not.toContain("Review all</button>");
+    expect(dashboardHtml).not.toContain("Resolve all</button>");
+    expect(dashboardHtml).not.toContain("attention:cadence:");
+  });
+
+  it("uses clipboard glyph for Flight Log icon (not PTT radio)", () => {
+    // Clipboard board + clip; reject retired PTT side paddle path.
+    expect(dashboardHtml).toMatch(
+      /'field-report':\s*\n\s*'<rect x="4\.5" y="3\.5" width="7" height="10"/,
+    );
+    expect(dashboardHtml).toContain("Clipboard (Flight Log)");
+    expect(dashboardHtml).not.toContain("H3.2v3.5H5");
+    expect(dashboardHtml).not.toContain("PTT paddle");
   });
 
   it("renders the current work card as a previous/current/next stepper with a step bar", () => {
@@ -138,50 +549,116 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toMatch(/previousTodo: now\.previousTodo\?\.id \|\| null/);
   });
 
-  it("uses a green live executing badge without a companion status dot", () => {
-    // Executing badge is green with a live pulse class (not blue).
+  it("uses a green executing badge without glow or companion status dot", () => {
+    // Executing cue is green fill + ▶ mark (not blue, not glow/pulse).
     expect(dashboardHtml).toMatch(/\.now-status-executing\s*\{[^}]*var\(--green\)/);
     expect(dashboardHtml).not.toMatch(/\.now-status-executing\s*\{[^}]*var\(--blue\)/);
-    expect(dashboardHtml).toContain(".now-status-live");
-    expect(dashboardHtml).toContain("@keyframes now-status-live-pulse");
-    expect(dashboardHtml).toContain("live: true");
-    // Reduced motion kills the live pulse while keeping the green badge.
-    expect(dashboardHtml).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.now-status-live\s*\{[\s\S]*?animation:\s*none/,
-    );
+    expect(dashboardHtml).not.toMatch(/\.now-status-executing\s*\{[^}]*box-shadow/);
+    expect(dashboardHtml).not.toContain("@keyframes now-status-live-pulse");
+    expect(dashboardHtml).not.toMatch(/\.now-status-live\s*\{/);
+    expect(dashboardHtml).not.toContain("live: true");
     // Companion status dot beside the badge is gone from the current-work header.
     const nowStatusMetaFn = dashboardHtml.match(/function nowStatusMeta\([\s\S]*?\n\}/);
     expect(nowStatusMetaFn).not.toBeNull();
     expect(nowStatusMetaFn?.[0]).not.toContain("dot:");
-    expect(nowStatusMetaFn?.[0]).toContain("live: true");
+    expect(nowStatusMetaFn?.[0]).toContain("live: false");
+    expect(nowStatusMetaFn?.[0]).not.toContain("live: true");
     const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
     expect(nowPanelFn).not.toBeNull();
     expect(nowPanelFn?.[0]).not.toMatch(/class="dot \$\{meta\.dot\}"/);
     expect(nowPanelFn?.[0]).not.toContain("meta.dot");
-    // Non-executing states stay distinct via mark + border shape, not color alone.
+    // Non-executing states stay distinct via mark + shape, not color alone.
     expect(dashboardHtml).toContain("mark: '\\u25B6'");
-    expect(dashboardHtml).toContain("mark: '\\u23F8'");
+    expect(dashboardHtml).toContain("mark: '\\u23EF'");
+    expect(dashboardHtml).toContain("mark: '\\u2713'");
     expect(dashboardHtml).toContain("mark: '\\u25CB'");
-    expect(dashboardHtml).toMatch(/\.now-status-awaiting\s*\{[^}]*border-style:\s*dashed/);
-    expect(dashboardHtml).toMatch(/\.now-status-idle\s*\{[^}]*border-radius:\s*999px/);
+    expect(dashboardHtml).toMatch(/\.now-status-completed\s*\{[^}]*var\(--green\)/);
+    // border-radius inherited from .now-status (--mc-radius-pill); no explicit idle override.
+    expect(dashboardHtml).toMatch(/\.now-status\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/);
+  });
+
+  it("shimmers the current stepbar segment under prefers-reduced-motion no-preference", () => {
+    expect(dashboardHtml).toContain("@keyframes now-stepbar-shimmer");
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\)[\s\S]*?\.now-stepbar-seg-current\s*\{[\s\S]*?animation:\s*now-stepbar-shimmer/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.now-stepbar-seg-current[\s\S]*?animation:\s*none !important/,
+    );
+  });
+
+  it("shows portfolio progress bars with executing-only reduced-motion-safe shimmer", () => {
+    expect(dashboardHtml).toContain("@keyframes plan-progress-shimmer");
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\)[\s\S]*?\.plan-progress-fill\.is-executing\s*\{[\s\S]*?animation:\s*plan-progress-shimmer/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.plan-progress-fill\.is-executing,[\s\S]*?animation:\s*none !important/,
+    );
+
+    const checklistRenderer = dashboardHtml.match(
+      /function renderRecentPlanCards\([\s\S]*?(?=\nfunction renderPlansAccordion)/,
+    )?.[0];
+    const plansRenderer = dashboardHtml.match(
+      /function renderPlansAccordion\([\s\S]*?(?=\nfunction \w+)/,
+    )?.[0];
+    expect(checklistRenderer).toContain('class="progress-bar plan-progress-bar"');
+    expect(checklistRenderer).toContain('style="width:${pct}%"');
+    expect(checklistRenderer).toContain("${life.key === 'executing' ? ' is-executing' : ''}");
+    expect(plansRenderer).toMatch(
+      /class="plan-accordion-trigger"[\s\S]*?class="progress-bar plan-progress-bar"[\s\S]*?<\/button>/,
+    );
+    expect(plansRenderer).toContain("${life.key === 'executing' ? ' is-executing' : ''}");
+    expect(plansRenderer).not.toMatch(
+      /class="plan-accordion-panel"[\s\S]*?class="progress-bar plan-progress-bar"/,
+    );
+  });
+
+  it("renders current-mission status badges as solid fills with no outline", () => {
+    const base = dashboardHtml.match(/\.now-status\s*\{([^}]+)\}/);
+    expect(base).not.toBeNull();
+    expect(base?.[1]).toMatch(/border:\s*none/);
+    expect(base?.[1]).not.toMatch(/border:\s*1px\s+solid/);
+    expect(base?.[1]).toMatch(/background:\s*var\(--bg-card\)/);
+    // Visual casing is CSS uppercase; nowStatusMeta labels stay Title Case.
+    expect(base?.[1]).toMatch(/text-transform:\s*uppercase/);
+    for (const [key, color] of [
+      ["executing", "green"],
+      ["awaiting", "yellow"],
+      ["completed", "green"],
+    ] as const) {
+      expect(dashboardHtml, `.now-status-${key} must use a solid ${color} surface`).toMatch(
+        new RegExp(`\\.now-status-${key}\\s*\\{[^}]*background:\\s*var\\(--${color}-bg\\)`),
+      );
+      expect(dashboardHtml).not.toMatch(
+        new RegExp(`\\.now-status-${key}\\s*\\{[^}]*border-(style|color):`),
+      );
+    }
+    // Idle keeps the pill radius as its shape cue on a filled surface.
+    expect(dashboardHtml).toMatch(/\.now-status-idle\s*\{[^}]*background:\s*var\(--bg-card\)/);
+    // Executing glow/pulse is gone; solid fill only (no live-pulse keyframes).
+    expect(dashboardHtml).not.toContain("@keyframes now-status-live-pulse");
+    expect(dashboardHtml).not.toMatch(/\.now-status-executing\s*\{[^}]*box-shadow/);
   });
 
   it("demotes Mode and Updated to icon-led discreet meta with accessible names", () => {
-    expect(dashboardHtml).toContain("function renderNowMeta(modeLabel, updatedSource)");
-    expect(dashboardHtml).toContain("function nowMetaIconSvg(kind)");
+    expect(dashboardHtml).toContain("function renderNowMeta(modeLabel, updatedSource, now)");
+    expect(dashboardHtml).toContain("function nowMetaIconSvg(kind, opts)");
     expect(dashboardHtml).toContain('class="now-meta"');
     expect(dashboardHtml).toContain("now-meta-icon");
     // Icons keep accessible names and tooltips (no bold Mode:/Updated: labels).
     expect(dashboardHtml).toContain('aria-label="Mode"');
     expect(dashboardHtml).toContain('aria-label="Updated"');
+    expect(dashboardHtml).toContain('aria-label="Elapsed"');
     expect(dashboardHtml).toContain('title="Mode"');
     expect(dashboardHtml).toContain('title="Updated"');
-    expect(dashboardHtml).toContain("title=\"${escapeAttr('Mode: ' + modeLabel)}\"");
+    expect(dashboardHtml).toContain('title="Elapsed"');
+    expect(dashboardHtml).toContain("title=\"${escapeAttr('Mode: ' + displayMode)}\"");
     expect(dashboardHtml).toContain("title=\"${escapeAttr('Updated: ' + updatedPlain)}\"");
     // Old full-weight labeled rows are gone from the now panel.
     const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
     expect(nowPanelFn).not.toBeNull();
-    expect(nowPanelFn?.[0]).toContain("renderNowMeta(modeLabel, updatedSource)");
+    expect(nowPanelFn?.[0]).toContain("renderNowMeta(modeLabel, updatedSource, now)");
     expect(nowPanelFn?.[0]).not.toContain('now-meta-label">Mode:');
     expect(nowPanelFn?.[0]).not.toContain('now-meta-label">Updated:');
     expect(dashboardHtml).not.toContain("now-meta-label");
@@ -189,6 +666,47 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     // Inline SVG only (no icon font / dependency).
     expect(dashboardHtml).toMatch(/nowMetaIconSvg[\s\S]*?<svg class="now-meta-icon"/);
     expect(dashboardHtml).not.toMatch(/font-awesome|material-icons|iconify/i);
+  });
+
+  it("hosts HANDOFF Gaps in Flight Log (not Current mission)", () => {
+    expect(dashboardHtml).toContain("function renderNowGaps(_gapsText)");
+    expect(dashboardHtml).toContain("function renderFlightLogCard(entry, idx)");
+    expect(dashboardHtml).toContain("flight-log-card-current");
+    expect(dashboardHtml).toContain("missionControl?.flightLog");
+    // Gaps strip retired from Current mission body.
+    expect(dashboardHtml).not.toContain("${renderNowGaps(gapsText)}");
+    expect(dashboardHtml).not.toContain("now-gaps-label");
+    expect(dashboardHtml).not.toContain("now-gaps-text");
+  });
+
+  it("keeps Current Mission Spotlight hierarchy: compact Previous/Next, Current full body", () => {
+    expect(dashboardHtml).toMatch(
+      /\.now-step-previous \.now-step-text,\s*\n\s*\.now-step-next \.now-step-text\s*\{[^}]*-webkit-line-clamp:\s*1/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.now-step-current \.now-step-text\s*\{[^}]*-webkit-line-clamp:\s*3/,
+    );
+    expect(dashboardHtml).toMatch(/\.now-meta\s*\{[^}]*border-top:\s*1px solid var\(--border\)/);
+  });
+
+  it("shows discreet Current mission elapsed timers and omits them when idle", () => {
+    expect(dashboardHtml).toContain("function formatElapsedCompact(ms)");
+    expect(dashboardHtml).toContain("function formatElapsedPlain(ms)");
+    expect(dashboardHtml).toContain("function computeNowTimingElapsed(now)");
+    expect(dashboardHtml).toContain("function syncNowTimingTick(now)");
+    expect(dashboardHtml).toContain("data-now-timing-value");
+    expect(dashboardHtml).toContain("now-meta-timing");
+    expect(dashboardHtml).toContain("total \\u00b7");
+    expect(dashboardHtml).toContain("this step");
+    expect(dashboardHtml).toContain("Total elapsed");
+    // Idle empty card stops the tick and has no timing chrome in that branch.
+    const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
+    expect(nowPanelFn?.[0]).toContain("stopNowTimingTick()");
+    expect(nowPanelFn?.[0]).toContain("No active plan");
+    expect(nowPanelFn?.[0]).not.toMatch(/No active plan[\s\S]*data-now-timing-value/);
+    // Live tick is text-only (interval), not a CSS animation on the meta row.
+    expect(dashboardHtml).toContain("setInterval(tick, 1000)");
+    expect(dashboardHtml).not.toMatch(/now-meta-timing[^{]*\{[^}]*animation:/);
   });
 
   it("routes every action through the copy vocabulary that names a paste destination", () => {
@@ -202,15 +720,29 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     ]) {
       expect(dashboardHtml).toContain(`'${destination}'`);
     }
-    expect(dashboardHtml).toContain("function copyToastMessage(subject, destination)");
-    expect(dashboardHtml).toContain("function copyActionTitle(subject, destination)");
+    expect(dashboardHtml).toContain("function copyToastMessage(subject, destination, text)");
+    expect(dashboardHtml).toContain("function copyActionTitle(subject, destination, text)");
     expect(dashboardHtml).toContain("function copyForPaste(text, subject, destination)");
+    expect(dashboardHtml).not.toContain("function copyFromDatasetButton(el)");
+    expect(dashboardHtml).toContain("function isPasteOnlyShellTarget(text)");
     expect(dashboardHtml).toMatch(
       /Copied \$\{subject\}\. Paste into the \$\{pasteDestinationLabel\(destination\)\}\./,
     );
     expect(dashboardHtml).toMatch(
       /Copy \$\{subject\}\. Paste into the \$\{pasteDestinationLabel\(destination\)\}\./,
     );
+    expect(dashboardHtml).toContain(
+      "paste-only prepares a second interactive paste; review does not start from this panel",
+    );
+    // Past-chat picker title/aria uses mirrored PROMPT_RESUME_GUIDANCE; toast stays subject-prefixed.
+    expect(dashboardHtml).toContain("const PROMPT_RESUME_GUIDANCE =");
+    expect(dashboardHtml).toMatch(
+      /if \(destination === 'pastChatPicker'\) \{\s*return PROMPT_RESUME_GUIDANCE;/,
+    );
+    expect(dashboardHtml).toContain(
+      "Paste into the past-chat picker to resume that chat, then answer the pending question.",
+    );
+    expect(dashboardHtml).toMatch(/destination === 'pastChatPicker'/);
     // Path actions copy for the file picker; they never claim a native open.
     expect(dashboardHtml).toContain("const PATH_COPY_LABEL = 'Copy path'");
     expect(dashboardHtml).toContain("function copyRepoPath(relPath)");
@@ -220,6 +752,8 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).not.toContain("attemptProtocolOpen");
     expect(dashboardHtml).not.toContain("Requested editor open:");
     expect(dashboardHtml).not.toContain("function buildEditorFileUris");
+    expect(dashboardHtml).not.toContain("vscode://");
+    expect(dashboardHtml).not.toContain("cursor://");
     expect(dashboardHtml).not.toMatch(/a\.href\s*=\s*uri/);
     expect(dashboardHtml).toContain("looksLikeCommitSha");
   });
@@ -267,6 +801,8 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(bareCopies).toEqual([]);
     expect(dashboardHtml).toContain("function copyForPasteHandler(text, subject, destination)");
     expect(dashboardHtml).toContain("function copyRepoPathHandler(relPath)");
+    expect(dashboardHtml).not.toContain("function copyFromDatasetButton(el)");
+    expect(dashboardHtml).not.toContain("data-copy-text=");
     // Inline handlers are escaped for the JS string and the HTML attribute.
     expect(dashboardHtml).toMatch(
       /return escapeAttr\(\s*`copyForPaste\('\$\{escapeJsString\(text\)/,
@@ -277,10 +813,222 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
   });
 });
 
+describe("plugin-ux-validation: unified Activity feed", () => {
+  it("merges the full semantic stream with deduped client diagnostics", () => {
+    expect(dashboardHtml).toContain("function unifiedActivityEvents(semanticEvents)");
+    expect(dashboardHtml).toContain("const byId = new Map()");
+    expect(dashboardHtml).toContain("if (!ev?.id || byId.has(ev.id)) continue");
+    expect(dashboardHtml).toContain("for (const ev of activityLog)");
+    expect(dashboardHtml).toMatch(/bTime - aTime[\s\S]*?\.slice\(0, 100\)/);
+    expect(dashboardHtml).toContain("const semanticEvents = semanticFeedEvents(d)");
+  });
+
+  it("keeps Monitor curated while Activity renders all event kinds", () => {
+    // Live-actions allowlist: tick/handoff/delivery + agent_step denser feed
+    expect(dashboardHtml).toMatch(
+      /const MONITOR_ACTIVITY_KINDS = new Set\(\[\s*'run_plan', 'handoff', 'delivery', 'agent_step',\s*\]\)/,
+    );
+    // Cap SoT is MONITOR_FEED_CAP via missionControl.monitorFeedCap (no HTML literal).
+    expect(dashboardHtml).not.toMatch(/const MONITOR_FEED_CAP\s*=/);
+    expect(dashboardHtml).toContain("function monitorFeedCap(d)");
+    expect(dashboardHtml).toContain(".slice(0, monitorFeedCap(d))");
+    expect(dashboardHtml).toContain("d?.missionControl?.monitorFeedCap");
+    expect(buildMissionControlView({}).monitorFeedCap).toBe(MONITOR_FEED_CAP);
+    expect(MONITOR_FEED_CAP).toBe(20);
+    expect(dashboardHtml).toContain("agent_step:");
+    // plan_progress stays off the Monitor hero allowlist
+    expect(dashboardHtml).not.toMatch(
+      /const MONITOR_ACTIVITY_KINDS = new Set\(\[[^\]]*plan_progress[^\]]*\]\)/,
+    );
+    for (const kind of ["agent", "skill", "command", "memory"]) {
+      expect(dashboardHtml).toMatch(new RegExp(`${kind}:\\s+\\{[^}]*tag:\\s*'${kind}'`));
+    }
+    expect(dashboardHtml).toContain("${filteredActivityEvents.map((ev, idx) => {");
+  });
+
+  it("renders flat single-roll Monitor rows with distinct resting kind chips", () => {
+    expect(dashboardHtml).toContain("monitor-row");
+    expect(dashboardHtml).toContain("monitor-row-chip");
+    expect(dashboardHtml).toContain("monitor-row-icon");
+    expect(dashboardHtml).toContain("function semanticEventTime(ev, _info)");
+    expect(dashboardHtml).toMatch(
+      /function semanticEventTime\(ev, _info\) \{[\s\S]*?if \(ev\.at\) return escapeHtml\(ev\.at\);\s*return '';/,
+    );
+    expect(dashboardHtml).not.toContain("monitor-agent-header");
+    expect(dashboardHtml).not.toContain("monitor-sub-row");
+    expect(dashboardHtml).not.toContain("agent-plan-context");
+    // Single flat list: no group-by iteration
+    expect(dashboardHtml).not.toContain("const groups = {}");
+    // Return-brief: no resting kind-tag text; actor folded into label (no identity column)
+    expect(dashboardHtml).not.toContain("monitor-row-tag");
+    expect(dashboardHtml).not.toContain("monitor-row-identity");
+    expect(dashboardHtml).not.toContain("const showIdentity = !prevRaw || rawIdentity !== prevRaw");
+    // Icon-only chip: fixed square, solid status tokens, no hover width expand
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row:hover \.monitor-row-chip/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row:focus-within \.monitor-row-chip/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*min-width:\s*18px/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*width:\s*18px/,
+    );
+    // Resting cue: solid *-bg fill only (no inset ring, no left rail, no kind-tag text)
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*box-shadow:\s*none/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*box-shadow:\s*inset 0 0 0 1px currentColor/,
+    );
+    expect(dashboardHtml).toMatch(
+      /run_plan:\s+\{[^}]*color:\s*'var\(--green\)'[^}]*bg:\s*'var\(--green-bg\)'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /handoff:\s+\{[^}]*color:\s*'var\(--yellow\)'[^}]*bg:\s*'var\(--yellow-bg\)'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /plan_progress:\s+\{[^}]*color:\s*'var\(--orange\)'[^}]*bg:\s*'var\(--orange-bg\)'/,
+    );
+    // delivery cyan breaks green wash with run_plan (base / pr / ship fallback)
+    expect(dashboardHtml).toMatch(
+      /delivery:\s+\{[^}]*color:\s*'var\(--cyan\)'[^}]*bg:\s*'var\(--cyan-bg\)'/,
+    );
+    // Delivery subtype chips: distinct solid fills by refs.commitType
+    expect(dashboardHtml).toContain("function semanticEventInfo(kind, commitType)");
+    expect(dashboardHtml).toContain("semanticEventInfo(ev.kind, ev.refs?.commitType)");
+    expect(dashboardHtml).toMatch(
+      /feat:\s+\{[^}]*color:\s*'var\(--purple\)'[^}]*bg:\s*'var\(--purple-bg\)'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /fix:\s+\{[^}]*color:\s*'var\(--red\)'[^}]*bg:\s*'var\(--red-bg\)'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /docs:\s+\{[^}]*color:\s*'var\(--blue\)'[^}]*bg:\s*'var\(--blue-bg\)'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /chore:\s+\{[^}]*color:\s*'var\(--orange\)'[^}]*bg:\s*'var\(--orange-bg\)'/,
+    );
+    // Locked BMP delivery glyphs (feat✦ fix⚙ docs✎ chore⚒ pr⑂ ship✈)
+    expect(dashboardHtml).toMatch(/feat:\s+\{\s*icon:\s*'\\u2726'/);
+    expect(dashboardHtml).toMatch(/fix:\s+\{\s*icon:\s*'\\u2699'/);
+    expect(dashboardHtml).toMatch(/docs:\s+\{\s*icon:\s*'\\u270e'/);
+    expect(dashboardHtml).toMatch(/chore:\s+\{\s*icon:\s*'\\u2692'/);
+    expect(dashboardHtml).toMatch(/pr:\s+\{\s*icon:\s*'\\u2442'/);
+    expect(dashboardHtml).toMatch(/ship:\s+\{\s*icon:\s*'\\u2708'/);
+    expect(dashboardHtml).toContain("gloss: 'delivery - feat'");
+    expect(dashboardHtml).toContain("gloss: 'tick - live execution'");
+    expect(dashboardHtml).toContain("kindGloss: gloss");
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.feed-time\s*\{[^}]*margin-left:\s*auto/,
+    );
+    // Column order in markup: chip, then label, then trailing time
+    expect(dashboardHtml).toMatch(/monitor-row-chip[\s\S]*?feed-label[\s\S]*?feed-time/);
+    // Hover affordance on flat rows (skin tokens only)
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row\[role="button"\]:hover\s*\{[^}]*background:\s*var\(--bg-card-hover\)/,
+    );
+    // Stagger wired for flat rows
+    expect(dashboardHtml).toMatch(/\.monitor-row\.stagger-fade\s*\{/);
+    expect(dashboardHtml).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.monitor-row\.stagger-fade,[\s\S]*?animation:\s*none !important/,
+    );
+  });
+
+  it("renders bounded escaped labels, source labels, accents, and copy-only targets", () => {
+    expect(dashboardHtml).toContain("const MAX_ACTIVITY_LABEL = 200");
+    expect(dashboardHtml).toContain("${escapeHtml(ev.source)}");
+    expect(dashboardHtml).toContain("${escapeHtml(ev.label)}");
+    expect(dashboardHtml).toContain("const info = activityEventInfo(ev)");
+    expect(dashboardHtml).toContain("activityTargetAttributes(ev, 'unified-activity')");
+    expect(dashboardHtml).toContain(
+      "activityTargetAttributes(ev, 'monitor-activity', { kindGloss: gloss })",
+    );
+    expect(dashboardHtml).toContain("pathActionTitle(pathTarget)");
+    expect(dashboardHtml).toContain("copyActionTitle(`commit ${shaTarget}`, 'terminal')");
+    expect(dashboardHtml).not.toContain("Open path for");
+  });
+
+  it("restores copy-only keyboard attrs on delivery rows via refs.sha", () => {
+    const activityTargetAttributes = loadActivityTargetAttributes();
+    const delivery = {
+      id: "delivery:merge:321",
+      kind: "delivery",
+      label: "Merged PR #321 → 528901c.",
+      refs: { sha: "528901c", commits: ["528901c"], pr: 321, plan: null },
+    };
+    const attrs = activityTargetAttributes(delivery, "monitor-activity");
+    expect(attrs).toMatch(/\brole="button"/);
+    expect(attrs).toMatch(/\btabindex="0"/);
+    expect(attrs).toMatch(/aria-label="Copy commit sha for: Merged PR #321 → 528901c\."/);
+    // Handler is attribute-escaped (`&#39;` for quotes); still copy-only, no navigation.
+    expect(attrs).toMatch(/activateSemanticTarget\(&#39;528901c&#39;\)/);
+    expect(attrs).not.toMatch(/\b(open|navigate)\b|href=/i);
+
+    const withoutSha = activityTargetAttributes(
+      { ...delivery, refs: { commits: ["528901c"], pr: 321, plan: null } },
+      "monitor-activity",
+    );
+    expect(withoutSha).toBe("");
+  });
+
+  it("uses stable diagnostic ids and a summarized refresh heartbeat", () => {
+    for (const idPrefix of [
+      "diag:process:started:",
+      "diag:process:stopped:",
+      "diag:terminal:added:",
+      "diag:terminal:activity:",
+      "diag:terminal:removed:",
+      "diag:health:",
+      "diag:git_dirty:",
+    ]) {
+      expect(dashboardHtml).toContain(idPrefix);
+    }
+    expect(dashboardHtml).toContain("Last refreshed ${escapeHtml(relativeTime(d.generatedAt))}");
+    expect(dashboardHtml).not.toContain("addActivity('Data refreshed'");
+  });
+
+  it("filters the unified Activity feed by source chips", () => {
+    expect(dashboardHtml).toContain("const ACTIVITY_SOURCE_FILTERS = [");
+    expect(dashboardHtml).toContain("function filterUnifiedActivityEvents(events, filterId)");
+    expect(dashboardHtml).toContain("function setActivitySourceFilter(filterId)");
+    expect(dashboardHtml).toContain('role="radiogroup"');
+    expect(dashboardHtml).toContain('aria-label="Filter activity by source"');
+    expect(dashboardHtml).toContain("onActivityFilterKeydown(event)");
+    expect(dashboardHtml).toContain(".activity-filter-chip:focus-visible");
+    for (const label of [
+      "All",
+      "Plans",
+      "Git",
+      "Agents",
+      "Skills",
+      "Commands",
+      "Memory",
+      "Terminals",
+      "Processes",
+    ]) {
+      expect(dashboardHtml).toContain(`label: '${label}'`);
+    }
+    expect(dashboardHtml).toContain("sources: ['plans', 'handoff']");
+    expect(dashboardHtml).toContain(
+      "filterUnifiedActivityEvents(unifiedEvents, activitySourceFilter)",
+    );
+    expect(dashboardHtml).toContain("No activity for this source");
+    expect(dashboardHtml).toContain("No meaningful activity recorded yet");
+  });
+
+  it("sets navActivityBadge from the unified feed count", () => {
+    expect(dashboardHtml).toContain("navActivityBadge.textContent = unifiedEvents.length");
+    expect(dashboardHtml).not.toContain("navActivityBadge.textContent = activityLog.length");
+  });
+});
+
 describe("plugin-ux-validation: SSE + overview model wiring", () => {
   it("uses EventSource with polling fallback when SSE degrades", () => {
     expect(dashboardHtml).toContain("function connectSSE()");
-    expect(dashboardHtml).toContain("new EventSource('/api/events')");
+    expect(dashboardHtml).toContain("new EventSource(withMissionControlAuth('/api/events'))");
     expect(dashboardHtml).toContain("syncPollingWithSseMode");
     expect(dashboardHtml).toContain("sseMode = 'polling'");
     expect(dashboardHtml).toContain("startAutoRefresh");
@@ -289,13 +1037,155 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     );
   });
 
-  it("re-renders now + attention from missionControl fingerprints on each snapshot", () => {
+  it("re-renders now + Flight Log from missionControl fingerprints on each snapshot", () => {
     expect(dashboardHtml).toContain("function nowFingerprint(now)");
-    expect(dashboardHtml).toContain("attentionFingerprint");
+    expect(dashboardHtml).toContain("function flightLogFingerprint(fl)");
+    expect(dashboardHtml).not.toContain("attentionFingerprint");
     expect(dashboardHtml).toContain("renderNowExecutionPanel");
     expect(dashboardHtml).toContain("d.missionControl?.now");
-    expect(dashboardHtml).toContain("d.missionControl?.attention");
+    expect(dashboardHtml).toContain("d.missionControl?.flightLog");
     expect(dashboardHtml).toContain("d.missionControl?.activity");
+  });
+
+  it("does not label completed or idle plans as Active plan in current mission", () => {
+    expect(dashboardHtml).not.toContain("overview-inventory-note");
+    expect(dashboardHtml).not.toContain("Active plan:");
+    expect(dashboardHtml).not.toContain("Completed plan:");
+    expect(dashboardHtml).not.toContain("Last plan (exhausted)");
+    expect(dashboardHtml).toMatch(/status === 'executing' \|\| status === 'awaiting_user'/);
+    const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
+    expect(nowPanelFn).not.toBeNull();
+    expect(nowPanelFn?.[0]).toContain("isLive || isCompleted");
+    expect(nowPanelFn?.[0]).toContain("No active plan");
+  });
+
+  it("renders completed missions as a populated Current mission card, not IDLE empty", () => {
+    const nowStatusMetaFn = dashboardHtml.match(/function nowStatusMeta\([\s\S]*?\n\}/);
+    expect(nowStatusMetaFn).not.toBeNull();
+    expect(nowStatusMetaFn?.[0]).toContain("status === 'completed'");
+    expect(nowStatusMetaFn?.[0]).toContain("key: 'completed'");
+    expect(nowStatusMetaFn?.[0]).toContain("label: 'Completed'");
+    expect(nowStatusMetaFn?.[0]).toContain("mark: '\\u2713'");
+    // completed must not reuse the idle meta object
+    expect(nowStatusMetaFn?.[0]).not.toContain("label: 'Idle', mark: '\\u2713'");
+    expect(nowStatusMetaFn?.[0]).not.toContain("key: 'idle', label: 'Completed'");
+
+    const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
+    expect(nowPanelFn).not.toBeNull();
+    const panel = nowPanelFn?.[0] ?? "";
+    expect(panel).toContain("isCompleted");
+    expect(panel).toContain("showMission");
+    expect(panel).toContain("isLive || isCompleted");
+    // Empty path is reserved for !showMission (no completed/live mission).
+    expect(panel).toContain("if (!showMission)");
+    expect(panel).toContain("No active plan");
+    expect(panel).toContain("Quiet cockpit");
+    // Idle label lives in nowStatusMeta; empty card still emits meta.label via escapeHtml.
+    expect(panel).toContain("${escapeHtml(meta.label)}");
+    // Populated path keeps progress, stepper, and copy-only actions for completed too.
+    expect(panel).toContain("renderNowStepBar(now)");
+    expect(panel).toContain("renderNowStepper(now, handoff, status, meta)");
+    expect(panel).toContain("Copy plan path");
+    expect(panel).toContain("Copy /git-staging");
+    expect(panel).not.toContain("Last plan (exhausted)");
+  });
+
+  it("adds mode-aware manual next-step CTAs on Current mission (idle stays start-project)", () => {
+    expect(dashboardHtml).toContain("function isManualPlanMode(modeLabel)");
+    expect(dashboardHtml).toContain("function continuePlanPasteText(planName)");
+    expect(dashboardHtml).toContain("function copyContinuePlanCommand(planName)");
+    expect(dashboardHtml).toContain("function renderNowModeHint(modeLabel)");
+    expect(dashboardHtml).toContain("now-mode-hint");
+    expect(dashboardHtml).toContain("cta-copy-continue-plan");
+    expect(dashboardHtml).toContain("Copy /continue-plan");
+
+    const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
+    expect(nowPanelFn).not.toBeNull();
+    const panel = nowPanelFn?.[0] ?? "";
+    expect(panel).toContain("renderNowModeHint(modeLabel)");
+    expect(panel).toContain("isManualPlanMode(modeLabel)");
+    expect(panel).toContain("copyContinuePlanCommand");
+    // Idle empty card: start-project only (no continue-plan on quiet cockpit).
+    expect(panel).toContain("Quiet cockpit");
+    expect(panel).toContain("Copy /start-project");
+    expect(panel).toContain("if (!showMission)");
+    // Manual CTA is gated; always keep staging on populated mission.
+    expect(panel).toContain("Copy /git-staging");
+
+    const sources = [
+      /function isManualPlanMode\(modeLabel\) \{[\s\S]*?\n\}/,
+      /function continuePlanPasteText\(planName\) \{[\s\S]*?\n\}/,
+      /function renderNowModeHint\(modeLabel\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const { isManualPlanMode, continuePlanPasteText, renderNowModeHint } = new Function(
+      `${sources.join("\n")}\nreturn { isManualPlanMode, continuePlanPasteText, renderNowModeHint };`,
+    )() as {
+      isManualPlanMode: (mode: string | null | undefined) => boolean;
+      continuePlanPasteText: (plan: string) => string;
+      renderNowModeHint: (mode: string | null | undefined) => string;
+    };
+
+    expect(isManualPlanMode("manual")).toBe(true);
+    expect(isManualPlanMode("continue-plan")).toBe(true);
+    expect(isManualPlanMode("manual - waiting")).toBe(true);
+    expect(isManualPlanMode("run-plan (orchestrated)")).toBe(false);
+    expect(isManualPlanMode("run-plan-all")).toBe(false);
+    expect(isManualPlanMode(null)).toBe(false);
+    expect(isManualPlanMode("")).toBe(false);
+
+    expect(continuePlanPasteText("demo.plan.md")).toBe("/continue-plan demo.plan.md");
+    expect(continuePlanPasteText("")).toBe("/continue-plan");
+
+    expect(renderNowModeHint("manual")).toContain("now-mode-hint");
+    expect(renderNowModeHint("manual")).toContain("new conversation");
+    expect(renderNowModeHint("run-plan (orchestrated)")).toBe("");
+  });
+
+  it("maps Current mission Mode to operator-friendly display labels (raw HANDOFF unchanged)", () => {
+    expect(dashboardHtml).toContain("function formatModeDisplayLabel(modeLabel)");
+    expect(dashboardHtml).toContain("function mapModeDisplayCore(core)");
+    expect(dashboardHtml).toContain("formatModeDisplayLabel(modeLabel)");
+    expect(dashboardHtml).toContain("now-meta-icon-executing");
+    expect(dashboardHtml).toMatch(
+      /\.now-meta-icon\.now-meta-icon-executing\s*\{[^}]*animation:\s*spin/,
+    );
+    expect(dashboardHtml).toContain("opts.executing");
+    expect(dashboardHtml).toContain("(now?.status || '') === 'executing'");
+
+    const sources = [
+      /function mapModeDisplayCore\(core\) \{[\s\S]*?\n\}/,
+      /function formatModeDisplayLabel\(modeLabel\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const { formatModeDisplayLabel } = new Function(
+      `${sources.join("\n")}\nreturn { formatModeDisplayLabel };`,
+    )() as {
+      formatModeDisplayLabel: (mode: string | null | undefined) => string;
+    };
+
+    expect(formatModeDisplayLabel("run-plan (orchestrated)")).toBe("auto mode (orchestrated)");
+    expect(formatModeDisplayLabel("run-plan (in-session loop)")).toBe(
+      "auto mode (in-session loop)",
+    );
+    expect(formatModeDisplayLabel("run-plan")).toBe("auto mode");
+    expect(formatModeDisplayLabel("run-plan-all")).toBe("run all (batch auto mode)");
+    expect(formatModeDisplayLabel("manual")).toBe("human-in-the-loop (manual)");
+    expect(formatModeDisplayLabel("continue-plan")).toBe("human-in-the-loop (manual)");
+    expect(formatModeDisplayLabel("run-plan (orchestrated) — STOPPED: API/usage limit")).toBe(
+      "auto mode (orchestrated) — STOPPED: API/usage limit",
+    );
+    expect(formatModeDisplayLabel("STOPPED (run-plan orchestrated; plan exhausted)")).toContain(
+      "STOPPED",
+    );
+    expect(formatModeDisplayLabel(null)).toBe("");
+    expect(formatModeDisplayLabel("")).toBe("");
   });
 
   it("orders overview as current mission → monitor → field report → checklist", () => {
@@ -312,12 +1202,179 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     expect(recentIdx).toBeGreaterThan(attentionIdx);
   });
 
+  it("locks desktop one-fold at min-width 1024px with a 2x2 overview grid", () => {
+    expect(dashboardHtml).toContain("@media (min-width: 1024px)");
+    expect(dashboardHtml).toMatch(
+      /\.overview-stack\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@media \(min-width: 1024px\)[\s\S]*?#section-overview\.active \.overview-stack\s*\{[^}]*display:\s*grid/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*height:\s*100%/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*overflow:\s*hidden/,
+    );
+    expect(dashboardHtml).toContain("grid-template-areas:");
+    expect(dashboardHtml).toContain('"now monitor"');
+    expect(dashboardHtml).toContain('"attention checklist"');
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active #now-execution-panel\s*\{[^}]*grid-area:\s*now/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active #hero-activity\s*\{[^}]*grid-area:\s*monitor/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active #attention-panel\s*\{[^}]*grid-area:\s*attention/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active #recent-plans-panel\s*\{[^}]*grid-area:\s*checklist/,
+    );
+  });
+
+  it("hides the Cockpit subheader on desktop; More menu stays in the header", () => {
+    const oneFold = dashboardHtml.match(
+      /@media \(min-width: 1024px\)\s*\{[\s\S]*?\n\}\n\n\/\* ===== Recent plan cards/,
+    );
+    expect(oneFold).not.toBeNull();
+    const block = oneFold?.[0] ?? "";
+    expect(block).toMatch(/\.top-tabs\s*\{[^}]*display:\s*none/);
+    expect(dashboardHtml).toContain('class="cockpit-anchors"');
+    expect(dashboardHtml).toMatch(/class="header-right"[\s\S]*?id="navMoreBtn"/);
+    expect(dashboardHtml).toContain("goCockpitAnchor");
+  });
+
+  it("hides .content page scroll only for desktop overview; base scroll stays auto", () => {
+    expect(dashboardHtml).toMatch(/\.content\s*\{[^}]*overflow-y:\s*auto/);
+    expect(dashboardHtml).toMatch(
+      /@media \(min-width: 1024px\)[\s\S]*?\.content:has\(#section-overview\.active\)\s*\{[^}]*overflow-y:\s*hidden/,
+    );
+    // One-fold scroll lock is scoped to overview via :has; non-overview keeps base auto.
+    expect(dashboardHtml).not.toMatch(
+      /@media \(min-width: 1024px\)[\s\S]*?\.content\s*\{[^}]*overflow-y:\s*hidden/,
+    );
+  });
+
+  it("bounds the desktop overview to one viewport fold (no page scroll at >=1024px)", () => {
+    // Viewport-level fold contract, asserted on the full CSS containment chain:
+    // viewport -> html/body (100%) -> .content (bounded flex, scroll-locked on
+    // overview) -> overview stack (grid, clipped) -> panels (clipped, inner
+    // scroll). Breaking any link reintroduces page scroll at >=1024px.
+    expect(dashboardHtml).toMatch(/html,\s*body\s*\{[^}]*height:\s*100%/);
+    expect(dashboardHtml).toMatch(/\nbody\s*\{[^}]*display:\s*flex;\s*flex-direction:\s*column/);
+    expect(dashboardHtml).toMatch(/\.content\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0/);
+
+    const oneFold = dashboardHtml.match(
+      /@media \(min-width: 1024px\)\s*\{[\s\S]*?\n\}\n\n\/\* ===== Recent plan cards/,
+    );
+    expect(oneFold).not.toBeNull();
+    const block = oneFold?.[0] ?? "";
+    expect(block).toMatch(
+      /\.content:has\(#section-overview\.active\)\s*\{[^}]*overflow-y:\s*hidden/,
+    );
+    expect(block).toMatch(/#section-overview\.active\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0/);
+    expect(block).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*height:\s*100%;[^}]*overflow:\s*hidden/,
+    );
+    // All four fold panels clip; overflow scrolls inside a panel, never the page.
+    expect(block).toMatch(
+      /#now-execution-panel,[\s\S]*?#recent-plans-panel\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/,
+    );
+    expect(block).toMatch(/#hero-activity\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden/);
+    // No fixed pixel height inside the one-fold block may push past the fold.
+    expect(block).not.toMatch(/(?:min-|max-)?height:\s*\d+px/);
+  });
+
+  it("scrolls Current mission, Crew Monitor, Flight Log, and Checklist inside desktop fold panels", () => {
+    const oneFold = dashboardHtml.match(
+      /@media \(min-width: 1024px\)\s*\{[\s\S]*?\n\}\n\n\/\* ===== Recent plan cards/,
+    );
+    expect(oneFold).not.toBeNull();
+    const block = oneFold?.[0] ?? "";
+    // Monitor feed: fill cell, drop fixed max-height, scroll internally.
+    expect(block).toMatch(
+      /#section-overview\.active #hero-activity \.live-activity-feed\s*\{[^}]*flex:\s*1 1 auto/,
+    );
+    expect(block).toMatch(
+      /#section-overview\.active #hero-activity \.live-activity-feed\s*\{[^}]*max-height:\s*none/,
+    );
+    expect(block).toMatch(
+      /#section-overview\.active #hero-activity \.live-activity-feed\s*\{[^}]*overflow-y:\s*auto/,
+    );
+    // Current mission + Field Report + Checklist: body scroller, not the page.
+    expect(block).toMatch(
+      /#section-overview\.active \.panel-scroll-body\s*\{[^}]*overflow-y:\s*auto/,
+    );
+    expect(block).toMatch(
+      /#section-overview\.active \.panel-scroll-body\s*\{[^}]*overscroll-behavior:\s*contain/,
+    );
+    expect(dashboardHtml).toContain('class="panel-scroll-body"');
+    expect(dashboardHtml).toMatch(/id="now-execution-panel"[\s\S]*?class="panel-scroll-body"/);
+    // Base (sub-desktop) feed max-height stays; one-fold override is media-scoped.
+    expect(dashboardHtml).toMatch(/\.live-activity-feed\s*\{[^}]*max-height:\s*320px/);
+    // panel-scroll-body overflow must not appear outside the 1024px block.
+    const outside = dashboardHtml.replace(block, "");
+    expect(outside).not.toMatch(
+      /#section-overview\.active \.panel-scroll-body\s*\{[^}]*overflow-y:\s*auto/,
+    );
+  });
+
+  it("keeps a right scroll gutter so inner boxes clear the 6px thumb", () => {
+    // Token + asymmetric padding on primary scroll surfaces; padding does not
+    // change capturePanelScrollOffsets / restorePanelScrollOffsets (scrollTop API).
+    expect(dashboardHtml).toContain("--mc-scroll-gutter: 8px");
+    expect(dashboardHtml).toMatch(
+      /\.content\s*\{[^}]*padding-right:\s*calc\(var\(--mc-content-pad\) \+ var\(--mc-scroll-gutter\)\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed\s*\{[^}]*padding-right:\s*var\(--mc-scroll-gutter\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /#section-overview\.active \.panel-scroll-body\s*\{[^}]*padding-right:\s*var\(--mc-scroll-gutter\)/,
+    );
+    expect(dashboardHtml).toContain("function capturePanelScrollOffsets()");
+    expect(dashboardHtml).toContain("function restorePanelScrollOffsets(");
+  });
+
+  it("tightens desktop overview density only inside the 1024px one-fold media query", () => {
+    const oneFold = dashboardHtml.match(
+      /@media \(min-width: 1024px\)\s*\{[\s\S]*?\n\}\n\n\/\* ===== Recent plan cards/,
+    );
+    expect(oneFold).not.toBeNull();
+    const block = oneFold?.[0] ?? "";
+    expect(block).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*gap:\s*var\(--mc-space-md\)/,
+    );
+    expect(block).toMatch(
+      /\.content:has\(#section-overview\.active\)\s*\{[^}]*padding:\s*var\(--mc-space-lg\)/,
+    );
+    // Base stack gap and card padding remain for widths below the breakpoint.
+    expect(dashboardHtml).toMatch(/\.overview-stack\s*\{[^}]*gap:\s*12px/);
+    expect(dashboardHtml).toMatch(/:root,[\s\S]*?--mc-card-padding:\s*16px/);
+  });
+
+  it("keeps one-fold panel scroll compatible with skins, focus rings, and copy-only controls", () => {
+    expect(dashboardHtml).toContain('html[data-dashboard-skin="legacy"]');
+    expect(dashboardHtml).toContain('html[data-dashboard-skin="cursor"]');
+    expect(dashboardHtml).toContain("button:focus-visible");
+    expect(dashboardHtml).toContain(".recent-plan-actions-btn:focus-visible");
+    expect(dashboardHtml).toContain("@media (prefers-reduced-motion: reduce)");
+    // Panel wrappers are layout-only; copy handlers stay on interactive controls.
+    expect(dashboardHtml).not.toMatch(/panel-scroll-body[^>]*(?:onclick|copyForPaste)/);
+    expect(dashboardHtml).toContain("copyRepoPathHandler");
+    expect(dashboardHtml).toContain("copyForPasteHandler");
+  });
+
   it("names the Cockpit page and its four sections consistently with the nav", () => {
     // Headings are the shipped Phase 2 names, each led by its icon.
     for (const heading of [
       "${spaceIconSvg('current-mission')}Current mission",
-      "${spaceIconSvg('monitor')}Monitor",
-      "${spaceIconSvg('field-report')}Field Report",
+      "${spaceIconSvg('monitor')}Crew Monitor",
+      "${spaceIconSvg('field-report')}Flight Log",
       "${spaceIconSvg('checklist')}Checklist",
     ]) {
       expect(dashboardHtml).toContain(heading);
@@ -328,7 +1385,9 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     expect(dashboardHtml).not.toMatch(/<span class="dot dot-blue"><\/span>\s*Overview/);
     // No prose pointing at navigation the panel no longer ships.
     expect(dashboardHtml).not.toContain("Inventory tabs");
-    expect(dashboardHtml).toContain("More sections menu");
+    expect(dashboardHtml).toMatch(
+      /class="nav-more-menu"[^>]*role="menu"[^>]*aria-label="More sections"/,
+    );
   });
 
   it("does not offer a Copy start header control (terminal: npm run dashboard / agent-kit dashboard)", () => {
@@ -339,17 +1398,180 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
   });
 
   it("visually distinguishes all plan lifecycle states", () => {
-    const visualKeys = ["executing", "awaiting", "parked", "incomplete", "completed"];
+    const visualKeys = ["executing", "awaiting", "parked", "backlog", "incomplete", "completed"];
     for (const key of visualKeys) {
       expect(dashboardHtml).toContain(`lifecycle-pill-${key}`);
-      expect(dashboardHtml).toContain(`recent-plan-card-${key}`);
     }
+    // Card markup still emits lifecycle class hooks; color is pills only (no left-bar CSS).
+    expect(dashboardHtml).toContain('class="recent-plan-card recent-plan-card-${life.key}"');
     for (const state of lifecycleStates) {
       expect(LIFECYCLE_SORT_RANK_SOURCE()).toContain(`${state}:`);
     }
     expect(dashboardHtml).toContain("awaiting_user: { key: 'awaiting'");
   });
+
+  it("distinguishes all six plan lifecycle keys without relying on color alone", () => {
+    // Class presence + fill color is not enough: each visual key must carry a
+    // non-color cue (unique visible label; mark in lifecycleMeta; label in aria).
+    // Marks follow the frozen character-mark table (no emojis; unique per state).
+    const nonColorCues: Array<{ key: string; label: string; mark: string }> = [
+      { key: "executing", label: "Executing", mark: "\\u25B6" },
+      { key: "awaiting", label: "Awaiting", mark: "\\u23EF" },
+      { key: "parked", label: "Parked", mark: "\\u20E0" },
+      { key: "backlog", label: "Backlog", mark: "\\u23F9" },
+      { key: "incomplete", label: "Incomplete", mark: "\\u26A0" },
+      { key: "completed", label: "Completed", mark: "\\u2713" },
+    ];
+    expect(nonColorCues).toHaveLength(6);
+    expect(new Set(nonColorCues.map((c) => c.label)).size).toBe(6);
+    expect(new Set(nonColorCues.map((c) => c.key)).size).toBe(6);
+
+    const lifecycleMetaFn = dashboardHtml.match(
+      /function lifecycleMeta\(lifecycle\) \{[\s\S]*?\n\}/,
+    );
+    expect(lifecycleMetaFn).not.toBeNull();
+    const meta = lifecycleMetaFn?.[0] ?? "";
+
+    for (const { key, label, mark } of nonColorCues) {
+      expect(meta, `${key} must map a unique label`).toContain(`key: '${key}'`);
+      expect(meta).toContain(`label: '${label}'`);
+      expect(meta).toContain(`mark: '${mark}'`);
+      expect(dashboardHtml).toContain(`lifecycle-pill-${key}`);
+    }
+
+    // Checklist + Plans pills emit the label text (not color-only chrome).
+    expect(dashboardHtml).toContain("${escapeHtml(life.label)}");
+    // Card aria-label includes the lifecycle label so AT gets the same cue.
+    expect(dashboardHtml).toContain(
+      'aria-label="Plan ${escapeAttr(p.id)} (${escapeAttr(p.progressLabel)}, ${escapeAttr(life.label)})"',
+    );
+    // Checklist pill markup emits the character mark (not just the meta map).
+    expect(dashboardHtml).toContain(
+      '<span class="lifecycle-pill-mark" aria-hidden="true">${life.mark}</span>',
+    );
+  });
+
+  it("renders lifecycle labels as solid fills with no outline", () => {
+    // Lifecycle pill base: solid fill, no perimeter stroke.
+    const sharedBase = dashboardHtml.match(/\.lifecycle-pill\s*\{([^}]+)\}/);
+    expect(sharedBase).not.toBeNull();
+    expect(sharedBase?.[1]).toMatch(/border:\s*none/);
+    expect(sharedBase?.[1]).not.toMatch(/border:\s*1px\s+solid/);
+    // Visual casing is CSS uppercase; JS label maps stay Title Case.
+    expect(sharedBase?.[1]).toMatch(/text-transform:\s*uppercase/);
+    // Type aligns to the Cursor chrome meta ladder, not a hard-coded 10px.
+    expect(sharedBase?.[1]).toMatch(/font-size:\s*var\(--mc-chrome-meta-size\)/);
+    expect(sharedBase?.[1]).not.toMatch(/font-size:\s*10px/);
+
+    // Lifecycle variants carry a solid semantic surface + matching text color.
+    const lifecycleFills: Array<[string, string]> = [
+      ["executing", "blue"],
+      ["awaiting", "yellow"],
+      ["parked", "purple"],
+      ["backlog", "cyan"],
+      ["incomplete", "orange"],
+      ["completed", "green"],
+    ];
+    for (const [key, color] of lifecycleFills) {
+      expect(dashboardHtml).toMatch(
+        new RegExp(
+          `\\.lifecycle-pill-${key}\\s*\\{[^}]*background:\\s*var\\(--${color}-bg\\)[^}]*color:\\s*var\\(--${color}\\)`,
+        ),
+      );
+    }
+
+    // Retired FR attention-severity chip CSS must stay gone.
+    expect(dashboardHtml).not.toMatch(/\.attention-severity(-\w+)?\s*\{/);
+    // Orange semantic surface token exists for incomplete fills.
+    expect(dashboardHtml).toContain("--orange-bg:");
+
+    // Queue-role pill: stroke-free, transparent fill (color + mark cue only).
+    const queueRoleBase = dashboardHtml.match(/\.queue-role-pill\s*\{([^}]+)\}/);
+    expect(queueRoleBase).not.toBeNull();
+    expect(queueRoleBase?.[1]).toMatch(/border:\s*none/);
+    expect(queueRoleBase?.[1]).not.toMatch(/border:\s*1px\s+solid/);
+    expect(queueRoleBase?.[1]).toMatch(/background:\s*transparent/);
+    expect(queueRoleBase?.[1]).toMatch(/text-transform:\s*uppercase/);
+    // Queue-role variants: color token + transparent background (no *-bg fill).
+    const queueRoleColors: Array<[string, string]> = [
+      ["next-up", "blue"],
+      ["queued", "cyan"],
+      ["executing", "blue"],
+      ["done", "green"],
+    ];
+    for (const [key, color] of queueRoleColors) {
+      expect(dashboardHtml).toMatch(
+        new RegExp(
+          `\\.queue-role-pill-${key}\\s*\\{[^}]*color:\\s*var\\(--${color}\\)[^}]*background:\\s*transparent`,
+        ),
+      );
+      expect(dashboardHtml).not.toMatch(
+        new RegExp(`\\.queue-role-pill-${key}\\s*\\{[^}]*var\\(--${color}-bg`),
+      );
+    }
+  });
+
+  it("presentation contract: no Checklist/Field Report/Monitor activity left bars; muted active nav", () => {
+    // Activity type is icon/label only; no colored left rail on .activity-item.
+    expect(dashboardHtml).not.toMatch(/\.activity-item\.activity-\w+\s*\{[^}]*border-left/);
+    expect(dashboardHtml).not.toMatch(/style="[^"]*border-left:\s*3px\s+solid\s+\$\{info\.color\}/);
+    expect(dashboardHtml).not.toContain("activityClass(");
+    expect(dashboardHtml).not.toMatch(/activity-item \$\{activityClass/);
+
+    // Retired FR attention-item stack CSS must stay gone (Flight Log uses flight-log-*).
+    expect(dashboardHtml).not.toMatch(/\.attention-item\s*\{/);
+    expect(dashboardHtml).not.toContain("attention-item-${sev.key}");
+    expect(dashboardHtml).not.toContain("attention-item-action");
+    expect(dashboardHtml).not.toContain("attention-item-warning");
+    expect(dashboardHtml).not.toContain("attention-item-info");
+    expect(dashboardHtml).not.toContain("attention-severity-${sev.key}");
+
+    const recentCardBlock = dashboardHtml.match(/\.recent-plan-card\s*\{[^}]+\}/);
+    expect(recentCardBlock).not.toBeNull();
+    expect(recentCardBlock?.[0]).not.toMatch(/border-left/);
+    expect(dashboardHtml).not.toMatch(/\.recent-plan-card-\w+\s*\{[^}]*border-left/);
+
+    const activeAnchor = dashboardHtml.match(/\.top-nav-anchor\.active\s*\{[^}]+\}/);
+    expect(activeAnchor).not.toBeNull();
+    expect(activeAnchor?.[0]).toMatch(/border-color:\s*transparent/);
+    expect(activeAnchor?.[0]).not.toMatch(/border-color:\s*var\(--blue\)/);
+    expect(activeAnchor?.[0]).toMatch(/background:\s*var\(--bg-card-hover\)/);
+    expect(dashboardHtml).toContain(".top-nav-anchor:focus-visible");
+    expect(dashboardHtml).toContain('aria-current="true"');
+  });
 });
+
+/** Executes the shipped activity row attribute builder (copy-only contract). */
+function loadActivityTargetAttributes() {
+  const sources = [
+    /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
+    /function escapeAttr\(value\) \{[\s\S]*?\n\}/,
+    /function escapeJsString\(value\) \{[\s\S]*?\n\}/,
+    /const PASTE_DESTINATIONS = \{[\s\S]*?\};/,
+    /function pasteDestinationLabel\(destination\) \{[\s\S]*?\n\}/,
+    /function isPasteOnlyShellTarget\(text\) \{[\s\S]*?\n\}/,
+    /const PROMPT_RESUME_GUIDANCE =\s*[\s\S]*?;/,
+    /function copyActionTitle\(subject, destination, text\) \{[\s\S]*?\n\}/,
+    /function pathActionTitle\(relPath\) \{[\s\S]*?\n\}/,
+    /function isSafeRepoRelativePath\(relPath\) \{[\s\S]*?\n\}/,
+    /function looksLikeCommitSha\(target\) \{[\s\S]*?\n\}/,
+    /function activityTargetAttributes\(ev, focusPrefix, opts\) \{[\s\S]*?\n\}/,
+  ].map((re) => {
+    const match = dashboardHtml.match(re);
+    expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+    return match?.[0];
+  });
+  return new Function(`${sources.join("\n")}\nreturn activityTargetAttributes;`)() as (
+    ev: {
+      id?: string;
+      label?: string;
+      sourcePath?: string | null;
+      refs?: { sha?: string; [key: string]: unknown };
+    },
+    focusPrefix: string,
+    opts?: { kindGloss?: string },
+  ) => string;
+}
 
 /** Executes the shipped icon builder instead of asserting on its source text. */
 function loadSpaceIconSvg() {
@@ -365,11 +1587,19 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
   it("requests the logo at the URL the static resolver serves", () => {
     expect(dashboardHtml).toContain('href="/logo.svg"');
     expect(dashboardHtml).toContain('src="/logo.svg"');
+    expect(dashboardHtml).toContain("/logo-cursor.svg");
     expect(dashboardHtml).not.toContain("/dashboard/logo.svg");
     // Decorative next to the visible product name, so it carries no alt text.
     expect(dashboardHtml).toMatch(
-      /<img class="logo" src="\/logo\.svg"[^>]*alt=""[^>]*aria-hidden="true"/,
+      /<img class="logo"[^>]*id="headerLogo"[^>]*src="\/logo\.svg"[^>]*alt=""[^>]*aria-hidden="true"|<img class="logo"[^>]*src="\/logo\.svg"[^>]*id="headerLogo"[^>]*alt=""[^>]*aria-hidden="true"/,
     );
+  });
+
+  it("switches header and favicon assets by interface skin", () => {
+    expect(dashboardHtml).toContain("logo-cursor.svg");
+    expect(dashboardHtml).toMatch(/headerLogo[\s\S]*logo-cursor\.svg|logoSrc = next === 'cursor'/);
+    expect(dashboardHtml).toContain("getElementById('favicon')");
+    expect(dashboardHtml).toContain("getElementById('headerLogo')");
   });
 
   it("ships the space icon set with a name for every kind", () => {
@@ -378,10 +1608,23 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
     const spaceIconSvg = loadSpaceIconSvg();
     const names: Record<string, string> = {
       "current-mission": "Current mission",
-      monitor: "Monitor",
-      "field-report": "Field Report",
+      monitor: "Crew Monitor",
+      "field-report": "Flight Log",
       checklist: "Checklist",
       "more-sections": "More sections",
+      // More-menu section icons (12 kinds)
+      overview: "Home",
+      plans: "Plans",
+      activity: "Activity",
+      agents: "Agents",
+      skills: "Skills",
+      commands: "Commands",
+      health: "Health",
+      git: "Git",
+      memory: "Memory",
+      terminals: "Terminals",
+      processes: "Processes",
+      config: "Config",
     };
     for (const [kind, name] of Object.entries(names)) {
       const decorative = spaceIconSvg(kind);
@@ -413,7 +1656,9 @@ describe("plugin-ux-validation: hardening regressions", () => {
   it("degrades a failed snapshot into empty panels instead of a render error", () => {
     // The panel reads every collection unconditionally, so the fallback
     // payload has to carry them all.
-    const fallback = serveSource.match(/version: 'error',[\s\S]*?missionControl: null,\s*\}\);/);
+    const fallback = serveSource.match(
+      /version: ['"]error['"],[\s\S]*?missionControl: null,\s*\}\);/,
+    );
     expect(fallback).not.toBeNull();
     for (const key of [
       "plans: []",
@@ -427,22 +1672,67 @@ describe("plugin-ux-validation: hardening regressions", () => {
     }
   });
 
+  it("binds the client isSafeRepoRelativePath path cap to guards.mjs MAX_GIT_PATH", () => {
+    // The client copy of isSafeRepoRelativePath hardcodes its length cap and
+    // carries a "Keep in sync with dashboard/lib/guards.mjs" comment. Assert the
+    // literal bound matches the exported constant so the two cannot drift.
+    const clientFn = dashboardHtml.match(
+      /function isSafeRepoRelativePath\(relPath\) \{[\s\S]*?\n\}/,
+    );
+    expect(clientFn).not.toBeNull();
+    const boundMatch = clientFn?.[0].match(/p\.length > (\d+)/);
+    expect(boundMatch, "client path cap literal must exist").not.toBeNull();
+    expect(Number(boundMatch?.[1])).toBe(MAX_GIT_PATH);
+  });
+
   it("keeps XSS escape helpers and uses them for dynamic labels", () => {
     expect(dashboardHtml).toContain("function escapeHtml(value)");
     expect(dashboardHtml).toContain("function escapeAttr(value)");
     expect(dashboardHtml).toContain("function escapeJsString(value)");
     expect(dashboardHtml).toMatch(/escapeHtml\(ev\.label\)/);
-    expect(dashboardHtml).toMatch(/escapeHtml\(item\.label/);
+    // Flight Log cards escape Gaps text and source path.
+    expect(dashboardHtml).toMatch(/escapeHtml\(text\)/);
+    expect(dashboardHtml).toMatch(/escapeHtml\(sourcePath\)/);
   });
 
-  it("keeps serve.mjs read-only (GET/SSE only, no mutation routes)", () => {
+  it("keeps serve.mjs mutation surface limited to loopback allowlisted /api/config", () => {
     expect(serveSource).toContain("/api/events");
     expect(serveSource).toContain("/dashboard-data.json");
+    expect(serveSource).toContain("/api/config");
+    expect(serveSource).toContain("handleConfigWrite");
+    expect(serveSource).toContain("validateConfigWriteBody");
+    expect(serveSource).toContain("isLoopbackAddress");
+    expect(serveSource).toContain("resolveBroadcastAuth");
+    expect(serveSource).toContain("authorizeMissionControlRequest");
+    expect(serveSource).toMatch(/req\.method\s*===\s*['"]PUT['"]/);
+    expect(serveSource).toMatch(/req\.method\s*===\s*['"]PATCH['"]/);
     expect(serveSource).not.toMatch(/req\.method\s*===\s*['"]POST['"]/);
-    expect(serveSource).not.toMatch(/writeFileSync|mkdirSync|rmSync|unlinkSync/);
-    expect(serveSource).toContain("resolveBindHost");
+    expect(serveSource).toContain("writeFileSync");
+    expect(serveSource).not.toMatch(/rmSync|unlinkSync/);
     expect(serveSource).toContain("applyCorsHeaders");
     expect(serveSource).toContain("resolveDashboardStatic");
+  });
+
+  it("wires broadcast token helpers into the panel client", () => {
+    expect(dashboardHtml).toContain("function withMissionControlAuth(");
+    expect(dashboardHtml).toContain("function missionControlAuthToken(");
+    expect(dashboardHtml).toContain("withMissionControlAuth('/api/events')");
+  });
+
+  it("exposes Config in the More menu with a Save form bound to /api/config", () => {
+    expect(dashboardHtml).toContain('data-section="config"');
+    expect(dashboardHtml).toContain("onclick=\"return showSection('config')\"");
+    expect(dashboardHtml).toContain('aria-label="Config section"');
+    expect(dashboardHtml).toMatch(/data-section="config"[^>]*>[\s\S]*?\bConfig\b/);
+    // Home stays first; Config sits before Skins separator.
+    expect(dashboardHtml).toMatch(
+      /id="navMoreMenu"[\s\S]*?data-section="overview"[\s\S]*?data-section="config"[\s\S]*?id="navSkinsLabel"/,
+    );
+    expect(dashboardHtml).toContain('id="section-config"');
+    expect(dashboardHtml).toContain("function saveMissionConfig(");
+    expect(dashboardHtml).toContain("/api/config");
+    expect(dashboardHtml).toMatch(/method:\s*['"]PATCH['"]/);
+    expect(dashboardHtml).toContain('id="config-save-btn"');
   });
 
   it("preserves loopback default bind and localhost CORS allowlist", () => {
@@ -520,7 +1810,8 @@ describe("plugin-ux-validation: fixture-backed classification + activity", () =>
       nextTodos: "`plugin-ux-validation`",
     };
     expect(classifyPlan(plans[0], handoff)).toBe("executing");
-    expect(classifyPlan(plans[1], handoff)).toBe("parked");
+    // Contract change: parked + zero open → completed (was parked).
+    expect(classifyPlan(plans[1], handoff)).toBe("completed");
     expect(classifyPlan(plans[2], handoff)).toBe("incomplete");
   });
 
@@ -535,8 +1826,9 @@ describe("plugin-ux-validation: fixture-backed classification + activity", () =>
       plans,
       handoff,
       gitLogLines: [
-        "4d5a8b3 Merge pull request #207 from agent-kit-startup/feat/cursor-native",
+        // Unshipped staging stays as a raw row; merge below becomes delivery only.
         "abc1234 chore: git staging after tick",
+        "4d5a8b3 Merge pull request #207 from agent-kit-startup/feat/cursor-native",
       ],
       readinessPending: [],
     });
@@ -544,76 +1836,271 @@ describe("plugin-ux-validation: fixture-backed classification + activity", () =>
     expect(view.now.status).toBe("executing");
     expect(view.now.currentTodo?.id).toBe("plugin-ux-validation");
     expect(view.activity.some((e) => e.kind === "run_plan")).toBe(true);
-    expect(view.activity.some((e) => e.kind === "merge")).toBe(true);
+    // Disposition E: drop raw merge rows superseded by delivery (Monitor keeps delivery).
+    expect(view.activity.some((e) => e.kind === "delivery")).toBe(true);
+    expect(view.activity.some((e) => e.kind === "merge")).toBe(false);
     expect(view.activity.some((e) => e.kind === "staging")).toBe(true);
+    const deliveryShas = new Set(
+      view.activity.filter((e) => e.kind === "delivery").flatMap((e) => e.refs?.commits || []),
+    );
+    const gitShas = view.activity
+      .filter((e) => e.kind === "merge" || e.kind === "commit" || e.kind === "staging")
+      .map((e) => e.refs?.sha)
+      .filter(Boolean);
+    expect(gitShas.every((sha) => !deliveryShas.has(sha))).toBe(true);
     expect(view.activity.every((e) => !["refresh", "heartbeat", "process"].includes(e.kind))).toBe(
       true,
     );
-    expect(view.attention.some((i) => i.kind === "parked" || i.kind === "incomplete")).toBe(false);
-    expect(view.checklistNotes.some((i) => i.kind === "parked")).toBe(true);
-    expect(view.checklistNotes.some((i) => i.kind === "incomplete")).toBe(true);
+    // Without agentPrompts input, no prompt rows; plan-state NOTES stay off Field Report.
+    expect(view.attention.some((i) => i.kind === "prompt")).toBe(false);
+    expect(view.attention.some((i) => i.kind === "parked")).toBe(false);
+    expect(view.attention.some((i) => i.kind === "incomplete")).toBe(false);
+    expect(view.checklistNotes).toEqual([]);
+    expect(view.plans.find((p) => p.file === "parked-plan.plan.md")?.parked).toBe(true);
+  });
+
+  it("attributes each delivery from its merge branch, never the active plan", () => {
+    const handoff = parseHandoffMarkdown(`# Handoff
+- **Plan:** \`active-plan.plan.md\`
+- **Mode:** Night shift: /run-plan orchestrated
+- **Next to-dos:** \`plugin-ux-validation\`
+`);
+    const view = buildMissionControlView({
+      plans: [
+        ...plans,
+        {
+          id: "monitor-agent-activity-focus",
+          file: "monitor-agent-activity-focus.plan.md",
+          path: ".cursor/plans/monitor-agent-activity-focus.plan.md",
+          overview: "Monitor focus",
+          agent: "monitor-agent-activity-focus",
+          todos: {
+            total: 1,
+            completed: 1,
+            pending: 0,
+            inProgress: 0,
+            items: [{ id: "done", content: "Done", status: "completed" }],
+          },
+        },
+      ],
+      handoff,
+      gitLogLines: [
+        "e1182a1 Merge pull request #325 from agent-kit-startup/docs/index-one-fold-monitors",
+        "cbc68ca docs(memory): index desktop one-fold and field-report monitors",
+        "528901c Merge pull request #321 from agent-kit-startup/feat/monitor-agent-activity-focus",
+        "6051036 feat(dashboard): refocus Monitor hero on agent activity",
+        "fbde80a Merge pull request #317 from agent-kit-startup/update/field-report-flat-list",
+      ],
+      readinessPending: [],
+    });
+
+    const deliveries = view.activity.filter((e) => e.kind === "delivery");
+    expect(deliveries).toHaveLength(3);
+    expect(
+      deliveries.map((e) => ({
+        pr: e.refs?.pr,
+        sha: e.refs?.sha,
+        plan: e.refs?.plan,
+        agent: e.agent,
+      })),
+    ).toEqual([
+      { pr: 325, sha: "e1182a1", plan: null, agent: null },
+      {
+        pr: 321,
+        sha: "528901c",
+        plan: "monitor-agent-activity-focus.plan.md",
+        // Plan-slug agent is invalid; kit agent id required.
+        agent: null,
+      },
+      { pr: 317, sha: "fbde80a", plan: null, agent: null },
+    ]);
+    // Merge-anchored coalesce: the feature commit beneath a merge is absorbed
+    // into that merge's delivery instead of being dropped from the Monitor.
+    const pr321 = deliveries.find((e) => e.refs?.pr === 321);
+    expect(pr321?.refs?.commits).toEqual(["528901c", "6051036"]);
+    expect(deliveries.every((e) => e.refs?.plan !== "active-plan.plan.md")).toBe(true);
+    // Unified Activity: each merge SHA appears once (as delivery, not also as merge).
+    expect(view.activity.some((e) => e.kind === "merge")).toBe(false);
+    expect(view.activity.some((e) => e.kind === "commit" && e.refs?.sha === "6051036")).toBe(false);
+  });
+
+  it("keeps open parked plans as parked and does not force exhausted HANDOFF to executing", () => {
+    const openParked = {
+      id: "parked-open",
+      file: "parked-open.plan.md",
+      path: ".cursor/plans/parked-open.plan.md",
+      overview: "Open parked",
+      todos: {
+        total: 1,
+        completed: 0,
+        pending: 1,
+        inProgress: 0,
+        items: [{ id: "left", content: "Left", status: "pending" }],
+      },
+    };
+    const doneActive = {
+      id: "exhausted-plan",
+      file: "exhausted-plan.plan.md",
+      path: ".cursor/plans/exhausted-plan.plan.md",
+      overview: "Exhausted",
+      todos: {
+        total: 1,
+        completed: 1,
+        pending: 0,
+        inProgress: 0,
+        items: [{ id: "done", content: "Done", status: "completed" }],
+      },
+    };
+    expect(
+      classifyPlan(openParked, {
+        plan: "exhausted-plan.plan.md",
+        parkedPlans: ["parked-open.plan.md"],
+      }),
+    ).toBe("parked");
+    const now = buildMissionControlView({
+      plans: [doneActive, openParked],
+      handoff: {
+        plan: "exhausted-plan.plan.md",
+        mode: "STOPPED (run-plan orchestrated; plan exhausted)",
+        parkedPlans: ["parked-open.plan.md"],
+      },
+    }).now;
+    expect(now.status).toBe("completed");
+    expect(now.status).not.toBe("idle");
+    expect(now.status).not.toBe("executing");
+    expect(now.planFile).toBe("exhausted-plan.plan.md");
+    expect(now.planId).toBe("exhausted-plan");
+    expect(now.progress).toEqual({ completed: 1, total: 1 });
+    expect(now.lifecycle).toBe("completed");
+  });
+
+  it("completed mission contract: idle only when HANDOFF has no plan reference", () => {
+    const view = buildMissionControlView({
+      plans: [
+        {
+          id: "any-plan",
+          file: "any-plan.plan.md",
+          path: ".cursor/plans/any-plan.plan.md",
+          overview: "Any",
+          todos: {
+            total: 1,
+            completed: 1,
+            pending: 0,
+            inProgress: 0,
+            items: [{ id: "done", content: "Done", status: "completed" }],
+          },
+        },
+      ],
+      handoff: null,
+    });
+    expect(view.now.status).toBe("idle");
+    expect(view.now.planId).toBeNull();
+    expect(view.now.planFile).toBeNull();
+    expect(view.now.planPath).toBeNull();
+    expect(view.now.progress).toEqual({ completed: 0, total: 0 });
   });
 });
 
-/**
- * Executes the shipped browser-side reconciliation instead of asserting on its
- * source text, so a Checklist note that duplicates a plan card fails the suite.
- */
-function loadChecklistNotesForRender() {
-  const order = dashboardHtml.match(/function orderAttentionBySeverity\(items\) \{[\s\S]*?\n\}/);
-  const filter = dashboardHtml.match(
-    /function checklistNotesForRender\(notes, renderedPlans\) \{[\s\S]*?\n\}/,
-  );
-  expect(order).not.toBeNull();
-  expect(filter).not.toBeNull();
-  return new Function(`${order?.[0]}\n${filter?.[0]}\nreturn checklistNotesForRender;`)() as (
-    notes: { id: string; severity?: string; planFile?: string }[],
-    renderedPlans: { file: string }[],
-  ) => { id: string; planFile?: string }[];
-}
-
-describe("cockpit checklist: relocated plan-state notes", () => {
-  const notes = [
-    {
-      id: "attention:parked:parked-plan.plan.md",
-      severity: "info",
-      planFile: "parked-plan.plan.md",
-    },
-    {
-      id: "attention:incomplete:incomplete-plan.plan.md",
-      severity: "warning",
-      planFile: "incomplete-plan.plan.md",
-    },
-    { id: "attention:readiness:confirm-provider", severity: "info" },
-  ];
-
-  it("renders the relocated notes inside the Checklist panel", () => {
-    expect(dashboardHtml).toContain("function renderChecklistNotes(d, renderedPlans)");
-    expect(dashboardHtml).toContain("d.missionControl?.checklistNotes");
-    expect(dashboardHtml).toContain("Plan states and readiness needing a decision");
-    const checklistStart = dashboardHtml.indexOf("function renderRecentPlanCards(d)");
-    const checklistSlice = dashboardHtml.slice(checklistStart, checklistStart + 4000);
-    expect(checklistSlice).toContain("renderChecklistNotes(d, recent)");
+describe("cockpit checklist: plan cards only (notes moved to Field Report)", () => {
+  it("Checklist Actions menu includes Run (manual)/(auto)/Edit/Cancel plus Copy path", () => {
+    const checklistRenderer = dashboardHtml.match(
+      /function renderRecentPlanCards\([\s\S]*?(?=\nfunction renderPlansAccordion)/,
+    )?.[0];
+    expect(checklistRenderer).toBeTruthy();
+    expect(checklistRenderer).toContain("checklistPlanActionCommands");
+    expect(checklistRenderer).toContain("toggleRecentPlanActions");
+    expect(checklistRenderer).toContain("copyChecklistPlanAction");
+    expect(checklistRenderer).toContain("copyChecklistPlanPath");
+    expect(checklistRenderer).toContain('aria-haspopup="menu"');
+    expect(checklistRenderer).toContain(">Actions</button>");
+    expect(checklistRenderer).toContain(">Run (manual)</button>");
+    expect(checklistRenderer).toContain(">Run (auto)</button>");
+    expect(checklistRenderer).toContain(">Edit</button>");
+    expect(checklistRenderer).toContain(">Cancel</button>");
+    expect(checklistRenderer).toContain("${PATH_COPY_LABEL}");
+    // Locked clipboard destinations (basename from plan.file).
+    expect(dashboardHtml).toContain("runManual: `/continue-plan ${basename}`");
+    expect(dashboardHtml).toContain("runAuto: `/run-plan ${basename}`");
+    expect(dashboardHtml).toContain("edit: `/backlog-edit ${basename}`");
+    expect(dashboardHtml).toContain("cancel: `/archive-plan ${basename}`");
+    // Copy path uses path clipboard (filePicker), not chat paste helper.
+    expect(dashboardHtml).toContain("function copyChecklistPlanPath(relPath)");
+    expect(dashboardHtml).toMatch(
+      /function copyChecklistPlanPath\(relPath\) \{[\s\S]*?copyRepoPath\(relPath\)/,
+    );
+    // Whole-card path-copy remains removed from Checklist (menu item only).
+    expect(checklistRenderer).not.toContain("copyRepoPathHandler");
+    // Plans accordion / Field Report path copy remain.
+    expect(dashboardHtml).toContain("Copy plan path");
+    expect(dashboardHtml).toContain("const PATH_COPY_LABEL = 'Copy path'");
   });
 
-  it("drops a note whose plan already renders as a card, keeping readiness", () => {
-    const checklistNotesForRender = loadChecklistNotesForRender();
-    const rendered = checklistNotesForRender(notes, [
-      { file: "parked-plan.plan.md" },
-      { file: "incomplete-plan.plan.md" },
-    ]);
-    expect(rendered.map((n) => n.id)).toEqual(["attention:readiness:confirm-provider"]);
+  it("renders Run all on Checklist header that copies /run-plan-all for chat paste", () => {
+    const checklistRenderer = dashboardHtml.match(
+      /function renderRecentPlanCards\([\s\S]*?(?=\nfunction renderPlansAccordion)/,
+    )?.[0];
+    expect(checklistRenderer).toBeTruthy();
+    expect(checklistRenderer).toContain(">Run all</button>");
+    expect(checklistRenderer).toContain('data-focus-key="checklist-add-all"');
+    expect(checklistRenderer).toContain("copyForPasteHandler('/run-plan-all'");
+    expect(checklistRenderer).toContain("copyActionTitle('/run-plan-all', 'chatInput')");
+    // Shared button on empty (0) and populated (N of M) header branches.
+    expect(checklistRenderer).toContain("${addAllBtn}");
+    const emptyHeader = checklistRenderer?.match(
+      /style="margin-left:auto">0<\/span>\s*\$\{addAllBtn\}/,
+    );
+    const populatedHeader = checklistRenderer?.match(
+      /\$\{recent\.length\} of \$\{sorted\.length\}<\/span>\s*\$\{addAllBtn\}/,
+    );
+    expect(emptyHeader).toBeTruthy();
+    expect(populatedHeader).toBeTruthy();
   });
 
-  it("keeps notes for plans the card limit left out, warnings first", () => {
-    const checklistNotesForRender = loadChecklistNotesForRender();
-    const rendered = checklistNotesForRender(notes, [{ file: "some-other.plan.md" }]);
-    expect(rendered.map((n) => n.id)).toEqual([
-      "attention:incomplete:incomplete-plan.plan.md",
-      "attention:parked:parked-plan.plan.md",
-      "attention:readiness:confirm-provider",
-    ]);
-    expect(new Set(rendered.map((n) => n.id)).size).toBe(rendered.length);
+  it("escapes Checklist Actions menu from panel overflow via fixed positioning", () => {
+    // Same class of bug as nav More: absolute menus clip under overflow ancestors;
+    // a11y tree alone is not sufficient (see memory error 2026-07-25).
+    expect(dashboardHtml).toMatch(/\.recent-plan-actions-menu\s*\{[^}]*position:\s*fixed/);
+    expect(dashboardHtml).toContain("function positionRecentPlanActions()");
+    expect(dashboardHtml).toContain("getBoundingClientRect()");
+    expect(dashboardHtml).toContain("positionRecentPlanActions()");
+    // Prefer above; flip below when space above is tight (first card).
+    expect(dashboardHtml).toContain("openAbove");
+    expect(dashboardHtml).toContain("spaceAbove");
+    expect(dashboardHtml).toContain("spaceBelow");
+    // Reposition while open (resize + captured scroll on Checklist body).
+    expect(dashboardHtml).toMatch(
+      /window\.addEventListener\(\s*['"]resize['"][\s\S]*?positionRecentPlanActions/,
+    );
+    expect(dashboardHtml).toMatch(
+      /addEventListener\(\s*['"]scroll['"][\s\S]*?positionRecentPlanActions[\s\S]*?true/,
+    );
+    // CSS contract must not reintroduce absolute upward-only clip.
+    expect(dashboardHtml).not.toMatch(
+      /\.recent-plan-actions-menu\s*\{[^}]*position:\s*absolute[^}]*bottom:\s*calc/,
+    );
+    // Painted clip still needs screenshot/rect dogfood; structure/CSS is harness-checkable.
+  });
+
+  it("removes the Checklist notes group and label from the panel", () => {
+    expect(dashboardHtml).not.toContain("function renderChecklistNotes(d, renderedPlans)");
+    expect(dashboardHtml).not.toContain("function checklistNotesForRender");
+    expect(dashboardHtml).not.toContain("d.missionControl?.checklistNotes");
+    expect(dashboardHtml).not.toContain("Plan states and readiness needing a decision");
+    const checklistRenderer = dashboardHtml.match(
+      /function renderRecentPlanCards\([\s\S]*?(?=\nfunction renderPlansAccordion)/,
+    )?.[0];
+    expect(checklistRenderer).toBeTruthy();
+    expect(checklistRenderer).not.toContain("renderChecklistNotes");
+    expect(checklistRenderer).toContain("recent-plans-grid");
+  });
+
+  it("does not keep orphaned Field Report attention filter helpers", () => {
+    expect(dashboardHtml).not.toContain("const FIELD_REPORT_KINDS = new Set([");
+    expect(dashboardHtml).not.toContain("function fieldReportItemsForRender(items)");
+    expect(dashboardHtml).not.toContain("function orderAttentionBySeverity(items)");
+    expect(dashboardHtml).not.toContain("function renderAttentionItem(item, idx)");
+    expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
+    expect(dashboardHtml).toContain("function flightLogFingerprint(fl)");
   });
 });
 
@@ -622,3 +2109,413 @@ function LIFECYCLE_SORT_RANK_SOURCE() {
   expect(match).not.toBeNull();
   return match?.[0];
 }
+
+function QUEUE_ROLE_SORT_RANK_SOURCE() {
+  const match = dashboardHtml.match(/const QUEUE_ROLE_SORT_RANK = \{[\s\S]*?\};/);
+  expect(match).not.toBeNull();
+  return match?.[0];
+}
+
+type StepperNow = ReturnType<typeof buildMissionControlView>["now"];
+
+/**
+ * Executes the shipped stepper renderers against real view-model output, so a
+ * completed mission that regains a pending-looking step fails the suite.
+ */
+function loadNowStepRenderers() {
+  const sources = [
+    /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
+    /function escapeAttr\(value\) \{[\s\S]*?\n\}/,
+    /function formatElapsedCompact\(ms\) \{[\s\S]*?\n\}/,
+    /function formatElapsedPlain\(ms\) \{[\s\S]*?\n\}/,
+    /function previousStageElapsedTitle\(now\) \{[\s\S]*?\n\}/,
+    /function nowStepTodoText\(todo\) \{[\s\S]*?\n\}/,
+    /function nowNextUpText\(nextUpPlan\) \{[\s\S]*?\n\}/,
+    /function renderNowStepBar\(now\) \{[\s\S]*?\n\}/,
+    /function renderNowCompletedStepper\(now\) \{[\s\S]*?\n\}/,
+    /function renderNowStepper\(now, handoff, status, meta\) \{[\s\S]*?\n\}/,
+  ].map((re) => {
+    const match = dashboardHtml.match(re);
+    expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+    return match?.[0];
+  });
+  return new Function(
+    `${sources.join("\n")}\nreturn { renderNowStepBar, renderNowStepper };`,
+  )() as {
+    renderNowStepBar: (now: StepperNow) => string;
+    renderNowStepper: (
+      now: StepperNow,
+      handoff: unknown,
+      status: string,
+      meta: { mark: string },
+    ) => string;
+  };
+}
+
+describe("current mission: completed stepper semantics", () => {
+  const completedPlan = {
+    id: "exhausted-plan",
+    file: "exhausted-plan.plan.md",
+    path: ".cursor/plans/exhausted-plan.plan.md",
+    overview: "Everything shipped",
+    modifiedAt: "2026-07-25T12:00:00.000Z",
+    todos: {
+      total: 3,
+      completed: 3,
+      pending: 0,
+      inProgress: 0,
+      items: [
+        { id: "phase-zero", content: "Contract", status: "completed" },
+        { id: "phase-one", content: "Completed render", status: "completed" },
+        { id: "phase-two", content: "Terminal step semantics", status: "completed" },
+      ],
+    },
+  };
+  const completedHandoff = {
+    plan: "exhausted-plan.plan.md",
+    planPath: ".cursor/plans/exhausted-plan.plan.md",
+    mode: "STOPPED (run-plan orchestrated; plan exhausted)",
+    parkedPlans: [],
+    nextTodos: "`phase-two`",
+    instruction: "Open a new conversation and pick the next plan.",
+  };
+
+  function completedNow() {
+    const now = buildMissionControlView({
+      plans: [completedPlan],
+      handoff: completedHandoff,
+    }).now;
+    expect(now.status).toBe("completed");
+    return now;
+  }
+
+  it("renders the final completed to-do as the terminal step", () => {
+    const { renderNowStepper } = loadNowStepRenderers();
+    const html = renderNowStepper(completedNow(), completedHandoff, "completed", {
+      mark: "\u2713",
+    });
+    expect(html).toContain("now-stepper-complete");
+    expect(html).toContain("now-step-final");
+    expect(html).toContain("now-step-done");
+    expect(html).toContain("Final step");
+    expect(html).toContain("phase-two");
+    expect(html).toContain("Terminal step semantics");
+    expect(html).toContain("\u2713");
+  });
+
+  it("states no next action instead of a pending-looking empty step", () => {
+    const { renderNowStepper } = loadNowStepRenderers();
+    const html = renderNowStepper(completedNow(), completedHandoff, "completed", {
+      mark: "\u2713",
+    });
+    expect(html).toContain("now-step-terminal");
+    expect(html).toContain("None: mission complete (3 of 3 steps done)");
+    expect(html).not.toContain("now-step-empty");
+    expect(html).not.toContain("now-step-current");
+    expect(html).not.toContain('now-step-label">Current');
+    expect(html).not.toContain("None \u2014 last step");
+    expect(html).not.toContain("Awaiting user decision");
+    // A finished run must not promote the handoff instruction as work left.
+    expect(html).not.toContain("pick the next plan");
+  });
+
+  it("keeps accessibility labels aligned with the completed state", () => {
+    const { renderNowStepper, renderNowStepBar } = loadNowStepRenderers();
+    const now = completedNow();
+    const html = renderNowStepper(now, completedHandoff, "completed", { mark: "\u2713" });
+    expect(html).toContain(
+      'aria-label="Mission complete: final step done, no next step (3 of 3 steps done)"',
+    );
+    expect(html).not.toContain("Work progression");
+
+    const bar = renderNowStepBar(now);
+    expect(bar).toContain('aria-label="Step progress: 3 of 3 steps complete"');
+    expect(bar).not.toContain("in progress");
+    expect(bar).not.toContain("now-stepbar-seg-current");
+    expect(bar.match(/now-stepbar-seg-done/g)?.length).toBe(3);
+    expect(bar).toContain(">3 of 3<");
+  });
+
+  it("names the run queue next-up plan on the completed Next row", () => {
+    const { renderNowStepper } = loadNowStepRenderers();
+    const queueHandoff = {
+      ...completedHandoff,
+      mode: "run-plan-all",
+      runQueue: ["exhausted-plan.plan.md", "next-plan.plan.md"],
+      queueCursor: 0,
+      queueCursorPlan: "exhausted-plan.plan.md",
+      queueStatus: "running",
+      queueOutcomes: {},
+    };
+    const now = buildMissionControlView({
+      plans: [completedPlan],
+      handoff: queueHandoff,
+    }).now;
+    expect(now.status).toBe("completed");
+    expect(now.nextUpPlan).toBe("next-plan.plan.md");
+    const html = renderNowStepper(now, queueHandoff, "completed", { mark: "\u2713" });
+    expect(html).toContain('now-step-label">Next up<');
+    expect(html).toContain("next-plan.plan.md");
+    expect(html).toContain("next plan in the run queue");
+    expect(html).not.toContain("None: mission complete");
+    expect(html).not.toContain("now-step-terminal");
+    expect(html).toContain(
+      'aria-label="Mission complete: final step done, next up next-plan.plan.md (3 of 3 steps done)"',
+    );
+  });
+
+  it("keeps None: mission complete when the queue has no further plan", () => {
+    const { renderNowStepper } = loadNowStepRenderers();
+    const lastInQueueHandoff = {
+      ...completedHandoff,
+      mode: "run-plan-all",
+      runQueue: ["earlier.plan.md", "exhausted-plan.plan.md"],
+      queueCursor: 1,
+      queueCursorPlan: "exhausted-plan.plan.md",
+      queueStatus: "running",
+      queueOutcomes: { "earlier.plan.md": "completed" },
+    };
+    const now = buildMissionControlView({
+      plans: [completedPlan],
+      handoff: lastInQueueHandoff,
+    }).now;
+    expect(now.status).toBe("completed");
+    expect(now.nextUpPlan).toBeNull();
+    const html = renderNowStepper(now, lastInQueueHandoff, "completed", { mark: "\u2713" });
+    expect(html).toContain("None: mission complete (3 of 3 steps done)");
+    expect(html).toContain("now-step-terminal");
+    expect(html).not.toContain("Next up");
+  });
+
+  it("still renders previous, current, and next for a live run", () => {
+    const { renderNowStepper } = loadNowStepRenderers();
+    const runningHandoff = {
+      plan: "running-plan.plan.md",
+      planPath: ".cursor/plans/running-plan.plan.md",
+      mode: "run-plan (orchestrated)",
+      parkedPlans: [],
+      nextTodos: "`phase-one`",
+    };
+    const now = buildMissionControlView({
+      plans: [
+        {
+          ...completedPlan,
+          id: "running-plan",
+          file: "running-plan.plan.md",
+          path: ".cursor/plans/running-plan.plan.md",
+          todos: {
+            total: 3,
+            completed: 1,
+            pending: 1,
+            inProgress: 1,
+            items: [
+              { id: "phase-zero", content: "Contract", status: "completed" },
+              { id: "phase-one", content: "Completed render", status: "in_progress" },
+              { id: "phase-two", content: "Terminal step semantics", status: "pending" },
+            ],
+          },
+        },
+      ],
+      handoff: runningHandoff,
+    }).now;
+    expect(now.status).toBe("executing");
+    const html = renderNowStepper(now, runningHandoff, "executing", { mark: "\u25B6" });
+    expect(html).toContain("now-step-previous");
+    expect(html).toContain("now-step-current");
+    expect(html).toContain("now-step-next");
+    expect(html).toContain("Work progression");
+    expect(html).not.toContain("now-stepper-complete");
+    expect(html).not.toContain("mission complete");
+  });
+});
+
+/**
+ * Field Report card findings markup was retired with the attention-stack UI.
+ * Flight Log Gaps + Warnings cards must not revive that render path.
+ */
+describe("Field Report findings summary on the card", () => {
+  it("does not ship renderAttentionItem or attention-findings CSS", () => {
+    expect(dashboardHtml).not.toContain("function renderAttentionItem(item, idx)");
+    expect(dashboardHtml).not.toMatch(/\.attention-findings\s*\{/);
+    expect(dashboardHtml).toContain("function renderFlightLogCard(entry, idx)");
+    expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
+  });
+});
+
+/**
+ * Executes the shipped Checklist queue helpers so the /run-plan-all display
+ * sort and the additive queue-role pill are verified against real output.
+ */
+function loadQueueChecklistHelpers() {
+  const lifecycleRank = LIFECYCLE_SORT_RANK_SOURCE();
+  const roleRank = QUEUE_ROLE_SORT_RANK_SOURCE();
+  const sources = [
+    /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
+    /function sortPlansForPortfolio\(plans\) \{[\s\S]*?\n\}/,
+    /function queueRolePill\(p\) \{[\s\S]*?\n\}/,
+  ].map((re) => {
+    const match = dashboardHtml.match(re);
+    expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+    return match?.[0];
+  });
+  return new Function(
+    `${lifecycleRank}\n${roleRank}\n${sources.join("\n")}\nreturn { sortPlansForPortfolio, queueRolePill };`,
+  )() as {
+    sortPlansForPortfolio: (plans: object[]) => Array<{ file: string }>;
+    queueRolePill: (p: object) => string;
+  };
+}
+
+describe("checklist: run-plan-all queue roles and display sort", () => {
+  it("sorts by role-priority (executing above next_up above queued above completed_in_queue)", () => {
+    const { sortPlansForPortfolio } = loadQueueChecklistHelpers();
+    const sorted = sortPlansForPortfolio([
+      {
+        file: "outside.plan.md",
+        lifecycle: "executing",
+        queueRole: "none",
+        queueIndex: null,
+        modifiedAt: null,
+      },
+      {
+        file: "c.plan.md",
+        lifecycle: "backlog",
+        queueRole: "queued",
+        queueIndex: 2,
+        modifiedAt: null,
+      },
+      {
+        file: "a.plan.md",
+        lifecycle: "completed",
+        queueRole: "completed_in_queue",
+        queueIndex: 0,
+        modifiedAt: null,
+      },
+      {
+        file: "b.plan.md",
+        lifecycle: "executing",
+        queueRole: "executing",
+        queueIndex: 1,
+        modifiedAt: null,
+      },
+      {
+        file: "next.plan.md",
+        lifecycle: "backlog",
+        queueRole: "next_up",
+        queueIndex: 3,
+        modifiedAt: null,
+      },
+    ]);
+    expect(sorted.map((p) => p.file)).toEqual([
+      "b.plan.md",
+      "next.plan.md",
+      "c.plan.md",
+      "a.plan.md",
+      "outside.plan.md",
+    ]);
+  });
+
+  it("keeps lifecycle-rank sorting when no plan carries a queue role", () => {
+    const { sortPlansForPortfolio } = loadQueueChecklistHelpers();
+    const sorted = sortPlansForPortfolio([
+      {
+        file: "done.plan.md",
+        lifecycle: "completed",
+        queueRole: "none",
+        queueIndex: null,
+        modifiedAt: null,
+      },
+      {
+        file: "live.plan.md",
+        lifecycle: "executing",
+        queueRole: "none",
+        queueIndex: null,
+        modifiedAt: null,
+      },
+      {
+        file: "queuedish.plan.md",
+        lifecycle: "backlog",
+        queueRole: "none",
+        queueIndex: null,
+        modifiedAt: null,
+      },
+    ]);
+    expect(sorted.map((p) => p.file)).toEqual([
+      "live.plan.md",
+      "queuedish.plan.md",
+      "done.plan.md",
+    ]);
+  });
+
+  it("does not pin completed queue-index-0 above an executing later cursor", () => {
+    const { sortPlansForPortfolio } = loadQueueChecklistHelpers();
+    const sorted = sortPlansForPortfolio([
+      {
+        file: "done-first.plan.md",
+        lifecycle: "completed",
+        queueRole: "completed_in_queue",
+        queueIndex: 0,
+        modifiedAt: null,
+      },
+      {
+        file: "live-second.plan.md",
+        lifecycle: "executing",
+        queueRole: "executing",
+        queueIndex: 1,
+        modifiedAt: null,
+      },
+    ]);
+    expect(sorted.map((p) => p.file)).toEqual(["live-second.plan.md", "done-first.plan.md"]);
+  });
+
+  it("renders additive queue-role pills and skips lifecycle duplicates", () => {
+    const { queueRolePill } = loadQueueChecklistHelpers();
+    // Next-up pill emits SVG mark (⏩︎ fallback) + label text.
+    const nextUp = queueRolePill({ queueRole: "next_up", lifecycle: "backlog" });
+    expect(nextUp).toContain("Next up");
+    expect(nextUp).toContain("queue-role-mark");
+    expect(nextUp).toContain("<svg");
+    // Queued pill emits character mark + label.
+    const queued = queueRolePill({ queueRole: "queued", lifecycle: "backlog" });
+    expect(queued).toContain("Queued");
+    expect(queued).toContain("queue-role-mark");
+    // Queue cursor still on a terminal plan: the pill marks queue position.
+    expect(queueRolePill({ queueRole: "executing", lifecycle: "completed" })).toContain(
+      "Executing",
+    );
+    // Duplicate of the lifecycle pill's own label is skipped.
+    expect(queueRolePill({ queueRole: "executing", lifecycle: "executing" })).toBe("");
+    expect(queueRolePill({ queueRole: "completed_in_queue", lifecycle: "completed" })).toBe("");
+    expect(queueRolePill({ queueRole: "none", lifecycle: "executing" })).toBe("");
+    expect(queueRolePill({})).toBe("");
+  });
+
+  it("places the queue pill next to the lifecycle pill in cards and accordions", () => {
+    const checklistRenderer = dashboardHtml.match(
+      /function renderRecentPlanCards\([\s\S]*?(?=\nfunction renderPlansAccordion)/,
+    )?.[0];
+    const plansRenderer = dashboardHtml.match(
+      /function renderPlansAccordion\([\s\S]*?(?=\nfunction \w+)/,
+    )?.[0];
+    expect(checklistRenderer).toContain("${queueRolePill(p)}");
+    expect(plansRenderer).toContain("${queueRolePill(p)}");
+    // The lifecycle pill and the executing-only shimmer condition survive.
+    expect(checklistRenderer).toContain("lifecycle-pill lifecycle-pill-${life.key}");
+    expect(checklistRenderer).toContain("${life.key === 'executing' ? ' is-executing' : ''}");
+    expect(plansRenderer).toContain("${life.key === 'executing' ? ' is-executing' : ''}");
+    // Shimmer never keys on queueRole.
+    expect(dashboardHtml).not.toMatch(/queueRole[^\n]*is-executing/);
+    // Checklist pill markup dropped the colored .dot (queue-role pills are stroke-free mark+label).
+    expect(checklistRenderer).not.toContain('class="dot ${life.dot}"');
+    expect(checklistRenderer).not.toContain('class="dot"');
+  });
+
+  it("threads queueRole and queueIndex through mergePlansForUi with styling", () => {
+    const mergeSource = dashboardHtml.match(/function mergePlansForUi\(d\) \{[\s\S]*?\n\}/)?.[0];
+    expect(mergeSource).toContain("queueRole: enriched.queueRole || 'none'");
+    expect(mergeSource).toContain("queueIndex: Number.isInteger(enriched.queueIndex)");
+    expect(dashboardHtml).toMatch(/\.queue-role-pill\s*\{[^}]*border:\s*none/);
+    expect(dashboardHtml).toContain(".queue-role-pill-next-up");
+    expect(dashboardHtml).toContain(".queue-role-pill-queued");
+  });
+});

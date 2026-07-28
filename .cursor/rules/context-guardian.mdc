@@ -76,6 +76,21 @@ If detection fails, just tell the user the command without copying it.
 - Preserve an active plan and HANDOFF as the current work. Readiness guidance must not restart or replace them.
 - `/start-project` remains responsible for deliverable planning after essential readiness passes.
 
+## Quota-blocked sessions
+
+When the session hits a Cursor API usage limit (quota exhaustion, rate-limit signal, Task dispatch failure, or automatic model fallback from Auto):
+
+1. **This is a stop condition, not "keep coding."** Do not continue the session as if nothing happened. A model auto-switch after a quota hit does not mean the to-do was delivered.
+2. **Hard stop + HANDOFF:** revert the current to-do to `pending` (or leave it `in_progress` with a HANDOFF note). Write `.cursor/HANDOFF.md` with the stop reason, cursor, and operator recovery instruction. Use canonical machine fields: `- **Mode:**` = prior mode plus `— STOPPED: API/usage limit`; `- **Gaps:**` = stop reason and open cursor; `- **Instruction for the next agent:**` = recovery steps (see template in `.cursor/context/templates/handoff.md`).
+3. **Operator message:**
+ > "API/usage limit reached. The tick was aborted. To recover: (1) switch from Auto to a named model (Claude Opus, Sonnet 4.6, Composer 2.5 Fast), (2) wait for quota reset if applicable, (3) resume with `/continue-plan` or `/run-plan`."
+4. **Do not reschedule** the next tick or advance the queue cursor. The to-do was not completed. Do **not** silently fall back to inline-first implement of the same tick after a Task abort (even if `inline_first: true` was set): qualification and hard-stop stay intact; recover, then resume or re-author a qualifying docs tick (`decisions/2026-07-27_run-plan-inline-first-qualification-gap.md`).
+5. **Pre-dispatch refuse:** on the next `/run-plan` or `/run-plan-all` start, if HANDOFF Gaps / Instruction / stop reason still records an API/usage limit hard stop, **do not** auto-reschedule or dispatch a Task until the operator confirms recovery (named model and/or wait). Pre-flight is that HANDOFF check plus model choice only; there is no kit remaining-quota API.
+6. **Auto cooldown (preventive):** default `interTickCooldownMs` stays `0` for named-model runs. When continuous mode stays on Auto, recommend setting cooldown to **15000** ms via Mission Control Config or `.cursor/context/config.json`. After a quota hard stop, next successful resume should use cooldown ≥ that recommend (bounded adaptive backoff in L0 prose). On the first `/run-plan` / `/run-plan-all` tick while cooldown is still `0` on Auto, surface that recommend once (do not mutate the default).
+7. **Do not** treat Mission Control SSE/poll throttling as Agent quota remediation (local-only surfaces).
+8. **Orchestrator hygiene:** do not co-pack Task dispatch with staging AwaitShell or parallel heavy work in the same turn (`/run-plan` Orchestrator turn hygiene; ADR `decisions/2026-07-27_auto-run-no-regression-invariants.md`).
+9. **Cross-link:** this condition is distinct from the context-window warning (above). Both are handoff-worthy, but a quota hit is a hard stop: there is no "keep going" option.
+
 ## Err on the Safe Side
 
 The limit-detection heuristic may not be 100% accurate. Always err on the safe side: **warning too early is better than too late**.

@@ -13,7 +13,7 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 
 2. **Prefer one question at a time** (or a small coherent set in one tool call if the product allows multi-question).
 
-3. **Options must be concrete labels** (e.g. `Write plan file`, `Create first plan`, `Skip for now`, `Install via CLI`, `Install via chat`, `Start first unit`, `Switch to /run-plan`).
+3. **Options must be concrete labels** (e.g. `Write plan file`, `Write plan and add to backlog`, `Add to backlog`, `Create first plan`, `Skip for now`, `Install via CLI`, `Install via chat`, `Start first unit`, `Switch to /run-plan`).
 
 4. **Fallback when tool unavailable:** some models/modes do not expose the tool (dogfood 2026-07-20: Auto mode routed picks and Grok 4.5 absent; Opus, Sonnet 4.6, Composer 2.5 Fast, GPT, Gemini present; see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`). When it is not in the session toolset, say so once, then present the same options in chat as a **numbered list**. Tell the user they can **reply with the number** (or the label), and that they can always **type their own answer** (the equivalent of the built-in "Other" choice) if none fit. Do not invent a fake tool call. Tip: switching to a model that supports Ask questions restores the clickable UI.
 
@@ -26,11 +26,17 @@ Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`
 | `install.md` (Port B / drag-install) | Registry URL/ref if needed; migrate nested `agent-kit/` confirm; optional git-hooks install |
 | `/agent-kit-onboard` | One unresolved readiness decision at a time; confirm Git, branch, remote, hooks, CI, deploy, protection, and external mutations before acting |
 | `context-guardian` readiness | Surface the first pending readiness check without blocking active plan/HANDOFF work; auto vs manual handoff preference (first time) |
-| `/start-project` | Gate A (write plan?); Gate B (start first unit / run-plan / edit); vague goal clarify |
+| `/start-project` | Single composite Gate A question: disposition + write merged into one pick (with active plan: backlog+write / park+write / modify / cancel; without active plan: write / write+backlog / modify / cancel); Gate B (start first unit / run-plan / edit / Add to backlog / Stop here); vague goal clarify; fallback rule: one numbered list per message |
+| `/backlog-add` | Vague-goal clarify; write confirm (`Write plan to backlog` / `Modify proposal first` / `Cancel`); never park/activate/Gate B |
+| `/backlog-edit` | Confirm before plan-file mutate (`Edit [plan-file]` / `Cancel`) |
+| `/backlog-delete` | Confirm before Backlog remove + archive move (`Delete [plan-file] from backlog` / `Cancel`) |
+| `/backlog-cancel` | Confirm soft cancel (`Cancel [plan-file] on backlog` / `Keep on backlog`) |
 | `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume |
 | `/git-prod` | Explicit confirm before merge/push to `main` |
-| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. Plan-exhausted external review Ask when not enabled and `offerOnExhausted !== false` (`Run review now` / `Always enable automatic` / `Not now`); chat handlers use `--force --paste-only` (visible paste), never silent headless `--force`; must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
-| `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop) |
+| `/hotfix` | Confirm before write+run (`Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel`); lock ambiguous glyphs/tokens before run; risk pause same as `/run-plan` while ticking; never `/git-prod` |
+| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. Audits pre-flight per `externalPlanReview.preflight`. Plan-exhausted audits arm when enabled (`mode: autonomous` → `--force --autonomous --wait-monitor`; `paste` → paste-only); else `offerOnExhausted` Ask (`Run review now` / `Always enable automatic` / `Not now`); AwaitShell until exit `0|3|4` (fresh monitor; not spawn-only); exit `0` → `/plan-review-triage` Ask (not Final HANDOFF "after monitor lands"); chat never silent headless `--force`; must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
+| `/run-plan-all` | Confirm queue Ask (6-way) before execute. Audits pre-flight per config. Mid-queue: when `midBatchAudits` one arm+wait per plan (or one `--batch` + wait_all); no N-Terminal fan-out without wait; no mid-queue triage Ask. Queue-end: audits arm / optional Ask, wait then `/plan-review-triage` Ask with explicit path list, then `/git-prod` suggestion as separate HITL. Malformed Task summary Ask before advancing cursor. Risk gates stay inside each plan Task. |
+| `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop); every outcome persists a durable triage heading on the monitor; reached automatically after wait-monitor exit `0` (freshness) when chat armed the audit. **Write residuals:** propose from Still open → Ask `Write plan to backlog` / `Modify proposal first` / `Cancel` → plan file + HANDOFF Backlog (no Gate B, no activate, no Run-queue rewrite; `/start-project` optional escape hatch only). **Multi-path:** one Ask when remaining monitors share a uniform outcome class (batch Ack / batch residuals enqueue); sequential fallback when mixed; never silent-Ack (ADRs `2026-07-27_plan-review-triage-batch-uniform-hitl.md`, `2026-07-28_triage-write-residuals-via-backlog.md`) |
 | `/handoff` / guardian | Prefer Ask questions when offering auto vs manual handoff |
 | Other commands / docs | Any "stop and ask" / "Want to… (yes/no)" prose in L0 + getting-started / bootstrap |
 

@@ -41,3 +41,6 @@ Prefer **fast model** available in IDE for this subagent; task is structuring Ma
 
 - Don't invent incidents that didn't occur in session/repo.
 - Don't replace HANDOFF or Context Pack — memory is complementary.
+
+## Plan-monitor skim
+When consolidating a theme, also consider theme-matched `.cursor/memory/plan-monitor-*.md` and `plan-review-*` audits already listed under `_index.md` Audits (do not duplicate as errors/decisions).

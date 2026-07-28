@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 22.38 22.45" fill="none" aria-hidden="true">
+  <!-- Cursor Interface Skin: stroke helmet mark (readable at 16px chrome icon size). -->
+  <path d="M9.61,22.1c-4.45-1.22-7.48-4.71-8.17-9.63v-2.47c0-5.39,4.37-9.75,9.75-9.75h0c5.39,0,9.75,4.37,9.75,9.75,0,.62.04,1.85,0,2.47-.34,4.86-3.54,8.41-8.2,9.63-.49.13-2.63.13-3.13,0Z" stroke="#e4e4e4" stroke-width=".5" stroke-miterlimit="10" fill="none"/>
+  <path d="M18.42,9.54c-.38,3.74-1.81,8.07-7.22,8.07s-6.66-4.49-7.22-8.07v-.19c0-3.47,3.23-6.28,7.22-6.28s7.22,2.81,7.22,6.28v.19Z" stroke="#e4e4e4" stroke-width=".5" stroke-miterlimit="10" fill="none"/>
+  <path d="M13.59,6.08c1.18.76,1.99,1.85,2.2,3.16.07.43.07.86,0,1.28s-.19.84-.37,1.25" stroke="#e4e4e4" stroke-width=".5" stroke-linecap="round" fill="none"/>
+  <g>
+    <line x1=".25" y1="7.9" x2=".25" y2="13.68" stroke="#e4e4e4" stroke-width=".5" stroke-linecap="round"/>
+    <line x1="22.13" y1="7.9" x2="22.13" y2="13.68" stroke="#e4e4e4" stroke-width=".5" stroke-linecap="round"/>
+  </g>
+</svg>

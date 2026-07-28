@@ -11,7 +11,7 @@ Persist **resolved errors** and **tradeoff decisions** in `.cursor/memory/` so t
 
 ## Flow
 
-1. **CHECK** - before investigating a serious error or proposing a relevant architectural decision, search `.cursor/memory/errors/` and `.cursor/memory/decisions/` (glob, grep on titles, symptoms).
+1. **CHECK** - before investigating a serious error or proposing a relevant architectural decision, search `.cursor/memory/errors/` and `.cursor/memory/decisions/` (glob, grep on titles, symptoms). Also glob theme-matched `.cursor/memory/plan-monitor-*.md` and `plan-review-*.md` (and `_index.md` Audits) before deep re-investigation of a theme already reviewed externally (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
 2. **ACT** - if a matching entry exists, **reuse** the solution or align with the documented decision; otherwise, solve it normally.
 3. **WRITE** - after closing the case, if it meets the criteria below, create a new file and **update** `.cursor/memory/_index.md`.
 
@@ -21,6 +21,9 @@ Persist **resolved errors** and **tradeoff decisions** in `.cursor/memory/` so t
 |------|--------|-----------|
 | Error + cause + fix | `.cursor/memory/errors/` | `YYYY-MM-DD_descriptive-slug.md` |
 | Decision (ADR-lite) | `.cursor/memory/decisions/` | `YYYY-MM-DD_descriptive-slug.md` |
+| Multi-lens plan review audit | `.cursor/memory/` | `plan-review-<plan-slug>.md` |
+
+**Plan review audits:** Active plans under `.cursor/plans/` stay gitignored (public-tree guard). Findings-contract output must also land in a versioned audit under `.cursor/memory/` and be listed in `_index.md` **Audits** (see `decisions/2026-07-25_plan-review-findings-durable-home.md`). The plan body may hold a working copy during `/run-plan`; consolidate or close copies the final backlog into the audit.
 
 ## Write criteria
 

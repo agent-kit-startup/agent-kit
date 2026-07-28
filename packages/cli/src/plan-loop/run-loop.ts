@@ -8,9 +8,9 @@ import {
   isPlanExhaustedReason,
   shouldArmExternalPlanReview,
 } from "./external-review.js";
+import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
 import { formatSentinelLine, parseSentinelFromLogFile } from "./sentinel.js";
-import { createSkinBannerPrinter, loadCliRunPlanSkin } from "./skin-banners.js";
 
 export const TICK_PROMPT =
   '/run-plan - single tick from the headless runner (agent-kit run-plan). Read .cursor/HANDOFF.md and the active plan in .cursor/plans/. Mark the next to-do as in_progress in the frontmatter, execute ONLY that to-do, mark completed and update HANDOFF. If there is a commitable diff: run /git-staging without asking for confirmation. NEVER /git-prod. Do NOT re-arm an internal Loop skill - the external runner starts the next agent. End the response with exactly one line: "LOOP_TICK_RESULT: continue" if implementable to-dos remain, or "LOOP_TICK_RESULT: stop - <reason>" (plan exhausted, external blocker, or human decision needed).';
@@ -62,15 +62,15 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
   process.on("SIGINT", onSigInt);
 
   try {
-    // Fail soft: missing skin.json keeps plain console.log (no crash).
-    const skin = await loadCliRunPlanSkin(opts.root);
-    const banners = createSkinBannerPrinter(skin);
+    // Fail soft: missing persona.json keeps plain console.log (no crash).
+    const persona = await loadCliRunPlanPersona(opts.root);
+    const banners = createPersonaBannerPrinter(persona);
 
     console.log(`Active plan: ${path.basename(planPath)}`);
     console.log(`Pending to-dos: ${await pending()} | max ticks: ${opts.maxTicks}`);
     console.log(`Backend: ${opts.backend.id}`);
-    if (skin) {
-      console.log(`CLI skin: ${skin.displayName ?? skin.id}`);
+    if (persona) {
+      console.log(`CLI persona: ${persona.displayName ?? persona.id}`);
     }
 
     if (opts.dryRun) {
