@@ -56,8 +56,8 @@ Use prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, `style:`
 
 ## When the user says
 
-- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): validation, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF.
-- **`git prod`** - Routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git prod" section): validation, close the release in the CHANGELOG, summary, **explicit confirmation**, merge to main, push; then HANDOFF (+ public sync in this monorepo if applicable).
+- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): validation, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF. Warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only (never broad `git add` of `.cursor/memory/` WIP).
+- **`git prod`** - Routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git prod" section): validation, close the release in the CHANGELOG, summary, **explicit confirmation**, merge to main, push; then HANDOFF (+ public sync in this monorepo if applicable). Advisory mention of Blocking untriaged monitors matching the delta is allowed; never steal the confirmation Ask.
 
 ## Quick troubleshooting
 

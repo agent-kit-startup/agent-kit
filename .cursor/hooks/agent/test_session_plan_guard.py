@@ -23,6 +23,8 @@ parse_unprocessed_dogfood_items = guard.parse_unprocessed_dogfood_items
 dogfood_inbox_section = guard.dogfood_inbox_section
 DOGFOOD_INBOX_HINT = guard.DOGFOOD_INBOX_HINT
 readiness_section = guard.readiness_section
+_load_update_check_prefs = guard._load_update_check_prefs
+update_check_section = guard.update_check_section
 
 
 class ParseUnprocessedDogfoodItemsTests(unittest.TestCase):
@@ -239,6 +241,41 @@ class ReadinessSectionTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertIsNone(readiness_section(root))
+
+
+class UpdateCheckPrefsTests(unittest.TestCase):
+    def test_missing_config_is_opt_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(_load_update_check_prefs(Path(tmp)))
+
+    def test_enabled_false_is_opt_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "config.json").write_text(
+                '{"updateCheck": {"enabled": false}}\n',
+                encoding="utf-8",
+            )
+            self.assertIsNone(_load_update_check_prefs(root))
+
+    def test_enabled_true_returns_prefs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / ".cursor" / "context"
+            context.mkdir(parents=True)
+            (context / "config.json").write_text(
+                '{"updateCheck": {"enabled": true, "intervalDays": 3}}\n',
+                encoding="utf-8",
+            )
+            prefs = _load_update_check_prefs(root)
+            self.assertIsNotNone(prefs)
+            assert prefs is not None
+            self.assertTrue(prefs.get("enabled"))
+
+    def test_section_skips_when_opt_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(update_check_section(Path(tmp)))
 
 
 if __name__ == "__main__":

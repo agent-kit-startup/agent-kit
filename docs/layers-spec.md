@@ -113,8 +113,13 @@ The minimum structural set every install ships with:
 |----------|------|
 | `onboard.md` | First-session welcome and setup |
 | `start-project.md` | Plan bootstrap |
+| `backlog-add.md` | Enqueue plan to HANDOFF Backlog (no Gate B / no activate) |
+| `backlog-edit.md` | Edit backlog plan markdown after Ask confirm |
+| `backlog-delete.md` | Remove from Backlog + move to `.cursor/plans/archive/` |
+| `backlog-cancel.md` | Soft-cancel open to-dos; keep file under `.cursor/plans/` |
 | `continue-plan.md` | Resume from HANDOFF (manual mode: one phase per chat) |
 | `run-plan.md` | Continuous mode; auto strategy (orchestrated workers / in-session loop / headless); staging per tick |
+| `run-plan-all.md` | `/run-plan-all` multi-plan queue: pure orchestrator dispatches one Task subagent per plan (each runs the `/run-plan` tick contract); never implements in-window |
 | `run-plan-loop.md` / `run-plan-orchestrated.md` | Deprecated aliases of `run-plan.md` (forced strategy) |
 | `handoff.md` | Persist state |
 | `summary.md` / `context-status.md` | Orientation |
@@ -129,7 +134,8 @@ Optional external plan review ships with L0 (commands above, templates below, la
 
 | Artifact | Role |
 |----------|------|
-| `.cursor/scripts/plan-external-review.sh` | Canonical launcher (`--paste-only` chat; `--force` / default headless for CI); thin wrapper may exist at `scripts/` |
+| `.cursor/scripts/plan-external-review.sh` | Canonical launcher (chat: `--autonomous` background PTY or `--paste-only`; CI: `--print` / `--force`); thin wrapper may exist at `scripts/` |
+| `.cursor/scripts/run-plan-all-consolidate.sh` | Safe `/run-plan-all` consolidation apply (dry-run default; `--apply --approved`; drop/archive, queue rewrite, merge checklist); thin wrapper may exist at `scripts/` |
 
 ### Native Cursor hooks (agent runtime)
 
@@ -159,7 +165,7 @@ Requires `python3` on PATH (standard on macOS/Linux agent hosts). Distinct from 
 | `.cursor/context/templates/plan-external-review-prompt.md` | Prompt passed to Claude Code for post-exhaustion review |
 | `.cursor/context/config.example.json` | Example keys including `externalPlanReview` (`enabled`, `offerOnExhausted`, …) |
 
-Shipped with L0 install (and public sync). Session `config.json`, `current/**`, and `backups/**` stay L3-protected; `update` does not overwrite that session state. Kit templates and `config.example.json` are **not** under the protected blanket (legacy manifests with `.cursor/context/**` are normalized on update).
+Shipped with L0 install (and public sync). Session `config.json`, `current/**`, and `backups/**` stay L3-protected; `update` does not overwrite that session state. Kit templates and `config.example.json` are **not** under the protected blanket (legacy manifests with `.cursor/context/**` are normalized on update). Mission Control may merge allowlisted prefs into session `config.json` via loopback `PUT`/`PATCH /api/config` (see decision `2026-07-26_mission-control-config-write-allowlist.md`); that path does not edit `.cursor/agent-kit.config.json`.
 
 ### Explicitly not L0
 

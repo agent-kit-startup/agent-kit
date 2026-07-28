@@ -104,15 +104,21 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | File | Class | Action |
 |------|-------|--------|
 | `start-project.md` | core | ✅ keep |
+| `backlog-add.md` | core | ✅ enqueue without activation |
+| `backlog-edit.md` | core | ✅ backlog mutate (Ask confirm) |
+| `backlog-delete.md` | core | ✅ backlog → archive/ |
+| `backlog-cancel.md` | core | ✅ soft cancel in place |
 | `continue-plan.md` | core | ✅ keep |
 | `run-plan-loop.md` | core | ✅ L0; no prod |
 | `run-plan-orchestrated.md` | core | ✅ L0; no prod |
+| `run-plan-all.md` | core | ✅ keep |
 | `handoff.md` | core | ✅ keep |
 | `summary.md` | core | ✅ keep |
 | `context-status.md` | core | ✅ keep (not L0 install list - project-local OK) |
 | `git-staging.md` | core | ✅ L0 |
 | `git-prod.md` | core | ✅ HITL confirmation |
 | `tips.md` | core | ✅ optional UX |
+| `update.md` | core | ✅ L0; consumer registry pull (Ask HITL; not public sync) |
 
 ---
 

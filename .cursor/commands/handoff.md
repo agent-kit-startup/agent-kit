@@ -19,14 +19,15 @@ Update the handoff document to preserve current state and allow continuation in 
    - Check whether a Context Pack exists in `.cursor/context/current/`
    - Check whether an active plan exists in `.cursor/plans/`
 
-2. **Update `.cursor/HANDOFF.md` with:**
-   - Plan name (file)
+2. **Update `.cursor/HANDOFF.md` with machine-field bullets** (Mission Control parses `- **Field:**` only; do not invent `## Backlog plans` / `## Parked plans` headings):
+   - `- **Plan:** \`file.plan.md\`` (or `none`)
    - Last updated (timestamp)
    - Phase completed
    - Completed to-dos (ids)
    - Next phase
    - Next to-dos (ids)
    - Clear instruction for the next agent (1-3 sentences)
+   - Keep `- **Backlog plans:**` / `- **Parked plans:**` / queue fields as bullets when present
 
 3. **Handoff preference (first time / when offering a choice):** if the user has no saved preference in `.cursor/context/config.json`, or you are offering automatic vs manual handoff, use the **Ask questions** tool (not typed yes/no).
    Options: `Automatic handoff` / `Manual handoff`

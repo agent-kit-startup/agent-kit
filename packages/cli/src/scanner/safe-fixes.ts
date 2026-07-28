@@ -176,9 +176,12 @@ function preferenceDefaults(onboarding: OnboardingState, onboarded: unknown): Js
       backend: "claude",
       autoRemediate: false,
       offerOnExhausted: true,
+      mode: "paste",
+      midBatchAudits: false,
+      preflight: "off",
     },
     autoHandoff: false,
-    workspaceSkin: {
+    agentPersona: {
       default: "autopilot",
       modes: {
         "continue-plan": "autopilot",

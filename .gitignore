@@ -8,6 +8,14 @@
 
 # Generated readiness snapshot and init/scan profile (local workspace state)
 .cursor/context/readiness.json
+# Local Field Report dismissals (attention IDs only; no transcript body)
+.cursor/context/field-report-dismissals.json
+# Local Current mission execution timing ledger (observation only)
+.cursor/context/mission-timing.json
+# Local Flight Log past-Gaps history (observation only)
+.cursor/context/flight-log.json
+# Local Field Report activity cadence ledger (tick/batch counters)
+.cursor/context/field-report-cadence.json
 .cursor/agent-kit.config.json
 
 # Active Context Packs (are local)
@@ -54,3 +62,7 @@ coverage/
 *.pfx
 *credentials*.json
 *service-account*.json
+
+# Python bytecode (hooks)
+__pycache__/
+*.pyc

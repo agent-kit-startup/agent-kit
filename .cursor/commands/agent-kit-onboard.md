@@ -6,7 +6,7 @@ Prepare and validate repository readiness before `/start-project`. This command 
 
 ## Hard Stops
 
-1. Do not ask about workspace skins, external plan review, or a first deliverable before essential readiness is complete.
+1. Do not ask about Agent Personas, external plan review, or a first deliverable before essential readiness is complete.
 2. Ask one concrete Ask questions question at a time, and only when scanner evidence cannot resolve intent.
 3. Do not initialize Git, create or publish branches, add or change remotes, install hooks, create CI or deployment configuration, change protection, or perform another external or destructive mutation without explicit Ask questions confirmation.
 4. A skipped or cancelled answer stops the proposed action.
@@ -14,11 +14,27 @@ Prepare and validate repository readiness before `/start-project`. This command 
 
 ## Start or Resume
 
-1. Run `agent-kit doctor --json` from the repository root. If `agent-kit` is unavailable on `PATH`, run `npx @dadado/agent-kit-cli doctor --json`.
-2. This refreshes `.cursor/context/readiness.json`. Read the returned report, `.cursor/context/readiness.json`, `.cursor/context/config.json`, and `.cursor/agent-kit.config.json` when present.
-3. Preserve an active plan or HANDOFF. Repository readiness guidance must not replace or restart active work.
-4. Derive unresolved essential checks from `pillars[].checks[]`: select checks where `essential: true` and `status` is not `ready`, preserve report order, then use that check's `actions` for the next step. Do not treat `pendingActions` as an essential-only queue.
-5. Resume the first unresolved essential check before considering any non-essential action. Do not restart completed checks or repeat confirmed facts.
+> **Delegation note:** The initial `agent-kit doctor --json` execution and readiness file reading below is performed by a **Task(explore) subagent** dispatched from this step. The parameters define the specification of what the worker scans. See below for the delegation pattern.
+
+1. **Fill the template** — set these parameters:
+   - **Repo:** `[absolute repo path]`
+   - **Command:** `/agent-kit-onboard`
+   - **Task description:** "Run `agent-kit doctor --json` (or `npx @dadado/agent-kit-cli doctor --json` as fallback), read the report output, `.cursor/context/readiness.json`, `.cursor/context/config.json`, and `.cursor/agent-kit.config.json`. Return a structured readiness report with: essential checks status, non-essential checks status, detected purpose/stack/git facts."
+   - **read_scope:** `[".cursor/context/readiness.json", ".cursor/context/config.json", ".cursor/agent-kit.config.json"]`
+   - **worker_contract:** "structured readiness report: list of essential checks and their status, non-essential checks and their status, detected facts about the repository"
+   - **max_ticks:** 2
+
+2. **Dispatch** a Task subagent with `subagent_type: explore`.
+
+3. **Read the worker summary** — the main window uses the readiness report for the next steps.
+
+4. Preserve an active plan or HANDOFF. Repository readiness guidance must not replace or restart active work.
+
+5. Derive unresolved essential checks from `pillars[].checks[]`: select checks where `essential: true` and `status` is not `ready`, preserve report order, then use that check's `actions` for the next step. Do not treat `pendingActions` as an essential-only queue.
+
+6. Resume the first unresolved essential check before considering any non-essential action. Do not restart completed checks or repeat confirmed facts.
+
+**Fallback:** If Task dispatch is unavailable, run the doctor scan and file reads inline (same as pre-delegation behavior: run `agent-kit doctor --json`, read the returned report, `.cursor/context/readiness.json`, `.cursor/context/config.json`, and `.cursor/agent-kit.config.json` when present).
 
 ## First Useful Message
 
@@ -32,6 +48,8 @@ The first useful message must contain these four items in this order:
 Do not append a second call to action, settings menu, command overview, or unrelated welcome.
 
 ## Progressive Resolution
+
+> **Delegation note:** The main window owns all HITL (Ask questions) and decision-making in this section. After each user decision/confirmation, the re-scan sub-step ("rerun `agent-kit doctor --json`") can be delegated to a Task(explore) subagent using the same pattern as the Start or Resume section above. The main window reads the worker summary and makes the next decision.
 
 Resolve the first pending essential check according to its evidence and recommendation:
 
@@ -56,6 +74,8 @@ When Ask questions is unavailable, say so once and present the same options as a
 
 ## Actions and Revalidation
 
+> **Delegation note:** The re-scan step below can use the same delegation pattern as the Start or Resume section. Delegate `agent-kit doctor --json` execution to a Task(explore) subagent; the main window reads the readiness report and applies decisions.
+
 - Run local, reversible, idempotent, merge-safe repairs with `agent-kit doctor --fix-safe --json`.
 - After any confirmed or manual action, rerun `agent-kit doctor --json` and re-read the refreshed snapshot.
 - Revalidate the affected check before advancing.
@@ -64,6 +84,8 @@ When Ask questions is unavailable, say so once and present the same options as a
 - A check with `status: "blocked"` cannot be deferred, regardless of whether it is essential.
 
 ## Completion
+
+> **Delegation note:** The final `agent-kit doctor --json` run (step 1 below) can use the same delegation pattern as the Start or Resume section.
 
 Completion requires every essential check to be ready. Every remaining non-essential check must be ready or have a valid explicit deferral with a reason and recovery action.
 
@@ -78,4 +100,6 @@ When complete:
    - `Next: /start-project` when the user wants to plan a deliverable.
    - `Next: finish setup` when no deliverable should start now.
 
-Workspace skins remain available through later personalization or settings. External review is offered only when a plan reaches exhaustion.
+After essentials are ready, Mission Control is **optional** and **not** an essential readiness check. Consumer L0 installs the `/dashboard` command text but not `dashboard/**`. If the operator wants the panel, point them to an agent-kit checkout that includes `dashboard/start.mjs` (loopback `http://127.0.0.1:3333`). Do not block `/start-project` on Mission Control. Do not ask about skins or external review before essentials (Hard Stop 1).
+
+Agent Personas remain available through later personalization or settings. External review is offered only when a plan reaches exhaustion.

@@ -62,10 +62,17 @@ The kit can update itself against the same source without ever touching your pla
 | Command | What it does |
 |---------|------|
 | `agent-kit add <id>` | Add a pack or skill |
-| `agent-kit update` | Refresh the installed rules/commands; skips your protected files |
+| `agent-kit update --check` | **Notify only:** compare installed version to the latest public release tag (no L0 writes) |
+| `agent-kit update` | Explicit apply: refresh installed rules/commands; skips protected files |
 | `agent-kit diff` | Show what's changed vs the latest |
 | `agent-kit status` | Version, installed packs, readiness summary |
 | `agent-kit doctor` | Refresh or repair repository readiness |
+
+**Check ≠ apply.** Opt-in session nudges use `updateCheck.enabled` in `.cursor/context/config.json` (default `false`). When enabled, `sessionStart` may advise that a newer public release exists; it never rewrites `.cursor/`. Applying still requires `/update` with Ask confirmation (or an explicit terminal `agent-kit update`). `updateApply.auto` defaults to `false` and is not a silent background path.
+
+Factory/dogfood installs (manifest registry URL `agent-kit-dev` or pre-prod refs such as `staging`) skip the public check with a warning so the factory is not treated as a consumer.
+
+This path is distinct from **public sync** (factory → public mirror) and from **remote-cache auto-refresh** (refreshing a cloned registry tree on resolve).
 
 ## Moving off an old nested copy
 

@@ -65,3 +65,6 @@ Choose based on user request or context:
 - Critical vulnerability found: request human review before merge
 - Change in authentication flows: validate with tech lead
 - Accidental credential exposure: block and report
+
+## Plan-monitor skim
+Before re-opening a security theme already reviewed externally: skim theme-matched `.cursor/memory/plan-monitor-*.md`. No new Ask gates; Field Report / `/plan-review-triage` stay attention/HITL SoT.

@@ -51,6 +51,22 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/start-project.md",
   },
   {
+    source: ".cursor/commands/backlog-add.md",
+    target: ".cursor/commands/backlog-add.md",
+  },
+  {
+    source: ".cursor/commands/backlog-edit.md",
+    target: ".cursor/commands/backlog-edit.md",
+  },
+  {
+    source: ".cursor/commands/backlog-delete.md",
+    target: ".cursor/commands/backlog-delete.md",
+  },
+  {
+    source: ".cursor/commands/backlog-cancel.md",
+    target: ".cursor/commands/backlog-cancel.md",
+  },
+  {
     source: ".cursor/commands/agent-kit-onboard.md",
     target: ".cursor/commands/agent-kit-onboard.md",
   },
@@ -61,6 +77,14 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/commands/run-plan.md",
     target: ".cursor/commands/run-plan.md",
+  },
+  {
+    source: ".cursor/commands/hotfix.md",
+    target: ".cursor/commands/hotfix.md",
+  },
+  {
+    source: ".cursor/commands/run-plan-all.md",
+    target: ".cursor/commands/run-plan-all.md",
   },
   // Deprecated aliases of /run-plan (kept so existing references keep working)
   {
@@ -89,6 +113,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/commands/plan-review-triage.md",
     target: ".cursor/commands/plan-review-triage.md",
+  },
+  {
+    source: ".cursor/commands/field-report-resolve.md",
+    target: ".cursor/commands/field-report-resolve.md",
   },
   // Context (templates + example config; private config.json is not L0)
   {
@@ -123,10 +151,18 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/context/config.example.json",
     target: ".cursor/context/config.example.json",
   },
-  // Scripts (canonical launcher; consumers never receive repo-root scripts/)
+  // Scripts (canonical launchers; consumers never receive repo-root scripts/)
   {
     source: ".cursor/scripts/plan-external-review.sh",
     target: ".cursor/scripts/plan-external-review.sh",
+  },
+  {
+    source: ".cursor/scripts/field-report-cadence-bump.sh",
+    target: ".cursor/scripts/field-report-cadence-bump.sh",
+  },
+  {
+    source: ".cursor/scripts/run-plan-all-consolidate.sh",
+    target: ".cursor/scripts/run-plan-all-consolidate.sh",
   },
   // Secrets gate (structural)
   {

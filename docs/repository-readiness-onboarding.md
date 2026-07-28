@@ -80,7 +80,7 @@ An acknowledgment alone is not completion.
 
 ### Stage 5: Optional Personalization
 
-Workspace skins belong in a later settings or personalization step. External plan review belongs at plan exhaustion, where its purpose is visible. Neither feature blocks repository readiness.
+Agent Personas belong in a later settings or personalization step. External plan review belongs at plan exhaustion, where its purpose is visible. Neither feature blocks repository readiness.
 
 ### Stage 6: Start a Deliverable
 

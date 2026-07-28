@@ -11,10 +11,26 @@
     "enabled": false,
     "backend": "claude",
     "autoRemediate": false,
-    "offerOnExhausted": true
+    "offerOnExhausted": true,
+    "mode": "autonomous",
+    "midBatchAudits": true,
+    "preflight": "warn"
   },
   "autoHandoff": false,
-  "workspaceSkin": {
+  "interTickCooldownMs": 0,
+  "fieldReportReviewCadence": {
+    "enabled": true,
+    "tickThreshold": 3
+  },
+  "updateCheck": {
+    "enabled": false,
+    "intervalDays": 7,
+    "lastCheckedAt": null
+  },
+  "updateApply": {
+    "auto": false
+  },
+  "agentPersona": {
     "default": "autopilot",
     "modes": {
       "continue-plan": "autopilot",

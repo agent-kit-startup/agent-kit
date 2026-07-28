@@ -9,13 +9,15 @@ import {
   MAX_GIT_PATH,
   allowlistConfig,
   applyCorsHeaders,
-  buildEditorFileUris,
   isAllowedOrigin,
+  isLoopbackAddress,
   isSafeRepoRelativePath,
-  joinRepoRoot,
+  mergeConfigAllowlist,
   parseGitStatusShort,
   resolveBindHost,
+  resolveContextConfigPath,
   resolveDashboardStatic,
+  validateConfigWriteBody,
 } from "../../../../dashboard/lib/guards.mjs";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
@@ -25,6 +27,7 @@ describe("allowlistConfig", () => {
     const raw = {
       onboarded: true,
       autoHandoff: false,
+      interTickCooldownMs: 250,
       secretToken: "must-not-leak",
       onboarding: {
         status: "complete",
@@ -34,8 +37,17 @@ describe("allowlistConfig", () => {
           { id: "hooks", ok: false, detail: "missing pre-commit" },
         ],
       },
-      externalPlanReview: { enabled: true, offerOnExhausted: false, model: "hidden" },
-      workspaceSkin: {
+      externalPlanReview: {
+        enabled: true,
+        offerOnExhausted: false,
+        autoRemediate: false,
+        backend: "claude",
+        mode: "autonomous",
+        midBatchAudits: true,
+        preflight: "warn",
+        model: "hidden",
+      },
+      agentPersona: {
         default: "night-shift",
         modes: { "run-plan": "night-shift", "continue-plan": "day-shift" },
       },
@@ -46,21 +58,169 @@ describe("allowlistConfig", () => {
     expect(summary).toEqual({
       onboarded: true,
       autoHandoff: false,
+      interTickCooldownMs: 250,
       onboarding: { status: "complete", contractVersion: 2 },
-      externalPlanReview: { enabled: true },
-      workspaceSkin: {
+      externalPlanReview: {
+        enabled: true,
+        backend: "claude",
+        autoRemediate: false,
+        offerOnExhausted: false,
+        mode: "autonomous",
+        midBatchAudits: true,
+        preflight: "warn",
+      },
+      agentPersona: {
         default: "night-shift",
         modes: { "run-plan": "night-shift", "continue-plan": "day-shift" },
       },
     });
     expect(summary).not.toHaveProperty("secretToken");
     expect(summary.onboarding).not.toHaveProperty("checks");
-    expect(summary.externalPlanReview).not.toHaveProperty("offerOnExhausted");
+    expect(summary.externalPlanReview).not.toHaveProperty("model");
+  });
+
+  it("maps legacy workspaceSkin into agentPersona summary", () => {
+    const summary = allowlistConfig({
+      workspaceSkin: {
+        default: "autopilot",
+        modes: { "cli-run-plan": "ghost-runner" },
+      },
+    });
+    expect(summary).toEqual({
+      agentPersona: {
+        default: "autopilot",
+        modes: { "cli-run-plan": "ghost-runner" },
+      },
+    });
+    expect(summary).not.toHaveProperty("workspaceSkin");
   });
 
   it("returns error for invalid config input", () => {
     expect(allowlistConfig(null)).toEqual({ error: "invalid" });
     expect(allowlistConfig([])).toEqual({ error: "invalid" });
+  });
+});
+
+describe("config write allowlist", () => {
+  it("accepts editable fields and rejects unknown keys", () => {
+    const ok = validateConfigWriteBody({
+      autoHandoff: true,
+      interTickCooldownMs: 0,
+      updateCheck: { enabled: true, intervalDays: 7 },
+      externalPlanReview: {
+        enabled: true,
+        backend: "claude",
+        autoRemediate: false,
+        offerOnExhausted: true,
+        mode: "autonomous",
+        midBatchAudits: true,
+        preflight: "warn",
+      },
+      agentPersona: {
+        default: "autopilot",
+        modes: { "run-plan": "night-shift" },
+      },
+    });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.patch.autoHandoff).toBe(true);
+      expect(ok.patch.updateCheck).toEqual({ enabled: true, intervalDays: 7 });
+      expect(ok.patch.agentPersona?.modes?.["run-plan"]).toBe("night-shift");
+    }
+
+    expect(validateConfigWriteBody({ secretToken: "x" }).ok).toBe(false);
+    expect(validateConfigWriteBody({ onboarded: true }).ok).toBe(false);
+    expect(validateConfigWriteBody({ agentPersona: { default: "nope" } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ updateApply: { auto: true } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ updateCheck: { enabled: true, lastCheckedAt: "x" } }).ok).toBe(
+      false,
+    );
+    expect(validateConfigWriteBody({}).ok).toBe(false);
+  });
+
+  it("accepts externalPlanReview audits keys and rejects invalid enums/types", () => {
+    const ok = validateConfigWriteBody({
+      externalPlanReview: {
+        mode: "paste",
+        midBatchAudits: false,
+        preflight: "block",
+      },
+    });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.patch.externalPlanReview).toEqual({
+        mode: "paste",
+        midBatchAudits: false,
+        preflight: "block",
+      });
+    }
+
+    expect(validateConfigWriteBody({ externalPlanReview: { mode: "headless" } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ externalPlanReview: { preflight: "strict" } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ externalPlanReview: { midBatchAudits: "yes" } }).ok).toBe(
+      false,
+    );
+    expect(validateConfigWriteBody({ externalPlanReview: { mode: true } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ externalPlanReview: { unknownAuditsKey: true } }).ok).toBe(
+      false,
+    );
+  });
+
+  it("merges without wiping onboarding nests", () => {
+    const merged = mergeConfigAllowlist(
+      {
+        onboarded: true,
+        autoHandoff: false,
+        onboarding: { status: "completed", checks: { "git.repository": { status: "ready" } } },
+        externalPlanReview: {
+          enabled: false,
+          backend: "claude",
+          offerOnExhausted: true,
+          mode: "paste",
+        },
+        agentPersona: { default: "autopilot", modes: { "continue-plan": "autopilot" } },
+        customKeep: { nested: true },
+      },
+      {
+        autoHandoff: true,
+        externalPlanReview: {
+          enabled: true,
+          mode: "autonomous",
+          midBatchAudits: true,
+          preflight: "warn",
+        },
+        agentPersona: { modes: { "run-plan": "night-shift" } },
+        updateCheck: { enabled: true, intervalDays: 14 },
+      },
+    );
+    expect(merged.autoHandoff).toBe(true);
+    expect(merged.onboarding.checks["git.repository"].status).toBe("ready");
+    expect(merged.externalPlanReview).toEqual({
+      enabled: true,
+      backend: "claude",
+      offerOnExhausted: true,
+      mode: "autonomous",
+      midBatchAudits: true,
+      preflight: "warn",
+    });
+    expect(merged.agentPersona).toEqual({
+      default: "autopilot",
+      modes: { "continue-plan": "autopilot", "run-plan": "night-shift" },
+    });
+    expect(merged.updateCheck).toEqual({ enabled: true, intervalDays: 14 });
+    expect(merged.customKeep).toEqual({ nested: true });
+  });
+
+  it("locks config path under repo and recognizes loopback addresses", () => {
+    const locked = resolveContextConfigPath(repoRoot, { existsSync, realpathSync });
+    expect(locked.ok).toBe(true);
+    if (locked.ok) {
+      expect(locked.path.replace(/\\/g, "/")).toMatch(/\.cursor\/context\/config\.json$/);
+    }
+    expect(isLoopbackAddress("127.0.0.1")).toBe(true);
+    expect(isLoopbackAddress("::1")).toBe(true);
+    expect(isLoopbackAddress("::ffff:127.0.0.1")).toBe(true);
+    expect(isLoopbackAddress("192.168.1.10")).toBe(false);
   });
 });
 
@@ -133,6 +293,67 @@ describe("resolveBindHost", () => {
 
   it("honors explicit HOST override", () => {
     expect(resolveBindHost("0.0.0.0")).toBe("0.0.0.0");
+  });
+});
+
+describe("broadcast auth gate", () => {
+  it("requires a strong token for non-loopback bind and allows loopback without token", async () => {
+    const {
+      isLoopbackBindHost,
+      isValidBroadcastToken,
+      resolveBroadcastAuth,
+      authorizeMissionControlRequest,
+      tokensMatch,
+      generateBroadcastToken,
+      extractRequestToken,
+    } = await import("../../../../dashboard/lib/guards.mjs");
+
+    expect(isLoopbackBindHost("127.0.0.1")).toBe(true);
+    expect(isLoopbackBindHost("0.0.0.0")).toBe(false);
+    expect(isValidBroadcastToken("")).toBe(false);
+    expect(isValidBroadcastToken("short")).toBe(false);
+    expect(isValidBroadcastToken("a".repeat(16))).toBe(true);
+
+    expect(resolveBroadcastAuth({}).ok).toBe(true);
+    expect(resolveBroadcastAuth({ HOST: "0.0.0.0" }).ok).toBe(false);
+    const ok = resolveBroadcastAuth({
+      HOST: "0.0.0.0",
+      MISSION_CONTROL_TOKEN: "a".repeat(16),
+    });
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.tokenRequired).toBe(true);
+      expect(ok.broadcast).toBe(true);
+    }
+
+    const token = generateBroadcastToken();
+    expect(tokensMatch(token, token)).toBe(true);
+    expect(tokensMatch(token, `${token}x`)).toBe(false);
+
+    const urlOk = new URL(`http://192.168.1.10:3333/?token=${encodeURIComponent(token)}`);
+    const allowed = authorizeMissionControlRequest({ headers: {} }, urlOk, {
+      tokenRequired: true,
+      expectedToken: token,
+    });
+    expect(allowed.ok).toBe(true);
+    expect(allowed.viaQuery).toBe(true);
+
+    const urlBad = new URL("http://192.168.1.10:3333/");
+    const denied = authorizeMissionControlRequest({ headers: {} }, urlBad, {
+      tokenRequired: true,
+      expectedToken: token,
+    });
+    expect(denied.ok).toBe(false);
+
+    const bearer = authorizeMissionControlRequest(
+      { headers: { authorization: `Bearer ${token}` } },
+      new URL("http://192.168.1.10:3333/api/data"),
+      { tokenRequired: true, expectedToken: token },
+    );
+    expect(bearer.ok).toBe(true);
+    expect(extractRequestToken({ headers: { authorization: `Bearer ${token}` } }, urlBad)).toBe(
+      token,
+    );
   });
 });
 
@@ -226,7 +447,7 @@ describe("resolveDashboardStatic", () => {
   });
 });
 
-describe("repo path + editor URI helpers", () => {
+describe("isSafeRepoRelativePath", () => {
   it("accepts safe relative paths and rejects traversal or absolute forms", () => {
     expect(isSafeRepoRelativePath(".cursor/plans/x.plan.md")).toBe(true);
     expect(isSafeRepoRelativePath(".cursor/HANDOFF.md")).toBe(true);
@@ -235,28 +456,5 @@ describe("repo path + editor URI helpers", () => {
     expect(isSafeRepoRelativePath("C:/Windows/system.ini")).toBe(false);
     expect(isSafeRepoRelativePath("https://example.com/x")).toBe(false);
     expect(isSafeRepoRelativePath("")).toBe(false);
-  });
-
-  it("joins repo root only for safe relative paths", () => {
-    expect(joinRepoRoot("/Users/me/repo", ".cursor/HANDOFF.md")).toBe(
-      "/Users/me/repo/.cursor/HANDOFF.md",
-    );
-    expect(joinRepoRoot("/Users/me/repo/", ".cursor/plans/a.plan.md")).toBe(
-      "/Users/me/repo/.cursor/plans/a.plan.md",
-    );
-    expect(joinRepoRoot("/Users/me/repo", "../secret")).toBeNull();
-    expect(joinRepoRoot("", ".cursor/HANDOFF.md")).toBeNull();
-  });
-
-  it("builds vscode and cursor file URIs", () => {
-    expect(buildEditorFileUris("/Users/me/repo/.cursor/HANDOFF.md")).toEqual({
-      vscode: "vscode://file/Users/me/repo/.cursor/HANDOFF.md",
-      cursor: "cursor://file/Users/me/repo/.cursor/HANDOFF.md",
-    });
-    expect(buildEditorFileUris("C:\\Users\\me\\file.md")).toEqual({
-      vscode: "vscode://file/C:/Users/me/file.md",
-      cursor: "cursor://file/C:/Users/me/file.md",
-    });
-    expect(buildEditorFileUris("")).toBeNull();
   });
 });

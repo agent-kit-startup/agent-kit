@@ -10,6 +10,8 @@
 
 ## Preference: CLI
 
+**Prerequisites:** Node.js 20+ for the CLI. Git is recommended for readiness and the staging→prod flow.
+
 If Node.js is available, in the **consumer project root**:
 
 ```bash
@@ -24,7 +26,7 @@ Optional L1 packs (separate command):
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`).
+After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree; the panel runs from an agent-kit checkout that includes `dashboard/` (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)).
 
 Contributors working from a kit monorepo checkout: use the local CLI examples in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (Working on the kit). Do not paste monorepo `pnpm --filter` commands into a consumer project.
 
@@ -79,9 +81,15 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/rules/hitl-ask-questions.mdc` | idem |
 | `.cursor/rules/git-secrets-safety.mdc` | `registry/rules/git-secrets-safety.mdc` |
 | `.cursor/commands/start-project.md` | idem |
+| `.cursor/commands/backlog-add.md` | idem |
+| `.cursor/commands/backlog-edit.md` | idem |
+| `.cursor/commands/backlog-delete.md` | idem |
+| `.cursor/commands/backlog-cancel.md` | idem |
 | `.cursor/commands/agent-kit-onboard.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |
 | `.cursor/commands/run-plan.md` | idem |
+| `.cursor/commands/hotfix.md` | idem |
+| `.cursor/commands/run-plan-all.md` | idem |
 | `.cursor/commands/run-plan-loop.md` | idem (deprecated alias) |
 | `.cursor/commands/run-plan-orchestrated.md` | idem (deprecated alias) |
 | `.cursor/commands/handoff.md` | idem |
@@ -91,6 +99,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/git-prod.md` | idem |
 | `.cursor/commands/plan-external-review.md` | idem |
 | `.cursor/commands/plan-review-triage.md` | idem |
+| `.cursor/commands/field-report-resolve.md` | idem |
 | `.cursor/context/templates/plan.md` | idem |
 | `.cursor/context/templates/context-pack.md` | idem |
 | `.cursor/context/templates/task-brief.md` | idem |
@@ -100,6 +109,8 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/context/templates/plan-external-review-prompt.md` | idem |
 | `.cursor/context/config.example.json` | idem |
 | `.cursor/scripts/plan-external-review.sh` | idem |
+| `.cursor/scripts/field-report-cadence-bump.sh` | idem |
+| `.cursor/scripts/run-plan-all-consolidate.sh` | idem |
 | `.cursor/hooks.json` | idem |
 | `.cursor/hooks/pre-commit/check-secrets.sh` | idem |
 | `.cursor/hooks/agent/session-plan-guard.py` | idem |

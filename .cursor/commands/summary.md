@@ -22,8 +22,10 @@ Give a quick summary of the current state for a user who lost track of progress.
    - **In progress:** current task/to-do
    - **Left to do:** next steps (max 3 items)
 
-3. **Ask for the next step:**
+3. **Ask for the next step** using **Ask questions** tool (fallback to chat if tool unavailable):
    > "Want to continue where we left off, or do something else?"
+   
+   Options: `Continue where we left off` / `Something else` / `Show more detail`
 
 ## Response format
 

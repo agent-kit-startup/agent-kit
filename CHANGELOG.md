@@ -8,6 +8,271 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+
+## [4.8.0] - 2026-07-28
+
+### Fixed
+
+- CLI lint: Biome format on `external-review.ts` headless args and non-null assertion in cadence batch test (unblocks tag CI `publish-npm` / `sync-public`)
+- Version parity: bump `.cursor/agent-kit.json` and `.cursor-plugin/plugin.json` to 4.8.0 (L0 inventory test)
+
+### Changed
+
+- Mission Control Current mission: operator-friendly Mode labels (`auto mode`, `run all (batch auto mode)`, `human-in-the-loop (manual)`; STOPPED cues preserved) and looping Mode meta icon while executing (display-only; HANDOFF Mode tokens unchanged)
+- Mission Control Flight Log: wipe `.cursor/context/flight-log.json` Earlier history on flight boundary (new plan / queue start / Plan none); keep within-flight cap 15; Gaps natural-voice guidance (handoff template + L0); softer idle/support/warning chrome (**Quota pause** / **Heads up**); ADR amend `2026-07-27_mc-flight-log-panel.md`
+- Mission Control Checklist: display order is role-priority (`executing` → `next_up` → `queued` → `completed_in_queue` → others), not approved-queue index; ADR amend `2026-07-26_cockpit-run-plan-all-queue-awareness.md`
+- Mission Control Crew Monitor: `MONITOR_FEED_CAP` single source of truth in `semantic-model.mjs`, exposed as `missionControl.monitorFeedCap` (dashboard.html no longer duplicates the literal)
+- CLI: NodeNext sibling type shim `dashboard/lib/semantic-model.d.mts` so `tsc --noEmit -p packages/cli` accepts the orchestrator test `.mjs` import
+- Plan audits launcher: remove dead `launch_visible_terminal()` alias (`launch_background_terminal` remains)
+- Plan audits autonomous arm: prefer inspectable background/headless PTY (tmux/screen, then macOS Terminal without `activate`) instead of OS Terminal focus; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` rollback; honesty ban on silent agent-shell `claude -p` unchanged (`2026-07-28_audits-headless-terminal-honesty.md`)
+- `/plan-review-triage` Write residuals plan: enqueue via `/backlog-add` contract in-session (write-confirm Ask → plan file + HANDOFF Backlog; no Gate B / clipboard `/start-project` happy path); batch uniform Write residuals may enqueue one combined plan (`2026-07-28_triage-write-residuals-via-backlog.md`)
+- Mission Control Flight Log: clipboard icon (replaces PTT radio); operator labels **Live** / **Earlier** (not Current/Past Gaps); operator Warnings lane (API/usage limit, orchestrator heads-up; no cadence/Review CTAs); ADR amend (`2026-07-27_mc-flight-log-panel.md`)
+- Mission Control Crew Monitor: denser `agent_step` feed for active-plan completed/running to-dos (kinds `run_plan` / `handoff` / `delivery` / `agent_step`; display cap 20); glossary amend (`2026-07-27_crew-monitor-vs-plan-monitor-glossary.md`)
+- README Cockpit + getting-started / external-plan-review: Flight Log Live/Earlier + Warnings; Crew Monitor denser step feed
+
+### Fixed
+
+- Mission Control: delete orphaned Field Report attention-stack render helpers + CSS from `dashboard.html` (Flight Log Gaps-only); retarget pinning tests; rewrite `/field-report-resolve` and getting-started so they no longer describe Resolve all / Review all MC UI
+
+- Mission Control **Flight Log** (ex-Field Report card): HANDOFF Gaps only as current (large) + past (smaller) clickable cards; gitignored `.cursor/context/flight-log.json` history ledger (cap 15); ADR `2026-07-27_mc-flight-log-panel.md`
+- Opt-in Mission Control LAN broadcast: `/dashboard-broadcast`, `agent-kit dashboard-broadcast`, `npm run dashboard:broadcast`; non-loopback bind requires `MISSION_CONTROL_TOKEN`; static/snapshot/SSE gated; config writes stay loopback-only (`2026-07-27_mission-control-opt-in-lan-broadcast.md`)
+- ADR: Mission Control opt-in personal LAN broadcast (`/dashboard-broadcast` + token gate); narrowly supersedes personal-local-only for trusted LAN only; `/dashboard` stays loopback-first (`2026-07-27_mission-control-opt-in-lan-broadcast.md`)
+- ADR: `/plan-review-triage` batch HITL when multi-path outcomes are uniform (one Ask; durable heading on every target; sequential fallback when mixed); Field Report **Review all** paste target unchanged (`2026-07-27_plan-review-triage-batch-uniform-hitl.md`)
+- Dogfood memory: wait-monitor false-ready on pre-existing `plan-monitor-*.md` (existence-only poll); freshness gate + mandatory chat `--wait-monitor` (`errors/2026-07-27_audits-wait-monitor-stale-preexisting.md`; ADR `2026-07-27_audits-wait-freshness-enforce.md`)
+- Plan audits launcher: `--wait-monitor` freshness (`mtime >= arm-epoch` or `<!-- audits-wait-fresh: created|updated -->`); dry-run prints arm-epoch and stale/missing; exit `3` on stale timeout
+- ADR: mandatory chat `--wait-monitor` with freshness gate and same-session triage Ask; ban Final HANDOFF "after monitor lands" as happy-path continue (`2026-07-27_audits-wait-freshness-enforce.md`)
+- Dogfood memory: cadence WARNING already-clear claim-check is a no-op close (empty ledger + dismissed window id = `subject_resolved`; cancel triage/product-fix when owed set empty) (`decisions/2026-07-27_cadence-warning-already-clear-claim-check.md`)
+- Dogfood memory: autonomous launch then manual `done` continuation dual-fence (`errors/2026-07-27_audits-autonomous-launch-manual-done-continuation.md`); docs Troubleshooting row for wait-then-triage
+- Plan audits launcher: optional `--wait-monitor` / `--wait-timeout` (default 900s) to poll for `plan-monitor-<slug>.md` after visible arm or standalone; exit `0` created/ok, `3` timeout, `4` soft-fail while waiting; dry-run prints wait path/timeout (ADR `2026-07-27_audits-post-spawn-monitor-watch-continue.md`)
+- ADR: post-spawn monitor watch then continue to `/plan-review-triage` Ask after visible autonomous audit arm (honesty until monitor file exists; triage and `/git-prod` HITL intact) (`2026-07-27_audits-post-spawn-monitor-watch-continue.md`)
+- `externalPlanReview` config keys for autonomous audits: `mode` (`paste` | `autonomous`), `midBatchAudits`, `preflight` (`off` | `warn` | `block`); Mission Control Config allowlist + UI; example + docs + guards tests
+- L0 audits pre-flight on `/continue-plan`, `/run-plan`, `/run-plan-all`, `/hotfix` (`preflight` off/warn/block); exhaustion and `/run-plan-all` mid-batch arming prefer visible autonomous launch when `mode: autonomous`
+- Dogfood memory: paste dual-fence, invisible agent-shell `claude -p`, and bare `/plan-review-triage` footguns (`errors/2026-07-27_audits-*`); prefer-autonomous decision note
+- Audits ADR: autonomous plan review contract (visible auto-launch, mid-batch + queue-end audits, audits pre-flight on plan-run commands; paste-only demoted to fallback) (`2026-07-27_audits-autonomous-plan-review-contract.md`)
+- Plan audits launcher: visible auto-launch (`--autonomous` / config `mode: "autonomous"`) via macOS Terminal.app or Linux emulator; `--paste-only` fallback; `--dry-run`; mid-batch `--batch` arms; soft-fail if `claude` missing; headless CLI always passes `--print`
+- Glossary ADR: Crew Monitor (Mission Control live-activity UI) vs `plan-monitor-*.md` / Field Report external-review evidence; file/DOM/CSS conventions unchanged (`2026-07-27_crew-monitor-vs-plan-monitor-glossary.md`)
+- `/hotfix`: L0 command for narrow urgent work (confirm → mini plan ≤4 to-dos → `/run-plan` tick contract); ADR `2026-07-27_hotfix-command-mini-plan.md`
+- Mission Control product posture ADR: personal local-only (loopback-first); remote/shared multi-user auth/CSRF rejected as product goal (`2026-07-27_mission-control-personal-local-only-posture.md`)
+
+### Changed
+
+- Mission Control: Field Report card/nav renamed **Flight Log**; Gaps move off Current mission into Flight Log; attention-stack Review all / Resolve all / cadence rows leave that panel (autonomous audits remain the review path) (`2026-07-27_mc-flight-log-panel.md`)
+- Mission Control Checklist: plan Actions **Start** → **Run (manual)** (`/continue-plan`) + **Run (auto)** (`/run-plan`); header **Add all** → **Run all** (still copies `/run-plan-all`); copy-only paste unchanged (`data-focus-key="checklist-add-all"` stable). ADR `2026-07-27_mc-checklist-run-manual-auto-labels.md`
+- L0 `/plan-review-triage` Step 6 + HITL table: multi-path uniform batch Ask (durable heading per file); mixed sequential fallback; external-review / **Review all** / queue-end copy prefer one paste + one Ask when uniform (does not reopen wait-freshness or cadence-clear owners)
+- L0 chat audits: always `--force --autonomous --wait-monitor` on autonomous arm; AwaitShell until exit `0|3|4`; mid-batch one arm+wait (or one `--batch` + wait_all); queue-end triage with explicit path list (`/run-plan`, `/run-plan-all`, `/plan-external-review`, HITL gate table; ADR `2026-07-27_audits-wait-freshness-enforce.md`)
+- L0 audits post-arm: after visible autonomous (or paste-then-running) audit arm, wait for `plan-monitor-<slug>.md` then continue into `/plan-review-triage` Ask (`/run-plan`, `/plan-external-review`, `/run-plan-all` queue-end); mid-batch waits for file only (no mid-queue triage Ask); never claim finished without the file; `/git-prod` stays separate (ADR `2026-07-27_audits-post-spawn-monitor-watch-continue.md`)
+- Mission Control Current Mission card (`#now-execution-panel`): Spotlight stack — Gaps alert above the stepper when present; Current step remains the sole full body; Previous/Next compact muted one-liners; meta + copy actions as a quiet footer (CSS/markup order only; ADR `2026-07-27_mc-current-mission-spotlight-stack.md`)
+- `/run-plan` Auto no-regression hygiene: never co-pack Task with staging AwaitShell / parallel heavies; first-tick Auto cooldown recommend (15000) when `interTickCooldownMs` is `0` without changing the global default; plan authoring splits docs-only vs product ticks for more inline-first (ADR `2026-07-27_auto-run-no-regression-invariants.md`)
+- Mission Control: Per-plan queue-role Checklist pills (NEXT UP / QUEUED / executing / queue done) use transparent backgrounds (color + mark cue only); lifecycle and attention pills stay solid fills
+- Mission Control: operator-facing Cockpit nav/card label is **Crew Monitor** (README Cockpit table + plugin-ux assertions); distinguishes live-activity UI from Field Report `plan-monitor-*.md` evidence (DOM `#hero-activity`, CSS `.monitor-row*`, icon kind `monitor` unchanged)
+- Docs honesty: consumer `npx` / `install.md` installs kit L0 only; Mission Control `dashboard/` runs from an agent-kit tree that ships `dashboard/start.mjs` (README, getting-started, install.md prerequisites Node 20+)
+- Getting started: short After install checklist (personal path); `/agent-kit-onboard` notes Mission Control as optional post-essentials (not a blocking readiness check)
+- Mission Control Monitor delivery subtype chip glyphs (BMP): feat✦ fix⚙ docs✎ chore⚒ pr⑂ ship✈ (colors unchanged; PR no longer shares plan_progress ⚑)
+- Mission Control Monitor: solid resting chips only (no inset kind ring) with distinct delivery subtypes by Conventional Commit / PR shape (`feat` / `fix` / `docs` / `chore` / `pr` via `refs.commitType`; cyan ✔ fallback); live-actions-only allowlist unchanged (`run_plan` / `handoff` / `delivery`)
+
+### Fixed
+
+- Mission Control Field Report cadence WARNING: hairline separator on `.attention-actions-per-plan` so bulk CTAs and the per-plan Copy review list read as two visual tiers (copy-only behavior and button order unchanged)
+- Mission Control Field Report cadence: bulk CTAs (Copy batch external review + Copy resolve) sit apart from the per-plan Copy review list; long `--batch` shell targets copy via `data-copy-*` (not onclick JS literals) with paste-only toast/title honesty
+- Mission Control: primary scroll regions (`.content`, `.panel-scroll-body`, `.live-activity-feed`) use `--mc-scroll-gutter` so inner cards clear the 6px scrollbar thumb; panel scroll-offset preserve unchanged
+- `/run-plan` `inline_first`: clarify ignore-unless-lightweight (not force-inline); failed worker_type / product `read_scope` / findings checks ignore the flag and stay Task; no silent inline after Task API-limit abort (`context-guardian` + stop table); ADR `2026-07-27_run-plan-inline-first-qualification-gap.md`
+- `/plan-review-triage` bare (no paths): select **untriaged** monitors (git-fresh → HANDOFF-aligned → scan), never "newest mtime wins" alone; external-review launcher + prompt print explicit `/plan-review-triage` path lists after review so batch monitors are not missed behind bulk-touched older files
+- Port B `install.md`: include `.cursor/scripts/field-report-cadence-bump.sh` so the drag-install table matches `L0_ARTIFACTS` / registry (canonical-inventory test)
+- Mission Control Field Report: `listUnreviewedReviewTargets` records every External-report slug before the triage gate so terminal plans with an already-triaged monitor are not counted as owed (cadence ADR §4)
+- Mission Control header: inset Home / Refresh / More hitboxes (`--mc-header-control-size: 24px`) so hover fill no longer flushes the 32px header borders; tighter trailing pad (`--mc-header-pad-x-end`) so More sits closer to the IDE ellipsis; HANDOFF health treats present idle Plan (`none` / null) as ok (missing/unparsable HANDOFF still warns)
+
+### Added
+
+- Mission Control Current mission: mode-aware copy-only **Copy `/continue-plan`** plus a short new-chat hint when HANDOFF Mode is manual / continue-plan (idle Quiet cockpit still **Copy `/start-project`** only; continuous/queue keep plan path + staging CTAs). ADR `2026-07-27_mc-manual-mode-next-step-ctas.md`
+- Mission Control: harness regression for `#navMoreBtn` / `.nav-more-menu` overflow escape (`position: fixed` + `positionNavMore` / trigger-rect / resize); locks the 2026-07-25 clip fix so header chrome edits cannot silently regress (mirrors Checklist Actions overflow test)
+- Mission Control Checklist: **Copy path** in plan Actions menu (clipboard path / filePicker; Start/Edit/Cancel stay chat paste)
+- Mission Control: surface HANDOFF `- **Gaps:**` in the Current mission panel (`parseHandoffMarkdown` + `now.gaps`; hide when absent/`none`); closes deferred residual R-06
+- Field Report activity review cadence: warning after N `/run-plan` ticks (default 3) or `/run-plan-all` queue complete when unreviewed work remains; gitignored cadence ledger + `fieldReportReviewCadence` config; batch `--batch` paste-only launcher + per-plan CTAs; `/field-report-resolve` accepts `attention:cadence:<windowId>` (ADR `2026-07-27_field-report-activity-review-cadence.md`)
+
+### Changed
+
+- Docs: denser manual plan-mode operator playbook in `docs/getting-started.md` (Ask before unit, one phase per chat, suggest `/git-staging`, new chat → `/continue-plan`) plus an all-modes which-command-next chooser; cross-links from `autogit/plan-routine.md` §5 and README (no Gate A/B or tick-contract rewrite)
+- Plan template + `autogit/plan-routine.md`: authoring notes for `inline_first` (opt-in only; ignore-unless-lightweight; good/bad YAML; ADR/docs ticks use `docs-repo` + allowlisted `read_scope`) so false opt-in does not burn Task quota (ADR `2026-07-27_run-plan-inline-first-qualification-gap.md`)
+- Docs: Mission Control production-ship constraints (loopback-first, warn-only `HOST`, no remote hosting without a separate auth plan, resource vs Agent-quota boundary) in `docs/getting-started.md`; README Dashboard links to the section
+- Mission Control: painted-clip for open `#navMoreMenu` stays an explicit **manual dogfood gate** (DevTools rect / screenshot vs overflow ancestors); CI keeps the PR #403 string/regex lock only (ADR `2026-07-26_mission-control-plugin-ux-validation-depth` — no JSDOM/Playwright). Operator steps live on the `escapes nav More menu…` harness comment.
+- `/run-plan` tick-close, worker Rules, `autogit/gitupdate.md` staging Prompt, and command-worker template: reinforce add-by-name staging for `.cursor/memory/plan-monitor-*.md` (no broad `git add` of memory WIP)
+- Mission Control Field Report: Copy chat id `title`/`aria-label` uses a documented HTML mirror of `PROMPT_RESUME_GUIDANCE` (ESM cannot load in the inline script); tests lock the two strings together
+- Plan-monitor consumer awareness: Broad Intake (`/start-project`, `/backlog-add`), `/continue-plan`, memory-loop CHECK, `/git-staging` hygiene, and named agent prompts consult theme-matched `.cursor/memory/plan-monitor-*.md` (and `plan-review-*` audits); Field Report detection and external-review arming unchanged (ADR `2026-07-27_plan-monitor-consumer-awareness.md`)
+- Mission Control Field Report: header **Triage all** renamed **Review all**; bulk copy is gap-filtered (open residuals / Still open / standing findings only); `/plan-review-triage` multi-path skips already-triaged and no-open-residual paths; per-row Copy triage unchanged
+- Mission Control: live refresh preserves `.panel-scroll-body` scroll offsets (and re-opens Checklist Actions when the plan key still exists); still yields to in-flight `pendingAnchorScroll`
+- Mission Control Field Report: resume guidance for unanswered prompts is tooltip/aria-only on **Copy chat id** (no repeated `.attention-guidance` card body); toast unchanged; copy-only past-chat picker contract preserved
+- `/run-plan` + external plan review: enforce `externalPlanReview.autoRemediate` (default false) as a findings-only remediation gate (fix-agent Task vs residuals backlog plan); review workers must not auto-fix product code; launcher injects `autoRemediate` into the Claude prompt; `/run-plan-all` subagent template carries the rule (ADR `2026-07-27_review-workers-findings-only-autoremediate.md`)
+- `/field-report-resolve`: prompt claim-check returns `answered` and `subject_resolved` (path/plan evidence basenames only); dismiss when either is true. Dashboard `isPromptClearedByPlanLifecycle` stays exact-`*.plan.md`-refs-only (intentional divergence). ADRs `2026-07-25_mission-control-field-report-source-contract` / `…-dismissals` amended 2026-07-27.
+- `/run-plan-all`: external plan review Ask/paste runs **once at queue end** only; mid-queue advances without review pause (non-stop after confirm); Field Report owed covers skipped monitors; supersedes per-plan pause ADR (`2026-07-27_run-plan-all-external-review-queue-end.md`)
+- Mission Control: press/scale click animation (`:active` → `scale(0.98)`) applies only to interactive controls (`.health-item`, `.empty-state-btn`); removed from static `.card` panels and dead `.plan-card:active`; `prefers-reduced-motion` overrides stay in sync
+- API limit enforcement audit (Phase 4c): HANDOFF template and plan-handoff rule add `- **Gaps:**` machine field and single-plan `- **Mode:**` vocabulary; quota-stop Mode pattern (`— STOPPED: API/usage limit`); `/continue-plan` API-limit pre-flight mirrors `/run-plan`; Ask-questions numbered-list fallback cross-link after Auto→Grok
+
+### Added
+
+- Mission Control: primary Home return outside the More menu (clickable header brand + `#headerHomeBtn` beside refresh, section-title Home back on secondary views); overflow Home kept as secondary
+- API limit enforcement (audit Phase 2): `/run-plan` / `/run-plan-all` pre-flight refuse after an API/usage-limit HANDOFF stop until operator confirms recovery; Auto continuous runs recommend `interTickCooldownMs` **15000** (default stays `0`); Mission Control Config hint; ADR amend + decision `2026-07-27_api-limit-enforcement-levers.md`; getting-started model/quota tip; no Mission Control SSE/poll throttle as Agent quota fix
+- API limit enforcement audit (Phase 3 close-out): durable plan-review audit Phases 0–3; dogfood checklist verified (limit hit → clean stop → HANDOFF → operator recovery on 2026-07-27, including consecutive Task aborts)
+
+- `/run-plan-all` consolidation apply helper: `.cursor/scripts/run-plan-all-consolidate.sh` registered as L0 (install / `l0.ts` / registry; dry-run default, `--apply --approved`, drop/archive, HANDOFF queue rewrite, merge checklist; backlog CRUD must not rewrite in-flight queue); also aligns `run-plan-all.md` and backlog CRUD commands into `l0.ts` / Port B with the registry
+- CLI plan-loop harness: `run-plan-all-orchestrator` decision helpers + vitest guards (confirm Ask blocks dispatch, malformed summary does not advance cursor, HANDOFF queue field round-trip, in-window implement forbid for transcript 606a14a5)
+- `docs/getting-started.md`: `/run-plan-all` operator path (when to use, six-way confirm Ask table, resume mid-queue, named-model tip, Checklist Add all); cross-link from `autogit/plan-routine.md` References
+- Consumer autoupdate **check** (opt-in, notify-only): `agent-kit update --check [--json] [--respect-prefs] [--stamp]`; config prefs `updateCheck.enabled` / `intervalDays` (default off) and `updateApply.auto` (default `false`); sessionStart advisory via `session-plan-guard.py`; Mission Control Config toggles check prefs only; factory/dev registry skip; apply remains `/update` Ask HITL (never silent L0 write)
+- Mission Control Checklist: **Add all** header button (empty and populated) copies `/run-plan-all` for chat paste (`chatInput`); copy-only, no Run queue / HANDOFF writes
+- `/update` slash command: consumer-mode Agent Kit layer update from the public registry (version compare, diff, Ask confirm, protected paths respected; distinct from public sync)
+- Cursor theme: replace filled astronaut-helmet SVG with stroke helmet mark (matching `agent-kit-cursor-theme.svg`). Normalized viewBox for 16px chrome, `currentColor` stroke. Remove root staging file.
+- Cursor theme: redraw spaceIconSvg kinds (current-mission, monitor, field-report, checklist, more-sections) in the thin stroke language (0.5px, matching logo-cursor). Update stroke-width assertion in plugin-ux-validation test.
+- Cursor theme: extend spaceIconSvg with section icons for More menu (overview, plans, activity, agents, skills, commands, health, git, memory, terminals, processes, config). Replace decorative colored dots in #navMoreMenu with section icons. Keep live status dots (health, git, terminals, processes) intact.
+
+- Mission Control Field Report: restore unanswered agent-prompt rows (transcript scan → `buildAgentPromptItems`) with copy-only **Copy chat id** (`pastChatPicker`) and **Copy resolve** (`/field-report-resolve attention:prompt:<chatId>`); Resolve all includes visible prompt ids with report ids
+- Mission Control design tokens: `--mc-radius-pill` (999px) for slash-command-style status capsules
+- Backlog CRUD slash commands (already released via #358; not re-authored here): `/backlog-add`, `/backlog-edit`, `/backlog-delete`, `/backlog-cancel`
+- Mission Control Config tab: More-menu Config section edits allowlisted `.cursor/context/config.json` prefs (`autoHandoff`, `interTickCooldownMs`, `externalPlanReview.*`, `agentPersona`) via loopback `PUT`/`PATCH /api/config` (merge-safe; ADR `2026-07-26_mission-control-config-write-allowlist.md`)
+- Agent Personas: chat/CLI character packs under `registry/personas/` (`persona.json`, schema `persona-pack.json`) with config key `agentPersona`; bounded compatibility reads for legacy `workspaceSkin`
+- Mission Control Cursor Interface Skin: compact astronaut-helmet mark (`dashboard/logo-cursor.svg`) for header and favicon when `data-dashboard-skin="cursor"`; Legacy keeps `dashboard/logo.svg`
+- Mission Control Current mission execution timers: discreet total and per-stage (to-do) elapsed in `now-meta`, gitignored local observation ledger (`.cursor/context/mission-timing.json`), freeze on completed, omit on idle; live text tick while executing (ADR `2026-07-26_mission-control-execution-timers.md`)
+- Cursor Auto API hit-limit remediation: ADR-lite with symptom matrix (7 rows), hard-stop decision tree, and operator playbook (Phase 0-1)
+- `/run-plan` and `/run-plan-all` stop tables: API / usage hit limit stop condition, revert to-do to `pending`, HANDOFF with stop reason, recommended model switch (Phase 1)
+- Context-guardian: quota-blocked session section — hard stop with HANDOFF, not "keep coding"; operator message to switch off Auto or wait for quota reset (Phase 1)
+- Optional inter-tick cooldown (`interTickCooldownMs`) in `.cursor/context/config.json` for long `/run-plan` Loop and `/run-plan-all` queues (Phase 2)
+- Model guidance for long runs: prefer named model (Claude Opus, Sonnet 4.6, Composer 2.5 Fast) over Auto; parallel heavy Tasks discouraged (Phase 2)
+- Field Report owed unreviewed plans: `buildOwedReviewItems` detects terminal-lifecycle plans (completed/parked/archived) with no matching `plan-monitor-<slug>.md`; emits `owed` items (capped at 8) with copy-only external review command (`pasteDestination: terminal`); dismissable via ID-only dismissals store; source-contract ADR amended
+- Field Report dashboard renders boxed Unreviewed plans group with plan name + copy external review command (`pasteDestination: terminal`); empty states distinguish "no monitors", "no unreviewed plans", and "both clear"; existing Blocking/Debt monitor rows unchanged
+- Mission Control cockpit understands the `/run-plan-all` queue: `parseHandoffMarkdown` parses `Run queue`, `Queue cursor`, `Queue status`, and `Queue outcomes` (false-negative policy on backtick noise); the semantic model exposes `missionControl.runQueue`, `now.nextUpPlan`, and per-plan `queueRole` / `queueIndex`; a completed Current mission names the next-up plan on the Next row instead of `None: mission complete` when the queue has more work; Checklist sorts by approved queue order with additive Next up / Queued / Executing role pills (lifecycle pills and executing-only shimmer unchanged; copy-only, no dashboard queue writes; ADR `2026-07-26_cockpit-run-plan-all-queue-awareness.md`)
+- Checklist plan lifecycle: HANDOFF Backlog parser accepts both `Backlog plans` (canonical) and `Backlog` (short alias) field labels
+- Checklist plan lifecycle: never-started plans (`completed: 0, inProgress: 0`) classify as Backlog instead of Incomplete — fixes `0 of N` false positives for Gate-A queued plans
+- `/start-project` Gate A: single composite question merges active-plan disposition and write confirmation — four options with active plan (backlog+write, park+write, modify, cancel), four without (write, write+backlog, modify, cancel); Gate B always offers `Add to backlog` (Mode STOPPED) distinct from `Stop here` (plan stays active); fallback rule: one numbered list per message
+- `/update` registered as L0 in `registry/registry.json` and listed in `docs/coherence-inventory.md` so consumer installs receive the slash command
+- Mission Control More menu: Home item at the top returns to Overview (`showSection('overview')`) while keeping keyboard roving and Skins radios
+
+### Fixed
+
+- Mission Control Cursor skin: `dashboard/logo-cursor.svg` header/favicon strokes use hardcoded `#e4e4e4` (Cursor `--text-primary`) instead of `currentColor`, which resolves to black under the `<img>` tag (same class of bug as the Legacy logo fill fix)
+
+### Changed
+
+- `/run-plan` inline-first: lightweight docs-only to-dos (CHANGELOG, memory index, L0 markdown close-out) implement in-session during orchestrated runs when `read_scope` is docs-only and there is no findings contract; `inline_first` / `force_task` plan frontmatter; ADR `2026-07-27_run-plan-inline-first-lightweight-todos.md` (quota mitigation after delegation enforcement)
+
+- `/run-plan-all` external plan review: **queue-end only** (non-stop mid-queue); mid-queue skips stay Field Report owed; ADR `2026-07-27_run-plan-all-external-review-queue-end.md` (supersedes per-plan pause)
+- `/run-plan-all` PO synthesis: mandatory Task(`explore`) via `command-worker-prompt.md` (main window reviews report + confirm Ask only; inline fallback if Task unavailable); `autogit/plan-routine.md` delegation table row
+- Mission Control Checklist pills (lifecycle + queue-role) and Current Mission badge: character mark + UPPERCASE label (CSS `text-transform: uppercase`; JS maps stay Title Case) replaces colored `.dot`; queue-role pill joins the stroke-free solid-fill family (`border: none`, `--mc-radius-pill`, solid `*-bg` surface); next-up mark uses inline SVG monochrome fallback (⏩︎ never renders as colorful emoji); non-color cue tests updated for the frozen mark table; ADRs `2026-07-27_mc-queue-role-pill-stroke-free-marks`, `2026-07-27_mc-pills-uppercase-labels`
+
+- Mission Control Field Report section icon: redraw `paths['field-report']` in `spaceIconSvg()` as a handheld radio with antenna, speaker grille, and side PTT paddle so the glyph reads as radio PTT (not a person) in Cockpit nav, card title, and empty-state hero; remains distinct from More-menu `agents`
+- Mission Control live refresh: watch `~/.cursor/projects/<slug>/agent-transcripts/` so Field Report prompt Action rows refresh after transcript flush within `WATCH_DEBOUNCE_MS` (400ms), not only on the 15s periodic; periodic remains fallback when watch is unavailable (source-contract ADR amended)
+- Mission Control Monitor section icon: redraw `paths.monitor` in `spaceIconSvg()` as concentric rings + sweep wedge so the glyph reads as radar (not a gauge) in Cockpit nav, card title, and empty-state hero
+- Mission Control Legacy skin: `dashboard/logo.svg` outline fills use `#e2e8f0` (header text color) instead of near-black `#3C3C3B` so the astronaut mark stays visible on the dark header; highlight layers and blue-cyan gradient unchanged. Cursor skin still uses `logo-cursor.svg`
+- Mission Control Checklist: recent-plan cards replace whole-card **Copy path** with an **Actions** dropdown that copies chat commands (`/continue-plan`, `/backlog-edit`, `/archive-plan`) for Start / Edit / Cancel; copy-only to `chatInput`; Plans accordion and Field Report path copy unchanged
+- Mission Control More menu: inject the 12 section icons via `injectCockpitNavIcons()` + `spaceIconSvg()` and remove duplicated inline SVG markup from `#navMoreMenu`; live status dots and item aria/onclick attributes unchanged; a11y name-loop covers all 12 section kinds
+- Mission Control Field Report: drop portfolio plan-state NOTE kinds (`backlog` / `parked` / `incomplete`) from the attention stack; Checklist plan cards remain the portfolio surface; empty-state copy covers readiness, unanswered prompts, and External reviews only (source + dismissals ADRs amended; supersedes `field-report-attention-not-portfolio`)
+- `/field-report-resolve` and `FIELD_REPORT_ATTENTION_ID_RE` accept `attention:prompt:<chatId>` beside `attention:report:<slug>`
+- Mission Control chrome icons: header refresh joins the 16px / stroke-1.5 workbench shell with `spaceIconSvg` and `nowMetaIconSvg`; empty-state heroes scale via `--mc-chrome-icon-size` multiples (no hard-coded 32/28px)
+- Mission Control lifecycle, attention-severity, and queue-role pills: use `--mc-radius-pill` capsule geometry (Cursor slash-command style) instead of `--mc-radius-sm` chrome squares; idle monitor chips remain at 999px
+- Mission Control Cursor Interface Skin: `dashboard/logo-cursor.svg` swaps stroke line-art for the filled astronaut helmet path (header + favicon at 16px); Legacy `logo.svg` unchanged
+- Mission Control dashboard: remove dead `.attention-group-label` CSS (and two dependent selectors) left after Checklist notes UI removal; no markup emitters remained
+- Mission Control empty states: Cockpit section empties (Quiet cockpit, Listening, All clear, Empty board / Empty hangar) show the matching `spaceIconSvg` fineline tab icon centered above the headline via optional `iconKind` on `renderEmptyStateCta` (decorative; secondary panels unchanged)
+- Mission Control Cursor Interface Skin: replace robot-outline mark with compact astronaut-helmet line art (`dashboard/logo-cursor.svg`, path unchanged); global chrome density via `--mc-header-height: 32px`, header logo on `--mc-chrome-icon-size`, and shared `--mc-status-dot-size: 7px` for `.dot` / `#statusDot` (Legacy `logo.svg` unchanged)
+- Monitor return-brief hierarchy: icon-only status chips (kind gloss on hover/aria), colors aligned with Current mission / lifecycle solid tokens (`run_plan` uses executing green), row order chip → structured action line → trailing time, and producer labels as `{actor} · action · …` for tick/handoff/plan/delivery
+- Mission Control serve: raise `dashboard-data.mjs` `execFile` timeout from 15s to 60s (override via `AGENT_KIT_DASHBOARD_DATA_TIMEOUT_MS`) so cold snapshots on large dogfood repos no longer flip the badge to Degraded with empty cockpit panels; timeout errors now name the limit explicitly
+- Mission Control empty states: shared `renderEmptyStateCta` (headline + support + optional copy-only CTA); cockpit and secondary panels use kit-voice copy; Field Report empty reflects the unified attention inbox (plan-state + readiness + External reviews); CTAs name paste destinations only (no Open)
+- Rename chat/CLI character packs from workspace skins to Agent Personas (`agentPersona`, `registry/personas/`, docs `personas-contract.md` / `creating-personas.md`); Mission Control Interface Skins (`legacy` / `cursor`) unchanged
+- Field Report unifies plan-state and readiness cards with External reviews in one attention stack (kind + severity pills; severity-first sort); Checklist drops the "Plan states and readiness needing a decision" notes group and keeps plan cards only
+- Monitor hero identity: prefer kit agent, else `orchestrator` for delivery rows without an agent, else plan name from `refs.plan`, else System; missing timestamps leave the time column empty (no kind-tag duplicate)
+- Monitor classification chips show icon and kind tag at rest (no hover/focus width or opacity expand)
+- Monitor feed layout polish: calmer row spacing, clearer chip icons/tags, and stronger identity vs label hierarchy (resting-chip and single-roll contracts unchanged)
+- Monitor delivery labels include a brief ship subject (squash title or first absorbed commit) plus PR # and sha, instead of count-only Shipped/Merged strings
+- `/plan-review-triage` Write residuals plan copies a ready-to-paste `/start-project with this goal: …` prompt to the clipboard (pbcopy/xclip/clip)
+- Mission Control Checklist cards and Plans rows now show ratio progress bars; executing plans shimmer when motion is allowed, while other lifecycle states remain static
+- `/run-plan-all` is now a pure orchestrator: after queue confirmation it dispatches one Task subagent per plan (command, L0 mirrors, ADR) instead of implementing plan to-dos in the orchestrator window
+- Checklist plan lifecycle: `classifyPlan` fall-through checks `completed > 0 || inProgress > 0` before returning `incomplete`; `0 of 0` plans return `backlog` (implicit queue)
+- HANDOFF template now includes `Backlog plans` and `Parked plans` fields in Work Status section
+- Monitor hero feed flattened from agent-grouped headers-and-sub-rows to a single flat newest-first list with inline classification chips (icon + kind tag), identity from agent / orchestrator / plan / System (consecutive identical collapsed), and preserved copy-only keyboard affordance; dead stagger classes replaced with per-row `.monitor-row.stagger-fade`
+
+### Changed
+
+- Monitor hero refocused from git-tree display to agent-activity stream: rows group by agent identity with plan context (plans without a declared `agent:` group under `system`)
+
+### Removed
+
+- Mission Control semantic-model: removed stale-group helpers (`FIELD_REPORT_STALE_MS`, `isFieldReportItemStale`, `partitionFieldReportByStaleness`) — no remaining callers after Phase 1 flatten of blocking section; browser bulk-resolve mirror already dead
+- Mission Control Field Report tests: removed stale-group and browser-bulk mirror tests that expected the old nest chrome; kept all contract tests for `fieldReportResolveAction` and per-row CTAs (113 tests pass)
+
+### Added
+
+- Mission Control Field Report: header bulk CTAs — **Triage all** copies `/plan-review-triage` with every visible report path (blocking first, then debt); **Resolve all** copies `/field-report-resolve` with every visible attention id; both hidden when empty; new `fieldReportTriageAllAction()` helper in semantic model (202 tests pass)
+
+- Mission Control plugin UX validation: assert dashboard HTML never embeds `vscode://` or `cursor://` protocol URIs (locks the copy-only paste-destinations contract after residual A close)
+- Mission Control plugin UX validation: assert all six plan lifecycle keys stay distinguishable without color alone (unique labels, marks, pill text, and aria)
+- Mission Control: the semantic model emits durable inventory events (`agent`, `skill`, `command`, `memory` added/removed/changed) with stable ids and previous-baseline dedupe, feeding the upcoming unified Activity feed; the Monitor hero keeps its curated kind allowlist so inventory events never appear there
+- Mission Control: the Activity tab renders a unified newest-first feed merging the full semantic stream (including inventory events) with client diagnostic events, deduped and capped, with type accents, per-source labels, and preserved copy-only targets; per-refresh "Data refreshed" rows are replaced by a summarized last-refreshed heartbeat
+- Mission Control: the Activity feed gains per-source filter chips (All / Plans / Git / Agents / Skills / Commands / Memory / Terminals / Processes) as a keyboard-navigable radiogroup with focus rings and reduced-motion support, filter-aware empty states, and a `navActivityBadge` that reflects the full unified feed count
+- `/archive-plan <plan-file>`: copy-only command that removes a plan from the HANDOFF parked list and moves it into `.cursor/plans/archive/`, confirmed with Ask questions; Mission Control may only copy the command, never mutate in-panel
+- `/field-report-resolve <attention-id>`: copy-only command that appends a Field Report attention id to local gitignored `.cursor/context/field-report-dismissals.json` (IDs only, no transcript body); Mission Control Field Report rows expose **Copy resolve command**
+- `/field-report-resolve`: per-id claim-check contract — agent must locate, verify, and decide dismiss eligibility for each attention id before appending to the dismissals store; skip when the claim is still open (HITL or triage still required)
+- Mission Control: Skins group in the More menu with Legacy (current palette, default) and Cursor (Cursor-like base chrome with Agent Kit semantic highlights); applied without reload, persisted under the `agent-kit:dashboard-skin` browser preference, keyboard accessible with `menuitemradio` selected state
+
+### Changed
+
+- Mission Control Field Report: each External review card shows a short, HTML-escaped findings summary under the label (numbered Residual items, else the Standing finding, else the Full-review Outcome, else `No structured findings extracted`), capped at ~240 characters so a human can triage from the card without opening the monitor file; triage, dismissal, and lifecycle classification are unchanged (ADR amendment `2026-07-25_mission-control-field-report-source-contract.md`)
+- Mission Control Field Report: untriaged External reviews stay visible after plan lifecycle demotion; blocking and debt items render in one flat list (blocking first, orange highlight on blockers; no Review debt / Older waits nests or bulk resolve chrome); surfaced cap raised to 20; triage headings and ID-only dismissals remain the only hard hides (ADR `2026-07-26_mission-control-field-report-review-debt-inbox.md`)
+- `/plan-review-triage`: supports multi-path sequential walk (`/plan-review-triage <path1> <path2> ...`) with per-monitor Ask questions gates, path skipping for nonexistent monitors, and stopping contract (Phase 3)
+- `/field-report-resolve`: bulk copy target wording updated from "Older waits group" to "Field Report header"; documents the Resolve all header button (Phase 3)
+- Mission Control Field Report Review debt ADR: render clause amended to reflect shipped flat list (no collapsible stale-group pattern for debt rows; Phase 3)
+- Mission Control plugin UX: record that validation stays string/regex against dashboard source (no JSDOM dependency) until a named behavioral regression class justifies richer interaction tests
+- Mission Control Cockpit: desktop widths show a 2x2 overview fold (Current mission, Monitor, Field Report, Checklist) without page scrolling, hide the Cockpit subheader, and scroll overflowing panel content internally; the More menu lives in the header at all widths (not only at ≥1024px)
+- Mission Control Current mission: the step progress bar shimmers on the current segment (gated by `prefers-reduced-motion: no-preference`, disabled under reduce); the executing status chip drops its glow/pulse and keeps green fill plus the ▶ mark as the live cue
+- Mission Control Field Report: section carries only untriaged External reviews (agent prompts and HANDOFF awaiting-user gates no longer appear there; Checklist unchanged)
+- Mission Control Field Report: each review row exposes Copy path and Copy triage command (`/plan-review-triage <path>`) for paste into a fresh chat; prompt/handoff chrome removed
+- `/field-report-resolve` accepts multiple `attention:report:<slug>` ids in one paste (per-row Copy resolve command; Field Report no longer ships nest-level bulk resolve chrome)
+- Mission Control: header Refresh control is a 32×32 icon-only button (inline SVG, `currentColor`); refreshing spins the icon (respects `prefers-reduced-motion`); no-data uses title/aria "Start server" instead of button text
+- `/start-project`: when HANDOFF already has an active plan, Ask questions for disposition before writing HANDOFF (`Add new plan to backlog` / `Park current plan and activate new` / `Cancel`); never park the active plan silently. Backlog path keeps the current plan active, lists the new plan under `Backlog plans`, and skips Gate B. Mirrored in `cursor-plan-handoff`, `hitl-ask-questions`, `session-plan-guard`, and `plan-routine`; ADR `2026-07-25_start-project-plan-disposition-gate.md`
+- `/plan-review-triage`: every outcome (Write residuals plan, Fix nits only, Ack and stop) must persist a durable `## Triage note` (or equivalent) on the monitor so Field Report clears untriaged rows; Ack and stop no longer relies on HANDOFF alone
+- Mission Control: Cockpit top-nav active chrome uses muted fill and transparent border (no blue stroke), aligned with Cursor Plan & Usage
+- Mission Control: Field Report attention rows and Checklist plan cards no longer render severity or lifecycle left bars; severity badges remain
+- Mission Control: Monitor Recent activity and Activity feed rows drop the colored left rail (CSS and inline); event type stays visible via icon and label, and the presentation test now fails if a left-bar accent is reintroduced
+- Mission Control: unanswered-chat rows identify the conversation (first-line snippet, chat id, quiet time, pending question) and pair the copied chat id with past-chat-picker resume guidance, staying copy-only
+- `/run-plan` orchestration: review to-dos with a findings `worker_contract` dispatch workers with write access so they author plan findings; orchestrator transcription is fallback only (secondhand label + HANDOFF gap). Cross-linked from `autogit/plan-routine.md`.
+- `/run-plan` staging-ready: workers must run applicable formatter/linter checks on touched files and report them under `Tests:` / `Validation:` before `Staging ready: yes`; orchestrator rejects yes without that evidence when formatted/linted files changed (pure markdown with no applicable linter may state none). Mirrored in `plan.md` template and `autogit/plan-routine.md`; cross-links biome format incidents in `.cursor/memory/errors/`.
+- Multi-lens plan review findings persist to `.cursor/memory/plan-review-<plan-slug>.md` (versioned audit) at consolidate or plan close; active plans remain gitignored per public-tree guard. Convention in `memory-loop` rule and ADR `2026-07-25_plan-review-findings-durable-home.md`; 24h review backfilled in `plan-review-24h-full-review-and-fix.md`.
+- `/summary` closes with an Ask questions gate for the next step (`Continue where we left off`, `Something else`, `Show more detail`); chat fallback when the tool is unavailable.
+
+### Fixed
+
+- Mission Control Checklist: Actions dropdown uses `position: fixed` + `getBoundingClientRect` (same pattern as nav More) so Start/Edit/Cancel are not clipped by `#recent-plans-panel` / `.panel-scroll-body` overflow; prefer open above, flip below when space above is tight
+- Mission Control HANDOFF parsing: accept plain (no-backtick) `- **Plan:** name.plan.md` and recover Backlog/Parked/Run queue lists written as `##` headings when the `- **Field:**` bullet is missing; session hard rule + format warning steer writers back to bullet fields (ADR `2026-07-26_handoff-machine-field-contract.md`)
+- Monitor delivery attribution: each delivery event resolves its plan from its own merge branch (exact plan-basename match after conventional-prefix strip); unresolvable branches carry no attribution instead of inheriting the active plan's name
+- Monitor coalescing: the merge is the anchor and absorbs the commits beneath it, so real squash and merge histories collapse into one attributed delivery row and feature commits are no longer dropped; squash-merge commits anchor their own delivery; the unimplemented `windowMs` time-window claim was removed from the producer docs
+- Monitor delivery rows: `refs.sha` restores the copy-only and keyboard contract (`role`, `tabindex`, `aria-label`, copy handler), `.monitor-sub-row` gains a token-based hover, and the stagger animation binds behind `prefers-reduced-motion`
+- Monitor/Activity stream: each merge renders once (raw merge and absorbed commit rows superseded by a delivery are dropped), delivery events are no longer starved by the activity cap (producer `limit`), and `plan_progress` events carry the plan's `agent`
+- Plan template and `autogit/plan-routine.md` document the plan-level `agent:` attribution field (kit agent id from `.cursor/agents/`, null fallback grouped as `system`, distinct from per-to-do `worker_type`)
+- Mission Control Field Report: clear agent-prompt rows when every exact `*.plan.md` reference in the pending question is completed or parked/exhausted; demote External-review rows for the same terminal reviewed-plan lifecycle without marking them triaged (unknown or missing plan refs stay visible)
+- Mission Control Field Report: lifecycle clear parses plan references from the untruncated pending question, so a live multi-plan wait whose active reference sits past the 200-character display cutoff is no longer cleared by a terminal reference before it
+- Mission Control Field Report: a plan record whose frontmatter parses zero to-dos resolves as unknown for attention clearing (not completed), so a parse failure cannot hide a live prompt or External-review row on false terminal evidence
+- Mission Control Field Report: the browser bulk resolve helper validates the attention-id allowlist before building the copied command, mirroring the semantic model so malformed snapshot ids cannot enter clipboard text
+- Mission Control: refresh control is borderless with transparent idle background (fill only on hover), uses a centered Feather-style SVG, and spins on `transform-origin: 50%` so the icon no longer wobbles off-axis
+- Mission Control: typography follows Cursor workbench defaults (`system-ui` sans, `13px` / weight `500` chrome labels, `16px` icons, `12px` descriptions, separate mono stack) instead of mixed sizes and a mono-in-UI font stack
+- Mission Control: extend Cursor chrome scale tokens to More-menu labels, count badges, refresh icon box, and discreet meta icons (regression-locked; no lifecycle pill restyle yet)
+- Mission Control: shared `--mc-*` structure tokens for radius, spacing, card/header padding, and meta type; Legacy/Cursor skins stay color/surface overrides on the same ladder
+- Mission Control: lifecycle and Field Report severity labels use solid semantic fills (no outline), sharing one pill rule on the Cursor chrome ladder; adds `--orange-bg` for incomplete/warning
+- Mission Control: polish pass removes dead refresh-flash CSS, aligns feed icons to the chrome icon token, and keeps focus-visible / reduced-motion contracts under live refresh
+- Mission Control: Current mission status badges join the solid chip family (filled semantic surface, no outline, chrome tokens); live pulse and its reduced-motion fallback glow without a perimeter ring, and state marks plus the idle pill radius carry the non-color cues
+- Mission Control: Checklist recent plan cards list up to 10 plans instead of 5
+- Mission Control HANDOFF parsing: Parked/Backlog plan sections are multi-line blocks; only `*.plan.md` refs count (branch names and monitor paths ignored); `Backlog plans` is a first-class lifecycle with badge/sort/Checklist notes, mirroring parked zero-open → completed
+- Port B `install.md` table includes `.cursor/commands/field-report-resolve.md` so the L0 inventory stays aligned with `packages/cli/src/lifecycle/l0.ts`
+- Mission Control Checklist: readiness advisories stay while a check is `needs_choice` and clear only when the doctor report turns ready or `onboarding.deferredItems` records an explicit deferral with a reason; readiness rows carry the pillar `checkId` so `collaboration.provider` matches the `confirm-provider` action
+- Mission Control live refresh: compact pretty-printed snapshots to a single SSE `data:` line, count silence only after validated payloads, keep periodic flush off the watch debounce, and generate snapshots asynchronously so the Live badge cannot mask a frozen panel
+- Mission Control plan lifecycle: a parked plan with zero open to-dos classifies as completed instead of staying `PARKED` at N/N, while parked metadata is preserved
+- Mission Control plan lifecycle: a HANDOFF that reports STOPPED or exhausted with all to-dos terminal classifies as completed even when the mode string mentions `orchestrated`, instead of reporting a live run
+- Mission Control: Current mission and the overview footer stop presenting an exhausted plan as active
+- Mission Control: a completed plan keeps the Current mission panel with a COMPLETED status, full N/N progress, its final completed step, and honest copy-only actions instead of collapsing to the IDLE empty state; IDLE is reserved for snapshots without a HANDOFF plan reference
+- Mission Control lifecycle: HANDOFF transitions trust plan to-do status, so pending or in-progress work cannot render as completed or idle during the final tick, and terminal work remains visible as completed
+- Mission Control semantic model emits `PASTE_DESTINATIONS` keys (`chatInput`, `pastChatPicker`) for `pasteDestination` instead of human label strings
+- Mission Control: remove dead native-open helpers (`buildEditorFileUris`, `joinRepoRoot`) and unused `system.repoRoot` snapshot field left after the copy-only decision
+- Mission Control empty-state copy uses colons instead of em dash sentence connectors (All good, No plans yet, No commands registered, and similar)
+- Superseded ADR for protocol-open trimmed to history-only; current behavior remains the 2026-07-25 copy-only paste-destination record
+- L0 commands (`/start-project`, `/git-prod`, `/run-plan`, `/summary`): em dash sentence connectors replaced with colons or punctuation per kit hygiene
+- Public sync auto-merge uses squash merge (`--squash --auto`) so CI matches the public repo ruleset (merge commits disallowed)
+- `sync-public` CI job fails when `PUBLIC_REPO_TOKEN` is unset on tag or manual sync runs instead of exiting green with no sync
+- `/continue-plan` HITL gate uses Ask questions with concrete options; typed "yes" is no longer the confirmation path
+
 ## [4.7.2] - 2026-07-25
 
 ### Fixed

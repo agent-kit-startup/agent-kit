@@ -77,7 +77,7 @@ describe("executeSafeReadinessFixes", () => {
         {
           onboarded: true,
           autoHandoff: true,
-          workspaceSkin: { default: "ghost-runner", customMode: "keep" },
+          agentPersona: { default: "ghost-runner", customMode: "keep" },
           customPreference: "keep",
         },
         null,
@@ -98,7 +98,7 @@ describe("executeSafeReadinessFixes", () => {
         checks: Record<string, { status: string; essential: boolean }>;
       };
       autoHandoff: boolean;
-      workspaceSkin: { default: string; customMode: string; modes: Record<string, string> };
+      agentPersona: { default: string; customMode: string; modes: Record<string, string> };
       customPreference: string;
     }>(path.join(root, ".cursor/context/config.json"));
 
@@ -111,14 +111,14 @@ describe("executeSafeReadinessFixes", () => {
       onboarded: true,
       onboarding: { status: "in_progress", contractVersion: 1 },
       autoHandoff: true,
-      workspaceSkin: { default: "ghost-runner", customMode: "keep" },
+      agentPersona: { default: "ghost-runner", customMode: "keep" },
       customPreference: "keep",
     });
     expect(config?.onboarding.checks["workspace.agent-kit"]).toMatchObject({
       status: "auto_fix",
       essential: true,
     });
-    expect(config?.workspaceSkin.modes["run-plan"]).toBe("night-shift");
+    expect(config?.agentPersona.modes["run-plan"]).toBe("night-shift");
   });
 
   it("merges every required secret ignore without removing custom entries", async () => {

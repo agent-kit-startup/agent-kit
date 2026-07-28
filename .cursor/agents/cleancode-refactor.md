@@ -33,3 +33,6 @@ rules:
 - Significant architectural change: create ADR and validate with tech lead
 - Contract breaking (API, schema): document and communicate
 - Refactor affecting multiple repos: coordinate with team
+
+## Plan-monitor skim
+Before proposing rework on a theme already shipped: skim theme-matched `.cursor/memory/plan-monitor-*.md` for open residuals / GAP / FAIL. No new Ask gates; triage stays on `/plan-review-triage`.

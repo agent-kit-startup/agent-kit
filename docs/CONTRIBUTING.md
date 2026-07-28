@@ -68,7 +68,7 @@ Add community skills under `registry/skills/community/<skill-id>/SKILL.md`. Core
 
 ### Skins
 
-Add community workspace skins under `registry/skins/community/<skin-id>/skin.json`. See [creating-skins.md](creating-skins.md) for format and acceptance rules.
+Add community Agent Personas under `registry/personas/community/<persona-id>/persona.json`. See [creating-personas.md](creating-personas.md) for format and acceptance rules.
 
 ### New skill vs improving an existing one
 

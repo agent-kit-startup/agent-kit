@@ -15,7 +15,7 @@ Bootstrap a **plan with to-dos** from any user payload. This command does **not*
 These are non-negotiable in manual mode:
 
 1. **Broad Intake Review first.** Before proposing or writing a plan, run the Broad Intake Review (see below) to scan active session, plans, memory, docs, git state, and product version. Use findings for conflict triage.
-2. **Plan file before any product edit.** Do not modify agents, skills, rules, app code, registry, or docs-of-record while creating the plan. Allowed writes in the bootstrap turn: the new `.cursor/plans/*.plan.md` and updated HANDOFF that parks any prior active plan.
+2. **Plan file before any product edit.** Do not modify agents, skills, rules, app code, registry, or docs-of-record while creating the plan. Allowed writes in the bootstrap turn: the new `.cursor/plans/*.plan.md` and updated HANDOFF reflecting the chosen disposition for any prior active plan (backlog or park).
 3. **Goal in the same message is not execute permission.** `/start-project scan the repo and fix X` still goes through the gates below. Never jump to Explore → Edit.
 4. **Two gates, two user "yes" answers:**
    - **Gate A (approve plan):** propose phases/to-dos → write the plan file → stop and ask using **Ask questions** tool.
@@ -40,6 +40,8 @@ Before intake, read `.cursor/agent-kit.config.json` and `.cursor/context/readine
 
 ## Broad Intake Review (required before plan proposal)
 
+> **Delegation note:** The actual bucket scanning below is performed by a **Task(explore) subagent** dispatched from Step 1. The table defines the specification of what the worker scans. See Step 1 for the delegation pattern.
+
 Before proposing or writing a new plan, **scan** these sources (read/skim; do not deep-dive every file) and use findings for conflict triage:
 
 | Bucket | What to check | How / typical paths |
@@ -49,7 +51,7 @@ Before proposing or writing a new plan, **scan** these sources (read/skim; do no
 | **Plans** | In-progress + recent parked/related | `.cursor/plans/*.plan.md` (status in frontmatter) |
 | **Archived context** | Prior packs for same theme | `.cursor/context/archive/**` (if present; glob by topic) |
 | **Decisions** | ADRs that constrain the goal | `.cursor/memory/decisions/`, `_index.md` Decisions table |
-| **Memory** | Errors, audits, consolidations, review logs | `.cursor/memory/errors/`, `*.md` reviews/audits, `_index.md` |
+| **Memory** | Errors, audits, consolidations, review logs, plan-monitors, findings audits | `.cursor/memory/errors/`, `.cursor/memory/plan-monitor-*.md`, theme-matched `plan-review-*.md`, `_index.md` (Audits + Decisions) |
 | **Local docs** | SoT / inventories / getting-started that the goal touches | `docs/**`, especially files named in the payload or related SoT |
 | **Working tree** | Uncommitted local work that would collide | `git status`, `git diff` (staged + unstaged); do not commit |
 | **Recent commits** | What already shipped for this theme | `git log` (short, recent), related PR titles if available |
@@ -57,16 +59,32 @@ Before proposing or writing a new plan, **scan** these sources (read/skim; do no
 
 **Triage labels** (every relevant finding gets one):
 
-- **ignore** — already a future/pending to-do on an active or parked plan; leave for `/continue-plan`
-- **error** — completed work that overreached, contradicted HITL, or left a verifiable residual → **include** in the new plan
-- **include** — new scope from the user payload, or residual not owned by another plan  
-- **note** — operational gap (e.g. monitor misses tags); record in plan Constraints / Acceptance or memory, no code unless asked
+- **ignore**: already a future/pending to-do on an active or parked plan; leave for `/continue-plan`. For plan-monitors: owned by another open plan, or already triaged clean (`## Triage note` / follow-up / residuals-plan heading)
+- **error**: completed work that overreached, contradicted HITL, or left a verifiable residual → **include** in the new plan. For plan-monitors: GAP or regression vs claimed-complete work
+- **include**: new scope from the user payload, or residual not owned by another plan. For plan-monitors: open residual not owned by an active/backlog plan
+- **note**: operational gap (e.g. monitor misses tags); record in plan Constraints / Acceptance or memory, no code unless asked. For plan-monitors: outdated vs HEAD, freshness caveat, or staging-hygiene risk (dirty untracked monitors)
+
+Do not invent a fifth triage label. Field Report and `/plan-review-triage` remain attention/HITL SoT; Broad Intake consults monitors as evidence only (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
 
 ## What to Do
 
-### Step 1: Broad Intake Review
+### Step 1: Broad Intake Review (delegated)
 
-Run the Broad Intake Review (see above table) and triage all findings with labels (ignore/error/include/note).
+The actual scanning and triage is delegated to a **Task(explore) subagent** using the worker prompt template at `.cursor/context/templates/command-worker-prompt.md`.
+
+1. **Fill the template** — set these parameters:
+   - **Repo:** `[absolute repo path]`
+   - **Command:** `/start-project`
+   - **Task description:** "Scan the 9 Broad Intake buckets (prepared repository, active session, plans, archived context, decisions, memory, local docs, working tree, recent commits, product version) and return a structured triage report with findings per bucket, each labeled ignore/error/include/note."
+   - **read_scope:** `[".cursor/agent-kit.config.json", ".cursor/context/readiness.json", ".cursor/HANDOFF.md", ".cursor/context/current/", ".cursor/plans/*.plan.md", ".cursor/context/archive/**", ".cursor/memory/decisions/", ".cursor/memory/errors/", ".cursor/memory/plan-monitor-*.md", ".cursor/memory/plan-review-*.md", ".cursor/memory/_index.md", "docs/**", "package.json", "CHANGELOG.md"]`
+   - **worker_contract:** "structured triage report: list of findings per bucket with triage labels (ignore/error/include/note)"
+   - **max_ticks:** 2
+
+2. **Dispatch** a Task subagent with `subagent_type: explore`.
+
+3. **Read the worker summary** — the main window uses the triage findings for conflict triage in Step 2 (vague goals) and Step 3 (Gate A).
+
+**Fallback:** If Task dispatch is unavailable, run the Broad Intake Review inline (same as pre-delegation behavior).
 
 ### Step 2: Handle vague goals
 
@@ -77,22 +95,44 @@ Wait for answer before proceeding.
 
 ### Step 3: Gate A (design only)
 
-1. **Park prior active plan** if any exists: Read `.cursor/HANDOFF.md` and `.cursor/plans/` status. If an active plan exists, update HANDOFF to mark it as "Parked plan" and note the new plan is awaiting approval.
+1. **Propose phases and to-dos** based on the goal and Broad Intake findings. Align with `autogit/plan-routine.md` and `.cursor/context/templates/plan.md`.
 
-2. **Propose phases and to-dos** based on the goal and Broad Intake findings. Align with `autogit/plan-routine.md` and `.cursor/context/templates/plan.md`.
+2. **Ask one composite Gate A question** using **Ask questions** tool (fallback to chat if tool unavailable — render one numbered list per message). If an active plan exists, the options merge disposition and write into a single pick:
 
-3. **Ask before writing** using **Ask questions** tool (fallback to chat if tool unavailable):
    > "Write this plan to `.cursor/plans/[name].plan.md` (to-dos in frontmatter, no coding yet)?"
-   
-   Options: `Write plan file` / `Modify proposal first` / `Cancel`
 
-4. **On approval:** create the plan file. Update HANDOFF: active plan name, phase completed none / awaiting Gate B, next to-do id, instruction = wait for user to approve first unit.
+   **With active plan** — composite options:
+   | Option | Disposition | Action | Gate B |
+   |--------|-------------|--------|--------|
+   | `Write plan and add to backlog (keep current active)` | backlog | write plan file | skipped |
+   | `Park current plan, write plan and activate new` | park | write plan file | follows |
+   | `Modify proposal first` | — | — | — |
+   | `Cancel` | — | abort | — |
 
-5. **Stop and ask for Gate B** using **Ask questions** tool (fallback to chat if tool unavailable):
+   **No active plan** — options:
+   | Option | Action | Gate B |
+   |--------|--------|--------|
+   | `Write plan file` | write plan file and activate | follows |
+   | `Write plan and add to backlog` | write plan file; list under Backlog plans; Mode STOPPED | skipped |
+   | `Modify proposal first` | — | — |
+   | `Cancel` | abort | — |
+
+3. **On approval:** create the plan file. Update HANDOFF per the chosen disposition (park, backlog, or activate). Backlog path (with active plan, or no-active-plan `Write plan and add to backlog`): plan listed under "Backlog plans", Mode STOPPED (or current plan stays active when disposing a prior active plan), skip Gate B. Park path: new plan active, phase none / awaiting Gate B. Activate path (`Write plan file` with no prior active plan): new plan active, then Gate B.
+
+4. **Stop and ask for Gate B** (park path or no-active-plan activate path only) using **Ask questions** tool (fallback to chat if tool unavailable, one list per message):
    > "Plan ready: `[path]`. First unit would be `[to-do-id]` only (manual = one phase per chat)."
    
-   Options: `Start first unit` / `Switch to /run-plan` / `Edit plan first` / `Stop here`
+   Options: `Start first unit` / `Switch to /run-plan` / `Edit plan first` / `Add to backlog` / `Stop here`
 
+   | Option | Effect |
+   |--------|--------|
+   | `Start first unit` | run one unit (Gate B proceed) |
+   | `Switch to /run-plan` | continuous mode for this plan |
+   | `Edit plan first` | revise plan; re-ask Gate B later |
+   | `Add to backlog` | list under Backlog plans; Mode STOPPED; unit not started |
+   | `Stop here` | plan stays **active**; unit not started (not backlog) |
+
+   On any backlog path (Gate A or Gate B `Add to backlog`), skip or exit Gate B: report the plan location and stop (resume via `/continue-plan` or activate later). `Add to backlog` is distinct from `Stop here`.
 ### Step 4: Gate B (first unit only, after explicit approval)
 
 1. Mark the to-do `in_progress`, do **only** that unit.
@@ -103,11 +143,11 @@ Wait for answer before proceeding.
 
 After proposing the plan, list any in-progress or parked plans in one short block:
 
-> **Other plans:** [plan names and status] — Use `/continue-plan` to resume.
+> **Other plans:** [plan names and status]: Use `/continue-plan` to resume.
 
 ## Ask questions requirement
 
-**Gate A, Gate B, and vague-goal clarification MUST use Ask questions tool** (`AskQuestion` / ACP `cursor/ask_question`) instead of chat prompts like "type yes to continue." This opens clickable options in the IDE UI.
+**Active-plan disposition, Gate A, Gate B, and vague-goal clarification MUST use Ask questions tool** (`AskQuestion` / ACP `cursor/ask_question`) instead of chat prompts like "type yes to continue." This opens clickable options in the IDE UI.
 
 **Requirements:**
 1. Use **Ask questions** for any confirmation, choice among options, or clarification before acting
@@ -128,13 +168,15 @@ Agent: [Broad Intake Review] No conflicts found.
        2. JWT access + refresh
        3. Auth middleware
        4. Tests
-       [Ask questions: Write plan file? Options: Write plan file / Modify first / Cancel]
+       [Ask questions: Write plan? Options: Write plan file / Write plan and add to backlog / Modify first / Cancel]
 User: [clicks Write plan file]
 Agent: [Writes plan + HANDOFF only] Plan ready.
-       [Ask questions: Start "phase0-setup" only? Options: Start first unit / Switch to run-plan / Edit first / Stop here]
+       [Ask questions: Start "phase0-setup" only? Options: Start first unit / Switch to run-plan / Edit first / Add to backlog / Stop here]
 User: [clicks Start first unit]  
 Agent: [Does phase0 only] -> HANDOFF -> stops; suggests /git-staging if diff
 ```
+
+Backlog path (Gate A or Gate B): plan file exists under `.cursor/plans/`, listed on HANDOFF Backlog, Mode STOPPED; no first-unit execution until the operator activates it later.
 
 Wrong (do not do this):
 

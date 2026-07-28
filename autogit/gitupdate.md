@@ -277,7 +277,7 @@ This section contains the detailed prompts that should be followed when commands
    - **Validation**: Confirm there's no attempt to modify `origin/main` directly.
 
 #### 7. **Stage and commit with semantic message**  
-   - Add relevant files with `git add`.
+   - Add relevant files with `git add` **by name**. If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** and do **not** broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
    - Create a commit following [Conventional Commits](https://www.conventionalcommits.org/):
      - `feat:` for new features
      - `fix:` for bug fixes

@@ -1,18 +1,18 @@
 import { cancel, confirm, isCancel, multiselect, select, text } from "@clack/prompts";
 import type {
+  AgentPersonaChoice,
+  AgentPersonaConfig,
+  AgentPersonaId,
   IdeDetection,
   IdeName,
   IdePlan,
   ProjectManagementTool,
   ProjectProfile,
   ScanResult,
-  WorkspaceSkinChoice,
-  WorkspaceSkinConfig,
-  WorkspaceSkinId,
 } from "../types.js";
 
 /** Mode defaults matching `.cursor/context/config.example.json`. */
-export const WORKSPACE_SKIN_MODE_DEFAULTS: WorkspaceSkinConfig = {
+export const AGENT_PERSONA_MODE_DEFAULTS: AgentPersonaConfig = {
   default: "autopilot",
   modes: {
     "continue-plan": "autopilot",
@@ -21,12 +21,12 @@ export const WORKSPACE_SKIN_MODE_DEFAULTS: WorkspaceSkinConfig = {
   },
 };
 
-export function workspaceSkinConfigFromChoice(
-  choice: WorkspaceSkinChoice,
-): WorkspaceSkinConfig | null {
+export function agentPersonaConfigFromChoice(
+  choice: AgentPersonaChoice,
+): AgentPersonaConfig | null {
   if (choice.kind === "skip") return null;
   if (choice.kind === "mode-defaults")
-    return { ...WORKSPACE_SKIN_MODE_DEFAULTS, modes: { ...WORKSPACE_SKIN_MODE_DEFAULTS.modes } };
+    return { ...AGENT_PERSONA_MODE_DEFAULTS, modes: { ...AGENT_PERSONA_MODE_DEFAULTS.modes } };
   return {
     default: choice.id,
     modes: {
@@ -116,12 +116,12 @@ async function askProjectManagement(
   ) as ProjectManagementTool[];
 }
 
-/** Optional workspace skin for the CLI wizard; clack only, not IDE AskQuestion. */
-async function askWorkspaceSkin(): Promise<WorkspaceSkinChoice> {
-  type SkinSelect = "mode-defaults" | WorkspaceSkinId | "skip";
+/** Optional Agent Persona for the CLI wizard; clack only, not IDE AskQuestion. */
+async function askAgentPersona(): Promise<AgentPersonaChoice> {
+  type PersonaSelect = "mode-defaults" | AgentPersonaId | "skip";
   const value = ensureNotCancelled(
-    await select<SkinSelect>({
-      message: "Workspace skin for chat/CLI chrome? (optional)",
+    await select<PersonaSelect>({
+      message: "Agent Persona for chat/CLI chrome? (optional)",
       initialValue: "mode-defaults",
       options: [
         {
@@ -138,7 +138,7 @@ async function askWorkspaceSkin(): Promise<WorkspaceSkinChoice> {
 
   if (value === "skip") return { kind: "skip" };
   if (value === "mode-defaults") return { kind: "mode-defaults" };
-  return { kind: "skin", id: value };
+  return { kind: "persona", id: value };
 }
 
 export async function runExistingProjectWizard(scan: ScanResult): Promise<ProjectProfile> {
@@ -151,7 +151,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
       initialValue: true,
     }),
   );
-  const workspaceSkinChoice = await askWorkspaceSkin();
+  const agentPersonaChoice = await askAgentPersona();
 
   return {
     rootDir: scan.rootDir,
@@ -171,7 +171,7 @@ export async function runExistingProjectWizard(scan: ScanResult): Promise<Projec
       "docs-repo",
       "ide-guide",
     ],
-    workspaceSkinChoice,
+    agentPersonaChoice,
   };
 }
 
@@ -235,7 +235,7 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
       initialValue: true,
     }),
   );
-  const workspaceSkinChoice = await askWorkspaceSkin();
+  const agentPersonaChoice = await askAgentPersona();
 
   return {
     rootDir: scan.rootDir,
@@ -266,6 +266,6 @@ export async function runGreenfieldWizard(scan: ScanResult): Promise<ProjectProf
       "docs-repo",
       "ide-guide",
     ],
-    workspaceSkinChoice,
+    agentPersonaChoice,
   };
 }
