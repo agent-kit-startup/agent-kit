@@ -79,10 +79,35 @@ If the answer is not an explicit **yes**, stop. No tag push, no token change for
 
 - [ ] `npm view @dadado/agent-kit-cli version` matches the release.
 - [ ] Smoke install: `npx @dadado/agent-kit-cli@<version> --help` (or `pnpm dlx`).
+- [ ] Scoped Path C smoke (blank folder): install the published package under `node_modules/@dadado/agent-kit-cli` and confirm `agent-kit dashboard` returns HTTP 200 on loopback (required after Path C / detach-start changes; also a `/git-prod` §12.5 row).
 - [ ] GitHub Actions `publish-npm` job for the tag shows publish success (not skip), when using CI.
+
+## Cross-lens go/no-go (before tagging)
+
+Use this matrix with dogfood / `/git-prod` Step 12.5. Cite `.cursor/memory/` when a row fails.
+
+| Lens | Check | Pass criteria | Known footguns / memory |
+|------|-------|---------------|-------------------------|
+| Externals | Public sync allowlist + denylist | `sync-cli-dashboard.mjs` + `verify-cli-dashboard-pack.mjs` allowlisted; denylist does not scrub required Path C assets | `errors/2026-07-25_public-sync-dashboard-allowlist-gap.md`, `errors/2026-07-25_public-sync-denylist-false-positive.md` |
+| DevSecOps | Secrets / private paths out of tarball | Dry-run / pack list has no `.env`, credentials, `.cursor/memory`, private `config.json` | this checklist, `docs/repository-boundaries.md` |
+| Cyber | Mission Control bind | Default `/dashboard` loopback; LAN broadcast requires token; no silent non-loopback | ADR opt-in LAN broadcast; Path C bundled host still respects bind rules |
+| DevOps | Tag CI publish path | `publish-npm` runs pack verify before publish; Biome/pnpm/setup-node/`typecheck` green on tag | `errors/2026-07-21_ci-biome-blocked-440-publish.md`, `errors/2026-07-23_biome-format-blocked-446-tag-ci.md`, `errors/2026-07-29_tag-ci-typecheck-blocked-481-publish.md` |
+| Git | Promote immutability | Four manifests match SemVer; never force-move pushed `v*`; Step 12.5 requires **merged** sync PR | `decisions/2026-07-28_git-prod-version-manifest-parity.md`, `errors/2026-07-28_public-sync-pr-unmerged-skips-release.md` |
+| Product | Consumer install honesty | Dual-audience README; Port A/B leave `hooks.json`; Path C dashboard without kit checkout after publish | `errors/2026-07-19_consumer-install-missing-hooks-json.md`, `errors/2026-07-20_consumer-install-footguns.md` |
+| Hygiene | Monitor staging | Untracked `plan-monitor-*.md` staged add-by-name only; tree clean before `/git-prod` validation | ADR R14/R15 staging hygiene |
+
+## Partial acceptance rows
+
+When a checklist or monitor acceptance box is only partly true, do **not** mark `[x]` alone:
+
+- Prefer splitting into separate rows (one Met, one Still open), or
+- Use `[~]` / label the row **Partial** and keep the caveat in the same cell or an adjacent table.
+
+Downstream scans should not treat Partial as Met.
 
 ## Related docs
 
 - Boundaries and secrets table: [repository-boundaries.md](repository-boundaries.md)
 - Public mirror launch (separate from npm): [public-launch.md](public-launch.md)
 - CI workflow: `.github/workflows/ci.yml` (`publish-npm` job)
+- `/git-prod` routine: `autogit/gitupdate.md` (Prompt: git prod, §2 pre-tag gate, §12.5)

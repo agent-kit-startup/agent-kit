@@ -2,6 +2,10 @@
 // Pure Mission Control view-model helpers (testable; no fs/git I/O).
 
 import { truncateStr } from "./guards.mjs";
+import { TRIAGE_HEADING_RE, hasTriageHeading } from "./triage-heading.mjs";
+
+/** Durable triage heading SoT (shared with CLI `monitors --untriaged`). */
+export { TRIAGE_HEADING_RE, hasTriageHeading };
 
 export const MAX_ACTIVITY = 28;
 export const MAX_ATTENTION = 15;
@@ -61,15 +65,6 @@ export const MAX_CHECKLIST_NOTES = 15;
 /**
  * External review reports are `.cursor/memory/plan-monitor-<slug>.md`. */
 export const EXTERNAL_REPORT_FILE_RE = /^plan-monitor-(.+)\.md$/;
-
-/**
- * A heading the triage step leaves behind in the report itself. Confirmed
- * against the local reports: `## Triage note - residual (A) verified` and
- * `## Follow-up plan - hitl_ask_questions_residuals_2026_07_20.plan.md`.
- * `/plan-review-triage` must write one of these for every outcome, including
- * Ack and stop, so Field Report can clear the untriaged row.
- */
-export const TRIAGE_HEADING_RE = /^#{2,6}\s+.*\b(triage|follow-?up plan|residuals plan)\b/im;
 
 /**
  * Local Field Report dismissals store (IDs only). Valid attention ids that
@@ -576,21 +571,23 @@ export function buildFlightLogWarnings(handoff, opts = {}) {
 
 /**
  * Bounded untriaged external-review rows for Flight Log quiet state.
- * Filters attention to `kind === "report"` only (no cadence, prompts, readiness,
- * or bulk FR CTAs). Used when Gaps + Warnings are empty; callers must not mix
- * these rows into a non-quiet Gaps/Warnings stack.
- * @param {object[]|null|undefined} attention - buildAttentionItems output
+ * Filters to `kind === "report"` with a non-empty `sourcePath` (no cadence,
+ * prompts, readiness, or bulk FR CTAs). Prefer calling with
+ * `buildExternalReportItems(...)` output so the quiet lane is not starved by
+ * the shared `buildAttentionItems` cap. Callers must not mix these rows into a
+ * non-quiet Gaps/Warnings stack.
+ * @param {object[]|null|undefined} reportOrAttentionItems
  * @param {{ limit?: number }} [opts]
  * @returns {object[]}
  */
-export function listFlightLogQuietOpenTriages(attention, opts = {}) {
+export function listFlightLogQuietOpenTriages(reportOrAttentionItems, opts = {}) {
   const limit =
     typeof opts.limit === "number" && opts.limit > 0
       ? Math.floor(opts.limit)
       : FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP;
-  if (!Array.isArray(attention) || attention.length === 0) return [];
+  if (!Array.isArray(reportOrAttentionItems) || reportOrAttentionItems.length === 0) return [];
   const out = [];
-  for (const item of attention) {
+  for (const item of reportOrAttentionItems) {
     if (!item || item.kind !== "report") continue;
     if (typeof item.sourcePath !== "string" || !item.sourcePath.trim()) continue;
     out.push(item);
@@ -1369,26 +1366,33 @@ export function normalizeHandoffGaps(raw) {
 
 /**
  * Classify a Flight Log Gaps/Warning body for palette chrome.
+ * Runs heuristics on whitespace-collapsed text **before** display truncation so
+ * long Gaps whose only warning/prompt/advice keyword sits past MAX_SEMANTIC_LABEL
+ * still match the inline dashboard.html classifier (which does not truncate).
  * @param {string | null | undefined} text
  * @param {{ lane?: 'gaps' | 'warning' }} [opts]
  * @returns {FlightLogMessageKind}
  */
 export function classifyFlightLogMessageKind(text, opts = {}) {
   if (opts.lane === "warning") return "warning";
-  const normalized = typeof text === "string" ? normalizeHandoffGaps(text) : null;
-  if (normalized == null) return "ok";
+  if (!text || typeof text !== "string") return "ok";
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (!collapsed) return "ok";
+  if (/^(none|n\/a)$/i.test(collapsed)) return "ok";
+  if (/^(none|n\/a)\s*[.:,;\/(\-–—…]/i.test(collapsed)) return "ok";
+  if (/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i.test(collapsed)) return "ok";
   if (
-    /\bAPI\s*\/\s*usage\s+limit\b|\bAPI\s+usage\s+limit\b|\bSTOPPED:\s*API\b/i.test(normalized) ||
-    /\b(hard.?stop|quota\s+pause)\b/i.test(normalized)
+    /\bAPI\s*\/\s*usage\s+limit\b|\bAPI\s+usage\s+limit\b|\bSTOPPED:\s*API\b/i.test(collapsed) ||
+    /\b(hard.?stop|quota\s+pause)\b/i.test(collapsed)
   ) {
     return "warning";
   }
   if (
-    /\b(confirm|ask questions|hitl|\bpaste\b|choose\b|approve\b|operator yes)\b/i.test(normalized)
+    /\b(confirm|ask questions|hitl|\bpaste\b|choose\b|approve\b|operator yes)\b/i.test(collapsed)
   ) {
     return "prompt";
   }
-  if (/\b(tip:|advice:|consider\b|recommends?\b|recommended\b|prefer\b)/i.test(normalized)) {
+  if (/\b(tip:|advice:|consider\b|recommends?\b|recommended\b|prefer\b)/i.test(collapsed)) {
     return "advice";
   }
   return "residual";
@@ -3544,6 +3548,15 @@ export function buildMissionControlView({
   // Field Report attention inbox left the Flight Log card; builders stay
   // exported for /field-report-resolve + cadence scripts (ADR keep).
   // Quiet Gaps+Warnings: bounded report rows may surface on Flight Log.
+  // Build quiet lane from external reports directly (not capped attention) so
+  // prompt/readiness pressure cannot starve Reviews awaiting triage to All clear.
+  const dismissedForQuiet = new Set(
+    (dismissedIds || []).filter((id) => typeof id === "string" && id.length > 0),
+  );
+  const quietReportItems = buildExternalReportItems(externalReports, plans, {
+    handoff,
+    archivedPlanFiles,
+  }).filter((item) => item && !dismissedForQuiet.has(item.id));
   const attention = buildAttentionItems({
     plans,
     handoff,
@@ -3556,7 +3569,7 @@ export function buildMissionControlView({
     cadenceLedger,
     cadenceConfig,
   });
-  flightLog.quietOpenTriages = listFlightLogQuietOpenTriages(attention);
+  flightLog.quietOpenTriages = listFlightLogQuietOpenTriages(quietReportItems);
   // Deprecated: attention owns Field Report rows. Kept empty so older panel
   // code that still reads the field does not double-render.
   const checklistNotes = [];
@@ -3571,6 +3584,8 @@ export function buildMissionControlView({
     plans: classifiedPlans,
     // Crew Monitor hero display cap (SoT for dashboard.html; no HTML literal).
     monitorFeedCap: MONITOR_FEED_CAP,
+    // Quiet open-triage fallback cap for dashboard.html attention mirror.
+    flightLogQuietOpenTriagesCap: FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP,
     // /run-plan-all queue slice (null outside queue mode). Copy-only data:
     // display order and roles; the panel never writes the queue back.
     runQueue: buildRunQueueView(handoff),

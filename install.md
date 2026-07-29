@@ -126,6 +126,14 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `autogit/gitupdate.md` | `autogit/gitupdate.md` |
 | `autogit/plan-routine.md` | `autogit/plan-routine.md` |
 
+After copying the agent hook scripts by hand (Port B), make them executable so Cursor can run them:
+
+```bash
+chmod +x .cursor/hooks/agent/*.sh .cursor/hooks/pre-commit/check-secrets.sh
+```
+
+Managed `agent-kit install` / `update` already preserves the executable bit via `copyFile`.
+
 If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, fetch from the public registry URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** tool for any registry source confirmation:
 Options: `Fetch from public registry` / `Use different registry URL` / `Skip registry for now`
 

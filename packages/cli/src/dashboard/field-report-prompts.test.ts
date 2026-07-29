@@ -607,7 +607,7 @@ describe("Flight Log panel contract (dashboard.html)", () => {
 
   it("keeps Flight Log Gaps-only panel without retired FR stack CTAs", () => {
     expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
-    expect(dashboardHtml).toContain("function flightLogFingerprint(fl)");
+    expect(dashboardHtml).toContain("function flightLogFingerprint(d)");
     expect(dashboardHtml).not.toContain("Review all</button>");
     expect(dashboardHtml).not.toContain("Resolve all</button>");
     expect(dashboardHtml).toContain("pastChatPicker");

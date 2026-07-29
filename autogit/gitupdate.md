@@ -275,10 +275,11 @@ This section contains the detailed prompts that should be followed when commands
    - Make the requested changes (including CHANGELOG.md update if necessary).
    - Review with `git status -sb` to ensure only expected files were modified.
    - **Validation**: Confirm there's no attempt to modify `origin/main` directly.
+   - **Lint evidence (staging-ready):** when the diff touches formatted/linted paths (e.g. `*.ts` / `*.tsx` / `*.js` / `*.mjs` under `packages/`, `dashboard/`, or other Biome/ESLint scopes), **run** the focused linter on those files (e.g. `pnpm exec biome check <paths>`) **before** commit and **record the exact command + pass/fail output** in the tick / worker summary. Claiming `Staging ready: yes` or pasting the contract phrase without that recorded run is invalid. Pure markdown / docs-only with no applicable repo linter: record `Tests: none applicable` (or `Validation: none applicable`). Aligns with `/run-plan` Staging-ready lint gate (background: Biome-red merges fixed only after the fact).
 
 #### 7. **Stage and commit with semantic message**  
    - Add relevant files with `git add` **by name**. If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** and do **not** broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
-   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
+   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. **An `_index.md` Audits row and its target monitor file must land in the same commit** (no index link without the file). ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
    - Create a commit following [Conventional Commits](https://www.conventionalcommits.org/):
      - `feat:` for new features
      - `fix:` for bug fixes
@@ -293,7 +294,7 @@ This section contains the detailed prompts that should be followed when commands
 
 #### 9. **Open and merge Merge Request / Pull Request**  
    - **GitLab:** Create the MR with `glab mr create --title "<title>" --description "<description>" --target-branch staging`. Then run `glab mr merge <number>` to merge. If it fails due to authentication, provide the manual creation link and await instructions.
-   - **GitHub:** Create the PR with `gh pr create --title "<title>" --body "<description>" --base staging`. Then run `gh pr merge <number>` (or the returned number). If it fails due to authentication, provide the manual creation link and await instructions.
+   - **GitHub:** Create the PR with `gh pr create --title "<title>" --body "<description>" --base staging`. **Always pass `--base staging`** (default base is often `main`; never merge staging work straight to `main`). Then run `gh pr merge <number>` (or the returned number). If it fails due to authentication, provide the manual creation link and await instructions.
 
 #### 10. **Cleanup and final update**  
    - Run `git checkout staging` to return to staging branch (needed before deleting working branch).
@@ -335,7 +336,7 @@ This section contains the detailed prompts that should be followed when commands
         - `.cursor/agent-kit.json`
         - `.cursor-plugin/plugin.json`
         Do not ship with only root+CLI bumped; L0 version-parity tests fail and tag CI skips publish/sync.
-     4. Prefer running focused L0 version-parity (`vitest` on `packages/cli/src/lifecycle/l0.test.ts`) or `pnpm test` on staging **before** the first tag push.
+     4. **Required before the first `v*` tag push for this SemVer:** on staging (or the commit about to become `main`), run `pnpm typecheck` and `pnpm test` (or at least focused L0 version-parity: `vitest` on `packages/cli/src/lifecycle/l0.test.ts` **plus** `pnpm typecheck`). Do not treat this as optional: tag CI that fails typecheck skips `publish-npm` / `sync-public` (see `errors/2026-07-29_tag-ci-typecheck-blocked-481-publish.md`).
      5. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
    - If Unreleased is already empty and today's release reflects what's in staging, still verify all four manifests match the latest closed CHANGELOG version; bump and commit if they do not.
 
@@ -425,6 +426,9 @@ This section contains the detailed prompts that should be followed when commands
    | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
    | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` on the public default branch **after** that merge |
    | Public GitHub Release | `gh release list -R <public>` shows `vX.Y.Z` as Latest (not a stale older release) |
+   | Scoped-install Path C smoke (manual or CI) | Install `@dadado/agent-kit-cli@X.Y.Z` into a blank folder under `node_modules/@dadado/…` (no kit checkout) and confirm `agent-kit dashboard` reaches HTTP 200 on loopback; required after Path C / detach-start changes |
+
+   **Post-tag `main` commits:** After a `vX.Y.Z` tag ships, CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z`. That is allowed only when documented in the promote notes / HANDOFF (tag and npm tarball describe the tagged commit, not necessarily later `main`). Realign with the next SemVer when product fixes (for example Path C) must reach npm; never force-move the existing `v*` tag.
 
    If `sync-public` failed, the sync PR is still open, or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
 

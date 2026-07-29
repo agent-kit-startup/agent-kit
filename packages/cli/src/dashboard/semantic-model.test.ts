@@ -6,6 +6,7 @@ import {
   FLIGHT_LOG_WARNINGS_CAP,
   MAX_ACTIVITY,
   MAX_INVENTORY_ACTIVITY,
+  MAX_SEMANTIC_LABEL,
   MONITOR_ACTIVITY_KINDS,
   MONITOR_AGENT_STEP_EMIT_CAP,
   MONITOR_FEED_CAP,
@@ -195,6 +196,11 @@ describe("parseHandoffMarkdown", () => {
       "warning",
     );
     expect(classifyFlightLogMessageKind("anything", { lane: "warning" })).toBe("warning");
+    // Pre-truncation: keyword past MAX_SEMANTIC_LABEL still classifies (F4).
+    const longPrefix = "x".repeat(MAX_SEMANTIC_LABEL + 20);
+    expect(
+      classifyFlightLogMessageKind(`${longPrefix} tip: prefer named model for continuous runs`),
+    ).toBe("advice");
     expect(flightLogKindClass("residual")).toBe("flight-log-kind-residual");
     expect(flightLogKindClass("advice")).toBe("flight-log-kind-advice");
     expect(flightLogKindClass("prompt")).toBe("flight-log-kind-advice");
@@ -2656,5 +2662,44 @@ describe("listFlightLogQuietOpenTriages", () => {
     });
     expect(withGaps.flightLog.current).toBeTruthy();
     expect(withGaps.flightLog.quietOpenTriages.length).toBeGreaterThan(0);
+  });
+
+  it("does not starve quietOpenTriages when attention drops reports under a tight limit", () => {
+    const debtReport = parseExternalReport({
+      file: "plan-monitor-widget-rollout.md",
+      content:
+        "# Monitor log - widget-rollout\n\n**Plan:** `widget-rollout.plan.md`\n\n### Residual items for human attention\n\n1. Fix the live blocker.\n",
+      modifiedAt: "2026-07-28T12:00:00.000Z",
+    });
+    const agentPrompts = Array.from({ length: 20 }, (_, i) => ({
+      chatId: `chat-starve-${i}`,
+      label: `Pending question ${i}?`,
+    }));
+    const starvedAttention = buildAttentionItems({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+      },
+      agentPrompts,
+      externalReports: [debtReport],
+      limit: 3,
+    });
+    expect(starvedAttention.some((a) => a.kind === "report")).toBe(false);
+    expect(listFlightLogQuietOpenTriages(starvedAttention)).toEqual([]);
+
+    const view = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+      },
+      agentPrompts,
+      externalReports: [debtReport],
+      nowMs: Date.parse("2026-07-28T12:00:00.000Z"),
+    });
+    expect(view.flightLog.quietOpenTriages.length).toBeGreaterThan(0);
+    expect(view.flightLog.quietOpenTriages[0].kind).toBe("report");
+    expect(view.flightLogQuietOpenTriagesCap).toBe(FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP);
   });
 });

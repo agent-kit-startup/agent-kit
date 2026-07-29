@@ -31,10 +31,25 @@ const SECRET_PATTERNS: Array<{ id: string; re: RegExp }> = [
   },
 ];
 
+function maskSecretExcerpt(raw: string): string {
+  return raw
+    .replace(/\b(ghp_|sk-|AKIA)([A-Za-z0-9_]{4,})/g, (_m, p1: string, p2: string) => {
+      return `${p1}${"*".repeat(Math.min(8, p2.length))}`;
+    })
+    .replace(
+      /(=\s*['"]?)([^\s'"]{4,})/g,
+      (_m, p1: string, p2: string) => `${p1}${"*".repeat(Math.min(8, p2.length))}`,
+    )
+    .replace(
+      /("(?:password|apiKey|api_key|secret|token|auth)"\s*:\s*")([^"]{4,})(")/gi,
+      (_m, p1: string, p2: string, p3: string) => `${p1}${"*".repeat(Math.min(8, p2.length))}${p3}`,
+    );
+}
+
 function excerptAround(text: string, index: number, len: number): string {
   const start = Math.max(0, index - 8);
   const end = Math.min(text.length, index + len + 8);
-  return text.slice(start, end).replace(/\s+/g, " ");
+  return maskSecretExcerpt(text.slice(start, end).replace(/\s+/g, " "));
 }
 
 export function scanTextForSecrets(text: string): SecretHit[] {
