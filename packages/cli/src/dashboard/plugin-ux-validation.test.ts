@@ -431,9 +431,33 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("function renderFlightLogQuietOpenTriageCard");
     expect(dashboardHtml).toContain("quietOpenTriages");
     expect(dashboardHtml).toContain("Reviews awaiting triage");
+    expect(dashboardHtml).toContain("flightLogQuietOpenTriagesCap");
+    expect(dashboardHtml).toContain("flightLogKindClassName('prompt')");
+    expect(dashboardHtml).toContain("function isFlightLogQuiet(d)");
+    expect(dashboardHtml).toContain("function resolveFlightLogCurrent(d)");
+    expect(dashboardHtml).toContain("isFlightLogQuiet(d)");
+    // Plan:none + Gaps: fingerprint must use the same Gaps fallback as the renderer
+    // so quietOpenTriages changes do not flash a non-quiet card (residual B).
+    expect(dashboardHtml).toMatch(
+      /function resolveFlightLogCurrent\(d\)[\s\S]*?missionControl\?\.now\?\.gaps[\s\S]*?system\?\.handoff\?\.gaps/,
+    );
+    expect(dashboardHtml).toMatch(
+      /function flightLogFingerprint\(d\)[\s\S]*?isFlightLogQuiet\(d\)/,
+    );
+    // Quiet open-triage stack only inside Gaps+Warnings empty gate (residual E).
+    expect(dashboardHtml).toMatch(
+      /if\s*\(\s*!hasCurrent\s*&&\s*!hasPast\s*&&\s*!hasWarnings\s*\)\s*\{[\s\S]*?Reviews awaiting triage/,
+    );
     expect(dashboardHtml).not.toContain("No pending attention items.");
     expect(dashboardHtml).not.toContain("Review all</button>");
     expect(dashboardHtml).not.toContain("Resolve all</button>");
+    // Cap fallback must not hardcode a second SoT literal beside the view field.
+    expect(dashboardHtml).not.toMatch(
+      /attention\.filter\(\s*\([\s\S]*?kind === 'report'[\s\S]*?\)\.slice\(0,\s*5\)/,
+    );
+    // Residual E: quietCap ternary must not fall back to literal 5.
+    expect(dashboardHtml).not.toMatch(/flightLogQuietOpenTriagesCap[\s\S]{0,220}:\s*5\s*;/);
+    expect(dashboardHtml).toMatch(/flightLogQuietOpenTriagesCap[\s\S]{0,220}:\s*0\s*;/);
     expect(dashboardHtml).toContain("No agent activity yet");
     expect(dashboardHtml).toContain("Listening");
     expect(dashboardHtml).toContain("Quiet cockpit");
@@ -520,18 +544,42 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
   });
 
   it("pins Flight Log OK-normalize regex parity and CSS kind rules", () => {
-    // Shared none./n/a prefix rule must stay case-insensitive and separator-aligned
-    // across semantic-model.mjs and the inline dashboard.html copy (monitor D).
-    const noneExact = "/^(none|n\\/a)$/i";
-    const nonePrefix = "/^(none|n\\/a)\\s*[.:,;\\/(\\-–—…]/i";
+    // Shared classifier rule groups must stay aligned across semantic-model.mjs
+    // classifyFlightLogMessageKind and the inline dashboard.html flightLogMessageKind
+    // (close-queue F1 / residual F). Scope to classifier bodies so normalizeHandoffGaps
+    // copies cannot satisfy the .mjs half.
     const semanticModel = readFileSync(
       resolve(repoRoot, "dashboard/lib/semantic-model.mjs"),
       "utf8",
     );
-    expect(semanticModel).toContain(`${noneExact}.test(text)`);
-    expect(semanticModel).toContain(`${nonePrefix}.test(text)`);
-    expect(dashboardHtml).toContain(`${noneExact}.test(raw)`);
-    expect(dashboardHtml).toContain(`${nonePrefix}.test(raw)`);
+    const classifyStart = semanticModel.indexOf("export function classifyFlightLogMessageKind");
+    expect(classifyStart).toBeGreaterThanOrEqual(0);
+    const classifyEnd = semanticModel.indexOf(
+      "\nexport function flightLogKindClass",
+      classifyStart,
+    );
+    expect(classifyEnd).toBeGreaterThan(classifyStart);
+    const classifyBody = semanticModel.slice(classifyStart, classifyEnd);
+
+    const htmlKindStart = dashboardHtml.indexOf("function flightLogMessageKind(text");
+    expect(htmlKindStart).toBeGreaterThanOrEqual(0);
+    const htmlKindEnd = dashboardHtml.indexOf("\nfunction flightLogKindClassName", htmlKindStart);
+    expect(htmlKindEnd).toBeGreaterThan(htmlKindStart);
+    const htmlKindBody = dashboardHtml.slice(htmlKindStart, htmlKindEnd);
+
+    const sharedLiterals = [
+      "/^(none|n\\/a)$/i",
+      "/^(none|n\\/a)\\s*[.:,;\\/(\\-–—…]/i",
+      "/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i",
+      "/\\bAPI\\s*\\/\\s*usage\\s+limit\\b|\\bAPI\\s+usage\\s+limit\\b|\\bSTOPPED:\\s*API\\b/i",
+      "/\\b(hard.?stop|quota\\s+pause)\\b/i",
+      "/\\b(confirm|ask questions|hitl|\\bpaste\\b|choose\\b|approve\\b|operator yes)\\b/i",
+      "/\\b(tip:|advice:|consider\\b|recommends?\\b|recommended\\b|prefer\\b)/i",
+    ];
+    for (const lit of sharedLiterals) {
+      expect(classifyBody).toContain(lit);
+      expect(htmlKindBody).toContain(lit);
+    }
 
     // CSS rules must exist for every emitted kind class on Live + Earlier (monitor E).
     for (const kind of ["residual", "advice", "ok", "warning"] as const) {
@@ -1070,7 +1118,7 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
 
   it("re-renders now + Flight Log from missionControl fingerprints on each snapshot", () => {
     expect(dashboardHtml).toContain("function nowFingerprint(now)");
-    expect(dashboardHtml).toContain("function flightLogFingerprint(fl)");
+    expect(dashboardHtml).toContain("function flightLogFingerprint(d)");
     expect(dashboardHtml).not.toContain("attentionFingerprint");
     expect(dashboardHtml).toContain("renderNowExecutionPanel");
     expect(dashboardHtml).toContain("d.missionControl?.now");
@@ -2131,7 +2179,7 @@ describe("cockpit checklist: plan cards only (notes moved to Field Report)", () 
     expect(dashboardHtml).not.toContain("function orderAttentionBySeverity(items)");
     expect(dashboardHtml).not.toContain("function renderAttentionItem(item, idx)");
     expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
-    expect(dashboardHtml).toContain("function flightLogFingerprint(fl)");
+    expect(dashboardHtml).toContain("function flightLogFingerprint(d)");
   });
 });
 

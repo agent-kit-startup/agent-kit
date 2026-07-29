@@ -29,7 +29,9 @@ Everything under `plans/`, `memory/`, `context/`, and `HANDOFF.md` is **yours** 
 
 Optional extra: a `prepare-commit-msg` git hook you can copy from the kit's `git-hooks/` folder (one file, not the whole tree).
 
-Native agent hooks need Node and a resolvable `agent-kit` CLI (PATH, `node_modules/.bin`, or built dist). They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time. `agent-kit doctor` reports `hooks: active | degraded`.
+Native agent hooks need Node and a resolvable `agent-kit` CLI (PATH, `node_modules/.bin`, or built dist). They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time. `agent-kit doctor` reports `hooks: active | degraded` (including missing / non-executable adapters and an unresolvable CLI).
+
+If you copy `.cursor/hooks/agent/*.sh` by hand (chat / Port B install), run `chmod +x .cursor/hooks/agent/*.sh` afterward. Managed `agent-kit install` preserves the executable bit.
 
 ## Installing
 

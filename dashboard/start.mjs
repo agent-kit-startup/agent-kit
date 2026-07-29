@@ -15,17 +15,18 @@
  * Foreground serve for debugging remains: `npm run start:dashboard`.
  */
 
-import { spawn, execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, openSync } from "node:fs";
+import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platform } from "node:os";
 import {
   REPO_ROOT_ENV,
-  resolveSnapshotRepoRoot,
-  resolveMissionControlPort,
-  sameRepoRoot,
+  escapePerlDoubleQuoted,
   repoRootLogId,
+  resolveMissionControlPort,
+  resolveSnapshotRepoRoot,
+  sameRepoRoot,
 } from "./lib/guards.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,18 +51,15 @@ function setPort(port) {
   PORT = port;
   URL = `http://${DISPLAY_HOST}:${PORT}/`;
   DATA_URL = `http://${DISPLAY_HOST}:${PORT}/dashboard-data.json`;
-  LOG =
-    process.env.MISSION_CONTROL_LOG ||
-    `/tmp/mission-control-${repoRootLogId(ROOT)}.log`;
+  LOG = process.env.MISSION_CONTROL_LOG || `/tmp/mission-control-${repoRootLogId(ROOT)}.log`;
 }
 
 function probeHttp(url = URL) {
   try {
-    const code = execFileSync(
-      "curl",
-      ["-sf", "-o", "/dev/null", "-w", "%{http_code}", url],
-      { encoding: "utf8", timeout: 3000 },
-    ).trim();
+    const code = execFileSync("curl", ["-sf", "-o", "/dev/null", "-w", "%{http_code}", url], {
+      encoding: "utf8",
+      timeout: 3000,
+    }).trim();
     return code === "200";
   } catch {
     return false;
@@ -70,11 +68,10 @@ function probeHttp(url = URL) {
 
 function listeningPids(port = PORT) {
   try {
-    const out = execFileSync(
-      "lsof",
-      ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"],
-      { encoding: "utf8", timeout: 3000 },
-    ).trim();
+    const out = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      timeout: 3000,
+    }).trim();
     return out ? out.split(/\n+/).filter(Boolean) : [];
   } catch {
     return [];
@@ -153,11 +150,12 @@ function detachStart() {
   }
 
   // macOS and other hosts without setsid: Perl double-fork + setsid().
-  const rootEsc = KIT_ROOT.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const serveEsc = SERVE.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const logEsc = LOG.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const portEsc = String(PORT);
-  const snapEsc = ROOT.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  // Escape @/$ so scoped package paths (node_modules/@scope/...) survive Perl qq.
+  const rootEsc = escapePerlDoubleQuoted(KIT_ROOT);
+  const serveEsc = escapePerlDoubleQuoted(SERVE);
+  const logEsc = escapePerlDoubleQuoted(LOG);
+  const portEsc = escapePerlDoubleQuoted(String(PORT));
+  const snapEsc = escapePerlDoubleQuoted(ROOT);
   const perl = [
     "use POSIX qw(setsid);",
     "exit if fork;",
@@ -258,9 +256,7 @@ async function ensureServer() {
   detachStart();
   const ready = await waitReady();
   if (!ready) {
-    console.error(
-      `Mission Control did not answer ${URL} within ${READY_TIMEOUT_MS}ms.`,
-    );
+    console.error(`Mission Control did not answer ${URL} within ${READY_TIMEOUT_MS}ms.`);
     console.error(`Check the log: ${LOG}`);
     process.exit(1);
   }
@@ -280,9 +276,7 @@ async function main() {
       "Opened in the default browser. In Cursor, Simple Browser or /dashboard also works.",
     );
   } else {
-    console.log(
-      "Open that URL in a browser (Cursor: Simple Browser, or run /dashboard in chat).",
-    );
+    console.log("Open that URL in a browser (Cursor: Simple Browser, or run /dashboard in chat).");
   }
 }
 

@@ -30,6 +30,22 @@ export const DEFAULT_PORT_BASE = 3333;
 export const DEFAULT_PORT_RANGE = 256;
 
 /**
+ * Escape a path/string for embedding in a Perl double-quoted literal.
+ * Scoped npm package paths contain `@` (e.g. `node_modules/@dadado/...`);
+ * unescaped `@name` is array interpolation in Perl and strips the scope segment,
+ * so macOS detach-start via `perl -e` cannot exec `dashboard/serve.mjs`.
+ * @param {string} value
+ * @returns {string}
+ */
+export function escapePerlDoubleQuoted(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, "\\$")
+    .replace(/@/g, "\\@");
+}
+
+/**
  * Resolve the repository root Mission Control should snapshot.
  * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
  * @param {string} kitRoot - absolute path to the kit tree (parent of `dashboard/`)
@@ -141,7 +157,9 @@ export function sameRepoRoot(a, b) {
 export function resolveMissionControlPort({ repoRoot, envPort, probe, opts = {} }) {
   const root = resolve(String(repoRoot || "").trim() || ".");
   const raw =
-    envPort != null && String(envPort).trim() !== "" ? Number.parseInt(String(envPort), 10) : NaN;
+    envPort != null && String(envPort).trim() !== ""
+      ? Number.parseInt(String(envPort), 10)
+      : Number.NaN;
 
   if (Number.isFinite(raw) && raw > 0) {
     const info = probe(raw);

@@ -9,6 +9,7 @@ import {
   MAX_GIT_PATH,
   allowlistConfig,
   applyCorsHeaders,
+  escapePerlDoubleQuoted,
   isAllowedOrigin,
   isLoopbackAddress,
   isSafeRepoRelativePath,
@@ -21,6 +22,19 @@ import {
 } from "../../../../dashboard/lib/guards.mjs";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
+
+describe("escapePerlDoubleQuoted", () => {
+  it("escapes @ so scoped npm package paths survive Perl double-quoted strings", () => {
+    const path = "/tmp/x/node_modules/@dadado/agent-kit-cli/dashboard/serve.mjs";
+    expect(escapePerlDoubleQuoted(path)).toBe(
+      "/tmp/x/node_modules/\\@dadado/agent-kit-cli/dashboard/serve.mjs",
+    );
+  });
+
+  it("escapes backslashes, double quotes, and dollar signs", () => {
+    expect(escapePerlDoubleQuoted('a\\b"c$d')).toBe('a\\\\b\\"c\\$d');
+  });
+});
 
 describe("allowlistConfig", () => {
   it("keeps only allowlisted config keys and drops nested onboarding checks", () => {

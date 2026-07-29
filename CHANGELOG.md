@@ -8,10 +8,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.8.3] - 2026-07-29
+
 ### Fixed
 
+- Guard shell: strip surrounding quotes in push refspec normalize so `git push origin 'main'` and `"+main"` deny
+- Biome format: compact quiet-cap / classifier parity asserts in `plugin-ux-validation.test.ts` after PR #496
+- Flight Log quiet-cap: drop hardcoded fallback `5`; use SoT field only (missing → 0) and widen UX assertion (residual E)
+- Flight Log classifier parity: scope shared-literal asserts to `classifyFlightLogMessageKind` / `flightLogMessageKind` bodies so `normalizeHandoffGaps` copies cannot satisfy them (residual F)
+- Secrets scan: mask `json-secret-kv` (`"apiKey": "…"`) values in excerpts the same way as env assignments
+- Guard shell: normalize push refspecs (`+` / `refs/heads/`) before protected-branch deny so `git push origin +main` and `refs/heads/main` are blocked
+- Flight Log: shared `isFlightLogQuiet(d)` / `resolveFlightLogCurrent(d)` so fingerprint and renderer agree when Plan is none and Gaps come from handoff fallback
+- Biome format: split two statements on one line in `plugin-ux-validation.test.ts` (unblocks `pnpm lint` / tag CI)
+- Session-start hook: tests for readiness parsing + HANDOFF excerpt assembly (`buildSessionStartAdditionalContext`)
+- `/git-prod` pre-tag gate requires `pnpm typecheck` + `pnpm test`; §12.5 documents post-tag `main` exception, scoped Path C smoke, and npm-publish-checklist gains durable cross-lens matrix + partial-row convention
+- Doctor hooks health: adapters must exist, be executable, and CLI must resolve; guard shell covers `HEAD --` / `checkout .` / bare push on protected branch; secrets scan masks excerpts (hook omits raw spans); hand-install chmod +x in install.md + bootstrap
+- Broad Intake Write-residuals invariant pinned in external-reports doc contract; Flight Log classifier parity covers all shared regex groups; classify pre-truncation (F4)
+- Flight Log quiet open-triages: gate `flightLogFingerprint` on quiet Gaps+Warnings; derive cap/kind from SoT; build quiet lane from external reports (not starved attention)
+- `TRIAGE_HEADING_RE` / `isReportTriaged`: match only durable headings (`Triage note` / `Follow-up plan` / `Residuals plan`); stop treating tick headings that name `triage-*` to-do ids as triaged (shared SoT in `dashboard/lib/triage-heading.mjs` + CLI parity)
+- Path C Mission Control on macOS: escape `@` / `$` in Perl detach-start paths so `node_modules/@dadado/agent-kit-cli/dashboard/serve.mjs` is not stripped by array interpolation (`escapePerlDoubleQuoted`)
 - Public sync content guard: avoid denylist/secret-pattern false positives in CLI test fixtures (`field-report-prompts` path; split GitHub PAT sample) so `sync-public` can advance the storefront after npm 4.8.2
 - Public sync push protection: split Stripe live-key sample in `secrets-scan.test.ts` so GitHub secret scanning does not reject the sync PR branch
+
+### Changed
+
+- Close audit residuals A–E (`close-audit-residuals-ae`): staging lint-evidence process (#499); quoted push deny (#498); C deferred (quiet helpers still in `dashboard.html`); D–E accepted on monitor Closed-by; monitor + `_index` staged add-by-name (R14)
+- `/git-staging` + `autogit/gitupdate.md`: staging-ready requires recorded lint command + result (not the contract string alone); GitHub PRs must use `--base staging`
+- Memory Audits index: document curated (not exhaustive) policy for `_index.md` plan-monitor rows (ADR R14/R15 §3); stage five-monitor audit with index row (R14)
 
 ## [4.8.2] - 2026-07-29
 

@@ -193,6 +193,13 @@ describe("/plan-review-triage triage heading contract", () => {
     expect(planReviewTriageCmd).toMatch(/Ack and stop[\s\S]*must write the heading/i);
     expect(planReviewTriageCmd).toContain("Never skip the triage heading");
   });
+
+  it("requires Broad Intake before Write residuals propose + write-confirm", () => {
+    expect(planReviewTriageCmd).toContain("Never skip Broad Intake");
+    expect(planReviewTriageCmd).toMatch(
+      /Broad Intake[\s\S]*Write plan to backlog[\s\S]*Modify proposal first[\s\S]*Cancel/i,
+    );
+  });
 });
 
 describe("isReportTriaged", () => {
@@ -240,6 +247,22 @@ describe("isReportTriaged", () => {
       "\n## Follow-up plan - `residuals.plan.md` (verified, not live-monitored)\n",
     );
     expect(isReportTriaged(followUpHeading, [])).toBe(true);
+  });
+
+  it("does not treat tick headings naming triage-* to-do ids as durable triage", () => {
+    const parsed = report(
+      "plan-monitor-quiet-open-triages.md",
+      "flight-log-quiet-open-triages.plan.md",
+      "\n## Tick 1 — `adr-quiet-triage-surface` (Phase 0)\n\n### Still open\n\n| A |\n",
+    );
+    expect(isReportTriaged(parsed, [])).toBe(false);
+
+    const residualsHeading = report(
+      "plan-monitor-hooks.md",
+      "hooks.plan.md",
+      "\n## Residuals plan\n\n- **Plan:** `close-residuals.plan.md`\n",
+    );
+    expect(isReportTriaged(residualsHeading, [])).toBe(true);
   });
 
   it("does not mistake the reviewed plan for its own follow-up", () => {

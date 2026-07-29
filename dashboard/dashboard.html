@@ -5582,7 +5582,7 @@ function renderFlightLogWarningCard(warning, idx) {
 /**
  * Quiet-state open-triage row (untriaged external review). Prompt chrome;
  * per-row Copy triage + path only. No Review all / Resolve all.
- * Cap mirrors FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP in semantic-model.mjs.
+ * Kind class from flightLogKindClassName('prompt') (SoT map; not a literal).
  * @param {{ id?: string, label?: string, sourcePath?: string, action?: { target?: string, label?: string, subject?: string } }} item
  * @param {number} idx
  */
@@ -5603,8 +5603,9 @@ function renderFlightLogQuietOpenTriageCard(item, idx) {
   const copyTriageHandler = copyForPasteHandler(triageCmd, 'triage command', 'chatInput');
   const copyPathHandler = copyRepoPathHandler(sourcePath);
   const aria = `Review: ${label}`;
+  const kindClass = flightLogKindClassName('prompt');
   return `
-    <div class="flight-log-card flight-log-card-current flight-log-kind-advice" role="listitem" tabindex="0" data-focus-key="flight-log-open-triage-${idx}" data-flight-log-kind="prompt" aria-label="${escapeAttr(aria)}">
+    <div class="flight-log-card flight-log-card-current ${kindClass}" role="listitem" tabindex="0" data-focus-key="flight-log-open-triage-${idx}" data-flight-log-kind="prompt" aria-label="${escapeAttr(aria)}">
       <span class="flight-log-card-label">Review</span>
       <div class="flight-log-card-text">${escapeHtml(label)}</div>
       <div class="flight-log-card-meta">${escapeHtml(sourcePath)}</div>
@@ -5617,6 +5618,43 @@ function renderFlightLogQuietOpenTriageCard(item, idx) {
 }
 
 /**
+ * Resolve Live Gaps text for Flight Log render + fingerprint (same fallback chain).
+ * Prefer fl.current; with Plan:none, fall back to now.gaps then system.handoff.gaps.
+ */
+function resolveFlightLogCurrent(d) {
+  const fl = d?.missionControl?.flightLog ?? d?.flightLog ?? null;
+  if (typeof fl?.current === 'string' && fl.current.trim()) return fl.current.trim();
+  const nowGaps = d?.missionControl?.now?.gaps ?? d?.now?.gaps;
+  if (typeof nowGaps === 'string' && nowGaps.trim()) return nowGaps.trim();
+  const handoffGaps = d?.system?.handoff?.gaps;
+  if (typeof handoffGaps === 'string' && handoffGaps.trim()) return handoffGaps.trim();
+  return null;
+}
+
+function flightLogHasPastEntries(fl) {
+  if (!fl || !Array.isArray(fl.past)) return false;
+  return fl.past.some((e) => {
+    if (typeof e === 'string') return Boolean(e.trim());
+    return Boolean(e && typeof e.text === 'string' && e.text.trim());
+  });
+}
+
+/** Match renderFlightLogWarningCard: text-less warnings do not count. */
+function flightLogHasWarningEntries(fl) {
+  if (!fl || !Array.isArray(fl.warnings)) return false;
+  return fl.warnings.some((w) => {
+    if (typeof w === 'string') return Boolean(w.trim());
+    return Boolean(w && typeof w.text === 'string' && w.text.trim());
+  });
+}
+
+/** Shared quiet gate for renderAttentionPanel + flightLogFingerprint. */
+function isFlightLogQuiet(d) {
+  const fl = d?.missionControl?.flightLog ?? d?.flightLog ?? null;
+  return !resolveFlightLogCurrent(d) && !flightLogHasPastEntries(fl) && !flightLogHasWarningEntries(fl);
+}
+
+/**
  * Flight Log panel: HANDOFF Gaps log (live large + earlier smaller) + Warnings lane.
  * When Gaps + Warnings are empty, may show bounded quiet open-triage rows.
  * Field Report attention inbox / bulk CTAs stay off this card.
@@ -5626,22 +5664,22 @@ function renderAttentionPanel(d, attentionChanged) {
   const sourcePath =
     (typeof fl?.sourcePath === 'string' && fl.sourcePath.trim()) ||
     '.cursor/HANDOFF.md';
-  const current =
-    typeof fl?.current === 'string' && fl.current.trim()
-      ? fl.current.trim()
-      : typeof d.missionControl?.now?.gaps === 'string' && d.missionControl.now.gaps.trim()
-        ? d.missionControl.now.gaps.trim()
-        : typeof d.system?.handoff?.gaps === 'string' && d.system.handoff.gaps.trim()
-          ? d.system.handoff.gaps.trim()
-          : null;
+  const current = resolveFlightLogCurrent(d);
   const past = Array.isArray(fl?.past) ? fl.past : [];
   const warnings = Array.isArray(fl?.warnings) ? fl.warnings : [];
+  const quietCap =
+    typeof d.missionControl?.flightLogQuietOpenTriagesCap === 'number' &&
+    d.missionControl.flightLogQuietOpenTriagesCap > 0
+      ? Math.floor(d.missionControl.flightLogQuietOpenTriagesCap)
+      : 0;
   const quietOpenTriages = Array.isArray(fl?.quietOpenTriages)
     ? fl.quietOpenTriages
     : Array.isArray(d.missionControl?.attention)
-      ? d.missionControl.attention.filter(
-          (i) => i && i.kind === 'report' && typeof i.sourcePath === 'string' && i.sourcePath.trim(),
-        ).slice(0, 5)
+      ? d.missionControl.attention
+          .filter(
+            (i) => i && i.kind === 'report' && typeof i.sourcePath === 'string' && i.sourcePath.trim(),
+          )
+          .slice(0, quietCap)
       : [];
   const pastCards = past
     .filter((e) => e && typeof e.text === 'string' && e.text.trim())
@@ -5675,6 +5713,7 @@ function renderAttentionPanel(d, attentionChanged) {
   const hasCurrent = Boolean(current);
   const hasPast = pastCards.length > 0;
   const hasWarnings = warningCards.length > 0;
+  // Keep local flags aligned with isFlightLogQuiet(d) for the quiet branch.
   if (!hasCurrent && !hasPast && !hasWarnings) {
     if (hasOpenTriages) {
       body = `<div class="flight-log-stack" role="list" aria-label="Reviews awaiting triage">${openTriageCards}</div>`;
@@ -5780,18 +5819,48 @@ function previousStageElapsedTitle(now) {
   return `Previous step elapsed ${formatElapsedPlain(row.elapsedMs)}`;
 }
 
-function flightLogFingerprint(fl) {
+/**
+ * Fingerprint Flight Log for SSE re-render. Accepts full dashboard `d` or a
+ * slim prev snapshot `{ flightLog, now, system }` so quiet-gate matches render.
+ */
+function flightLogFingerprint(d) {
+  if (!d || typeof d !== 'object') return '';
+  const fl = d.missionControl?.flightLog ?? d.flightLog ?? null;
   if (!fl || typeof fl !== 'object') return '';
-  const current = typeof fl.current === 'string' ? fl.current : '';
+  const current = resolveFlightLogCurrent(d) || '';
   const past = Array.isArray(fl.past)
-    ? fl.past.map((e) => (e && typeof e.text === 'string' ? e.text : '')).join('\n')
+    ? fl.past
+        .map((e) =>
+          typeof e === 'string' ? e : e && typeof e.text === 'string' ? e.text : '',
+        )
+        .join('\n')
     : '';
   const warnings = Array.isArray(fl.warnings)
-    ? fl.warnings.map((w) => (w && (w.id || w.text) ? String(w.id || w.text) : '')).join('\n')
+    ? fl.warnings
+        .map((w) =>
+          typeof w === 'string'
+            ? w
+            : w && (w.id || w.text)
+              ? String(w.id || w.text)
+              : '',
+        )
+        .join('\n')
     : '';
-  const openTriages = Array.isArray(fl.quietOpenTriages)
-    ? fl.quietOpenTriages.map((i) => (i && (i.id || i.sourcePath) ? String(i.id || i.sourcePath) : '')).join('\n')
-    : '';
+  // Quiet-only: include open-triage ids when Gaps + Warnings are empty so a new
+  // monitor does not flash the non-quiet Flight Log card with no visible change.
+  // Must use the same gate as renderAttentionPanel (Plan:none Gaps fallback).
+  const openTriages =
+    isFlightLogQuiet(d) && Array.isArray(fl.quietOpenTriages)
+      ? fl.quietOpenTriages
+          .map((i) =>
+            typeof i === 'string'
+              ? i
+              : i && (i.id || i.sourcePath)
+                ? String(i.id || i.sourcePath)
+                : '',
+          )
+          .join('\n')
+      : '';
   return `${current}\0${past}\0${warnings}\0${openTriages}`;
 }
 
@@ -6085,8 +6154,12 @@ function renderUnsafe() {
   const nowChanged = prevData && nowFingerprint(d.missionControl?.now) !== nowFingerprint(prevData.now);
   const attentionChanged =
     prevData &&
-    flightLogFingerprint(d.missionControl?.flightLog) !==
-      flightLogFingerprint(prevData.flightLog);
+    flightLogFingerprint(d) !==
+      flightLogFingerprint({
+        flightLog: prevData.flightLog,
+        now: prevData.now,
+        system: prevData.system,
+      });
   prevData = snapshotPrevData(d);
 
   dataLoading = false;

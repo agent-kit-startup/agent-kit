@@ -1,8 +1,23 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { defineCommand } from "citty";
 import { readStdinJson } from "../hooks/read-stdin-json.js";
 import { scanTextForSecrets, secretsAdviseMessage } from "../invariants/secrets-scan.js";
 import { evaluateShellCommand } from "../invariants/shell-guard.js";
 
+const execFileAsync = promisify(execFile);
+
+async function detectCurrentBranch(): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf8",
+    });
+    const branch = stdout.trim();
+    return branch && branch !== "HEAD" ? branch : undefined;
+  } catch {
+    return undefined;
+  }
+}
 export const guardCommand = defineCommand({
   meta: {
     name: "guard",
@@ -31,7 +46,8 @@ export const guardCommand = defineCommand({
           const payload = await readStdinJson<{ command?: string }>();
           command = typeof payload.command === "string" ? payload.command : "";
         }
-        const result = evaluateShellCommand(command);
+        const currentBranch = await detectCurrentBranch();
+        const result = evaluateShellCommand(command, { currentBranch });
         console.log(JSON.stringify(result));
       },
     }),
@@ -59,12 +75,13 @@ export const guardCommand = defineCommand({
           return;
         }
         // Annotate only: do not block the session (fail-open posture).
+        // Omit raw excerpts from hook stdout (pattern ids only).
         console.log(
           JSON.stringify({
             continue: true,
             user_message: secretsAdviseMessage(hits),
             agent_message: secretsAdviseMessage(hits),
-            hits,
+            hits: hits.map((h) => ({ patternId: h.patternId })),
           }),
         );
       },

@@ -7,13 +7,14 @@
  * prints LAN URL(s) with token. Does not weaken loopback `/dashboard`.
  */
 
-import { spawn, execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, openSync } from "node:fs";
+import { platform } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platform } from "node:os";
 import {
   BROADCAST_TOKEN_ENV,
+  escapePerlDoubleQuoted,
   generateBroadcastToken,
   isLoopbackBindHost,
   isValidBroadcastToken,
@@ -26,7 +27,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const SERVE = join(__dirname, "serve.mjs");
 const LOG = process.env.MISSION_CONTROL_LOG || "/tmp/mission-control-broadcast.log";
-const PORT = parseInt(process.env.PORT || "3333", 10);
+const PORT = Number.parseInt(process.env.PORT || "3333", 10);
 const READY_TIMEOUT_MS = 20_000;
 const READY_POLL_MS = 250;
 
@@ -57,11 +58,10 @@ function urlsForProbe(token) {
 
 function probeHttp(url) {
   try {
-    const code = execFileSync(
-      "curl",
-      ["-sf", "-o", "/dev/null", "-w", "%{http_code}", url],
-      { encoding: "utf8", timeout: 3000 },
-    ).trim();
+    const code = execFileSync("curl", ["-sf", "-o", "/dev/null", "-w", "%{http_code}", url], {
+      encoding: "utf8",
+      timeout: 3000,
+    }).trim();
     return code === "200";
   } catch {
     return false;
@@ -70,11 +70,10 @@ function probeHttp(url) {
 
 function listeningPids() {
   try {
-    const out = execFileSync(
-      "lsof",
-      ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN", "-t"],
-      { encoding: "utf8", timeout: 3000 },
-    ).trim();
+    const out = execFileSync("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN", "-t"], {
+      encoding: "utf8",
+      timeout: 3000,
+    }).trim();
     return out ? out.split(/\n+/).filter(Boolean) : [];
   } catch {
     return [];
@@ -107,12 +106,13 @@ function detachStart(env) {
     return;
   }
 
-  const rootEsc = ROOT.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const serveEsc = SERVE.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const logEsc = LOG.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const hostEsc = String(env.HOST).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const tokenEsc = String(env[BROADCAST_TOKEN_ENV]).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  const portEsc = String(PORT);
+  // Escape @/$ so scoped package paths (node_modules/@scope/...) survive Perl qq.
+  const rootEsc = escapePerlDoubleQuoted(ROOT);
+  const serveEsc = escapePerlDoubleQuoted(SERVE);
+  const logEsc = escapePerlDoubleQuoted(LOG);
+  const hostEsc = escapePerlDoubleQuoted(String(env.HOST));
+  const tokenEsc = escapePerlDoubleQuoted(String(env[BROADCAST_TOKEN_ENV]));
+  const portEsc = escapePerlDoubleQuoted(String(PORT));
   const perl = [
     "use POSIX qw(setsid);",
     "exit if fork;",
@@ -169,7 +169,9 @@ function openBrowser(url) {
 async function main() {
   const { env, host, token } = resolveBroadcastEnv();
   if (isLoopbackBindHost(host)) {
-    console.error("Broadcast refused: bind host resolved to loopback. Set HOST to a non-loopback address.");
+    console.error(
+      "Broadcast refused: bind host resolved to loopback. Set HOST to a non-loopback address.",
+    );
     process.exit(1);
   }
 
@@ -193,9 +195,7 @@ async function main() {
     detachStart(env);
     const ready = await waitReady(urls);
     if (!ready) {
-      console.error(
-        `Mission Control broadcast did not answer within ${READY_TIMEOUT_MS}ms.`,
-      );
+      console.error(`Mission Control broadcast did not answer within ${READY_TIMEOUT_MS}ms.`);
       console.error(`Check the log: ${LOG}`);
       process.exit(1);
     }

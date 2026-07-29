@@ -2,11 +2,11 @@ import { execFile } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { TRIAGE_HEADING_RE } from "./triage-heading.js";
 
 const execFileAsync = promisify(execFile);
 
-/** Same spirit as dashboard TRIAGE_HEADING_RE (untriaged = no triage heading). */
-export const TRIAGE_HEADING_RE = /^#{2,6}\s+.*\b(triage|follow-?up plan|residuals plan)\b/im;
+export { TRIAGE_HEADING_RE };
 
 export interface MonitorEntry {
   path: string;
