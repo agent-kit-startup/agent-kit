@@ -193,6 +193,19 @@ a:focus-visible,
   flex-shrink: 0;
   background: transparent;
 }
+.header-workspace {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 0.15rem;
+}
+.header-workspace:empty {
+  display: none;
+}
 .header-home-btn {
   background: transparent;
   border: none;
@@ -2657,15 +2670,53 @@ a:focus-visible,
 }
 .flight-log-card-current {
   padding: 12px 14px;
+  font-size: 13px;
+}
+.flight-log-card-current.flight-log-kind-residual {
   border-color: var(--yellow);
   background: var(--yellow-bg);
-  font-size: 13px;
+}
+.flight-log-card-current.flight-log-kind-residual .flight-log-card-label {
+  color: var(--yellow);
+}
+.flight-log-card-current.flight-log-kind-advice {
+  border-color: var(--blue);
+  background: var(--blue-bg);
+}
+.flight-log-card-current.flight-log-kind-advice .flight-log-card-label {
+  color: var(--blue);
+}
+.flight-log-card-current.flight-log-kind-ok {
+  border-color: color-mix(in srgb, var(--green) 55%, var(--border));
+  background: color-mix(in srgb, var(--green-bg) 40%, var(--bg-elevated, var(--bg-card)));
+}
+.flight-log-card-current.flight-log-kind-ok .flight-log-card-label {
+  color: var(--green);
+}
+.flight-log-card-current.flight-log-kind-warning {
+  border-color: color-mix(in srgb, var(--orange, var(--yellow)) 70%, var(--border));
+  background: color-mix(in srgb, var(--orange-bg, var(--yellow-bg)) 55%, var(--bg-elevated, var(--bg-card)));
+}
+.flight-log-card-current.flight-log-kind-warning .flight-log-card-label {
+  color: var(--orange, var(--yellow));
 }
 .flight-log-card-past {
   padding: 8px 10px;
   font-size: 11px;
   color: var(--text-secondary);
   opacity: 0.92;
+}
+.flight-log-card-past.flight-log-kind-residual {
+  border-color: color-mix(in srgb, var(--yellow) 35%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-advice {
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-ok {
+  border-color: color-mix(in srgb, var(--green) 30%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-warning {
+  border-color: color-mix(in srgb, var(--orange, var(--yellow)) 30%, var(--border));
 }
 .flight-log-card-warning {
   padding: 10px 12px;
@@ -2683,7 +2734,7 @@ a:focus-visible,
   letter-spacing: 0.02em;
   text-transform: uppercase;
   font-size: 10px;
-  color: var(--yellow);
+  color: var(--text-muted);
   margin-bottom: 4px;
 }
 .flight-log-card-past .flight-log-card-label {
@@ -2776,6 +2827,7 @@ a:focus-visible,
 <div class="header">
   <button type="button" class="header-brand" id="headerBrand" onclick="return goHome()" aria-label="Home, Overview" title="Home, Overview">
     <img class="logo" id="headerLogo" src="/logo.svg" width="28" height="28" alt="" aria-hidden="true"> Mission Control
+    <span class="header-workspace" id="headerWorkspace" hidden></span>
   </button>
   <span class="header-version" id="version" hidden>v—</span>
   <div class="header-right">
@@ -4676,6 +4728,9 @@ function snapshotPrevData(d) {
           warnings: Array.isArray(d.missionControl.flightLog.warnings)
             ? d.missionControl.flightLog.warnings.map((w) => w?.id || w?.text || '')
             : [],
+          quietOpenTriages: Array.isArray(d.missionControl.flightLog.quietOpenTriages)
+            ? d.missionControl.flightLog.quietOpenTriages.map((i) => i?.id || i?.sourcePath || '')
+            : [],
         }
       : null,
   };
@@ -5398,8 +5453,60 @@ function renderNowGaps(_gapsText) {
 }
 
 /**
- * One Flight Log message card (live or earlier Gaps). Clickable: copy text + path.
- * @param {{ text: string, at?: string|null, sourcePath?: string, variant: 'current'|'past' }} entry
+ * Flight Log typed notification kind → CSS modifier (palette-by-type).
+ * Mirrors dashboard/lib/semantic-model.mjs classifyFlightLogMessageKind /
+ * flightLogKindClass. Not Crew Monitor kinds.
+ * @param {string | null | undefined} text
+ * @param {{ lane?: string, kind?: string }} [opts]
+ */
+function flightLogMessageKind(text, opts = {}) {
+  if (opts.lane === 'warning') return 'warning';
+  if (typeof opts.kind === 'string' && opts.kind.trim()) {
+    const k = opts.kind.trim().toLowerCase();
+    if (k === 'ok' || k === 'advice' || k === 'prompt' || k === 'warning' || k === 'residual') {
+      return k;
+    }
+    if (k === 'api_limit' || k === 'orchestrator_heads_up') return 'warning';
+  }
+  const raw = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
+  if (!raw) return 'ok';
+  if (/^(none|n\/a)$/i.test(raw)) return 'ok';
+  if (/^(none|n\/a)\s*[.:,;\/(\-–—…]/i.test(raw)) return 'ok';
+  if (/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i.test(raw)) return 'ok';
+  if (
+    /\bAPI\s*\/\s*usage\s+limit\b|\bAPI\s+usage\s+limit\b|\bSTOPPED:\s*API\b/i.test(raw) ||
+    /\b(hard.?stop|quota\s+pause)\b/i.test(raw)
+  ) {
+    return 'warning';
+  }
+  if (/\b(confirm|ask questions|hitl|\bpaste\b|choose\b|approve\b|operator yes)\b/i.test(raw)) {
+    return 'prompt';
+  }
+  if (/\b(tip:|advice:|consider\b|recommends?\b|recommended\b|prefer\b)/i.test(raw)) {
+    return 'advice';
+  }
+  return 'residual';
+}
+
+function flightLogKindClassName(kind) {
+  switch (kind) {
+    case 'ok':
+      return 'flight-log-kind-ok';
+    case 'advice':
+    case 'prompt':
+      return 'flight-log-kind-advice';
+    case 'warning':
+      return 'flight-log-kind-warning';
+    case 'residual':
+    default:
+      return 'flight-log-kind-residual';
+  }
+}
+
+/**
+ * Gaps card on Flight Log (Live large / Earlier smaller). Labels locked.
+ * Kind selects Mission Control palette tokens (typed notification chrome).
+ * @param {{ text?: string, at?: string|null, sourcePath?: string, variant?: string, kind?: string }} entry
  * @param {number} idx
  */
 function renderFlightLogCard(entry, idx) {
@@ -5411,6 +5518,8 @@ function renderFlightLogCard(entry, idx) {
       : '.cursor/HANDOFF.md';
   const variant = entry?.variant === 'past' ? 'past' : 'current';
   const label = variant === 'current' ? 'Live' : 'Earlier';
+  const kind = flightLogMessageKind(text, { kind: entry?.kind });
+  const kindClass = flightLogKindClassName(kind);
   const metaBits = [];
   if (variant === 'past' && entry?.at) {
     metaBits.push(escapeHtml(String(entry.at)));
@@ -5419,10 +5528,12 @@ function renderFlightLogCard(entry, idx) {
   const copyTextHandler = copyForPasteHandler(text, 'Gaps text', 'chatInput');
   const copyPathHandler = copyRepoPathHandler(sourcePath);
   const cardClass =
-    variant === 'current' ? 'flight-log-card flight-log-card-current' : 'flight-log-card flight-log-card-past';
+    variant === 'current'
+      ? `flight-log-card flight-log-card-current ${kindClass}`
+      : `flight-log-card flight-log-card-past ${kindClass}`;
   const aria = `${label}: ${text}`;
   return `
-    <div class="${cardClass}" role="listitem" tabindex="0" data-focus-key="flight-log-${variant}-${idx}" aria-label="${escapeAttr(aria)}">
+    <div class="${cardClass}" role="listitem" tabindex="0" data-focus-key="flight-log-${variant}-${idx}" data-flight-log-kind="${escapeAttr(kind)}" aria-label="${escapeAttr(aria)}">
       <span class="flight-log-card-label">${escapeHtml(label)}</span>
       <div class="flight-log-card-text">${escapeHtml(text)}</div>
       <div class="flight-log-card-meta">${metaBits.join(' · ')}</div>
@@ -5469,8 +5580,46 @@ function renderFlightLogWarningCard(warning, idx) {
 }
 
 /**
+ * Quiet-state open-triage row (untriaged external review). Prompt chrome;
+ * per-row Copy triage + path only. No Review all / Resolve all.
+ * Cap mirrors FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP in semantic-model.mjs.
+ * @param {{ id?: string, label?: string, sourcePath?: string, action?: { target?: string, label?: string, subject?: string } }} item
+ * @param {number} idx
+ */
+function renderFlightLogQuietOpenTriageCard(item, idx) {
+  const sourcePath =
+    typeof item?.sourcePath === 'string' && item.sourcePath.trim()
+      ? item.sourcePath.trim()
+      : '';
+  if (!sourcePath) return '';
+  const label =
+    typeof item?.label === 'string' && item.label.trim()
+      ? item.label.trim()
+      : 'Awaiting triage';
+  const triageCmd =
+    typeof item?.action?.target === 'string' && item.action.target.trim()
+      ? item.action.target.trim()
+      : `/plan-review-triage ${sourcePath}`;
+  const copyTriageHandler = copyForPasteHandler(triageCmd, 'triage command', 'chatInput');
+  const copyPathHandler = copyRepoPathHandler(sourcePath);
+  const aria = `Review: ${label}`;
+  return `
+    <div class="flight-log-card flight-log-card-current flight-log-kind-advice" role="listitem" tabindex="0" data-focus-key="flight-log-open-triage-${idx}" data-flight-log-kind="prompt" aria-label="${escapeAttr(aria)}">
+      <span class="flight-log-card-label">Review</span>
+      <div class="flight-log-card-text">${escapeHtml(label)}</div>
+      <div class="flight-log-card-meta">${escapeHtml(sourcePath)}</div>
+      <div class="flight-log-card-actions">
+        <button type="button" class="status-bar-btn" data-focus-key="flight-log-open-triage-cmd-${idx}" onclick="${copyTriageHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('triage command', 'chatInput'))}">Copy triage command</button>
+        <button type="button" class="status-bar-btn" data-focus-key="flight-log-open-triage-path-${idx}" onclick="${copyPathHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(pathActionTitle(sourcePath))}">${PATH_COPY_LABEL}</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Flight Log panel: HANDOFF Gaps log (live large + earlier smaller) + Warnings lane.
- * Field Report attention stack retired from this card.
+ * When Gaps + Warnings are empty, may show bounded quiet open-triage rows.
+ * Field Report attention inbox / bulk CTAs stay off this card.
  */
 function renderAttentionPanel(d, attentionChanged) {
   const fl = d.missionControl?.flightLog || null;
@@ -5487,6 +5636,13 @@ function renderAttentionPanel(d, attentionChanged) {
           : null;
   const past = Array.isArray(fl?.past) ? fl.past : [];
   const warnings = Array.isArray(fl?.warnings) ? fl.warnings : [];
+  const quietOpenTriages = Array.isArray(fl?.quietOpenTriages)
+    ? fl.quietOpenTriages
+    : Array.isArray(d.missionControl?.attention)
+      ? d.missionControl.attention.filter(
+          (i) => i && i.kind === 'report' && typeof i.sourcePath === 'string' && i.sourcePath.trim(),
+        ).slice(0, 5)
+      : [];
   const pastCards = past
     .filter((e) => e && typeof e.text === 'string' && e.text.trim())
     .map((e, idx) =>
@@ -5496,6 +5652,7 @@ function renderAttentionPanel(d, attentionChanged) {
           at: e.at || null,
           sourcePath: e.sourcePath || sourcePath,
           variant: 'past',
+          kind: e.kind || null,
         },
         idx,
       ),
@@ -5508,28 +5665,42 @@ function renderAttentionPanel(d, attentionChanged) {
   const warningsBlock = warningCards
     ? `<div class="flight-log-warnings" role="list" aria-label="Operator warnings">${warningCards}</div>`
     : '';
+  const openTriageCards = quietOpenTriages
+    .map((item, idx) => renderFlightLogQuietOpenTriageCard(item, idx))
+    .filter(Boolean)
+    .join('');
+  const hasOpenTriages = openTriageCards.length > 0;
 
   let body;
   const hasCurrent = Boolean(current);
   const hasPast = pastCards.length > 0;
   const hasWarnings = warningCards.length > 0;
   if (!hasCurrent && !hasPast && !hasWarnings) {
-    body = renderEmptyStateCta({
-      headline: 'All clear',
-      iconKind: 'field-report',
-      support: 'Quiet cockpit. Residuals show up here when Gaps change.',
-      compact: true,
-      className: 'attention-empty',
-    });
+    if (hasOpenTriages) {
+      body = `<div class="flight-log-stack" role="list" aria-label="Reviews awaiting triage">${openTriageCards}</div>`;
+    } else {
+      body = renderEmptyStateCta({
+        headline: 'All clear',
+        iconKind: 'field-report',
+        support: 'Quiet cockpit. Residuals show up here when Gaps change.',
+        compact: true,
+        className: 'attention-empty',
+      });
+    }
   } else if (!hasCurrent && !hasPast && hasWarnings) {
     body = `${warningsBlock}`;
   } else {
     const currentCard = hasCurrent
       ? renderFlightLogCard(
-          { text: current, sourcePath, variant: 'current' },
+          {
+            text: current,
+            sourcePath,
+            variant: 'current',
+            kind: typeof fl?.currentKind === 'string' ? fl.currentKind : null,
+          },
           0,
         )
-      : `<div class="flight-log-card flight-log-card-current" role="status" aria-label="No live Gaps">
+      : `<div class="flight-log-card flight-log-card-current flight-log-kind-ok" role="status" data-flight-log-kind="ok" aria-label="No live Gaps">
           <span class="flight-log-card-label">Live</span>
           <div class="flight-log-card-text" style="color:var(--text-muted)">Quiet · nothing live</div>
         </div>`;
@@ -5546,7 +5717,9 @@ function renderAttentionPanel(d, attentionChanged) {
       ? `${past.length} earlier${hasWarnings ? ` · ${warnings.length} warn` : ''}`
       : hasWarnings
         ? `${warnings.length} warn`
-        : 'Clear';
+        : hasOpenTriages
+          ? `${quietOpenTriages.length} review`
+          : 'Clear';
 
   return `
     <div class="card${attentionChanged ? ' card-flash' : ''}" id="attention-panel">
@@ -5616,7 +5789,10 @@ function flightLogFingerprint(fl) {
   const warnings = Array.isArray(fl.warnings)
     ? fl.warnings.map((w) => (w && (w.id || w.text) ? String(w.id || w.text) : '')).join('\n')
     : '';
-  return `${current}\0${past}\0${warnings}`;
+  const openTriages = Array.isArray(fl.quietOpenTriages)
+    ? fl.quietOpenTriages.map((i) => (i && (i.id || i.sourcePath) ? String(i.id || i.sourcePath) : '')).join('\n')
+    : '';
+  return `${current}\0${past}\0${warnings}\0${openTriages}`;
 }
 
 // Step progress bar: one segment per plan step (completed / current / remaining).
@@ -5928,6 +6104,24 @@ function renderUnsafe() {
   if (dataVersionEl) dataVersionEl.textContent = `schema ${d.dashboardDataVersion || '\u2014'}`;
   const lastUpdatedEl = document.getElementById('lastUpdated');
   if (lastUpdatedEl) lastUpdatedEl.textContent = `Updated ${fmtTime(d.generatedAt)}`;
+
+  const workspaceEl = document.getElementById('headerWorkspace');
+  if (workspaceEl) {
+    const root = typeof d.system?.repoRoot === 'string' ? d.system.repoRoot.trim() : '';
+    const base = root ? root.replace(/\\/g, '/').replace(/\/$/, '').split('/').pop() : '';
+    const port = d.system?.port;
+    if (base) {
+      workspaceEl.hidden = false;
+      workspaceEl.textContent = base;
+      workspaceEl.title = port ? `${root} · :${port}` : root;
+      document.title = `Mission Control · ${base}`;
+    } else {
+      workspaceEl.hidden = true;
+      workspaceEl.textContent = '';
+      workspaceEl.removeAttribute('title');
+      document.title = 'Mission Control';
+    }
+  }
 
   const health = d.health;
   updateTransportChrome();

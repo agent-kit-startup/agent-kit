@@ -68,11 +68,9 @@ Workspace layout after dogfood `update`: `.cursor/skills/core|community/<id>/SKI
 | `pre-commit/check-secrets.sh` | core | ✅ L0 + keep |
 | `pre-commit/validate-all-json.sh` | core | ✅ keep |
 | `pre-commit/pre-commit` | core | ✅ keep |
-| `pre-edit/validate-json.sh` | core | ✅ keep |
-| `post-edit/validate-n8n.sh` | stack | ✅ keep |
-| `lib/json-validator.js` | core | ✅ keep |
-| `lib/n8n-checker.js` | stack | ✅ keep |
-| `.cursor/hooks.json` | core | ✅ present - sessionStart / preCompact (no stop follow-up) |
+| `lib/json-validator.js` | core | ✅ keep (pre-commit) |
+| `lib/n8n-checker.js` | stack | ✅ keep (manual / skill) |
+| `.cursor/hooks.json` + `agent/*.sh` | core | ✅ thin adapters → `agent-kit` CLI (no stop; no python3) |
 | `git-hooks/prepare-commit-msg` | core | ✅ documented via autogit |
 
 ---

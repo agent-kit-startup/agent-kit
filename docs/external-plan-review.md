@@ -86,7 +86,7 @@ Monitors are durable evidence. Beyond Field Report and `/plan-review-triage` (at
 
 | Surface | Role |
 |---------|------|
-| `/start-project`, `/backlog-add` Broad Intake | Memory bucket + worker `read_scope` include monitors/audits; same triage labels (`ignore` / `error` / `include` / `note`) |
+| `/start-project`, `/backlog-add`, `/plan-review-triage` Write residuals Broad Intake | Memory bucket + worker `read_scope` include monitors/audits; same triage labels (`ignore` / `error` / `include` / `note`) |
 | `/continue-plan` | Pre-unit advisory skim for the chosen plan slug |
 | `memory-loop` CHECK | Glob monitors/audits before deep re-investigation |
 | `/git-staging` | Dirty untracked monitor warn; add-by-name only |
@@ -98,11 +98,11 @@ ADR: `.cursor/memory/decisions/2026-07-27_plan-monitor-consumer-awareness.md`.
 
 Use `/plan-review-triage` to process the monitor with clickable options:
 
-- **Write residuals plan:** Propose a residuals plan from Still open, confirm with Ask (`Write plan to backlog` / `Modify` / `Cancel`), write `.cursor/plans/*.plan.md` and append HANDOFF Backlog (no Gate B; `/start-project` is an optional escape hatch only)
+- **Write residuals plan:** Run the same Broad Intake as `/backlog-add` (buckets + triage labels), propose a residuals plan from Still open plus intake findings, confirm with Ask (`Write plan to backlog` / `Modify` / `Cancel`), write `.cursor/plans/*.plan.md` and append HANDOFF Backlog (no Gate B; `/start-project` is an optional escape hatch only)
 - **Fix nits only:** Address small issues directly (typos, formatting, obvious omissions)
 - **Ack and stop:** Note findings for future reference without immediate action
 
-Mission Control **Flight Log** shows HANDOFF Gaps (**Live** + **Earlier** history; wipe on new plan/queue flight; cap 15 within a flight) plus an operator Warnings lane (Quota pause, Heads up). Write Gaps in short operator voice (`none` when only mid-batch/cadence plumbing changed; see handoff template). External-review triage runs via chat `/plan-review-triage` (and autonomous audit arming), not as Review all / Resolve all CTAs on that card. Multi-path walks skip already-triaged or no-open-residual monitors with a one-line note. When remaining monitors share a uniform outcome class, `/plan-review-triage` uses **one** Ask for the set and still writes a durable triage heading on every target; uniform Write residuals may enqueue one combined backlog plan. Mixed outcomes stay sequential (ADRs `2026-07-27_plan-review-triage-batch-uniform-hitl.md`, `2026-07-28_triage-write-residuals-via-backlog.md`). Cadence ledger scripts may remain for L0 tick bumps; Flight Log UI does not surface cadence WARNING rows (ADR `2026-07-27_mc-flight-log-panel.md`). Wait/mtime and mid-batch wait are owned by the wait-freshness contract (`2026-07-27_audits-wait-freshness-enforce.md`).
+Mission Control **Flight Log** shows HANDOFF Gaps (**Live** + **Earlier** history; wipe on new plan/queue flight; cap 15 within a flight) plus an operator Warnings lane (Quota pause, Heads up), with palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`). When Gaps and Warnings are empty, Flight Log may surface bounded untriaged external-review rows (per-row Copy triage command / path only; All clear when truly clear). Write Gaps in short operator voice (exact `none` when only mid-batch/cadence plumbing changed; avoid `none.…` OK notes; see handoff template). External-review triage decisions run via chat `/plan-review-triage` (HITL SoT; autonomous audit arming), not as Review all / Resolve all CTAs on that card. Multi-path walks skip already-triaged or no-open-residual monitors with a one-line note. When remaining monitors share a uniform outcome class, `/plan-review-triage` uses **one** Ask for the set and still writes a durable triage heading on every target; uniform Write residuals runs one Broad Intake then may enqueue one combined backlog plan. Mixed outcomes stay sequential (ADRs `2026-07-27_plan-review-triage-batch-uniform-hitl.md`, `2026-07-28_triage-write-residuals-via-backlog.md`). Cadence ledger scripts may remain for L0 tick bumps; Flight Log UI does not surface cadence WARNING rows (ADR `2026-07-27_mc-flight-log-panel.md`). Wait/mtime and mid-batch wait are owned by the wait-freshness contract (`2026-07-27_audits-wait-freshness-enforce.md`).
 
 ## Configuration options
 
@@ -225,7 +225,7 @@ bash -n .cursor/scripts/plan-external-review.sh
 - **HANDOFF updates:** External review results update `.cursor/HANDOFF.md`
 - **Git staging:** Monitor files and fixes stage via `/git-staging` (never `/git-prod`)
 - **Memory system:** Significant findings enter `.cursor/memory/` for future reference
-- **Plan creation:** Residuals enqueue via the `/backlog-add` contract from `/plan-review-triage` (plan file + HANDOFF Backlog; no Gate B). Clipboard `/start-project` is not the happy path; use `/start-project` only when activate + Gate B is wanted.
+- **Plan creation:** Residuals enqueue via the `/backlog-add` contract from `/plan-review-triage` (Broad Intake + write-confirm Ask → plan file + HANDOFF Backlog; no Gate B). Clipboard `/start-project` is not the happy path; use `/start-project` only when activate + Gate B is wanted.
 
 ## Troubleshooting
 

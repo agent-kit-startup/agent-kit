@@ -297,6 +297,70 @@ describe("resolveBindHost", () => {
 });
 
 describe("broadcast auth gate", () => {
+  it("resolves MISSION_CONTROL_REPO_ROOT for consumer snapshots", async () => {
+    const { resolveSnapshotRepoRoot, REPO_ROOT_ENV } = await import(
+      "../../../../dashboard/lib/guards.mjs"
+    );
+    const kit = "/tmp/agent-kit-tree";
+    expect(resolveSnapshotRepoRoot({}, kit)).toBe(kit);
+    expect(resolveSnapshotRepoRoot({ [REPO_ROOT_ENV]: "/tmp/consumer-app" }, kit)).toBe(
+      "/tmp/consumer-app",
+    );
+  });
+
+  it("hashes a stable preferred port per repo root and walks collisions", async () => {
+    const {
+      preferredPortForRepoRoot,
+      portCandidatesForRepoRoot,
+      resolveMissionControlPort,
+      sameRepoRoot,
+      DEFAULT_PORT_BASE,
+      DEFAULT_PORT_RANGE,
+    } = await import("../../../../dashboard/lib/guards.mjs");
+
+    const a = "/tmp/workspace-alpha";
+    const b = "/tmp/workspace-beta";
+    const portA = preferredPortForRepoRoot(a);
+    const portB = preferredPortForRepoRoot(b);
+    expect(portA).toBeGreaterThanOrEqual(DEFAULT_PORT_BASE);
+    expect(portA).toBeLessThan(DEFAULT_PORT_BASE + DEFAULT_PORT_RANGE);
+    expect(preferredPortForRepoRoot(a)).toBe(portA);
+    expect(sameRepoRoot(a, `${a}/`)).toBe(true);
+
+    const candidates = portCandidatesForRepoRoot(a);
+    expect(candidates[0]).toBe(portA);
+    expect(candidates).toHaveLength(DEFAULT_PORT_RANGE);
+    expect(new Set(candidates).size).toBe(DEFAULT_PORT_RANGE);
+
+    // Foreign listener on preferred port → next free candidate.
+    const occupied = new Map([
+      [portA, { listening: true, repoRoot: b }],
+      [candidates[1], { listening: false, repoRoot: null }],
+    ]);
+    const picked = resolveMissionControlPort({
+      repoRoot: a,
+      probe: (port) => occupied.get(port) || { listening: false, repoRoot: null },
+    });
+    expect(picked).toEqual({ port: candidates[1], reuse: false, explicit: false });
+
+    // Matching live root → reuse preferred.
+    const reuse = resolveMissionControlPort({
+      repoRoot: a,
+      probe: (port) =>
+        port === portA ? { listening: true, repoRoot: a } : { listening: false, repoRoot: null },
+    });
+    expect(reuse).toEqual({ port: portA, reuse: true, explicit: false });
+
+    // Explicit PORT with foreign root → refuse (do not kill).
+    expect(() =>
+      resolveMissionControlPort({
+        repoRoot: a,
+        envPort: "3333",
+        probe: () => ({ listening: true, repoRoot: b }),
+      }),
+    ).toThrow(/will not kill another workspace/);
+  });
+
   it("requires a strong token for non-loopback bind and allows loopback without token", async () => {
     const {
       isLoopbackBindHost,

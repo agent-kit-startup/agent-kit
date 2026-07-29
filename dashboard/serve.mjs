@@ -12,6 +12,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DEFAULT_HOST,
+  REPO_ROOT_ENV,
   allowlistConfig,
   applyCorsHeaders,
   authorizeMissionControlRequest,
@@ -23,6 +24,7 @@ import {
   resolveBroadcastAuth,
   resolveContextConfigPath,
   resolveDashboardStatic,
+  resolveSnapshotRepoRoot,
   validateConfigWriteBody,
 } from "./lib/guards.mjs";
 import {
@@ -35,7 +37,10 @@ import {
 import { buildInventoryBaseline } from "./lib/semantic-model.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..");
+/** Kit tree that owns `dashboard/` static assets and serve.mjs. */
+const KIT_ROOT = join(__dirname, "..");
+/** Workspace Mission Control snapshots (plans, HANDOFF, git). Defaults to KIT_ROOT. */
+const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
 const DASHBOARD_DIR = __dirname;
 const authResolved = resolveBroadcastAuth(process.env);
 if (!authResolved.ok) {
@@ -252,6 +257,8 @@ function runDataScript() {
   return new Promise((resolve) => {
     const env = {
       ...process.env,
+      // Pin snapshot root for the child even if the parent cwd differs.
+      [REPO_ROOT_ENV]: ROOT,
       // Empty string = cold start (dashboard-data treats falsy as no previous).
       AGENT_KIT_PREV_INVENTORY: previousInventoryJson || "",
     };
@@ -533,6 +540,10 @@ server.listen(PORT, HOST, () => {
     console.log("  Token:   printed once above in each LAN URL (MISSION_CONTROL_TOKEN)");
     console.log("  Config:  PUT/PATCH /api/config remains loopback-only");
     console.log("  Firewall: allow inbound TCP on this port for your LAN profile if needed");
+  }
+  console.log(`  Snapshot: ${ROOT}`);
+  if (ROOT !== KIT_ROOT) {
+    console.log(`  Kit:     ${KIT_ROOT}`);
   }
   console.log("\n  Open in Cursor Simple Browser or your browser.\n");
   console.log("  Press Ctrl+C to stop.\n");

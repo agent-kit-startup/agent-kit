@@ -13,7 +13,7 @@ your-project/
 │   ├── commands/               # slash commands (/start-project, /handoff, /git-prod, …)
 │   ├── hooks/
 │   │   ├── pre-commit/         # secrets check (git)
-│   │   └── agent/              # sessionStart / stop / preCompact scripts
+│   │   └── agent/              # thin Cursor adapters (shell out to agent-kit CLI)
 │   ├── skills/                 # only if you add skills
 │   ├── agents/                 # only if a pack or skill brings them
 │   ├── plans/                  # your plans (created as you work)
@@ -29,7 +29,7 @@ Everything under `plans/`, `memory/`, `context/`, and `HANDOFF.md` is **yours** 
 
 Optional extra: a `prepare-commit-msg` git hook you can copy from the kit's `git-hooks/` folder (one file, not the whole tree).
 
-Native agent hooks need `python3` on PATH. They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time.
+Native agent hooks need Node and a resolvable `agent-kit` CLI (PATH, `node_modules/.bin`, or built dist). They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time. `agent-kit doctor` reports `hooks: active | degraded`.
 
 ## Installing
 

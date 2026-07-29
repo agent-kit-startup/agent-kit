@@ -63,6 +63,9 @@ coverage/
 *credentials*.json
 *service-account*.json
 
+# CLI publish copy of Mission Control (SoT: repo-root dashboard/; sync via scripts/sync-cli-dashboard.mjs)
+packages/cli/dashboard/
+
 # Python bytecode (hooks)
 __pycache__/
 *.pyc

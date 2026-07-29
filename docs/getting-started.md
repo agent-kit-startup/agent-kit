@@ -14,7 +14,7 @@ npx @dadado/agent-kit-cli install
 
 Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
-That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is separate: see [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (Path C, after the publish that ships it) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
@@ -48,7 +48,7 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control panel (optional)** - start from a tree that contains `dashboard/start.mjs` (`/dashboard`, `npm run dashboard`, or `agent-kit dashboard`). Consumer L0 does not copy `dashboard/`. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `/dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. After a CLI publish that ships Path C, `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package; until then use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `/dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
@@ -149,8 +149,8 @@ When `/run-plan` finishes all implementable to-dos, you can get a second-agent c
 3. **Headless / CI:** `agent-kit run-plan` may arm the launcher with `--force` (`claude -p`) in the runner shell
 4. **Exhaustion Ask:** if not enabled and `offerOnExhausted` is not `false`, chat must Ask `Run review now` / `Always enable automatic` / `Not now`. `Not now` is per-session only (no persist)
 5. **Manual:** `/plan-external-review` anytime after a plan is done
-6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage` with explicit path(s). **Write residuals plan** enqueues via the `/backlog-add` contract (plan on HANDOFF Backlog; no clipboard `/start-project` happy path). Mission Control **Flight Log** is Gaps + operator Warnings (natural Gaps voice; wipe Earlier on new flight); it does not host **Review all** / per-row Copy triage
-7. **`/run-plan-all`:** mid-batch audits when enabled; queue-end review Ask/arm for remaining owed targets (cadence / Field Report **owed** ledger covers soft-fail skips; Flight Log UI stays Gaps + Warnings, not cadence cards; keep HANDOFF Gaps short / `none` when only audit plumbing changed)
+6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage` with explicit path(s). **Write residuals plan** runs the same Broad Intake as `/backlog-add`, then write-confirm Ask, and enqueues on HANDOFF Backlog (no clipboard `/start-project` happy path). Mission Control **Flight Log** is Gaps + operator Warnings with palette-by-type notification chrome (natural Gaps voice; wipe Earlier on new flight; exact `none` for OK, not `none.…` as a yellow debit). When Gaps and Warnings are empty, it may show bounded untriaged review rows (per-row Copy triage / path); it does not host **Review all** / **Resolve all**. Chat `/plan-review-triage` remains HITL SoT
+7. **`/run-plan-all`:** mid-batch audits when enabled; queue-end review Ask/arm for remaining owed targets (cadence / Field Report **owed** ledger covers soft-fail skips; Flight Log UI stays Gaps + Warnings, with quiet open-triage only when those lanes are empty; keep HANDOFF Gaps short / exact `none` when only audit plumbing changed)
 
 Claude Code on PATH is optional. If disabled or `claude` is missing, the kit continues with a tip and exit 0 (no CI failure). Details: [external plan review](external-plan-review.md).
 
@@ -172,7 +172,9 @@ Mission Control is a **local, single-developer** observability panel. Treat it a
 
 Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
 
-**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**`. Start Mission Control from an agent-kit tree that contains `dashboard/start.mjs` (this monorepo or the public checkout): `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). In a project with only L0 installed, kit commands work; the panel binary is absent until you use a kit tree that ships `dashboard/`.
+**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C; Unreleased until that publish), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
+
+**First failure (no `dashboard/start.mjs`):** reinstall a CLI version whose npm package includes `dashboard/` (check CHANGELOG Unreleased / publish checklist; do not assume `@dadado/agent-kit-cli@4.8.0` has Path C), or point env/sibling at a kit tree. Do not expect Port B alone to place the panel binary in the project.
 
 The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit. Native hooks are listed in [layers-spec.md](layers-spec.md) (L0).
 

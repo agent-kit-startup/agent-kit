@@ -8,6 +8,54 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Public sync content guard: avoid denylist/secret-pattern false positives in CLI test fixtures (`field-report-prompts` path; split GitHub PAT sample) so `sync-public` can advance the storefront after npm 4.8.2
+- Public sync push protection: split Stripe live-key sample in `secrets-scan.test.ts` so GitHub secret scanning does not reject the sync PR branch
+
+## [4.8.2] - 2026-07-29
+
+### Fixed
+
+- CLI typecheck: narrow citty `args` to string for `guard`/`hook`/`validate` subcommands; loosen `readStdinJson` generic so `SessionStartPayload` typechecks (unblocks tag CI after hooks CLI adapters landed on `v4.8.1`)
+
+## [4.8.1] - 2026-07-29
+
+### Added
+
+- CLI invariants + thin Cursor hooks: `agent-kit hook session-start|pre-compact`, `guard shell|prompt`, `monitors --untriaged --json`, `validate handoff|plan|after-edit`; `doctor` reports `hooks: active|degraded`; deny-list for destructive git / push-main (ADR `2026-07-29_cli-invariants-thin-hook-adapters.md`)
+
+### Changed
+
+- Path C publish harden: allowlist `scripts/sync-cli-dashboard.mjs` + `scripts/verify-cli-dashboard-pack.mjs` for public sync; turbo `globalDependencies` includes `dashboard/**`; tag CI + `prepublishOnly` run pack verify; CLI package.json script refs guarded in public-sync manifest test
+- `/git-prod` routine: four-manifest SemVer bump at close-release; immutable `v*` tag retry (no force-move); Step 12.5 requires public sync PR **merged** (not CI-green alone)
+- Native hooks: Node thin adapters under `.cursor/hooks/agent/*.sh` (no `python3` for session/preCompact); drop unwired `pre-edit`/`post-edit` scripts; docs honesty on VS Code/Windsurf parity
+- Mission Control Flight Log: when Gaps and Warnings are empty, surface bounded untriaged external-review rows (per-row Copy triage / path only); keep All clear when truly clear; no Review all / Resolve all on the card (ADR `2026-07-27_mc-flight-log-panel.md`)
+- `/plan-review-triage` Write residuals: required Broad Intake (same buckets/labels as `/backlog-add`) before propose + write-confirm; batch uniform path uses one intake + one combined backlog plan (ADR `2026-07-28_triage-write-residuals-via-backlog.md`)
+- Mission Control Flight Log: typed notification chrome (kind → palette tokens); broaden `normalizeHandoffGaps` so `none.` / empty OK placeholders do not render as yellow Live Gaps; writer guidance + ADR amend `2026-07-27_mc-flight-log-panel.md`
+- Flight Log OK normalize: case-insensitive `none.` / `N/A` prefixes; widen OK separators `(;/)`; muted Earlier `ok`/`warning` CSS; parity + CSS-rule pins (ADR amend)
+- Plan-monitor staging hygiene: intentional monitors add-by-name (prefer separate docs commit); residuals executors append Closed-by only (ADR `2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`)
+
+### Fixed
+
+- Path C broadcast hermetic test: assert exact injected `start-broadcast.mjs` path (parity with `start.mjs` sibling)
+- CLI lint: Biome format on `packages/cli/src/dashboard/guards.test.ts` (unblocks CI Lint inherited from multi-workspace isolation)
+- Path C discovery tests: hermetic `moduleUrl`/tmpdir fixtures so CI Test before Build does not depend on gitignored `packages/cli/dashboard/`; restored missing-asset null cases
+- Mission Control `/dashboard` from a consumer workspace: snapshot `MISSION_CONTROL_REPO_ROOT` (plans/HANDOFF/git) while serving UI from the kit host; CLI discovers kit via env, sibling `../agent-kit`, or bundled package assets (Path C)
+
+### Changed
+
+- `turbo.json` build outputs include `dashboard/**` so cache hits restore the Path C sync copy
+- Docs: CONTRIBUTING / repository-boundaries / npm-publish-checklist note that the CLI pack includes `dashboard/**` after Path C publish (not claimed for current npm `4.8.0`); pack verify script `scripts/verify-cli-dashboard-pack.mjs` (version bump remains `/git-prod`)
+- Public positioning: README / getting-started / install.md / L0 `/dashboard` tell the truth that L0 does not copy `dashboard/` into the app; Path C ships the panel with the CLI after the next publish (not claimed for npm `4.8.0`)
+- Personal-local-only success criteria amended for Path C; snapshot-root ADR notes CLI package as allowed kit host
+- `/dashboard` / `agent-kit dashboard`: verify `system.repoRoot` before reuse; do not assume `:3333`; document kit discovery (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling / bundled); L0 command rewritten as start.mjs-first quick path (no cross-workspace kill)
+
+### Added
+
+- Mission Control Path C packaging: `@dadado/agent-kit-cli` publishes `dashboard/**` (build/`prepack` sync from repo-root SoT); `agent-kit dashboard` / `dashboard-broadcast` resolve bundled `start.mjs` when cwd/env/sibling lack a kit host (ADR `2026-07-28_mission-control-ship-dashboard-with-cli.md`)
+- Mission Control multi-workspace isolation: stable listen port per `MISSION_CONTROL_REPO_ROOT` (hash in `3333–3588`); concurrent instances; never kill another workspace's listener; `system.port` + header workspace basename
+- `scripts/verify-cli-dashboard-pack.mjs`: blank-folder / `npm pack` acceptance for Path C dashboard assets (no live npm tag required)
 
 ## [4.8.0] - 2026-07-28
 

@@ -58,7 +58,15 @@ If monitors exist but **all** are already triaged (and none are new/staged witho
 
 When **no paths provided** (select targets; **never** "newest mtime wins" alone):
 
-**Selection order** (stop at the first non-empty set; then walk that set like multi-path):
+**Prefer CLI SoT** (deterministic; do not invent selection in the model):
+
+```bash
+agent-kit monitors --untriaged --json
+```
+
+Use the returned `monitors[].relativePath` list as the walk order. Cite: ADR `2026-07-27_plan-review-triage-untriaged-not-mtime`.
+
+**Selection order** (stop at the first non-empty set; then walk that set like multi-path) — matches the CLI when the binary is unavailable:
 
 1. **Git-fresh:** `git status` / staged / untracked `.cursor/memory/plan-monitor-*.md` that lack a triage heading (`## Triage note` / `## Follow-up plan` / `## Residuals plan`).
 2. **HANDOFF-aligned:** monitor paths for plans named in HANDOFF `- **Run queue:**` / queue outcomes / Gaps when those monitors exist and are still untriaged.
@@ -126,6 +134,7 @@ Rules:
 2. **Ack and stop** must write the heading on the monitor. Updating HANDOFF alone is **not** enough: Field Report uses `isReportTriaged`, which looks for a triage heading (or a follow-up plan reference). Without the heading, the row stays untriaged.
 3. Keep HITL: do not invent a choice; do not write the heading before the user picks an option.
 4. Prefer appending once near the end of the file; do not delete prior review evidence.
+5. **Residuals executors (R15):** when closing Still open items from a residuals plan, **append** a `## Closed by residuals plan` section (ids + evidence). Do **not** rewrite or empty the reviewer's `### Still open` table in place. Prefer the monitor already committed when written so edits have history (ADR `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`).
 
 ### Step 5: Execute the choice
 
@@ -135,24 +144,26 @@ Enqueue residuals in-session via the `/backlog-add` contract (ADR `decisions/202
 
 1. Persist the triage heading (Step 4) with Choice `Write residuals plan`. After the plan file exists, prefer upgrading or appending `## Residuals plan` / `## Follow-up plan` with the plan basename (durable heading on the monitor still required).
 
-2. **Propose** a residuals plan from this monitor's Still open (and include-worthy Standing findings). Post-triage intake is the monitor: full Broad Intake scan is N/A (same spirit as `/backlog-add` once the goal is concrete).
+2. **Broad Intake Review** (required before propose): same buckets and triage labels as `/backlog-add` / `/start-project`. Reuse the Task(explore) worker contract from `.cursor/commands/backlog-add.md` (template: `.cursor/context/templates/command-worker-prompt.md`; Command may read `/plan-review-triage` Write residuals). Seed the goal from this monitor's Still open (and include-worthy Standing findings). Fallback: run Broad Intake inline when Task is unavailable. Do not invent a fifth triage label.
 
-3. **Ask write confirm** with Ask questions (chat numbered-list fallback). Exact options:
+3. **Propose** a residuals plan from Still open + Broad Intake `include` / `error` findings (respect `ignore` / `note`).
+
+4. **Ask write confirm** with Ask questions (chat numbered-list fallback). Exact options:
    - `Write plan to backlog`
    - `Modify proposal first`
    - `Cancel`
 
-4. **Cancel / skipped answer:** stop. Triage heading already written; no plan file or Backlog HANDOFF edit.
+5. **Cancel / skipped answer:** stop. Triage heading already written; no plan file or Backlog HANDOFF edit.
 
-5. **Modify:** revise the proposal, ask again.
+6. **Modify:** revise the proposal, ask again.
 
-6. **Write plan to backlog:**
+7. **Write plan to backlog:**
    1. Create `.cursor/plans/<name>.plan.md` with frontmatter to-dos (template: `.cursor/context/templates/plan.md`).
    2. Append the basename under HANDOFF `- **Backlog plans:**` (bullet field only; never a bare `## Backlog plans` heading).
    3. **Never** park, activate, offer Gate B, invent Field Report cards for routine enqueue, or rewrite `- **Run queue:**` / queue cursor / status / outcomes.
    4. Stop. Tell the operator the plan path; resume later via `/continue-plan` or queue inclusion (`/run-plan-all`), not Gate B.
 
-7. **Escape hatch only:** if the operator explicitly wants activate + Gate B, they may run `/start-project` themselves. That is optional; it is **not** the default close after Write residuals plan.
+8. **Escape hatch only:** if the operator explicitly wants activate + Gate B, they may run `/start-project` themselves. That is optional; it is **not** the default close after Write residuals plan.
 
 #### B. `Fix nits only`
 
@@ -173,7 +184,7 @@ Enqueue residuals in-session via the `/backlog-add` contract (ADR `decisions/202
 
 1. Persist the triage heading (Step 4) with Choice `Ack and stop` so the Field Report row clears.
 
-2. **Optionally update HANDOFF** with a short note. Keep `- **Gaps:**` natural (`none` or one residual); do **not** dump monitor paths, cadence ids, or mid-batch audit plumbing into Gaps (Flight Log voice; ADR `2026-07-27_mc-flight-log-panel.md`). Example Instruction (not Gaps body):
+2. **Optionally update HANDOFF** with a short note. Keep `- **Gaps:**` natural (exact `none` or one residual); do **not** dump monitor paths, cadence ids, or mid-batch audit plumbing into Gaps, and do **not** write `none. Residuals…` when the intent is OK (Flight Log voice; ADR `2026-07-27_mc-flight-log-panel.md`). Example Instruction (not Gaps body):
    ```
    Monitor reviewed; residuals acknowledged. No immediate action.
    ```
@@ -190,7 +201,7 @@ When multiple report paths are in scope (explicit args **or** bare-command selec
 2. **Mixed → sequential fallback** - if outcome classes differ, or the operator chooses a per-file path, Ask **per** monitor (legacy walk).
 3. **No silent Ack** - every triage decision (batch or per-file) requires Ask questions (or chat numbered-list fallback). Never invent Ack without HITL.
 4. **Durable heading on every target** - after the chosen outcome, write `## Triage note` (or Follow-up / Residuals) on **each** monitor in the decided set before finishing. Batch Ack that updates only the first file is invalid.
-5. **Batch Write residuals** - when the uniform choice is Write residuals plan, propose **one** combined residuals plan from the set's Still open items, then one backlog write-confirm Ask (`Write plan to backlog` / `Modify` / `Cancel`). On write, enqueue once and reference that plan path from each monitor's Residuals / Triage heading. Sequential/mixed walks may enqueue per monitor. Never require a second `/start-project` paste after the backlog write.
+5. **Batch Write residuals** - when the uniform choice is Write residuals plan, run **one** Broad Intake for the set, propose **one** combined residuals plan from the set's Still open items (plus intake `include` / `error`), then one backlog write-confirm Ask (`Write plan to backlog` / `Modify` / `Cancel`). On write, enqueue once and reference that plan path from each monitor's Residuals / Triage heading. Sequential/mixed walks may enqueue per monitor (each with its own Broad Intake). Never require a second `/start-project` paste after the backlog write.
 6. **Stopping contract** - if the human stops mid-walk (disagrees, changes mind, or says stop), the walk stops at that point. Completed monitors keep their triage headings; remaining monitors stay untriaged.
 7. **Path skipping** - non-existent or non-monitor paths are skipped with a one-line note. The walk continues to the next valid path.
 
@@ -199,7 +210,7 @@ When multiple report paths are in scope (explicit args **or** bare-command selec
 1. **Never treat Claude monitor as execute permission** - all paths require human confirmation
 2. **Never `/git-prod`** from this command - residual fixes go through `/git-staging` only  
 3. **Never auto-implement** without the triage choice above
-4. **Never skip the backlog write-confirm Ask** on Write residuals plan; never park, activate, Gate B, or rewrite Run queue from this path. Clipboard `/start-project` is **not** the happy path (optional operator escape hatch only when they want activate + Gate B)
+4. **Never skip Broad Intake or the backlog write-confirm Ask** on Write residuals plan; never park, activate, Gate B, or rewrite Run queue from this path. Clipboard `/start-project` is **not** the happy path (optional operator escape hatch only when they want activate + Gate B)
 5. **No broad scope creep** in "Fix nits only" - redirect to Write residuals plan (backlog enqueue) for substantial work
 6. **Never skip the triage heading** - including Ack and stop
 
@@ -227,8 +238,9 @@ Agent: Selection: git-fresh untriaged → plan-monitor-auth-api.md
        
        [Ask questions: How to handle residuals? Options: Write residuals plan / Fix nits only / Ack and stop]
 User: [clicks Write residuals plan]
-Agent: Appends ## Triage note to the monitor, proposes a residuals plan from Still open,
-       then Ask: Write plan to backlog / Modify proposal first / Cancel.
+Agent: Appends ## Triage note to the monitor, runs Broad Intake (same as /backlog-add),
+       proposes a residuals plan from Still open + intake, then Ask:
+       Write plan to backlog / Modify proposal first / Cancel.
 User: [clicks Write plan to backlog]
 Agent: Writes `.cursor/plans/auth-api-residuals.plan.md`, appends it under HANDOFF
        `- **Backlog plans:**`, upgrades monitor heading with the plan path, and stops.
@@ -242,7 +254,8 @@ Agent: Writes `.cursor/plans/auth-api-residuals.plan.md`, appends it under HANDO
 User: /plan-review-triage .cursor/memory/plan-monitor-auth.md .cursor/memory/plan-monitor-ui.md
 Agent: Both monitors share Write-residuals outcome class → one batch Ask.
 User: [clicks Write residuals plan]
-Agent: One combined residuals proposal → Ask Write plan to backlog / Modify / Cancel.
+Agent: One Broad Intake for the set → one combined residuals proposal →
+       Ask Write plan to backlog / Modify / Cancel.
 User: [clicks Write plan to backlog]
 Agent: Writes one plan file + Backlog row; ## Residuals plan (or Triage note) on each monitor
        referencing that path. No `/start-project` paste. Mixed outcomes stay sequential.
@@ -251,7 +264,7 @@ Agent: Writes one plan file + Backlog row; ## Residuals plan (or Triage note) on
 ## References
 
 - Monitor template: `.cursor/context/templates/plan-monitor.md`
-- Residuals enqueue: `.cursor/commands/backlog-add.md` (write-confirm Ask + Backlog HANDOFF)
+- Residuals enqueue: `.cursor/commands/backlog-add.md` (Broad Intake + write-confirm Ask + Backlog HANDOFF)
 - Optional activate + Gate B: `.cursor/commands/start-project.md`
 - HITL contract: `.cursor/rules/hitl-ask-questions.mdc`
 - Related: `.cursor/commands/plan-external-review.md`

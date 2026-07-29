@@ -169,18 +169,34 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/hooks/pre-commit/check-secrets.sh",
     target: ".cursor/hooks/pre-commit/check-secrets.sh",
   },
-  // Native Cursor agent hooks (session context + handoff on compact)
+  // Native Cursor agent hooks (thin adapters -> agent-kit CLI)
   {
     source: ".cursor/hooks.json",
     target: ".cursor/hooks.json",
   },
   {
-    source: ".cursor/hooks/agent/session-plan-guard.py",
-    target: ".cursor/hooks/agent/session-plan-guard.py",
+    source: ".cursor/hooks/agent/resolve-agent-kit.sh",
+    target: ".cursor/hooks/agent/resolve-agent-kit.sh",
   },
   {
-    source: ".cursor/hooks/agent/precompact-handoff.py",
-    target: ".cursor/hooks/agent/precompact-handoff.py",
+    source: ".cursor/hooks/agent/session-start.sh",
+    target: ".cursor/hooks/agent/session-start.sh",
+  },
+  {
+    source: ".cursor/hooks/agent/pre-compact.sh",
+    target: ".cursor/hooks/agent/pre-compact.sh",
+  },
+  {
+    source: ".cursor/hooks/agent/guard-shell.sh",
+    target: ".cursor/hooks/agent/guard-shell.sh",
+  },
+  {
+    source: ".cursor/hooks/agent/after-edit-schema.sh",
+    target: ".cursor/hooks/agent/after-edit-schema.sh",
+  },
+  {
+    source: ".cursor/hooks/agent/secrets-prompt.sh",
+    target: ".cursor/hooks/agent/secrets-prompt.sh",
   },
   // Git spine docs at project root (not a nested agent-kit/ copy)
   {

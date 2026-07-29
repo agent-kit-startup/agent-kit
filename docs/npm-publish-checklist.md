@@ -55,8 +55,9 @@ Run from the monorepo root after `pnpm build`:
 pnpm --filter @dadado/agent-kit-cli publish --dry-run --access public
 ```
 
-- [ ] Review the tarball file list (only `packages/cli/dist` and declared `files`; no `.cursor/`, secrets, or private memory).
+- [ ] Review the tarball file list (only `packages/cli/dist`, `packages/cli/dashboard/**` after Path C, and declared `files`; no `.cursor/`, secrets, or private memory).
 - [ ] Confirm reported version matches `packages/cli/package.json`.
+- [ ] Path C pack gate (no live npm tag required): `node scripts/verify-cli-dashboard-pack.mjs` exits 0 (`dashboard/start.mjs` + `start-broadcast.mjs` present). Version bump for the publish that first ships Path C remains `/git-prod` HITL (R3); do not bump from the verify script.
 
 Dry-run does not replace registry verification; it does not contact npm to confirm 404 vs published state.
 

@@ -489,11 +489,16 @@ export function observeFlightLog(ledger, liveGaps, opts = {}) {
     }
   }
   const nextLedger = { version: 1, lastCurrent: current, past, flightKey };
+  const pastWithKind = past.map((entry) => ({
+    ...entry,
+    kind: classifyFlightLogMessageKind(entry.text),
+  }));
   return {
     ledger: nextLedger,
     flightLog: {
       current,
-      past,
+      currentKind: classifyFlightLogMessageKind(current),
+      past: pastWithKind,
       sourcePath,
     },
   };
@@ -508,6 +513,8 @@ const FLIGHT_LOG_HEADS_UP_RE = /\bheads?\s*-?\s*up\b/i;
 
 /** Cap operator Warnings on Flight Log (scannable lane). */
 export const FLIGHT_LOG_WARNINGS_CAP = 5;
+/** Cap untriaged external-review rows on Flight Log quiet-state surface. */
+export const FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP = 5;
 
 /**
  * Operator-useful Warnings for Flight Log (read-only projection from HANDOFF).
@@ -565,6 +572,31 @@ export function buildFlightLogWarnings(handoff, opts = {}) {
   }
 
   return out.slice(0, cap);
+}
+
+/**
+ * Bounded untriaged external-review rows for Flight Log quiet state.
+ * Filters attention to `kind === "report"` only (no cadence, prompts, readiness,
+ * or bulk FR CTAs). Used when Gaps + Warnings are empty; callers must not mix
+ * these rows into a non-quiet Gaps/Warnings stack.
+ * @param {object[]|null|undefined} attention - buildAttentionItems output
+ * @param {{ limit?: number }} [opts]
+ * @returns {object[]}
+ */
+export function listFlightLogQuietOpenTriages(attention, opts = {}) {
+  const limit =
+    typeof opts.limit === "number" && opts.limit > 0
+      ? Math.floor(opts.limit)
+      : FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP;
+  if (!Array.isArray(attention) || attention.length === 0) return [];
+  const out = [];
+  for (const item of attention) {
+    if (!item || item.kind !== "report") continue;
+    if (typeof item.sourcePath !== "string" || !item.sourcePath.trim()) continue;
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /** Relative path of the gitignored Field Report activity cadence ledger. */
@@ -1311,8 +1343,9 @@ export function parseHandoffMarkdown(content) {
 }
 
 /**
- * Normalize HANDOFF Gaps text for Mission Control. Treats empty, `none`, and
- * `n/a` as absent so the Gaps surface stays hidden when there is nothing to show.
+ * Normalize HANDOFF Gaps text for Mission Control. Treats empty, `none`,
+ * `n/a`, `none.` / `none:`-prefixed OK notes, and empty-residual placeholders
+ * as absent so OK status does not surface as a yellow Live Gaps debit.
  * @param {string} raw
  * @returns {string|null}
  */
@@ -1321,7 +1354,63 @@ export function normalizeHandoffGaps(raw) {
   const text = raw.replace(/\s+/g, " ").trim();
   if (!text) return null;
   if (/^(none|n\/a)$/i.test(text)) return null;
+  // OK + pointer anti-pattern: "none. Residuals…", "None: …", "N/A - …", "none (…)"
+  if (/^(none|n\/a)\s*[.:,;\/(\-–—…]/i.test(text)) return null;
+  // Empty residual placeholders
+  if (/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i.test(text)) return null;
   return truncateStr(text, MAX_SEMANTIC_LABEL);
+}
+
+/**
+ * Flight Log typed notification kinds (ADR 2026-07-27_mc-flight-log-panel).
+ * Distinct from Crew Monitor step kinds; shared palette tokens only.
+ * @typedef {'ok'|'advice'|'prompt'|'warning'|'residual'} FlightLogMessageKind
+ */
+
+/**
+ * Classify a Flight Log Gaps/Warning body for palette chrome.
+ * @param {string | null | undefined} text
+ * @param {{ lane?: 'gaps' | 'warning' }} [opts]
+ * @returns {FlightLogMessageKind}
+ */
+export function classifyFlightLogMessageKind(text, opts = {}) {
+  if (opts.lane === "warning") return "warning";
+  const normalized = typeof text === "string" ? normalizeHandoffGaps(text) : null;
+  if (normalized == null) return "ok";
+  if (
+    /\bAPI\s*\/\s*usage\s+limit\b|\bAPI\s+usage\s+limit\b|\bSTOPPED:\s*API\b/i.test(normalized) ||
+    /\b(hard.?stop|quota\s+pause)\b/i.test(normalized)
+  ) {
+    return "warning";
+  }
+  if (
+    /\b(confirm|ask questions|hitl|\bpaste\b|choose\b|approve\b|operator yes)\b/i.test(normalized)
+  ) {
+    return "prompt";
+  }
+  if (/\b(tip:|advice:|consider\b|recommends?\b|recommended\b|prefer\b)/i.test(normalized)) {
+    return "advice";
+  }
+  return "residual";
+}
+
+/**
+ * CSS modifier class for Flight Log kind chrome.
+ * @param {FlightLogMessageKind | string | null | undefined} kind
+ * @returns {string}
+ */
+export function flightLogKindClass(kind) {
+  switch (kind) {
+    case "ok":
+      return "flight-log-kind-ok";
+    case "advice":
+    case "prompt":
+      return "flight-log-kind-advice";
+    case "warning":
+      return "flight-log-kind-warning";
+    default:
+      return "flight-log-kind-residual";
+  }
 }
 
 /**
@@ -3454,6 +3543,7 @@ export function buildMissionControlView({
   ]);
   // Field Report attention inbox left the Flight Log card; builders stay
   // exported for /field-report-resolve + cadence scripts (ADR keep).
+  // Quiet Gaps+Warnings: bounded report rows may surface on Flight Log.
   const attention = buildAttentionItems({
     plans,
     handoff,
@@ -3466,6 +3556,7 @@ export function buildMissionControlView({
     cadenceLedger,
     cadenceConfig,
   });
+  flightLog.quietOpenTriages = listFlightLogQuietOpenTriages(attention);
   // Deprecated: attention owns Field Report rows. Kept empty so older panel
   // code that still reads the field does not double-render.
   const checklistNotes = [];

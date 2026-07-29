@@ -278,6 +278,7 @@ This section contains the detailed prompts that should be followed when commands
 
 #### 7. **Stage and commit with semantic message**  
    - Add relevant files with `git add` **by name**. If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** and do **not** broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
+   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
    - Create a commit following [Conventional Commits](https://www.conventionalcommits.org/):
      - `feat:` for new features
      - `fix:` for bug fixes
@@ -326,11 +327,17 @@ This section contains the detailed prompts that should be followed when commands
    - Run `git fetch origin` to update references.
    - Run `git log origin/staging --oneline -10` to check recent commits.
    - **Close release (mandatory if `[Unreleased]` has content):**
-     1. Move all bullets from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today's date) or SemVer version. If today's section already exists, **merge** into it.
+     1. Move all bullets from `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (SemVer + today's date). If today's SemVer section already exists, **merge** into it.
      2. Leave `[Unreleased]` empty (heading only).
-     3. **Bump package versions:** set `"version"` in root `package.json` and `packages/cli/package.json` to the same SemVer as the closed CHANGELOG section (keep both files in sync). npm publish uses these fields; drifting them under-labels a breaking CLI.
-     4. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
-   - If Unreleased is already empty and today's release reflects what's in staging, still verify root + CLI `package.json` versions match the latest closed CHANGELOG version; bump and commit if they do not.
+     3. **Bump all four runtime manifests to the same SemVer** (ADR `2026-07-28_git-prod-version-manifest-parity`):
+        - root `package.json`
+        - `packages/cli/package.json`
+        - `.cursor/agent-kit.json`
+        - `.cursor-plugin/plugin.json`
+        Do not ship with only root+CLI bumped; L0 version-parity tests fail and tag CI skips publish/sync.
+     4. Prefer running focused L0 version-parity (`vitest` on `packages/cli/src/lifecycle/l0.test.ts`) or `pnpm test` on staging **before** the first tag push.
+     5. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
+   - If Unreleased is already empty and today's release reflects what's in staging, still verify all four manifests match the latest closed CHANGELOG version; bump and commit if they do not.
 
 #### 3. **Sync branches**  
    - Run `git fetch --prune` to update remote references.
@@ -384,6 +391,11 @@ This section contains the detailed prompts that should be followed when commands
    - If tag does not exist, create annotated tag: `git tag -a v<version> -m "Release v<version>"` on the current main commit.
    - Push the tag: `git push origin v<version>`.
    - **Effect**: Annotated vX.Y.Z tags trigger CI `publish-npm` job (when `NPM_TOKEN` configured) and `sync-public` workflow (when `PUBLIC_REPO_TOKEN` configured).
+   - **Immutable tags — never force-move `v*`:**
+     - Do **not** `git push --force` (or delete-and-recreate in place) an existing `vX.Y.Z` that already pointed at another SHA. Consumers and mirrors may have resolved the old tip.
+     - If tag CI fails after the first push: fix on a new commit, bump to the next patch (or hold), cut a **new** annotated tag on the fixed commit, push that new tag. Do not rewrite history of a published `v*`.
+     - If the tag was never pushed remotely and only exists locally on a bad tip: delete the **local** tag (`git tag -d vX.Y.Z`) and recreate on the fixed commit, then push once.
+     - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` today only gates `main`/`master` (see `git-hooks/pre-push`), so discipline + ruleset matter for tags.
 
 #### 10. **Sync staging (optional)**  
    - Run `git checkout staging` to return to staging branch.
@@ -410,10 +422,11 @@ This section contains the detailed prompts that should be followed when commands
    |-------|-----|
    | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, and `sync-public` all green |
    | npm | `npm view @dadado/agent-kit-cli version` matches the release |
-   | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` |
+   | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
+   | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` on the public default branch **after** that merge |
    | Public GitHub Release | `gh release list -R <public>` shows `vX.Y.Z` as Latest (not a stale older release) |
 
-   If `sync-public` failed or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale).
+   If `sync-public` failed, the sync PR is still open, or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
 
 #### 13. **Final Report**  
    - Summarize executed actions, list commits promoted to production, inform merge status, mention if CHANGELOG.md was updated and any necessary follow-ups.

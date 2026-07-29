@@ -75,13 +75,17 @@ Two ways to drive a plan:
 
 **Mission Control** is a local panel over the Agent Kit runtime state. It binds to loopback by default and serves only its own static files. Actions stay copy-only (clipboard + paste destination). The Config section is a narrow exception: it may merge allowlisted session prefs into `.cursor/context/config.json` via loopback `PUT`/`PATCH /api/config` (no git, process, or prod mutations). Opt-in LAN: `/dashboard-broadcast` (token-gated). Production-ship constraints: [Getting started - Mission Control production-ship constraints](docs/getting-started.md#mission-control-production-ship-constraints).
 
-The panel lives under `dashboard/` in this repository (and the public agent-kit tree). A consumer project that only ran `npx @dadado/agent-kit-cli install` gets kit commands and `/dashboard` docs, not the `dashboard/` server files. Run the start commands from a checkout that contains `dashboard/start.mjs`.
+The panel source lives under `dashboard/` in this repository (and the public agent-kit tree). **L0 install does not copy `dashboard/` into your app.** After a CLI publish that includes Path C (ships `dashboard/**` inside `@dadado/agent-kit-cli`), `agent-kit dashboard` resolves the panel from the installed package and snapshots your workspace via `MISSION_CONTROL_REPO_ROOT`. Until that publish lands, use a kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit`) or pin/reinstall once the Unreleased packaging ships. Do not assume npm `@dadado/agent-kit-cli@4.8.0` already includes Path C.
 
 ```bash
+# From a consumer workspace (snapshots this repo; UI from CLI package or kit host)
+agent-kit dashboard
+
 # From an agent-kit tree that includes dashboard/ — start (or reuse) and open the URL
 npm run dashboard
-# or: agent-kit dashboard
 # or: node dashboard/start.mjs
+# Explicit consumer snapshot while serving from the kit tree:
+# MISSION_CONTROL_REPO_ROOT=/path/to/consumer npm run dashboard
 
 # Opt-in LAN broadcast (token-gated; prints LAN URL + token)
 npm run dashboard:broadcast
@@ -91,7 +95,9 @@ npm run dashboard:broadcast
 npm run start:dashboard
 ```
 
-Then open `http://localhost:3333` if the browser did not open. In Cursor chat (same kit tree), `/dashboard` does the same start-and-open flow via the IDE browser. For trusted LAN, use `/dashboard-broadcast` (never silent `HOST=0.0.0.0` without a token).
+Then open the **printed** URL if the browser did not open (with `PORT` unset, each workspace gets a stable port in `3333–3588`; do not assume `:3333`). In Cursor chat, `/dashboard` does the same start-and-open flow via the IDE browser. For trusted LAN, use `/dashboard-broadcast` (never silent `HOST=0.0.0.0` without a token).
+
+**If `agent-kit dashboard` says no `dashboard/start.mjs`:** (1) reinstall a CLI version that ships `dashboard/` (Path C; see CHANGELOG Unreleased / publish checklist), or (2) set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, or (3) keep a sibling `../agent-kit` checkout. L0 alone never places the panel binary in your project tree.
 
 The Cockpit reads as one page in four sections, each reachable from the primary navigation:
 
@@ -99,7 +105,7 @@ The Cockpit reads as one page in four sections, each reachable from the primary 
 |---------|------------------|
 | Current mission | The plan in flight: status, progress, friendly Mode labels, and previous/current/next todo |
 | Crew Monitor | Live agent/crew feed: ticks, handoffs, deliveries, and denser `agent_step` rows for active-plan to-dos (cap 20) |
-| Flight Log | HANDOFF Gaps log (**Live** / **Earlier**, wipe on new flight; cap 15 within a flight) plus operator Warnings (Quota pause, Heads up); clipboard icon; clickable copy text/path; **All clear** when idle |
+| Flight Log | HANDOFF Gaps log (**Live** / **Earlier**, wipe on new flight; cap 15 within a flight) plus operator Warnings (Quota pause, Heads up); palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); clipboard icon; clickable copy text/path; **All clear** when idle (no literal `none` as a yellow Live debit) |
 | Checklist | What remains: recent plan cards, parked and incomplete plans, and readiness notes |
 
 Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, and Config live in the More sections menu next to those links, with their counts.

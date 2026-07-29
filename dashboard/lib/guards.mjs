@@ -8,10 +8,173 @@ import { resolve } from "node:path";
 export const DEFAULT_HOST = "127.0.0.1";
 /** Env key for the opt-in LAN broadcast session token. */
 export const BROADCAST_TOKEN_ENV = "MISSION_CONTROL_TOKEN";
+/**
+ * Env key for the repo whose `.cursor/`, git, and plans Mission Control snapshots.
+ * Static assets still load from the kit tree that contains `dashboard/`.
+ * When unset, the snapshot root is the kit tree (parent of `dashboard/`).
+ */
+export const REPO_ROOT_ENV = "MISSION_CONTROL_REPO_ROOT";
+/** Env keys that point at an agent-kit checkout with `dashboard/start.mjs` (consumer launch). */
+export const KIT_ROOT_ENV_KEYS = Object.freeze(["MISSION_CONTROL_KIT_ROOT", "AGENT_KIT_HOME"]);
 /** Minimum token length (refuse empty / weak). */
 export const BROADCAST_TOKEN_MIN_LEN = 16;
 /** Cookie name for same-origin broadcast auth after `?token=` boot. */
 export const BROADCAST_TOKEN_COOKIE = "mc_token";
+
+/** Default Mission Control listen port when `PORT` is unset and hashing is disabled. */
+export const DEFAULT_PORT_BASE = 3333;
+/**
+ * Size of the stable per-workspace port window: `DEFAULT_PORT_BASE` .. base+range-1.
+ * Preferred port = base + (hash(repoRoot) % range); collisions walk the ring.
+ */
+export const DEFAULT_PORT_RANGE = 256;
+
+/**
+ * Resolve the repository root Mission Control should snapshot.
+ * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
+ * @param {string} kitRoot - absolute path to the kit tree (parent of `dashboard/`)
+ * @returns {string} absolute snapshot root
+ */
+export function resolveSnapshotRepoRoot(env = process.env, kitRoot) {
+  const raw = env?.[REPO_ROOT_ENV];
+  if (typeof raw === "string" && raw.trim()) {
+    return resolve(raw.trim());
+  }
+  return resolve(kitRoot);
+}
+
+/**
+ * Normalize a repo root for hashing / equality (absolute, forward slashes, no trailing slash).
+ * @param {string} repoRoot
+ * @returns {string}
+ */
+export function normalizeRepoRootKey(repoRoot) {
+  if (typeof repoRoot !== "string" || !repoRoot.trim()) return "";
+  let key = resolve(repoRoot.trim()).replace(/\\/g, "/");
+  if (key.length > 1 && key.endsWith("/")) key = key.slice(0, -1);
+  // macOS / Windows paths often differ only by case; treat as case-insensitive for port identity.
+  if (process.platform === "darwin" || process.platform === "win32") {
+    key = key.toLowerCase();
+  }
+  return key;
+}
+
+/**
+ * FNV-1a 32-bit hash of the normalized repo root (stable across process restarts).
+ * @param {string} repoRoot
+ * @returns {number} unsigned 32-bit
+ */
+export function hashRepoRoot(repoRoot) {
+  const key = normalizeRepoRootKey(repoRoot);
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Short hex id for log filenames (`mission-control-<id>.log`).
+ * @param {string} repoRoot
+ * @returns {string}
+ */
+export function repoRootLogId(repoRoot) {
+  return hashRepoRoot(repoRoot).toString(16).padStart(8, "0").slice(0, 8);
+}
+
+/**
+ * Preferred listen port for a workspace (deterministic).
+ * @param {string} repoRoot
+ * @param {{ base?: number, range?: number }} [opts]
+ * @returns {number}
+ */
+export function preferredPortForRepoRoot(repoRoot, opts = {}) {
+  const base = Number.isFinite(opts.base) ? opts.base : DEFAULT_PORT_BASE;
+  const range = Number.isFinite(opts.range) && opts.range > 0 ? opts.range : DEFAULT_PORT_RANGE;
+  return base + (hashRepoRoot(repoRoot) % range);
+}
+
+/**
+ * Ordered port candidates: preferred, then +1 wrapping within [base, base+range).
+ * @param {string} repoRoot
+ * @param {{ base?: number, range?: number }} [opts]
+ * @returns {number[]}
+ */
+export function portCandidatesForRepoRoot(repoRoot, opts = {}) {
+  const base = Number.isFinite(opts.base) ? opts.base : DEFAULT_PORT_BASE;
+  const range = Number.isFinite(opts.range) && opts.range > 0 ? opts.range : DEFAULT_PORT_RANGE;
+  const preferred = preferredPortForRepoRoot(repoRoot, { base, range });
+  const out = [];
+  for (let i = 0; i < range; i++) {
+    out.push(base + ((preferred - base + i) % range));
+  }
+  return out;
+}
+
+/**
+ * Compare two repo roots for Mission Control identity.
+ * @param {string | null | undefined} a
+ * @param {string | null | undefined} b
+ * @returns {boolean}
+ */
+export function sameRepoRoot(a, b) {
+  if (a == null || b == null) return false;
+  const ka = normalizeRepoRootKey(String(a));
+  const kb = normalizeRepoRootKey(String(b));
+  return Boolean(ka && kb && ka === kb);
+}
+
+/**
+ * Pick a listen port for this workspace.
+ *
+ * - Explicit `envPort` (from `PORT`) wins: reuse if live root matches; error if foreign; start if free.
+ * - Otherwise walk hash candidates; reuse matching root; skip foreign/unknown listeners (never kill them).
+ *
+ * @param {object} args
+ * @param {string} args.repoRoot
+ * @param {string | number | undefined | null} [args.envPort] - raw `PORT` env
+ * @param {(port: number) => { listening: boolean, repoRoot: string | null }} args.probe
+ * @param {{ base?: number, range?: number }} [args.opts]
+ * @returns {{ port: number, reuse: boolean, explicit: boolean }}
+ */
+export function resolveMissionControlPort({ repoRoot, envPort, probe, opts = {} }) {
+  const root = resolve(String(repoRoot || "").trim() || ".");
+  const raw =
+    envPort != null && String(envPort).trim() !== "" ? Number.parseInt(String(envPort), 10) : NaN;
+
+  if (Number.isFinite(raw) && raw > 0) {
+    const info = probe(raw);
+    if (!info.listening) {
+      return { port: raw, reuse: false, explicit: true };
+    }
+    if (sameRepoRoot(info.repoRoot, root)) {
+      return { port: raw, reuse: true, explicit: true };
+    }
+    const other = info.repoRoot ? info.repoRoot : "unknown process";
+    throw new Error(
+      `PORT ${raw} is already in use by ${other}. Unset PORT to auto-pick a per-workspace port, or stop that listener first. Mission Control will not kill another workspace.`,
+    );
+  }
+
+  const candidates = portCandidatesForRepoRoot(root, opts);
+  for (const port of candidates) {
+    const info = probe(port);
+    if (!info.listening) {
+      return { port, reuse: false, explicit: false };
+    }
+    if (sameRepoRoot(info.repoRoot, root)) {
+      return { port, reuse: true, explicit: false };
+    }
+    // Foreign or unknown listener: leave it alone, try next port.
+  }
+
+  const base = Number.isFinite(opts.base) ? opts.base : DEFAULT_PORT_BASE;
+  const range = Number.isFinite(opts.range) && opts.range > 0 ? opts.range : DEFAULT_PORT_RANGE;
+  throw new Error(
+    `No free Mission Control port in ${base}-${base + range - 1} for ${root}. Stop an unused instance or set PORT explicitly.`,
+  );
+}
 
 export const MAX_STRING = {
   branch: 64,

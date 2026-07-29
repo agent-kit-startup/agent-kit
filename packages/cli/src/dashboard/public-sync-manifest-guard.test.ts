@@ -131,4 +131,29 @@ describe("public-sync dashboard allowlist guard", () => {
 
     expect(missing, `Missing from public-sync.manifest:\n${missing.join("\n")}`).toEqual([]);
   });
+
+  it("allowlists scripts/*.mjs referenced by packages/cli/package.json scripts", () => {
+    if (!existsSync(manifestPath)) {
+      return;
+    }
+
+    const pkg = JSON.parse(readFileSync(join(repoRoot, "packages/cli/package.json"), "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+    const scriptBodies = Object.values(pkg.scripts ?? {});
+    const required = new Set<string>();
+    for (const body of scriptBodies) {
+      for (const match of body.matchAll(/\bnode\s+\.\.\/\.\.\/scripts\/([^\s]+\.mjs)\b/g)) {
+        required.add(`scripts/${match[1]}`);
+      }
+    }
+
+    expect(required.size).toBeGreaterThan(0);
+    const manifest = parseManifest(manifestPath);
+    const missing = [...required].filter((relPath) => !isAllowlisted(relPath, manifest));
+    expect(
+      missing,
+      `CLI script refs missing from public-sync.manifest:\n${missing.join("\n")}`,
+    ).toEqual([]);
+  });
 });

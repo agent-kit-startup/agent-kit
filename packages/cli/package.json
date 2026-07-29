@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "4.8.0",
+  "version": "4.8.2",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
   "type": "module",
   "bin": {
@@ -9,10 +9,14 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "dashboard"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean",
+    "sync-dashboard": "node ../../scripts/sync-cli-dashboard.mjs",
+    "prepack": "node ../../scripts/sync-cli-dashboard.mjs",
+    "prepublishOnly": "node ../../scripts/verify-cli-dashboard-pack.mjs",
+    "build": "node ../../scripts/sync-cli-dashboard.mjs && tsup src/index.ts --format esm --dts --clean",
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
     "lint": "biome check src",

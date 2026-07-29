@@ -17,6 +17,7 @@ New to the kit? Here's where things land and how to test before your PR:
 - **Skills:** Community contributions go under `registry/skills/community/<skill-id>/SKILL.md` - see the [new skill vs improving existing](#new-skill-vs-improving-an-existing-one) section below
 - **Core changes:** CLI features, base rules, and templates live in their respective folders (`packages/cli/`, `.cursor/`, etc.)
 - **Test locally:** `pnpm install && pnpm lint && pnpm test` from the repo root
+- **Mission Control pack (Path C):** After the CLI publish that ships it, `@dadado/agent-kit-cli` includes `dashboard/**` in the npm tarball (synced from repo-root SoT at build/`prepack`). Do not assume the current published tag already has it; check [CHANGELOG](../CHANGELOG.md) Unreleased / the release notes. Local pack check: `node scripts/verify-cli-dashboard-pack.mjs`. Version bump stays `/git-prod` HITL ([npm-publish-checklist.md](npm-publish-checklist.md)).
 
 See [getting-started.md](getting-started.md) for the full development setup and workflow details.
 

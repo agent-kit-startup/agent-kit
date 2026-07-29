@@ -100,12 +100,12 @@ Registry skills and rules are agent instructions executed with filesystem and gi
 **Q: Why keep private `agent-kit-dev` when public looks like a complete monorepo?**
 
 **A:** Private is the **factory**; public is the **storefront**. Even after Phase B, private still handles:
-- CLI development and packaging (`packages/cli`)
+- CLI development and packaging (`packages/cli`), including Path C sync of repo-root `dashboard/` into the CLI pack at build/`prepack` (public sync allowlists product docs; the npm tarball is what ships the panel binary after that publish)
 - Sync tooling and scripts (`scripts/sync-public.mjs`)
 - Denylist patterns and git workflow enforcement
 - Dogfood session memory (`.cursor/memory/`)
 
-Public is the **registry source of truth** plus allowlisted product files for URL installation. The sync preserves public-owned `registry/**` when replacing the allowlist tree.
+Public is the **registry source of truth** plus allowlisted product files for URL installation. The sync preserves public-owned `registry/**` when replacing the allowlist tree. The CLI npm package may include `dashboard/**` after a Path C publish; that is packaging, not a change to the public-sync allowlist.
 
 **Q: What about plans, handoff, and session state?**
 

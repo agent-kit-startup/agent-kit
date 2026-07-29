@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLIGHT_LOG_LEDGER_REL,
   FLIGHT_LOG_PAST_CAP,
+  FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP,
   FLIGHT_LOG_WARNINGS_CAP,
   MAX_ACTIVITY,
   MAX_INVENTORY_ACTIVITY,
@@ -20,6 +21,7 @@ import {
   buildInventoryBaseline,
   buildMissionControlView,
   buildRunQueueView,
+  classifyFlightLogMessageKind,
   classifyPlan,
   clearCadenceWarning,
   collectDeferredCheckIds,
@@ -31,11 +33,13 @@ import {
   enrichPlans,
   extractHandoffFieldBlock,
   extractMergeBranch,
+  flightLogKindClass,
   formatDeliveryActivity,
   formatGitActivity,
   formatInventoryActivity,
   formatPlanHandoffActivity,
   isFieldReportAttentionId,
+  listFlightLogQuietOpenTriages,
   listUnreviewedReviewTargets,
   mergeActivity,
   normalizeHandoffGaps,
@@ -167,7 +171,35 @@ describe("parseHandoffMarkdown", () => {
     expect(normalizeHandoffGaps("none")).toBeNull();
     expect(normalizeHandoffGaps("n/a")).toBeNull();
     expect(normalizeHandoffGaps("  ")).toBeNull();
+    expect(normalizeHandoffGaps("none. Residuals parked; see Instruction")).toBeNull();
+    expect(normalizeHandoffGaps("none: mid-batch audit deferred")).toBeNull();
+    expect(normalizeHandoffGaps("n/a - queue plumbing only")).toBeNull();
+    expect(normalizeHandoffGaps("None. Residuals parked; see Instruction")).toBeNull();
+    expect(normalizeHandoffGaps("N/A - queue plumbing only")).toBeNull();
+    expect(normalizeHandoffGaps("none (audits are not Gaps)")).toBeNull();
+    expect(normalizeHandoffGaps("none; see Instruction")).toBeNull();
+    expect(normalizeHandoffGaps("none/see Instruction")).toBeNull();
+    expect(normalizeHandoffGaps("All clear")).toBeNull();
+    expect(normalizeHandoffGaps("—")).toBeNull();
     expect(normalizeHandoffGaps("Blocked on secrets review")).toBe("Blocked on secrets review");
+    expect(classifyFlightLogMessageKind(null)).toBe("ok");
+    expect(classifyFlightLogMessageKind("none. Residuals…")).toBe("ok");
+    expect(classifyFlightLogMessageKind("None. Residuals parked")).toBe("ok");
+    expect(classifyFlightLogMessageKind("N/A - queue only")).toBe("ok");
+    expect(classifyFlightLogMessageKind("Enqueue residuals for F1")).toBe("residual");
+    expect(classifyFlightLogMessageKind("Tip: prefer named model for continuous runs")).toBe(
+      "advice",
+    );
+    expect(classifyFlightLogMessageKind("Confirm before merge to main")).toBe("prompt");
+    expect(classifyFlightLogMessageKind("API/usage limit; resume after named model")).toBe(
+      "warning",
+    );
+    expect(classifyFlightLogMessageKind("anything", { lane: "warning" })).toBe("warning");
+    expect(flightLogKindClass("residual")).toBe("flight-log-kind-residual");
+    expect(flightLogKindClass("advice")).toBe("flight-log-kind-advice");
+    expect(flightLogKindClass("prompt")).toBe("flight-log-kind-advice");
+    expect(flightLogKindClass("ok")).toBe("flight-log-kind-ok");
+    expect(flightLogKindClass("warning")).toBe("flight-log-kind-warning");
   });
 
   it("parses nested multi-line Parked/Backlog blocks and rejects backtick noise", () => {
@@ -2350,6 +2382,7 @@ describe("Flight Log Gaps history ledger", () => {
       flightKey,
     });
     expect(flightLog.current).toBe("first gap");
+    expect(flightLog.currentKind).toBe("residual");
     expect(flightLog.past).toEqual([]);
     expect(ledger.lastCurrent).toBe("first gap");
     expect(ledger.flightKey).toBe(flightKey);
@@ -2359,14 +2392,17 @@ describe("Flight Log Gaps history ledger", () => {
       flightKey,
     }));
     expect(flightLog.current).toBe("second gap");
+    expect(flightLog.currentKind).toBe("residual");
     expect(flightLog.past).toHaveLength(1);
     expect(flightLog.past[0]?.text).toBe("first gap");
+    expect(flightLog.past[0]?.kind).toBe("residual");
 
     ({ ledger, flightLog } = observeFlightLog(ledger, null, {
       nowMs: t0 + 2000,
       flightKey,
     }));
     expect(flightLog.current).toBeNull();
+    expect(flightLog.currentKind).toBe("ok");
     expect(flightLog.past[0]?.text).toBe("second gap");
     expect(flightLog.past[1]?.text).toBe("first gap");
 
@@ -2536,5 +2572,89 @@ describe("Flight Log Gaps history ledger", () => {
     // Cadence still builds attention for scripts; Flight Log warnings stay separate.
     expect(view.flightLog.warnings.every((w) => w.kind !== "cadence")).toBe(true);
     expect(view.attention.some((a) => a.kind === "cadence")).toBe(true);
+  });
+});
+
+describe("listFlightLogQuietOpenTriages", () => {
+  it("surfaces report rows only and caps the quiet list", () => {
+    const attention = [
+      {
+        id: "attention:report:a",
+        kind: "report",
+        label: "a awaiting triage",
+        sourcePath: ".cursor/memory/plan-monitor-a.md",
+      },
+      {
+        id: "attention:cadence:w-1",
+        kind: "cadence",
+        label: "Cadence",
+        sourcePath: ".cursor/context/field-report-cadence.json",
+      },
+      {
+        id: "attention:prompt:x",
+        kind: "prompt",
+        label: "Prompt",
+        sourcePath: ".cursor/context/field-report-prompts.json",
+      },
+      {
+        id: "attention:report:b",
+        kind: "report",
+        label: "b awaiting triage",
+        sourcePath: ".cursor/memory/plan-monitor-b.md",
+      },
+      { id: "attention:report:no-path", kind: "report", label: "orphan" },
+    ];
+    const rows = listFlightLogQuietOpenTriages(attention);
+    expect(rows.map((r) => r.id)).toEqual(["attention:report:a", "attention:report:b"]);
+    expect(FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP).toBe(5);
+  });
+
+  it("attaches quietOpenTriages on flightLog for quiet+debt vs quiet+clear", () => {
+    const debtReport = parseExternalReport({
+      file: "plan-monitor-widget-rollout.md",
+      content:
+        "# Monitor log - widget-rollout\n\n**Plan:** `widget-rollout.plan.md`\n\n### Residual items for human attention\n\n1. Fix the live blocker.\n",
+      modifiedAt: "2026-07-28T12:00:00.000Z",
+    });
+    const debt = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+      },
+      externalReports: [debtReport],
+      nowMs: Date.parse("2026-07-28T12:00:00.000Z"),
+    });
+    expect(debt.flightLog.current).toBeNull();
+    expect(debt.flightLog.warnings).toEqual([]);
+    expect(debt.flightLog.quietOpenTriages.length).toBeGreaterThan(0);
+    expect(debt.flightLog.quietOpenTriages[0].kind).toBe("report");
+    expect(debt.flightLog.quietOpenTriages[0].action?.target).toContain("/plan-review-triage");
+
+    const clear = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+      },
+      externalReports: [],
+      nowMs: Date.parse("2026-07-28T12:00:00.000Z"),
+    });
+    expect(clear.flightLog.quietOpenTriages).toEqual([]);
+
+    // Gaps present: quietOpenTriages still built for snapshot, but UI must not
+    // mix them into the Gaps stack (render gate is Gaps/Warnings empty).
+    const withGaps = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+        gaps: "Enqueue residuals for F1",
+      },
+      externalReports: [debtReport],
+      nowMs: Date.parse("2026-07-28T12:00:00.000Z"),
+    });
+    expect(withGaps.flightLog.current).toBeTruthy();
+    expect(withGaps.flightLog.quietOpenTriages.length).toBeGreaterThan(0);
   });
 });

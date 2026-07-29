@@ -26,7 +26,7 @@ Optional L1 packs (separate command):
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree; the panel runs from an agent-kit checkout that includes `dashboard/` (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)).
+After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from a CLI package that ships `dashboard/` (Path C, after that publish) or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or `agent-kit dashboard` reports missing `start.mjs`, reinstall a Path C CLI or set kit-host env/sibling; do not assume older npm tags include the panel assets.
 
 Contributors working from a kit monorepo checkout: use the local CLI examples in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (Working on the kit). Do not paste monorepo `pnpm --filter` commands into a consumer project.
 
@@ -41,15 +41,19 @@ Entry path: either the user drags `install.md` into chat, or they paste the agen
 ```
 .cursor/
 ├── agent-kit.json
-├── hooks.json      # Cursor-native: sessionStart / preCompact
+├── hooks.json      # Cursor-native thin adapters -> agent-kit CLI
 ├── rules/          # rules L0 listadas abaixo
 ├── commands/       # commands L0
 ├── hooks/
 │   ├── pre-commit/
 │   │   └── check-secrets.sh
 │   └── agent/
-│       ├── session-plan-guard.py
-│       └── precompact-handoff.py
+│       ├── resolve-agent-kit.sh
+│       ├── session-start.sh
+│       ├── pre-compact.sh
+│       ├── guard-shell.sh
+│       ├── after-edit-schema.sh
+│       └── secrets-prompt.sh
 ├── plans/
 ├── memory/
 ├── context/
@@ -113,8 +117,12 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/scripts/run-plan-all-consolidate.sh` | idem |
 | `.cursor/hooks.json` | idem |
 | `.cursor/hooks/pre-commit/check-secrets.sh` | idem |
-| `.cursor/hooks/agent/session-plan-guard.py` | idem |
-| `.cursor/hooks/agent/precompact-handoff.py` | idem |
+| `.cursor/hooks/agent/resolve-agent-kit.sh` | idem |
+| `.cursor/hooks/agent/session-start.sh` | idem |
+| `.cursor/hooks/agent/pre-compact.sh` | idem |
+| `.cursor/hooks/agent/guard-shell.sh` | idem |
+| `.cursor/hooks/agent/after-edit-schema.sh` | idem |
+| `.cursor/hooks/agent/secrets-prompt.sh` | idem |
 | `autogit/gitupdate.md` | `autogit/gitupdate.md` |
 | `autogit/plan-routine.md` | `autogit/plan-routine.md` |
 

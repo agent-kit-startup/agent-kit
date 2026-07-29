@@ -131,6 +131,9 @@ jobs:
       - name: Install & Build
         run: pnpm install --frozen-lockfile=false && pnpm build
 
+      - name: Verify Path C pack
+        run: node scripts/verify-cli-dashboard-pack.mjs
+
       - name: Publish
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then

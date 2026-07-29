@@ -261,7 +261,7 @@ Queue outcomes:
 
 The approved queue order is persisted so a resume in a fresh chat does not re-synthesize. See the ADR at `.cursor/memory/decisions/2026-07-26_run-plan-all-queue-contract.md`.
 
-**Gaps voice:** keep `- **Gaps:**` short and operator-facing (`none` when only mid-batch / cadence / monitor plumbing changed). Do not dump queue-outcome tables, mid-batch monitor paths, or `/git-prod` boilerplate into Gaps. Full say/avoid pattern: handoff template + ADR `2026-07-27_mc-flight-log-panel.md`.
+**Gaps voice:** keep `- **Gaps:**` short and operator-facing (exact `none` when only mid-batch / cadence / monitor plumbing changed; never `none. Residuals…` as an OK debit). Do not dump queue-outcome tables, mid-batch monitor paths, or `/git-prod` boilerplate into Gaps. Full say/avoid pattern: handoff template + ADR `2026-07-27_mc-flight-log-panel.md`.
 
 ## Guidance for long runs
 
