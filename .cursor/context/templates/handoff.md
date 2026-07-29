@@ -14,16 +14,17 @@ Machine fields below must stay as `- **Field:**` bullets (Mission Control parses
 
 ### Gaps voice (Flight Log)
 
-`- **Gaps:**` is operator residuals for Mission Control Flight Log (Live / Earlier), not a system-status dump.
+`- **Gaps:**` is operator residuals for Mission Control Flight Log (Live / Earlier), not a system-status dump. Flight Log uses palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); OK must not look like a yellow residual debit.
 
 | Say | Avoid |
 |-----|--------|
 | Short open residuals the next human can act on | Field Report cadence WARNING ids |
 | Named blocker or stop reason + recovery cursor | Mid-batch monitor path dumps |
-| `none` when audits/queue plumbing is the only noise | `/git-prod` suggestion boilerplate as Gaps body |
+| Exact `none` when audits/queue plumbing is the only noise | `/git-prod` suggestion boilerplate as Gaps body |
 | | Review all / Resolve all / Copy review chatter |
+| | `none. Residuals…` / `none. Mid-batch…` (OK + pointer in Gaps body) |
 
-**Before / after:** queue exhausted or mid-batch → prefer `none` (audits are not Gaps). Residuals after triage → short enqueue note, not a full Still-open table. See ADR `2026-07-27_mc-flight-log-panel.md`.
+**Before / after:** queue exhausted or mid-batch → prefer exact `none` (audits are not Gaps; put pointers in Instruction). Residuals after triage → short enqueue note, not a full Still-open table. See ADR `2026-07-27_mc-flight-log-panel.md`.
 
 ### Mode vocabulary
 

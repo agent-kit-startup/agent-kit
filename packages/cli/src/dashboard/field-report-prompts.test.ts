@@ -574,11 +574,14 @@ describe("Flight Log panel contract (dashboard.html)", () => {
   it("renders Gaps-only Flight Log with empty idle copy", () => {
     expect(dashboardHtml).toContain("function renderFlightLogCard(entry, idx)");
     expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
+    expect(dashboardHtml).toContain("function renderFlightLogQuietOpenTriageCard");
     expect(dashboardHtml).toContain("flight-log-stack");
     expect(dashboardHtml).toContain("headline: 'All clear'");
     expect(dashboardHtml).toContain("className: 'attention-empty'");
     expect(dashboardHtml).toContain("Quiet cockpit. Residuals show up here when Gaps change.");
     expect(dashboardHtml).toContain("${spaceIconSvg('field-report')}Flight Log");
+    expect(dashboardHtml).toContain("Copy triage command");
+    expect(dashboardHtml).toContain("quietOpenTriages");
     expect(dashboardHtml).not.toContain("Review all</button>");
     expect(dashboardHtml).not.toContain("Resolve all</button>");
   });

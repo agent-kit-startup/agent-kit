@@ -7,7 +7,13 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { MAX_STRING, allowlistConfig, parseGitStatusShort, truncateStr } from "./lib/guards.mjs";
+import {
+  MAX_STRING,
+  allowlistConfig,
+  parseGitStatusShort,
+  resolveSnapshotRepoRoot,
+  truncateStr,
+} from "./lib/guards.mjs";
 import {
   EXTERNAL_REPORT_FILE_RE,
   FIELD_REPORT_CADENCE_LEDGER_REL,
@@ -32,7 +38,9 @@ import {
   serializeMissionTimingLedger,
 } from "./lib/semantic-model.mjs";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const KIT_ROOT = resolve(import.meta.dirname, "..");
+/** Snapshot root: consumer workspace when MISSION_CONTROL_REPO_ROOT is set, else kit tree. */
+const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
 const MAX_TERMINALS = 20;
 const MAX_PROCESSES = 25;
 const MAX_TERMINAL_BYTES = 64 * 1024;
@@ -108,7 +116,7 @@ const SNAPSHOT = {
       dashboardDataVersion: "Semantic version of the data model schema",
       plans: "Active plans from .cursor/plans/*.plan.md with frontmatter parsing",
       system:
-        "System metadata: handoff state, allowlisted config summary, package info, version, name, contextPacks",
+        "System metadata: repoRoot, listen port, handoff state, allowlisted config summary, package info, version, name, contextPacks",
       agents: "Agent definitions from .cursor/agents/*.md",
       commands: "Slash commands from .cursor/commands/*.md",
       memory: "Memory records: error count, decision count, recent decisions",
@@ -124,7 +132,10 @@ const SNAPSHOT = {
   generatedAt: new Date().toISOString(),
   dashboardDataVersion: "1.2.0",
   plans: [],
-  system: {},
+  system: {
+    repoRoot: ROOT,
+    port: Number.parseInt(process.env.PORT || "3333", 10) || 3333,
+  },
   agents: [],
   commands: [],
   memory: {},

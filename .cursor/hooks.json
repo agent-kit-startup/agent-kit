@@ -3,13 +3,31 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": ".cursor/hooks/agent/session-plan-guard.py",
+        "command": ".cursor/hooks/agent/session-start.sh",
         "timeout": 10
       }
     ],
     "preCompact": [
       {
-        "command": ".cursor/hooks/agent/precompact-handoff.py",
+        "command": ".cursor/hooks/agent/pre-compact.sh",
+        "timeout": 5
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/agent/guard-shell.sh",
+        "timeout": 5
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/agent/after-edit-schema.sh",
+        "timeout": 5
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": ".cursor/hooks/agent/secrets-prompt.sh",
         "timeout": 5
       }
     ]

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { defineCommand } from "citty";
+import { type HooksHealthReport, assessHooksHealth } from "../invariants/hooks-health.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
@@ -10,6 +11,7 @@ import type { ReadinessReport, SafeReadinessChange } from "../types.js";
 export interface DoctorResult {
   report: ReadinessReport;
   safeChanges: SafeReadinessChange[];
+  hooks: HooksHealthReport;
 }
 
 export async function runDoctor(
@@ -17,13 +19,14 @@ export async function runDoctor(
   options: { fixSafe?: boolean; generatedAt?: string } = {},
 ): Promise<DoctorResult> {
   const rootDir = path.resolve(cwd);
+  const hooks = await assessHooksHealth(rootDir);
   if (options.fixSafe) {
     const execution = await executeSafeReadinessFixes(rootDir, {
       generatorVersion: KIT_VERSION,
       generatedAt: options.generatedAt,
     });
     await writeReadinessSnapshot(rootDir, execution.after);
-    return { report: execution.after, safeChanges: execution.changes };
+    return { report: execution.after, safeChanges: execution.changes, hooks };
   }
 
   const scan = await runScanner(rootDir);
@@ -32,7 +35,7 @@ export async function runDoctor(
     generatedAt: options.generatedAt,
   });
   await writeReadinessSnapshot(rootDir, report);
-  return { report, safeChanges: [] };
+  return { report, safeChanges: [], hooks };
 }
 
 function printDoctorSummary(result: DoctorResult): void {
@@ -45,6 +48,12 @@ function printDoctorSummary(result: DoctorResult): void {
   );
   console.log(`  safe fixes applied: ${fixed}`);
   console.log(`  pending actions: ${pendingActions.length}`);
+  console.log(`hooks: ${result.hooks.status}`);
+  if (result.hooks.reasons.length > 0) {
+    for (const reason of result.hooks.reasons.slice(0, 5)) {
+      console.log(`  - ${reason}`);
+    }
+  }
   console.log(
     nextAction
       ? `Next: ${nextAction.recommendation}`

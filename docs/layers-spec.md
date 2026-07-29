@@ -143,11 +143,10 @@ Soft always-on rules are not enough to stop an agent from burning a whole plan i
 
 | Artifact | Role |
 |----------|------|
-| `.cursor/hooks.json` | Manifest: `sessionStart`, `preCompact` (no `stop` follow-up; slash-command HITL owns the turn) |
-| `.cursor/hooks/agent/session-plan-guard.py` | Inject HANDOFF excerpt + one-phase hard rules |
-| `.cursor/hooks/agent/precompact-handoff.py` | User hint when the IDE compacts context |
+| `.cursor/hooks.json` | Manifest: sessionStart, preCompact, beforeShellExecution, afterFileEdit, beforeSubmitPrompt (no `stop`; slash-command HITL owns the turn) |
+| `.cursor/hooks/agent/*.sh` | Thin adapters that shell out to `agent-kit hook` / `guard` / `validate` (fail-open if CLI missing) |
 
-Requires `python3` on PATH (standard on macOS/Linux agent hosts). Distinct from git `pre-commit` secrets hooks.
+Native agent hooks need Node + `agent-kit` on PATH (or `node_modules/.bin` / built `packages/cli/dist`). They are separate from git pre-commit hooks: one runs inside the IDE agent loop; the other runs at commit time. Invariants live in the CLI (`agent-kit doctor` reports `hooks: active | degraded`).
 
 ### Autogit (project root)
 

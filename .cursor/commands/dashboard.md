@@ -2,95 +2,97 @@
 
 ## Goal
 
-Start the local Mission Control panel (if needed) and open it in the IDE browser at `http://localhost:3333`.
+Start (or reuse) Mission Control for **this Cursor workspace only**, then open the printed URL in the IDE browser.
 
-Local-dev only. Read-only view of repo state. No HITL gate required to open.
+Local-dev only. Read-only. No HITL gate.
 
-**Human / terminal counterpart:** from the agent-kit repo root, `npm run dashboard` (or `agent-kit dashboard`, or `node dashboard/start.mjs`) detach-starts the same server, waits for ready, prints the URL, and opens the default browser. Prefer that over copying `npm run start:dashboard`. Foreground-only debugging remains `npm run start:dashboard`.
+**Terminal counterpart:** `agent-kit dashboard` from the workspace cwd. After a CLI publish that ships Path C, the installed package includes `dashboard/start.mjs`. Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root. Until Path C is on npm, do not assume `@dadado/agent-kit-cli@4.8.0` has the panel assets.
 
 ## When to Use
 
-- To inspect plans, agents, git, memory, and health in Mission Control
-- When the panel should be running but the browser is not open yet
+- Inspect plans / HANDOFF / git / memory for **the open workspace**
+- Reload the panel after plan or HANDOFF changes (run this command again; starter reuses the same port when already up)
+- Several workspaces open: each keeps its **own** instance and port. Never expect one shared `:3333` for every project.
 
-## What to Do
+## What to Do (required order)
 
-1. **Detect the server** (default port `3333`, or `PORT` if set):
-   - Prefer `lsof -nP -iTCP:3333 -sTCP:LISTEN` (or the configured port)
-   - Or probe with `curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:3333/`
-   - If it already answers `200`, skip to step 4
+### 1. Resolve roots
 
-2. **Start if not listening.** The process must outlive the shell call.
+```bash
+SNAPSHOT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+```
 
-   `nohup ... &`, `disown`, and `( cmd & )` are **not** enough: the agent shell reaps the
-   whole process group when the call returns, so the server dies before the browser opens.
-   Detach the process from the session (double fork + `setsid`) so it reparents to PID 1:
+Find `KIT_ROOT` (directory that contains `dashboard/start.mjs`):
 
-   ```bash
-   cd "$(git rev-parse --show-toplevel)"
-   if command -v setsid >/dev/null 2>&1; then
-     setsid node dashboard/serve.mjs >/tmp/mission-control.log 2>&1 </dev/null &
-   else
-     perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork;
-       open(STDIN,"<","/dev/null"); open(STDOUT,">","/tmp/mission-control.log");
-       open(STDERR,">&STDOUT"); exec("node","dashboard/serve.mjs");'
-   fi
-   ```
+1. `$SNAPSHOT_ROOT` if `dashboard/start.mjs` exists there
+2. Else `$MISSION_CONTROL_KIT_ROOT` or `$AGENT_KIT_HOME` (absolute)
+3. Else sibling `$(dirname "$SNAPSHOT_ROOT")/agent-kit` when that tree has `dashboard/start.mjs`
+4. Else prefer running `agent-kit dashboard` (CLI resolves a Path C bundled `dashboard/start.mjs` from the installed package when present)
 
-   macOS has no `setsid`, so the `perl` branch is the one that runs there. Use
-   `node dashboard/serve.mjs` directly rather than `npm run start:dashboard`: the npm
-   wrapper adds a parent process that complicates detaching and killing.
+If none exist: stop and tell the operator to reinstall a Path C CLI, set `MISSION_CONTROL_KIT_ROOT`, or keep a sibling `agent-kit` checkout. Do **not** start a random other project's panel.
 
-3. **Confirm readiness in a _separate_ shell call.**
+### 2. Start or reuse (always use the kit starter)
 
-   A curl inside the same call as the spawn will succeed even for a process that is about
-   to be reaped, so it proves nothing. In a new call, poll `http://127.0.0.1:3333/` until
-   it returns `200` and check the owner reparented:
+Do **not** hand-roll `serve.mjs` + `kill` on 3333. The starter picks a stable port for this `SNAPSHOT_ROOT` (range `3333–3588`), reuses when `system.repoRoot` already matches, and **never kills** another workspace.
 
-   ```bash
-   lsof -nP -iTCP:3333 -sTCP:LISTEN
-   ps -o pid,ppid,command -p "$(lsof -nP -iTCP:3333 -sTCP:LISTEN -t)"
-   ```
+```bash
+export MISSION_CONTROL_REPO_ROOT="$SNAPSHOT_ROOT"
+export HOST=127.0.0.1
+unset MISSION_CONTROL_TOKEN
+unset PORT
+cd "$KIT_ROOT"
+MISSION_CONTROL_NO_OPEN=1 node dashboard/start.mjs
+```
 
-   `PPID` should be `1`. If there is no listener, read `/tmp/mission-control.log`, report the
-   failure and the start command used, and stop.
+Capture the printed URL (example: `http://127.0.0.1:3511/`). That URL is authoritative; it is often **not** `:3333`.
 
-   Always keep `-sTCP:LISTEN`. A bare `lsof -ti:3333` also matches *client* sockets, so it can
-   return the browser host process alongside the server.
+Running this again in the same repo is the **reload** path: same URL, same instance, fresh snapshots via SSE/poll.
 
-4. **Open the panel:**
-   a. **`cursor-ide-browser` MCP `browser_navigate`** with `newTab: true` and the URL
-      `http://127.0.0.1:3333/`. This works; do not skip it.
-   b. If the result URL is `chrome-error://chromewebdata/`, that is **connection refused, not a
-      browser crash**. Go back to step 3: the server is almost certainly dead. Fix the server,
-      then navigate once more.
-   c. Also copy the URL for the user: `echo 'http://localhost:3333' | pbcopy` (macOS) or
-      equivalent, and mention **Simple Browser** (`Ctrl+Shift+P` → `Simple Browser`) as an
-      alternative host.
+### 3. Confirm this workspace owns the URL
 
-5. **Verify data:** the first snapshot takes roughly 3-5s, so the panel renders empty skeletons
-   and a `Refreshing...` badge before data lands. Wait for the badge to turn green (`Live`)
-   before screenshotting, or curl `/dashboard-data.json` and print a quick summary
-   (plan count, agent count, terminal count).
+In a **separate** shell call:
+
+```bash
+curl -sf "${MC_URL}dashboard-data.json" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d); console.log(j.system?.repoRoot, j.system?.port)})'
+```
+
+`system.repoRoot` must equal `SNAPSHOT_ROOT`. If it does not, do not open that URL; re-run step 2 and use the new printed URL.
+
+### 4. Open the panel
+
+1. `cursor-ide-browser` → `browser_navigate` with `newTab: true` and the **printed** `MC_URL`
+2. If result is `chrome-error://chromewebdata/`: connection refused; fix step 2/3, then navigate once more
+3. Copy the URL for the operator (`pbcopy` on macOS) and mention Simple Browser as a fallback
+
+### 5. Verify
+
+Wait for the `Live` badge (~3–5s) or curl the JSON again. Header should show this workspace's basename. Confirm plan/HANDOFF counts look like **this** repo, not the kit monorepo.
+
+## Hard rules
+
+| Do | Do not |
+|----|--------|
+| Set `MISSION_CONTROL_REPO_ROOT` to this git toplevel | Assume `http://localhost:3333` |
+| Use `node "$KIT_ROOT/dashboard/start.mjs"` | `kill` a listener to "free" 3333 for another project |
+| Open the **printed** URL | Reuse HTTP 200 on any port without checking `system.repoRoot` |
+| Leave other workspaces' Mission Control running | Start `serve.mjs` from a kit tree without `MISSION_CONTROL_REPO_ROOT` |
 
 ## Notes
 
-- Server entry: `dashboard/serve.mjs` (SPA at `/`, data at `/dashboard-data.json` and `/api/data`, SSE at `/api/events`)
-- Port: `PORT` env, default `3333`
-- **Security:** binds `127.0.0.1` by default (`HOST` env alone is not enough for LAN). Local-only loopback; do not expose on shared networks via `/dashboard`. For opt-in trusted LAN, use `/dashboard-broadcast` (token gate). Static files are limited to `dashboard/`; no secrets or repo files outside that directory are served.
-- Non-loopback bind without `MISSION_CONTROL_TOKEN` is refused by `serve.mjs` (no warn-only open LAN).
-- For LAN broadcast: `/dashboard-broadcast` / `npm run dashboard:broadcast` / `agent-kit dashboard-broadcast`.
-- **The in-IDE browser MCP (`cursor-ide-browser`) does render this panel.** An earlier revision of this command claimed it crashes on localhost; that was a misdiagnosis of a server that had already been reaped. Treat `chrome-error://chromewebdata/` as a server-liveness signal, not a browser defect.
-- Stop the panel with `kill "$(lsof -nP -iTCP:3333 -sTCP:LISTEN -t)"`. A detached server survives the chat session, so an old instance may still hold the port on the next `/dashboard`. Never use a bare `lsof -ti:3333` to pick the kill target; it also lists connected clients such as the IDE browser host.
-- **File actions:** Mission Control copies the repo-relative path and toasts paste instructions for **Quick Open** (`Cmd+P` / `Ctrl+P`). Native `vscode://file` / `cursor://file` open cannot be confirmed from Simple Browser or agent browser hosts (protocol success is not observable), so path actions are labeled **Copy path**, never `Open`. Commit shas and slash commands stay copy-only. Checklist plan Actions: **Run (manual)** / **Run (auto)** / Edit / Cancel / Copy path; header **Run all** copies `/run-plan-all` (never executes from the panel).
-- Not a remote deploy path; do not treat this as production hosting
+- Snapshot (plans, HANDOFF, git, memory) = `MISSION_CONTROL_REPO_ROOT`. Static UI = kit tree that hosts `dashboard/`.
+- Explicit `PORT` overrides hashing; if that port belongs to another root, start refuses (no kill).
+- Loopback only by default. LAN: `/dashboard-broadcast` (token-gated).
+- Stop **this** panel only: kill the PID on **this** `system.port` whose `repoRoot` matches. Never kill another project's instance.
+- File actions stay copy-only (Quick Open paste). Checklist **Run all** copies `/run-plan-all`; it does not execute from the panel.
+- Consumer L0 ships this command text, not `dashboard/**`.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Port answered `200` during startup, then no listener on the next call | Server was backgrounded with `nohup`/`&`/`disown` and reaped with the shell call | Respawn with the double-fork `setsid` snippet in step 2 |
-| `browser_navigate` returns `chrome-error://chromewebdata/` | Connection refused; nothing is listening | Re-check step 3, restart the server, navigate again |
-| Panel loads but shows empty skeletons | Snapshot generation takes 3-5s | Wait for the `Live` badge before reading the page |
-| `EADDRINUSE` on start | A detached instance from a previous session still holds the port | `kill "$(lsof -nP -iTCP:3333 -sTCP:LISTEN -t)"`, or use `PORT` for a second instance |
-| `ps: Invalid process id` when inspecting the port | `lsof -ti:3333` returned several PIDs (server plus connected clients) | Add `-sTCP:LISTEN` to select only the listener |
+| Panel shows kit plans / wrong HANDOFF | Missing `MISSION_CONTROL_REPO_ROOT` or opened another workspace's URL | Re-run step 2; open printed URL; check header basename |
+| Expected `:3333` | Per-workspace port allocation | Use printed URL / `system.port` |
+| `chrome-error://chromewebdata/` | Server not listening on that URL | Re-run starter; navigate again |
+| `PORT … will not kill another workspace` | Explicit `PORT` held by another root | `unset PORT` and re-run starter |
+| `No dashboard/start.mjs found` | Consumer-only tree | Set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` or sibling `../agent-kit` |
+| Empty skeletons | Cold snapshot | Wait for `Live` |

@@ -3,10 +3,21 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { defineCommand } from "citty";
 import { logger } from "../utils/logger.js";
-import { findDashboardStart } from "./dashboard.js";
+import {
+  type FindDashboardOptions,
+  bundledDashboardCandidates,
+  findDashboardStart,
+} from "./dashboard.js";
 
-/** Walk cwd and parents for `dashboard/start-broadcast.mjs`. */
-export async function findDashboardBroadcastStart(cwd: string): Promise<string | null> {
+/**
+ * Resolve dashboard/start-broadcast.mjs.
+ * Order: walk-up → env kit roots → sibling ../agent-kit → CLI-bundled (Path C).
+ */
+export async function findDashboardBroadcastStart(
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: FindDashboardOptions = {},
+): Promise<string | null> {
   let dir = path.resolve(cwd);
   for (;;) {
     const candidate = path.join(dir, "dashboard", "start-broadcast.mjs");
@@ -17,9 +28,48 @@ export async function findDashboardBroadcastStart(cwd: string): Promise<string |
       // keep walking
     }
     const parent = path.dirname(dir);
-    if (parent === dir) return null;
+    if (parent === dir) break;
     dir = parent;
   }
+
+  for (const key of ["MISSION_CONTROL_KIT_ROOT", "AGENT_KIT_HOME"] as const) {
+    const base = env[key];
+    if (!base || typeof base !== "string" || !base.trim()) continue;
+    const candidate = path.join(path.resolve(base.trim()), "dashboard", "start-broadcast.mjs");
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // try next
+    }
+  }
+
+  const sibling = path.join(
+    path.resolve(cwd),
+    "..",
+    "agent-kit",
+    "dashboard",
+    "start-broadcast.mjs",
+  );
+  try {
+    await access(sibling);
+    return path.resolve(sibling);
+  } catch {
+    // fall through
+  }
+
+  for (const candidate of bundledDashboardCandidates(
+    "start-broadcast.mjs",
+    options.moduleUrl ?? import.meta.url,
+  )) {
+    try {
+      await access(candidate);
+      return path.resolve(candidate);
+    } catch {
+      // try next
+    }
+  }
+  return null;
 }
 
 function runStartScript(startPath: string, env: NodeJS.ProcessEnv): Promise<number> {
@@ -55,12 +105,11 @@ export const dashboardBroadcastCommand = defineCommand({
   async run({ args }) {
     const startPath = await findDashboardBroadcastStart(args.cwd);
     if (!startPath) {
-      // Helpful tip if only the loopback starter exists.
       const loopback = await findDashboardStart(args.cwd);
       logger.error(
         loopback
-          ? "No dashboard/start-broadcast.mjs found beside dashboard/start.mjs. Update the agent-kit tree, then retry."
-          : "No dashboard/start-broadcast.mjs found. Mission Control ships with the agent-kit repo; run from that tree.",
+          ? "No dashboard/start-broadcast.mjs found beside dashboard/start.mjs. Update the agent-kit tree or reinstall a CLI that ships dashboard/, then retry."
+          : "No dashboard/start-broadcast.mjs found. After a CLI publish that ships dashboard/ (Path C), reinstall @dadado/agent-kit-cli. Or run from an agent-kit tree that includes dashboard/.",
       );
       process.exitCode = 1;
       return;

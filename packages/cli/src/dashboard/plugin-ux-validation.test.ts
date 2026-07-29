@@ -425,10 +425,15 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("function renderEmptyStateCta");
     expect(dashboardHtml).toContain("activity-feed-empty");
     expect(dashboardHtml).toContain("attention-empty");
-    // Flight Log empty (Gaps + Warnings; attention inbox retired from this card).
+    // Flight Log empty (Gaps + Warnings + no open triage; attention inbox retired).
     expect(dashboardHtml).toContain("All clear");
     expect(dashboardHtml).toContain("Quiet cockpit. Residuals show up here when Gaps change.");
+    expect(dashboardHtml).toContain("function renderFlightLogQuietOpenTriageCard");
+    expect(dashboardHtml).toContain("quietOpenTriages");
+    expect(dashboardHtml).toContain("Reviews awaiting triage");
     expect(dashboardHtml).not.toContain("No pending attention items.");
+    expect(dashboardHtml).not.toContain("Review all</button>");
+    expect(dashboardHtml).not.toContain("Resolve all</button>");
     expect(dashboardHtml).toContain("No agent activity yet");
     expect(dashboardHtml).toContain("Listening");
     expect(dashboardHtml).toContain("Quiet cockpit");
@@ -498,6 +503,11 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("flight-log-stack");
     expect(dashboardHtml).toContain("flight-log-card-current");
     expect(dashboardHtml).toContain("flight-log-card-past");
+    expect(dashboardHtml).toContain("flight-log-kind-residual");
+    expect(dashboardHtml).toContain("flight-log-kind-advice");
+    expect(dashboardHtml).toContain("flight-log-kind-ok");
+    expect(dashboardHtml).toContain("data-flight-log-kind");
+    expect(dashboardHtml).toContain("function flightLogMessageKind(text, opts");
     expect(dashboardHtml).toContain("'Live'");
     expect(dashboardHtml).toContain("'Earlier'");
     expect(dashboardHtml).not.toContain("Current Gaps");
@@ -507,6 +517,27 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).not.toContain("Resolve all</button>");
     expect(dashboardHtml).not.toContain("vscode://");
     expect(dashboardHtml).not.toContain("cursor://");
+  });
+
+  it("pins Flight Log OK-normalize regex parity and CSS kind rules", () => {
+    // Shared none./n/a prefix rule must stay case-insensitive and separator-aligned
+    // across semantic-model.mjs and the inline dashboard.html copy (monitor D).
+    const noneExact = "/^(none|n\\/a)$/i";
+    const nonePrefix = "/^(none|n\\/a)\\s*[.:,;\\/(\\-–—…]/i";
+    const semanticModel = readFileSync(
+      resolve(repoRoot, "dashboard/lib/semantic-model.mjs"),
+      "utf8",
+    );
+    expect(semanticModel).toContain(`${noneExact}.test(text)`);
+    expect(semanticModel).toContain(`${nonePrefix}.test(text)`);
+    expect(dashboardHtml).toContain(`${noneExact}.test(raw)`);
+    expect(dashboardHtml).toContain(`${nonePrefix}.test(raw)`);
+
+    // CSS rules must exist for every emitted kind class on Live + Earlier (monitor E).
+    for (const kind of ["residual", "advice", "ok", "warning"] as const) {
+      expect(dashboardHtml).toContain(`.flight-log-card-current.flight-log-kind-${kind}`);
+      expect(dashboardHtml).toContain(`.flight-log-card-past.flight-log-kind-${kind}`);
+    }
   });
 
   it("renders Flight Log operator Warnings lane without cadence Review/Resolve CTAs", () => {

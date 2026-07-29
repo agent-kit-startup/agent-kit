@@ -101,27 +101,26 @@ These run on every agent turn in Cursor:
 | `pre-commit/pre-commit` | Git pre-commit (manual install to `.git/hooks/`) | Core orchestrator |
 | `pre-commit/check-secrets.sh` | Staged files | Core - security |
 | `pre-commit/validate-all-json.sh` | Staged JSON | Core |
-| `pre-edit/validate-json.sh` | Manual / legacy edit hook | Core |
-| `post-edit/validate-n8n.sh` | n8n workflow edits | Stack |
-| `lib/json-validator.js` | Shared | Core |
-| `lib/n8n-checker.js` | Shared | Stack |
+| `lib/json-validator.js` | Shared (pre-commit) | Core |
+| `lib/n8n-checker.js` | Manual / stack skill | Stack |
+
+**Removed:** unwired `pre-edit/validate-json.sh` and `post-edit/validate-n8n.sh` (never attached to Cursor agent events). JSON validation stays on git pre-commit; HANDOFF/plan schema is advisory via `afterFileEdit` → `agent-kit validate after-edit`.
 
 **Install model:** Documented copy-to-`.git/hooks/pre-commit`. CLI `generateGitHooks` writes a **simpler** secrets-only hook - not the full `.cursor/hooks/pre-commit/` chain.
 
 ### Native Cursor hooks (`.cursor/hooks.json`)
 
-**Status: present (L0).**
+**Status: present (L0).** Thin shell adapters shell out to `packages/cli` (SoT). No `python3` requirement for these events. No `stop` hook.
 
-| Event | Script | Role |
-|-------|--------|------|
-| `sessionStart` | `.cursor/hooks/agent/session-plan-guard.py` | Inject HANDOFF excerpt + manual one-phase hard rules (incl. HITL slash commands keep the turn) |
-| `preCompact` | `.cursor/hooks/agent/precompact-handoff.py` | User-visible handoff hint when context compacting |
+| Event | Adapter | CLI SoT |
+|-------|---------|---------|
+| `sessionStart` | `.cursor/hooks/agent/session-start.sh` | `agent-kit hook session-start` |
+| `preCompact` | `.cursor/hooks/agent/pre-compact.sh` | `agent-kit hook pre-compact` |
+| `beforeShellExecution` | `.cursor/hooks/agent/guard-shell.sh` | `agent-kit guard shell --json` |
+| `afterFileEdit` | `.cursor/hooks/agent/after-edit-schema.sh` | `agent-kit validate after-edit` (advisory) |
+| `beforeSubmitPrompt` | `.cursor/hooks/agent/secrets-prompt.sh` | `agent-kit guard prompt --json` (advisory fail-open) |
 
-No `stop` follow-up: it stole the agent turn from `/git-staging` / `/git-prod` confirmation waits. Phase/HITL stay in sessionStart + soft rules; native hooks stay for context injection, handoff on compact, and (later) security checks. See memory `2026-07-19_stop-hook-no-hitl-interference`.
-
-Optional external plan review also avoids native `stop` hooks (per ADR `2026-07-20_optional-claude-code-plan-review`). When `/run-plan` exhausts implementable to-dos, it suggests an external script rather than registering a follow-up agent that would interfere with HITL turns.
-
-Optional later: `beforeShellExecution` gate for `git push origin main`; `afterFileEdit` JSON/n8n validators; `beforeSubmitPrompt` secrets pattern check.
+Hooks may deny or annotate only; they never speak or decide. `agent-kit doctor` reports `hooks: active | degraded`. Selection for bare `/plan-review-triage` is `agent-kit monitors --untriaged --json` (never newest-mtime-wins). ADR: `2026-07-29_cli-invariants-thin-hook-adapters`.
 
 Shell git hooks and native hooks serve different layers: git hooks = commit time; native hooks = agent runtime.
 

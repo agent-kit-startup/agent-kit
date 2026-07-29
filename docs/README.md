@@ -1,6 +1,6 @@
 # Agent Kit Docs
 
-Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates project-aware setup for Cursor, VS Code, and Windsurf.
+Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates Cursor-first project setup; VS Code and Windsurf get partial generators (parity Low / Minimal per [cursor-native-audit.md](cursor-native-audit.md)). Mechanizable invariants live in the CLI so non-Cursor paths can run the same checks.
 
 ## Guides
 
