@@ -161,7 +161,7 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       /\.btn-refresh \.btn-refresh-icon\s*\{[^}]*width:\s*var\(--mc-chrome-icon-size\)[^}]*height:\s*var\(--mc-chrome-icon-size\)/,
     );
     expect(dashboardHtml).toMatch(
-      /function spaceIconSvg[\s\S]*?viewBox="0 0 16 16"[\s\S]*?stroke-width="0\.5"/,
+      /function spaceIconSvg[\s\S]*?viewBox="0 0 16 16"[\s\S]*?stroke-width="1\.5"/,
     );
     expect(dashboardHtml).toMatch(
       /function nowMetaIconSvg[\s\S]*?viewBox="0 0 16 16"[\s\S]*?stroke-width="1\.5"/,
@@ -328,6 +328,8 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     // Interface Skins group lives in the More menu, separate from Agent Persona packs.
     expect(dashboardHtml).toContain('id="navSkinsLabel"');
     expect(dashboardHtml).toMatch(/navSkinsLabel[\s\S]*?>Skins</);
+    expect(dashboardHtml).toContain('data-icon="skins"');
+    expect(dashboardHtml).toContain("spaceIconSvg('skins', { decorative: true })");
     expect(dashboardHtml).toContain('data-dashboard-skin-option="legacy"');
     expect(dashboardHtml).toContain('data-dashboard-skin-option="cursor"');
     expect(dashboardHtml).toContain('role="menuitemradio"');
@@ -586,6 +588,39 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       expect(dashboardHtml).toContain(`.flight-log-card-current.flight-log-kind-${kind}`);
       expect(dashboardHtml).toContain(`.flight-log-card-past.flight-log-kind-${kind}`);
     }
+  });
+
+  it("pins Flight Log kind-aware hover/focus chrome (not yellow-only via unset --accent)", () => {
+    // Regression: shared hover must not fall back to yellow via unset --accent.
+    expect(dashboardHtml).not.toContain("border-color: var(--accent, var(--yellow));");
+    expect(dashboardHtml).not.toContain("outline: 2px solid var(--accent, var(--yellow));");
+
+    const kindHoverTokens: Array<{ kind: string; token: string }> = [
+      { kind: "ok", token: "var(--green)" },
+      { kind: "advice", token: "var(--blue)" },
+      { kind: "residual", token: "var(--yellow)" },
+      { kind: "warning", token: "var(--orange, var(--yellow))" },
+    ];
+    for (const { kind, token } of kindHoverTokens) {
+      expect(dashboardHtml).toContain(`.flight-log-card-current.flight-log-kind-${kind}:hover`);
+      expect(dashboardHtml).toContain(
+        `.flight-log-card-current.flight-log-kind-${kind}:focus-visible`,
+      );
+      expect(dashboardHtml).toContain(`.flight-log-card-past.flight-log-kind-${kind}:hover`);
+      expect(dashboardHtml).toContain(
+        `.flight-log-card-past.flight-log-kind-${kind}:focus-visible`,
+      );
+      // Live hover/focus outline follows the kind palette token.
+      const liveHoverBlock = dashboardHtml.match(
+        new RegExp(
+          `\\.flight-log-card-current\\.flight-log-kind-${kind}:hover,\\s*` +
+            `\\.flight-log-card-current\\.flight-log-kind-${kind}:focus-visible\\s*\\{[^}]+\\}`,
+        ),
+      );
+      expect(liveHoverBlock?.[0]).toContain(`outline-color: ${token}`);
+    }
+    expect(dashboardHtml).toContain(".flight-log-card-warning:hover");
+    expect(dashboardHtml).toContain(".flight-log-card-warning:focus-visible");
   });
 
   it("renders Flight Log operator Warnings lane without cadence Review/Resolve CTAs", () => {
@@ -1267,18 +1302,18 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     expect(formatModeDisplayLabel("")).toBe("");
   });
 
-  it("orders overview as current mission → monitor → field report → checklist", () => {
+  it("orders overview as current mission → flight log → checklist → crew monitor", () => {
     const overviewStart = dashboardHtml.indexOf('id="section-overview"');
     expect(overviewStart).toBeGreaterThan(-1);
     const overviewSlice = dashboardHtml.slice(overviewStart, overviewStart + 4000);
     const nowIdx = overviewSlice.indexOf("renderNowExecutionPanel");
-    const activityIdx = overviewSlice.indexOf('id="hero-activity"');
     const attentionIdx = overviewSlice.indexOf("renderAttentionPanel");
     const recentIdx = overviewSlice.indexOf("renderRecentPlanCards");
+    const activityIdx = overviewSlice.indexOf('id="hero-activity"');
     expect(nowIdx).toBeGreaterThan(-1);
-    expect(activityIdx).toBeGreaterThan(nowIdx);
-    expect(attentionIdx).toBeGreaterThan(activityIdx);
+    expect(attentionIdx).toBeGreaterThan(nowIdx);
     expect(recentIdx).toBeGreaterThan(attentionIdx);
+    expect(activityIdx).toBeGreaterThan(recentIdx);
   });
 
   it("locks desktop one-fold at min-width 1024px with a 2x2 overview grid", () => {
@@ -1296,8 +1331,8 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
       /#section-overview\.active \.overview-stack\s*\{[^}]*overflow:\s*hidden/,
     );
     expect(dashboardHtml).toContain("grid-template-areas:");
-    expect(dashboardHtml).toContain('"now monitor"');
-    expect(dashboardHtml).toContain('"attention checklist"');
+    expect(dashboardHtml).toContain('"now attention"');
+    expect(dashboardHtml).toContain('"checklist monitor"');
     expect(dashboardHtml).toMatch(
       /#section-overview\.active \.overview-stack\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/,
     );
@@ -1458,8 +1493,22 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     ]) {
       expect(dashboardHtml).toContain(heading);
     }
-    // Primary nav names the page; no redundant page-level Cockpit/Overview title.
-    expect(dashboardHtml).toContain('class="top-nav-anchor-label">Cockpit</span>');
+    // Primary nav first label matches Current mission; order: mission → Flight Log → Checklist → Crew.
+    expect(dashboardHtml).toContain('class="top-nav-anchor-label">Current mission</span>');
+    const navBlock = dashboardHtml.match(
+      /class="cockpit-anchors"[\s\S]*?<\/div>\s*<\/div>\s*<\/nav>/,
+    );
+    expect(navBlock).not.toBeNull();
+    const navHtml = navBlock?.[0] ?? "";
+    const missionNav = navHtml.indexOf(">Current mission</span>");
+    const flightNav = navHtml.indexOf(">Flight Log</span>");
+    const checklistNav = navHtml.indexOf(">Checklist</span>");
+    const crewNav = navHtml.indexOf(">Crew Monitor</span>");
+    expect(missionNav).toBeGreaterThan(-1);
+    expect(flightNav).toBeGreaterThan(missionNav);
+    expect(checklistNav).toBeGreaterThan(flightNav);
+    expect(crewNav).toBeGreaterThan(checklistNav);
+    expect(dashboardHtml).not.toContain('class="top-nav-anchor-label">Cockpit</span>');
     expect(dashboardHtml).not.toMatch(/<span class="dot dot-blue"><\/span>\s*Cockpit/);
     expect(dashboardHtml).not.toMatch(/<span class="dot dot-blue"><\/span>\s*Overview/);
     // No prose pointing at navigation the panel no longer ships.
@@ -1691,12 +1740,13 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       "field-report": "Flight Log",
       checklist: "Checklist",
       "more-sections": "More sections",
-      // More-menu section icons (12 kinds)
+      // More-menu section icons (12 kinds) + skins affordance
       overview: "Home",
       plans: "Plans",
       activity: "Activity",
       agents: "Agents",
       skills: "Skills",
+      skins: "Skins",
       commands: "Commands",
       health: "Health",
       git: "Git",
@@ -1710,12 +1760,25 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       expect(decorative, `${kind} must render`).toContain('<svg class="space-icon"');
       expect(decorative).toContain('aria-hidden="true"');
       expect(decorative).not.toContain('role="img"');
+      expect(decorative).toContain('stroke-width="1.5"');
 
       const labelled = spaceIconSvg(kind, { decorative: false });
       expect(labelled).toContain('role="img"');
       expect(labelled).toContain(`aria-label="${name}"`);
       expect(labelled).toContain(`title="${name}"`);
     }
+    // Home house: roof meets walls (no split roof/base gap).
+    const home = spaceIconSvg("overview");
+    expect(home).toContain("M2.5 7.5L8 2.75l5.5 4.75");
+    expect(home).toContain("M4.25 7.75v6.5h7.5v-6.5");
+    expect(home).not.toContain("M4.5 10v4h3M11.5 10v4h-3");
+    // Skins palette swatches (not Skills gear).
+    const skins = spaceIconSvg("skins");
+    expect(skins).toContain('<rect x="2.5" y="3.5"');
+    expect(skins).not.toContain("M10.5 8a2.5 2.5 0 000-2.5");
+    // Flight Log clipboard kind contract preserved.
+    const flightLog = spaceIconSvg("field-report");
+    expect(flightLog).toContain('<rect x="4.5" y="3.5" width="7" height="10"');
     expect(spaceIconSvg("not-a-kind")).toBe("");
     // Inline SVG only: no icon font, sprite fetch, or frontend dependency.
     expect(dashboardHtml).not.toMatch(/font-awesome|material-icons|iconify/i);
@@ -2596,5 +2659,51 @@ describe("checklist: run-plan-all queue roles and display sort", () => {
     expect(dashboardHtml).toMatch(/\.queue-role-pill\s*\{[^}]*border:\s*none/);
     expect(dashboardHtml).toContain(".queue-role-pill-next-up");
     expect(dashboardHtml).toContain(".queue-role-pill-queued");
+  });
+});
+
+describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
+  it("renders Healthcenter shell with presence and fixed seven-check Autofix map", () => {
+    expect(dashboardHtml).toContain('id="section-health"');
+    expect(dashboardHtml).toContain('class="healthcenter"');
+    expect(dashboardHtml).toContain("healthcenter-presence");
+    expect(dashboardHtml).toContain("HEALTH_CHECK_META");
+    expect(dashboardHtml).toContain("function toggleHealthCheck(checkId)");
+    expect(dashboardHtml).toContain("function healthCheckSeverity(check, aggregateStatus)");
+    for (const id of ["plans", "handoff", "agents", "commands", "memory", "git", "config"]) {
+      expect(dashboardHtml).toContain(`${id}:`);
+    }
+    expect(dashboardHtml).toContain("same seven checks · copy-only Autofix");
+  });
+
+  it("maps Autofix to copyForPaste destinations (no Open/protocol)", () => {
+    expect(dashboardHtml).toContain("health-autofix-btn");
+    expect(dashboardHtml).toMatch(
+      /autofix:\s*\{\s*text:\s*'\/start-project'[\s\S]*?destination:\s*'chatInput'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /autofix:\s*\{\s*text:\s*'agent-kit doctor'[\s\S]*?destination:\s*'terminal'/,
+    );
+    expect(dashboardHtml).toMatch(
+      /autofix:\s*\{\s*text:\s*'\.cursor\/commands\/'[\s\S]*?destination:\s*'filePicker'/,
+    );
+    const healthBlock = dashboardHtml.match(
+      /\/\/ ===== Healthcenter \(More → Health\) =====[\s\S]*?(?=\n {2}\/\/ ===== Git =====)/,
+    )?.[0];
+    expect(healthBlock).toBeTruthy();
+    expect(healthBlock).toContain("copyForPasteHandler");
+    expect(healthBlock).not.toMatch(/vscode:\/\/|cursor:\/\/|Open file|protocol/i);
+    expect(healthBlock).toContain("Health snapshot error");
+    expect(healthBlock).toContain("Health offline");
+  });
+
+  it("keeps dual-skin Healthcard radius and reduced-motion press on .health-item", () => {
+    expect(dashboardHtml).toMatch(
+      /html\[data-dashboard-skin="cursor"\] \.health-card\s*\{[^}]*border-radius:\s*8px/,
+    );
+    expect(dashboardHtml).toMatch(
+      /html\[data-dashboard-skin="legacy"\] \.health-card\s*\{[^}]*border-radius:\s*4px/,
+    );
+    expect(dashboardHtml).toMatch(/\.health-item:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
   });
 });

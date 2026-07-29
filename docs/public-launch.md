@@ -24,7 +24,7 @@ Decision recorded in the maintainers' decision log (private repo memory).
 | Dogfood on this repo (plan, HANDOFF, staging→prod, memory) | ✅ |
 | Public sync opens an append-only PR by default | ✅ `scripts/sync-public.mjs` |
 | GitHub About description and topics | ✅ aligned with [github-about.md](github-about.md) |
-| `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops - requires Contents + Pull requests + Workflows write on the public repo |
+| `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops - requires Contents + Pull requests + Workflows write on the public repo; **private repo only** (never configure on the public storefront) |
 | Public `main` ruleset | ✅ active (`Protect main` - PR + 1 approval + Admin bypass + check `build`) |
 | Fase 7 registry-on-public topology | ✅ spec [topology-private-public.md](topology-private-public.md); cutover ops still open |
 | Final plan review (`review-camadas`) | ✅ [review-camadas.md](review-camadas.md) |
@@ -90,11 +90,22 @@ node scripts/sync-public.mjs --dry-run
 
 After `git prod` on the private repo, the pipeline automatically:
 
-1. **Creates annotated vX.Y.Z tag** (triggers npm publish + sync-public jobs)
+1. **Creates annotated vX.Y.Z tag** (triggers npm publish + sync-public jobs on **private** `agent-kit-dev`)
 2. **Opens sync PR** with semantic body: Summary + CHANGELOG release notes + source SHA
 3. **Auto-merges PR** after required checks pass (`gh pr merge --auto`)
 
 Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
+
+**Public storefront tag CI:** Path C mirrors `.github/workflows/ci.yml` to `agent-kit-startup/agent-kit`. When a Release or tag push runs on that public slug, `sync-public` and `publish-npm` are **skipped** (`github.repository != 'agent-kit-startup/agent-kit'`). Only the `build` job should run. Do **not** add `PUBLIC_REPO_TOKEN` or `NPM_TOKEN` to the public repo; those secrets stay on private. Private tag/manual sync still fails loud when `PUBLIC_REPO_TOKEN` is unset.
+
+### Verify next public `v*` tag
+
+After the next storefront tag (from private sync + public Release):
+
+1. Public Actions for that tag: `build` green.
+2. `sync-public` and `publish-npm` do **not** run (skipped by repository slug guard).
+3. No `PUBLIC_REPO_TOKEN` / `NPM_TOKEN` on the public repo.
+4. Do **not** force-move an already-pushed `v*` tag; use a new patch tag if retry is needed.
 
 Manual fallback:
 ```bash
