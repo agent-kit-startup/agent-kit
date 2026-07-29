@@ -104,11 +104,11 @@ The Cockpit reads as one page in four sections, each reachable from the primary 
 | Section | What it answers |
 |---------|------------------|
 | Current mission | The plan in flight: status, progress, friendly Mode labels, and previous/current/next todo |
-| Crew Monitor | Live agent/crew feed: ticks, handoffs, deliveries, and denser `agent_step` rows for active-plan to-dos (cap 20) |
 | Flight Log | HANDOFF Gaps log (**Live** / **Earlier**, wipe on new flight; cap 15 within a flight) plus operator Warnings (Quota pause, Heads up); palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); clipboard icon; clickable copy text/path; **All clear** when idle (no literal `none` as a yellow Live debit) |
 | Checklist | What remains: recent plan cards, parked and incomplete plans, and readiness notes |
+| Crew Monitor | Live agent/crew feed: ticks, handoffs, deliveries, and denser `agent_step` rows for active-plan to-dos (cap 20) |
 
-Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, and Config live in the More sections menu next to those links, with their counts.
+Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, and Config live in the More sections menu next to those links, with their counts. **Health** is a Healthcenter for the same seven workspace checks (`plans`, `handoff`, `agents`, `commands`, `memory`, `git`, `config`): live severity, expand/detail per check, and Autofix/Fix controls that only copy a command or path and name where to paste it (chat, terminal, or file picker). Snapshot/serve errors are distinct from per-check fails. Health does not reorder main cockpit tabs and does not duplicate Checklist readiness.
 
 Every action copies text and names where to paste it: repo-relative paths go to the file picker, slash commands to the chat input, chat references to the past-chat picker, and shell commands, PIDs, and commit shas to the terminal. The panel cannot open a file or a chat, and no label claims it can.
 

@@ -57,14 +57,17 @@ jobs:
   # Secret PUBLIC_REPO_TOKEN: fine-grained token with public repo Contents,
   # Pull requests, and merge (or auto-merge) permission. Repo must Allow auto-merge
   # when required checks exist. Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
+  # Private-origin only: skip when this workflow runs on the public storefront
+  # slug (Path C mirrors ci.yml; public has no PUBLIC_REPO_TOKEN by design).
   # The secrets context is not allowed in job-level `if`; the guard step
-  # below fails loudly when the secret is unset on tag/manual sync paths.
+  # below fails loudly when the secret is unset on private tag/manual sync paths.
   sync-public:
     needs: build
     if: >-
-      startsWith(github.ref, 'refs/tags/v')
-      || (github.event_name == 'workflow_dispatch'
-          && github.event.inputs.sync_public == 'true')
+      github.repository != 'agent-kit-startup/agent-kit'
+      && (startsWith(github.ref, 'refs/tags/v')
+          || (github.event_name == 'workflow_dispatch'
+              && github.event.inputs.sync_public == 'true'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,11 +108,15 @@ jobs:
           GIT_AUTHOR_EMAIL: sync@agent-kit.dev
 
   # ── Publish @dadado/agent-kit-cli to npm (tag only) ──
+  # Private-origin only: skip on the public storefront slug (same Path C
+  # mirror as sync-public; npm publish belongs on agent-kit-dev).
   # Secret NPM_TOKEN: the publish step skips gracefully if not configured
   # (secrets context is not allowed in job-level `if`).
   publish-npm:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.repository != 'agent-kit-startup/agent-kit'
+      && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read

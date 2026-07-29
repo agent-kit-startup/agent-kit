@@ -503,6 +503,9 @@ a:focus-visible,
   background: var(--border);
 }
 .nav-more-group-label {
+  display: flex;
+  align-items: center;
+  gap: var(--mc-chrome-label-gap);
   padding: 6px 10px 2px;
   font-size: var(--mc-chrome-subtitle-size);
   font-weight: var(--mc-chrome-subtitle-weight);
@@ -800,25 +803,122 @@ a:focus-visible,
 }
 .terminal-item:hover { background: var(--bg-card-hover); }
 
-/* ===== Health ===== */
+/* ===== Healthcenter ===== */
+.healthcenter {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.healthcenter-presence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.healthcenter-presence .dot-pulse {
+  animation: pulse 1.6s ease-in-out infinite;
+}
 .health-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 8px;
 }
+.health-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: var(--mc-radius-sm, 6px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.health-card:hover,
+.health-card.is-expanded {
+  border-color: var(--border-active);
+}
+.health-card[data-severity="ok"] { border-left: 3px solid var(--green, #3fb950); }
+.health-card[data-severity="warning"] { border-left: 3px solid var(--yellow, #d29922); }
+.health-card[data-severity="degraded"] { border-left: 3px solid var(--orange, #db6d28); }
+.health-card[data-severity="error"] { border-left: 3px solid var(--red, #f85149); }
 .health-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  padding: 10px 12px;
   font-size: 12px;
   color: var(--text-secondary);
-  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.2s;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s ease;
 }
-.health-item:hover { border-color: var(--border-active); }
+.health-item:hover { background: var(--bg-card-hover); }
+.health-item-label {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+}
+.health-item-sev {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.health-item-chevron {
+  color: var(--text-muted);
+  font-size: 10px;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.health-card.is-expanded .health-item-chevron {
+  transform: rotate(180deg);
+}
+.health-detail {
+  display: none;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.health-card.is-expanded .health-detail {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+.health-detail-copy {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 10px 0 8px;
+  line-height: 1.4;
+}
+.health-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.health-autofix-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-active);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.health-autofix-btn:hover {
+  background: var(--bg-card-hover);
+}
+html[data-dashboard-skin="cursor"] .health-card {
+  border-radius: 8px;
+}
+html[data-dashboard-skin="legacy"] .health-card {
+  border-radius: 4px;
+}
 
 /* ===== Git ===== */
 .git-info {
@@ -1448,7 +1548,7 @@ a:focus-visible,
   vertical-align: middle;
 }
 
-/* ===== Health Investigation Message ===== */
+/* ===== Health Investigation Message (legacy; Healthcenter uses .health-detail) ===== */
 .health-message {
   font-size: 11px;
   color: var(--text-secondary);
@@ -2031,8 +2131,8 @@ a:focus-visible,
     grid-template-columns: 1fr 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      "now monitor"
-      "attention checklist";
+      "now attention"
+      "checklist monitor";
   }
 
   #section-overview.active #now-execution-panel,
@@ -2662,10 +2762,10 @@ a:focus-visible,
   font: inherit;
   line-height: 1.4;
 }
+/* Base hover/focus: keyboard-visible ring; kind rules below set colors (no unset --accent → yellow). */
 .flight-log-card:hover,
 .flight-log-card:focus-visible {
-  border-color: var(--accent, var(--yellow));
-  outline: 2px solid var(--accent, var(--yellow));
+  outline: 2px solid var(--border);
   outline-offset: 1px;
 }
 .flight-log-card-current {
@@ -2679,12 +2779,22 @@ a:focus-visible,
 .flight-log-card-current.flight-log-kind-residual .flight-log-card-label {
   color: var(--yellow);
 }
+.flight-log-card-current.flight-log-kind-residual:hover,
+.flight-log-card-current.flight-log-kind-residual:focus-visible {
+  border-color: var(--yellow);
+  outline-color: var(--yellow);
+}
 .flight-log-card-current.flight-log-kind-advice {
   border-color: var(--blue);
   background: var(--blue-bg);
 }
 .flight-log-card-current.flight-log-kind-advice .flight-log-card-label {
   color: var(--blue);
+}
+.flight-log-card-current.flight-log-kind-advice:hover,
+.flight-log-card-current.flight-log-kind-advice:focus-visible {
+  border-color: var(--blue);
+  outline-color: var(--blue);
 }
 .flight-log-card-current.flight-log-kind-ok {
   border-color: color-mix(in srgb, var(--green) 55%, var(--border));
@@ -2693,12 +2803,22 @@ a:focus-visible,
 .flight-log-card-current.flight-log-kind-ok .flight-log-card-label {
   color: var(--green);
 }
+.flight-log-card-current.flight-log-kind-ok:hover,
+.flight-log-card-current.flight-log-kind-ok:focus-visible {
+  border-color: var(--green);
+  outline-color: var(--green);
+}
 .flight-log-card-current.flight-log-kind-warning {
   border-color: color-mix(in srgb, var(--orange, var(--yellow)) 70%, var(--border));
   background: color-mix(in srgb, var(--orange-bg, var(--yellow-bg)) 55%, var(--bg-elevated, var(--bg-card)));
 }
 .flight-log-card-current.flight-log-kind-warning .flight-log-card-label {
   color: var(--orange, var(--yellow));
+}
+.flight-log-card-current.flight-log-kind-warning:hover,
+.flight-log-card-current.flight-log-kind-warning:focus-visible {
+  border-color: var(--orange, var(--yellow));
+  outline-color: var(--orange, var(--yellow));
 }
 .flight-log-card-past {
   padding: 8px 10px;
@@ -2709,14 +2829,34 @@ a:focus-visible,
 .flight-log-card-past.flight-log-kind-residual {
   border-color: color-mix(in srgb, var(--yellow) 35%, var(--border));
 }
+.flight-log-card-past.flight-log-kind-residual:hover,
+.flight-log-card-past.flight-log-kind-residual:focus-visible {
+  border-color: color-mix(in srgb, var(--yellow) 55%, var(--border));
+  outline-color: color-mix(in srgb, var(--yellow) 55%, var(--border));
+}
 .flight-log-card-past.flight-log-kind-advice {
   border-color: color-mix(in srgb, var(--blue) 35%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-advice:hover,
+.flight-log-card-past.flight-log-kind-advice:focus-visible {
+  border-color: color-mix(in srgb, var(--blue) 55%, var(--border));
+  outline-color: color-mix(in srgb, var(--blue) 55%, var(--border));
 }
 .flight-log-card-past.flight-log-kind-ok {
   border-color: color-mix(in srgb, var(--green) 30%, var(--border));
 }
+.flight-log-card-past.flight-log-kind-ok:hover,
+.flight-log-card-past.flight-log-kind-ok:focus-visible {
+  border-color: color-mix(in srgb, var(--green) 50%, var(--border));
+  outline-color: color-mix(in srgb, var(--green) 50%, var(--border));
+}
 .flight-log-card-past.flight-log-kind-warning {
   border-color: color-mix(in srgb, var(--orange, var(--yellow)) 30%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-warning:hover,
+.flight-log-card-past.flight-log-kind-warning:focus-visible {
+  border-color: color-mix(in srgb, var(--orange, var(--yellow)) 50%, var(--border));
+  outline-color: color-mix(in srgb, var(--orange, var(--yellow)) 50%, var(--border));
 }
 .flight-log-card-warning {
   padding: 10px 12px;
@@ -2727,6 +2867,11 @@ a:focus-visible,
 }
 .flight-log-card-warning .flight-log-card-label {
   color: var(--orange, var(--yellow));
+}
+.flight-log-card-warning:hover,
+.flight-log-card-warning:focus-visible {
+  border-color: var(--orange, var(--yellow));
+  outline-color: var(--orange, var(--yellow));
 }
 .flight-log-card-label {
   display: block;
@@ -2894,7 +3039,7 @@ a:focus-visible,
         </a>
         <div class="nav-more-separator" role="separator"></div>
         <div class="nav-more-group" role="group" aria-labelledby="navSkinsLabel">
-          <div class="nav-more-group-label" id="navSkinsLabel">Skins</div>
+          <div class="nav-more-group-label" id="navSkinsLabel" data-icon="skins">Skins</div>
           <button type="button" class="nav-more-item" role="menuitemradio" aria-checked="true" data-dashboard-skin-option="legacy" tabindex="0" onclick="return setDashboardSkin('legacy')">
             Legacy
           </button>
@@ -2914,17 +3059,17 @@ a:focus-visible,
     <div class="top-tabs-row">
       <div class="cockpit-anchors" role="navigation" aria-label="Cockpit sections">
         <a class="top-nav-anchor active" href="#now-execution-panel" data-anchor="now-execution-panel" data-icon="current-mission" onclick="return goCockpitAnchor('now-execution-panel')" aria-current="true">
-          <span class="top-nav-anchor-label">Cockpit</span>
+          <span class="top-nav-anchor-label">Current mission</span>
           <span class="top-tab-badge" id="navOverviewBadge">0</span>
-        </a>
-        <a class="top-nav-anchor" href="#hero-activity" data-anchor="hero-activity" data-icon="monitor" onclick="return goCockpitAnchor('hero-activity')">
-          <span class="top-nav-anchor-label">Crew Monitor</span>
         </a>
         <a class="top-nav-anchor" href="#attention-panel" data-anchor="attention-panel" data-icon="field-report" onclick="return goCockpitAnchor('attention-panel')">
           <span class="top-nav-anchor-label">Flight Log</span>
         </a>
         <a class="top-nav-anchor" href="#recent-plans-panel" data-anchor="recent-plans-panel" data-icon="checklist" onclick="return goCockpitAnchor('recent-plans-panel')">
           <span class="top-nav-anchor-label">Checklist</span>
+        </a>
+        <a class="top-nav-anchor" href="#hero-activity" data-anchor="hero-activity" data-icon="monitor" onclick="return goCockpitAnchor('hero-activity')">
+          <span class="top-nav-anchor-label">Crew Monitor</span>
         </a>
       </div>
     </div>
@@ -3295,6 +3440,11 @@ function injectCockpitNavIcons() {
     if (!kind) return;
     el.insertAdjacentHTML('afterbegin', spaceIconSvg(kind, { decorative: true }));
   });
+  // Skins group label: palette glyph (distinct from Skills gear).
+  const skinsLabel = document.getElementById('navSkinsLabel');
+  if (skinsLabel && !skinsLabel.querySelector('.space-icon')) {
+    skinsLabel.insertAdjacentHTML('afterbegin', spaceIconSvg('skins', { decorative: true }));
+  }
 }
 
 // ===== Cockpit nav + more-menu keyboard / outside click =====
@@ -4481,9 +4631,85 @@ function toggleAgentDetails(id) {
   }
 }
 
-// ===== Health check info (Phase 1) =====
+// ===== Healthcenter: per-check expand + Autofix map (copy-only) =====
+/** Fixed v1 check set: plans, handoff, agents, commands, memory, git, config. */
+const HEALTH_CHECK_META = {
+  plans: {
+    okDetail: 'Plans directory is present with at least one plan file.',
+    failDetail: 'No plans under .cursor/plans/, or the plans directory is missing.',
+    autofix: { text: '/start-project', subject: '/start-project', destination: 'chatInput', label: 'Autofix' },
+  },
+  handoff: {
+    okDetail: 'HANDOFF.md is present and parseable (idle Plan is still healthy).',
+    failDetail: 'HANDOFF.md is missing or not parseable.',
+    autofix: { text: '/continue-plan', subject: '/continue-plan', destination: 'chatInput', label: 'Autofix' },
+  },
+  agents: {
+    okDetail: 'At least one agent is cataloged under .cursor/agents/.',
+    failDetail: 'No agents found. Kit install or onboard may be incomplete.',
+    autofix: { text: '/agent-kit-onboard', subject: '/agent-kit-onboard', destination: 'chatInput', label: 'Autofix' },
+  },
+  commands: {
+    okDetail: 'Slash commands are available under .cursor/commands/.',
+    failDetail: 'No commands under .cursor/commands/.',
+    autofix: { text: '.cursor/commands/', subject: 'path .cursor/commands/', destination: 'filePicker', label: 'Copy path' },
+  },
+  memory: {
+    okDetail: 'Memory has recorded errors and/or decisions.',
+    failDetail: 'Memory index has no errors or decisions yet (optional until first WRITE).',
+    autofix: { text: '/agent-kit-onboard', subject: '/agent-kit-onboard', destination: 'chatInput', label: 'Autofix' },
+  },
+  git: {
+    okDetail: 'Git branch signal is available.',
+    failDetail: 'Git repository signal missing (no branch).',
+    autofix: { text: 'git status', subject: 'git status', destination: 'terminal', label: 'Autofix' },
+  },
+  config: {
+    okDetail: 'Workspace config is loaded.',
+    failDetail: 'Workspace config is missing or not loaded.',
+    autofix: { text: 'agent-kit doctor', subject: 'agent-kit doctor', destination: 'terminal', label: 'Autofix' },
+  },
+};
+
+function healthCheckSeverity(check, aggregateStatus) {
+  if (check && check.ok) return 'ok';
+  if (aggregateStatus === 'degraded') return 'degraded';
+  if (aggregateStatus === 'error') return 'error';
+  return 'warning';
+}
+
+function healthSeverityLabel(sev) {
+  if (sev === 'ok') return 'ok';
+  if (sev === 'warning') return 'warn';
+  if (sev === 'degraded') return 'degraded';
+  if (sev === 'error') return 'error';
+  return sev || 'unknown';
+}
+
+function healthDotClass(sev) {
+  if (sev === 'ok') return 'dot-green';
+  if (sev === 'warning') return 'dot-yellow';
+  if (sev === 'degraded') return 'dot-yellow';
+  return 'dot-red';
+}
+
+function toggleHealthCheck(checkId) {
+  const card = document.getElementById('health-card-' + checkId);
+  if (!card) return;
+  const open = card.classList.toggle('is-expanded');
+  const btn = card.querySelector('.health-item');
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function healthCheckKeydown(event, checkId) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    toggleHealthCheck(checkId);
+  }
+}
+
+/** @deprecated Prefer toggleHealthCheck; kept for any leftover callers. */
 function showHealthInfo(el, ok) {
-  // Remove any existing message siblings
   const parent = el.parentElement;
   const existing = parent.querySelector('.health-message');
   if (existing) { existing.remove(); return; }
@@ -5290,9 +5516,9 @@ function nowMetaIconSvg(kind, opts) {
 /**
  * Space-theme Cockpit/nav icon set (inline SVG, no font/fetch/dependency).
  * Shared chrome SVG shell with header refresh / nowMetaIconSvg:
- * viewBox 0 0 16 16, stroke 0.5, round caps/joins, CSS box via --mc-chrome-icon-size.
+ * viewBox 0 0 16 16, stroke 1.5, round caps/joins, CSS box via --mc-chrome-icon-size.
  * Static path markup only; never concatenate untrusted text into the SVG.
- * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'commands'|'health'|'git'|'memory'|'terminals'|'processes'|'config'} kind
+ * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'memory'|'terminals'|'processes'|'config'} kind
  * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
  *   decorative false: role=img + aria-label + title for icon-only controls (e.g. more-sections).
  */
@@ -5310,6 +5536,7 @@ function spaceIconSvg(kind, opts) {
     activity: 'Activity',
     agents: 'Agents',
     skills: 'Skills',
+    skins: 'Skins',
     commands: 'Commands',
     health: 'Health',
     git: 'Git',
@@ -5319,7 +5546,7 @@ function spaceIconSvg(kind, opts) {
     config: 'Config',
   };
   const paths = {
-    // Rocket (mission) — thin stroke matching helmet aesthetic
+    // Rocket (mission)
     'current-mission':
       '<path d="M8 2c1.4 2 2.5 4 2.5 6a2.5 2.5 0 01-5 0C5.5 6 6.6 4 8 2z"/>' +
       '<circle cx="8" cy="7.5" r=".9"/>' +
@@ -5336,20 +5563,20 @@ function spaceIconSvg(kind, opts) {
       '<rect x="4.5" y="3.5" width="7" height="10" rx="1.2"/>' +
       '<path d="M6.5 3.5V2.5a1.5 1.5 0 013 0v1"/>' +
       '<path d="M6.5 7h3M6.5 9.5h3"/>',
-    // Checklist lines — thin
+    // Checklist lines
     checklist:
       '<path d="M3.5 4.5h9M3.5 8h6.5M3.5 11.5h5.5"/>' +
       '<path d="M10.5 10.5l1.2 1.2L14 9.5"/>',
-    // Constellation dots (more sections) — outline circles matching thin stroke
+    // Ellipsis (more sections) — radii sized for stroke 1.5
     'more-sections':
-      '<circle cx="4" cy="8" r=".8"/>' +
-      '<circle cx="8" cy="8" r=".8"/>' +
-      '<circle cx="12" cy="8" r=".8"/>',
-    // House (overview / home)
+      '<circle cx="4" cy="8" r="1.25"/>' +
+      '<circle cx="8" cy="8" r="1.25"/>' +
+      '<circle cx="12" cy="8" r="1.25"/>',
+    // House (overview / home) — roof + walls + door as one coherent glyph
     overview:
-      '<path d="M2.5 8.5L8 3l5.5 5.5"/>' +
-      '<path d="M4.5 10v4h3M11.5 10v4h-3"/>' +
-      '<path d="M4.5 14h7"/>',
+      '<path d="M2.5 7.5L8 2.75l5.5 4.75"/>' +
+      '<path d="M4.25 7.75v6.5h7.5v-6.5"/>' +
+      '<path d="M6.75 14.25v-3.25h2.5v3.25"/>',
     // Document (plans)
     plans:
       '<path d="M4.5 2.5h5l4 4v8.5a1 1 0 01-1 1h-8a1 1 0 01-1-1v-12a1 1 0 011-1z"/>' +
@@ -5365,6 +5592,10 @@ function spaceIconSvg(kind, opts) {
     skills:
       '<circle cx="8" cy="8" r="2"/>' +
       '<path d="M10.5 8a2.5 2.5 0 000-2.5l.8-.8M5.5 8a2.5 2.5 0 010 2.5l-.8.8M8 5.5l-.5-1M8 10.5l-.5 1M10.5 6.5l1-.5M5.5 9.5l-1 .5M10.5 9.5l1 .5M5.5 6.5l-1-.5"/>',
+    // Overlapping swatches (skins) — distinct from Skills gear
+    skins:
+      '<rect x="2.5" y="3.5" width="7" height="7" rx="1.25"/>' +
+      '<rect x="6.5" y="5.5" width="7" height="7" rx="1.25"/>',
     // Terminal (commands)
     commands:
       '<path d="M2.5 3.5l5 5-5 5"/>' +
@@ -5405,7 +5636,7 @@ function spaceIconSvg(kind, opts) {
   const a11y = decorative
     ? 'aria-hidden="true"'
     : `role="img" aria-label="${label}" title="${label}"`;
-  return `<svg class="space-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" ${a11y}>${body}</svg>`;
+  return `<svg class="space-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" ${a11y}>${body}</svg>`;
 }
 
 /**
@@ -6266,6 +6497,10 @@ function renderUnsafe() {
       <div class="overview-stack">
         ${renderNowExecutionPanel(d, !!(nowChanged || handoffChanged))}
 
+        ${renderAttentionPanel(d, !!attentionChanged)}
+
+        ${renderRecentPlanCards(d)}
+
         <div class="section-hero" id="hero-activity">
           <div class="live-activity-header">
             <span class="card-title">${spaceIconSvg('monitor')}Crew Monitor</span>
@@ -6298,10 +6533,6 @@ function renderUnsafe() {
                 }).join('')}
           </div>
         </div>
-
-        ${renderAttentionPanel(d, !!attentionChanged)}
-
-        ${renderRecentPlanCards(d)}
       </div>
     </div>
   `);
@@ -6394,30 +6625,108 @@ function renderUnsafe() {
     </div>
   `);
 
-  // ===== Health =====
+  // ===== Healthcenter (More → Health) =====
   const checks = health.checks || [];
+  const healthStatus = health.status || 'ok';
+  const passing = checks.filter(c => c.ok).length;
+  const isSnapshotError = healthStatus === 'error' && checks.length === 0;
+  const isOffline = !isSnapshotError && checks.length === 0;
+  const presenceTone = healthStatus === 'ok' ? 'green' : healthStatus === 'warning' ? 'yellow' : 'red';
+  const presencePulse = healthStatus !== 'ok' ? ' dot-pulse' : '';
+  const presenceLabel = isSnapshotError
+    ? 'Snapshot error'
+    : isOffline
+      ? 'Health offline'
+      : healthStatus === 'ok'
+        ? 'Live'
+        : healthStatus === 'warning'
+          ? 'Warning'
+          : healthStatus === 'degraded'
+            ? 'Degraded'
+            : 'Error';
+  const subtitle = isSnapshotError
+    ? 'Snapshot unavailable'
+    : isOffline
+      ? 'No health data'
+      : `${passing}/${checks.length} checks passing`;
+
+  let healthBody = '';
+  if (isSnapshotError) {
+    healthBody = renderEmptyStateCta({
+      headline: 'Health snapshot error',
+      support: (typeof d.error === 'string' && d.error)
+        || 'The dashboard could not load health checks (serve/snapshot failure). This is not a per-check fail.',
+      iconKind: 'health',
+      cta: {
+        text: 'agent-kit doctor',
+        subject: 'agent-kit doctor',
+        destination: 'terminal',
+        label: 'Autofix: copy agent-kit doctor',
+        focusKey: 'cta-health-snapshot-error',
+      },
+    });
+  } else if (isOffline) {
+    healthBody = renderEmptyStateCta({
+      headline: 'Health offline',
+      support: 'No health data available yet. Refresh after the snapshot loads, or run doctor if the panel stays empty.',
+      iconKind: 'health',
+      cta: {
+        text: 'agent-kit doctor',
+        subject: 'agent-kit doctor',
+        destination: 'terminal',
+        label: 'Autofix: copy agent-kit doctor',
+        focusKey: 'cta-health-offline',
+      },
+    });
+  } else {
+    healthBody = `
+      <div class="health-grid" role="list">
+        ${checks.map(c => {
+          const id = c.id || c.label || 'check';
+          const meta = HEALTH_CHECK_META[id] || {
+            okDetail: 'Check is passing.',
+            failDetail: 'Check is failing. Review configuration for this item.',
+            autofix: null,
+          };
+          const sev = healthCheckSeverity(c, healthStatus);
+          const detail = c.ok ? meta.okDetail : meta.failDetail;
+          const autofix = !c.ok && meta.autofix ? meta.autofix : null;
+          const autofixBtn = autofix
+            ? `<button type="button" class="health-autofix-btn" data-focus-key="health-autofix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(autofix.text, autofix.subject, autofix.destination)}" title="${escapeAttr(copyActionTitle(autofix.subject, autofix.destination))}">${escapeHtml(autofix.label || 'Autofix')}</button>`
+            : (c.ok
+              ? `<span class="health-detail-copy" style="margin:0">No Autofix needed.</span>`
+              : `<span class="health-detail-copy" style="margin:0">No Autofix mapped for this check.</span>`);
+          return `
+          <div class="health-card" role="listitem" id="health-card-${escapeAttr(id)}" data-check-id="${escapeAttr(id)}" data-severity="${escapeAttr(sev)}">
+            <button type="button" class="health-item" aria-expanded="false" aria-controls="health-detail-${escapeAttr(id)}" aria-label="${escapeAttr(c.label)}: ${escapeAttr(healthSeverityLabel(sev))}" onclick="toggleHealthCheck('${escapeJsString(id)}')" onkeydown="healthCheckKeydown(event, '${escapeJsString(id)}')">
+              <span class="dot ${healthDotClass(sev)}"></span>
+              <span class="health-item-label">${escapeHtml(c.label)}</span>
+              <span class="health-item-sev">${escapeHtml(healthSeverityLabel(sev))}</span>
+              <span class="health-item-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="health-detail" id="health-detail-${escapeAttr(id)}">
+              <p class="health-detail-copy">${escapeHtml(detail)}</p>
+              <div class="health-detail-actions">${autofixBtn}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
   parts.push(`
     <div class="content-section" id="section-health">
       <div class="section-title">
-        <span class="dot dot-${health.status === 'ok' ? 'green' : health.status === 'warning' ? 'yellow' : 'red'}"></span>
+        <span class="dot dot-${presenceTone}${healthStatus !== 'ok' ? ' dot-pulse' : ''}"></span>
         Health
-        <span class="section-subtitle">${checks.filter(c => c.ok).length}/${checks.length} checks passing</span>
+        <span class="section-subtitle">${escapeHtml(subtitle)}</span>
       </div>
-      ${checks.length === 0
-        ? renderEmptyStateCta({
-            headline: 'Health offline',
-            support: 'No health data available.',
-          })
-        : ''}
-      <div class="health-grid">
-        ${checks.map(c => `
-          <div style="position:relative">
-            <div class="health-item" role="button" tabindex="0" aria-label="Show info for ${escapeAttr(c.label)}" onclick="showHealthInfo(this, ${c.ok})">
-              <span class="dot dot-${c.ok ? 'green' : 'red'}"></span>
-              <span>${escapeHtml(c.label)}</span>
-            </div>
-          </div>
-        `).join('')}
+      <div class="healthcenter">
+        <div class="healthcenter-presence" role="status" aria-live="polite">
+          <span class="dot dot-${presenceTone}${presencePulse}"></span>
+          <span>${escapeHtml(presenceLabel)}</span>
+          <span>· same seven checks · copy-only Autofix</span>
+        </div>
+        ${healthBody}
       </div>
     </div>
   `);

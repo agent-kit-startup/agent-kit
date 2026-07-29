@@ -38,13 +38,13 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 
 1. **`git staging`** - PR to `staging` on the **private** repo (`agent-kit-dev`). Everything committed goes to private.
 2. **`git prod`** - `staging` → `main` on **private**; push `origin main`; create/push annotated vX.Y.Z tag when absent.
-3. **Automatic triggers** - Annotated `v*` tags trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs.
+3. **Automatic triggers** - Annotated `v*` tags on the **private** repo trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs. The same workflow file is mirrored to the public storefront; on `agent-kit-startup/agent-kit`, those two jobs are **skipped** by repository slug so public tag CI does not fail on missing private-only secrets.
 4. **Public sync PR** - Creates semantic PR body (Summary + CHANGELOG release notes + source SHA) against public `main`.
 5. **Auto-merge** - PRs auto-merge after required checks pass (`gh pr merge --auto`). Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
 6. **Public GitHub Release** - After the sync PR merges, sync creates/updates a public GitHub Release `vX.Y.Z` (CHANGELOG notes; Latest badge). Opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`. Git tags alone do not move the Releases sidebar.
 7. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
 
-Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, the sync job pushes nothing; the rest of CI still runs normally.
+Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, tag and manual public-sync jobs **fail loudly** (visible Actions error). Do not configure that secret on the **public** storefront; public tag runs skip `sync-public` / `publish-npm` entirely.
 
 ### Public launch checklist
 
@@ -81,8 +81,8 @@ Before the first publish or any new registry version, follow [npm-publish-checkl
 
 | Secret | Purpose |
 |--------|---------|
-| `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, and `Workflows: write` (required when the sync tree includes `.github/workflows/`) |
-| `NPM_TOKEN` | Token to publish to the npm registry |
+| `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, and `Workflows: write` (required when the sync tree includes `.github/workflows/`). **Private repo only**; never set on the public storefront. |
+| `NPM_TOKEN` | Token to publish to the npm registry (**private** tag CI only) |
 
 Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git URL without embedding credentials.
 

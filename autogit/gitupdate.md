@@ -422,6 +422,7 @@ This section contains the detailed prompts that should be followed when commands
    | Check | How |
    |-------|-----|
    | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, and `sync-public` all green |
+   | Public storefront tag CI (advisory) | On `agent-kit-startup/agent-kit`, tag/Release runs should show `build` green with `sync-public` / `publish-npm` **skipped** (not failed). Do not treat a skipped public sync job as a private sync failure. |
    | npm | `npm view @dadado/agent-kit-cli version` matches the release |
    | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
    | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` on the public default branch **after** that merge |

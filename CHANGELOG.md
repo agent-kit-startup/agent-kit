@@ -8,6 +8,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.8.4] - 2026-07-29
+
+### Fixed
+
+- Public storefront tag CI: skip `sync-public` and `publish-npm` when `github.repository` is `agent-kit-startup/agent-kit` so mirrored workflows do not fail on missing private-only secrets
+- Mission Control Flight Log: hover/focus border+outline follow typed kind palette tokens (ok green, advice/prompt blue, residual yellow, warning orange); Earlier stays muted; remove unset `--accent` yellow double ring
+
+### Changed
+
+- Mission Control Health (More → Health): Healthcenter UI for the same seven checks with live severity, expand/detail, and copy-only Autofix CTAs on both Interface Skins; snapshot error distinct from per-check fail
+- Mission Control chrome icons: align `spaceIconSvg` shell to refresh/`nowMetaIconSvg` (stroke 1.5); redraw Home house as one coherent glyph; add Skins palette affordance on More menu group label; leave logo assets untouched
+- Mission Control: main nav, mobile stack, and desktop 2x2 grid order is Current mission → Flight Log → Checklist → Crew Monitor (first nav label matches Current mission)
+- Docs: public-launch + repository-boundaries state mirror skip and private-only `PUBLIC_REPO_TOKEN`; verify checklist for next public `v*` tag
+
 ## [4.8.3] - 2026-07-29
 
 ### Fixed
