@@ -275,11 +275,11 @@ This section contains the detailed prompts that should be followed when commands
    - Make the requested changes (including CHANGELOG.md update if necessary).
    - Review with `git status -sb` to ensure only expected files were modified.
    - **Validation**: Confirm there's no attempt to modify `origin/main` directly.
-   - **Lint evidence (staging-ready):** when the diff touches formatted/linted paths (e.g. `*.ts` / `*.tsx` / `*.js` / `*.mjs` under `packages/`, `dashboard/`, or other Biome/ESLint scopes), **run** the focused linter on those files (e.g. `pnpm exec biome check <paths>`) **before** commit and **record the exact command + pass/fail output** in the tick / worker summary. Claiming `Staging ready: yes` or pasting the contract phrase without that recorded run is invalid. Pure markdown / docs-only with no applicable repo linter: record `Tests: none applicable` (or `Validation: none applicable`). Aligns with `/run-plan` Staging-ready lint gate (background: Biome-red merges fixed only after the fact).
+   - **Lint evidence (staging-ready):** when the diff touches formatted/linted paths (e.g. `*.ts` / `*.tsx` / `*.js` / `*.mjs` under `packages/` or other Biome/ESLint scopes), **run** the focused linter on those files (e.g. `pnpm exec biome check <paths>`) **before** commit and **record the exact command + pass/fail output** in the tick / worker summary. Claiming `Staging ready: yes` or pasting the contract phrase without that recorded run is invalid. **`dashboard/dashboard.html` is outside Biome** (`biome check dashboard/dashboard.html` processes nothing): for dashboard CSS/HTML-only diffs, record `Tests: none applicable (dashboard-CSS); covered by plugin-ux-validation` when the UX suite pins the change (ADR `decisions/2026-07-29_dashboard-css-lint-evidence-convention.md`); do not claim Biome covered the HTML. Pure markdown / docs-only with no applicable repo linter: record `Tests: none applicable` (or `Validation: none applicable`). Aligns with `/run-plan` Staging-ready lint gate (background: Biome-red merges fixed only after the fact).
 
 #### 7. **Stage and commit with semantic message**  
    - Add relevant files with `git add` **by name**. If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** and do **not** broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
-   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. **An `_index.md` Audits row and its target monitor file must land in the same commit** (no index link without the file). ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
+   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. **An `_index.md` Audits row and its target monitor file must land in the same commit** (no index link without the file). Product commits must not pick up unrelated untracked monitors (dogfood residual R7). ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
    - Create a commit following [Conventional Commits](https://www.conventionalcommits.org/):
      - `feat:` for new features
      - `fix:` for bug fixes
@@ -382,7 +382,9 @@ This section contains the detailed prompts that should be followed when commands
 
 #### 9. **Publish main (PRODUCTION)**  
    - **WARNING**: This is the critical step that updates production.
-   - Run `ALLOW_MAIN_PUSH=1 git push origin main` to send changes to production (the local `pre-push` hook blocks bare pushes to `main`; this env gate is the authorized `/git-prod` path — see `git-hooks/README.md`).
+   - Run `ALLOW_MAIN_PUSH=1 git push origin main` to send changes to production (the local `pre-push` hook and the agent Shell `guard shell` both block bare pushes to `main`; this env gate is the authorized `/git-prod` path — see `git-hooks/README.md`).
+   - Agent Shell: use the same inline form. CLI SoT (`agent-kit guard shell`) honors `ALLOW_MAIN_PUSH=1` before stripping env prefixes; bare `git push origin main` stays denied.
+   - **IMPORTANT**: Avoid setting `ALLOW_MAIN_PUSH=1` as a persistent session environment variable (e.g., `export ALLOW_MAIN_PUSH=1` in terminal or IDE). This disables main-push protection for all subsequent agent Shell commands until unset. Use the inline prefix form `ALLOW_MAIN_PUSH=1 git push origin main` for authorized single commands only.
    - If push fails (e.g., protected branch), inform user and provide alternative instructions.
    - **NEVER** force push (`--force` or `--force-with-lease`) without explicit user authorization.
    - Prefer `ALLOW_MAIN_PUSH=1` over `--no-verify` so other hooks still run.
@@ -396,7 +398,7 @@ This section contains the detailed prompts that should be followed when commands
      - Do **not** `git push --force` (or delete-and-recreate in place) an existing `vX.Y.Z` that already pointed at another SHA. Consumers and mirrors may have resolved the old tip.
      - If tag CI fails after the first push: fix on a new commit, bump to the next patch (or hold), cut a **new** annotated tag on the fixed commit, push that new tag. Do not rewrite history of a published `v*`.
      - If the tag was never pushed remotely and only exists locally on a bad tip: delete the **local** tag (`git tag -d vX.Y.Z`) and recreate on the fixed commit, then push once.
-     - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` today only gates `main`/`master` (see `git-hooks/pre-push`), so discipline + ruleset matter for tags.
+     - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` blocks force-update/delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1` (see `git-hooks/pre-push`).
 
 #### 10. **Sync staging (optional)**  
    - Run `git checkout staging` to return to staging branch.

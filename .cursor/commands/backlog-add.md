@@ -120,3 +120,4 @@ Vague-goal clarify and write confirmation **must** use Ask questions per `.curso
 
 - ADR: `.cursor/memory/decisions/2026-07-26_backlog-crud-commands-contract.md`
 - Disposition gate for `/start-project`: `.cursor/memory/decisions/2026-07-25_start-project-plan-disposition-gate.md`
+- Cursor product-update gaps may route here via `/cursor-update-awareness` (Ask → `/backlog-add`)

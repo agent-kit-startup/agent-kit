@@ -269,6 +269,7 @@ Agent: Writes one plan file + Backlog row; ## Residuals plan (or Triage note) on
 - HITL contract: `.cursor/rules/hitl-ask-questions.mdc`
 - Related: `.cursor/commands/plan-external-review.md`
 - Local dismiss without triage: `.cursor/commands/field-report-resolve.md`
+- Cursor product-update gaps may also enter triage via `/cursor-update-awareness` → Ask → `/backlog-add` / `/dogfood`
 - Decision: `.cursor/memory/decisions/2026-07-28_triage-write-residuals-via-backlog.md`
 - Decision: `.cursor/memory/decisions/2026-07-26_backlog-crud-commands-contract.md`
 - Decision: `.cursor/memory/decisions/2026-07-25_mission-control-field-report-dismissals.md`

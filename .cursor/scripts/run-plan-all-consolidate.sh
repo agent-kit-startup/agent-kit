@@ -24,6 +24,11 @@
 #       [--cursor 0] [--status running] [--activate a.plan.md] [--outcomes "none"]
 #   .cursor/scripts/run-plan-all-consolidate.sh --merge-checklist SOURCE.md TARGET.md
 #
+# Queue rewrite invariants:
+#   - Validate / normalize --outcomes (including multiline) BEFORE any HANDOFF mutation.
+#   - Apply Plan/Mode/queue/cursor/status/outcomes as one atomic rewrite (temp + replace).
+#   - Never use awk -v for outcomes (newlines break -v and caused partial rewrites).
+#
 # Smoke (dry-run, no mutations):
 #   .cursor/scripts/run-plan-all-consolidate.sh --preflight
 #   .cursor/scripts/run-plan-all-consolidate.sh --drop some.plan.md
@@ -278,25 +283,14 @@ cmd_drop() {
   info "moved $basename -> .cursor/plans/archive/"
 }
 
-upsert_handoff_field() {
-  # args: label value_file_or_inline
-  # Rewrites or appends "- **Label:** value" in HANDOFF.
-  local label="$1"
-  local value="$2"
+# Upsert "- **Label:** value" inside a working copy (never mutates HANDOFF directly).
+upsert_field_in_file() {
+  local file="$1"
+  local label="$2"
+  local value="$3"
   local tmp
   tmp="$(mktemp)"
-  if [[ ! -f "$HANDOFF" ]]; then
-    {
-      echo "# Handoff - run-plan-all queue"
-      echo ""
-      echo "- **Plan:** \`none\`"
-      echo "- **Last updated:** $(date '+%Y-%m-%d %H:%M')"
-      echo "- **Mode:** run-plan-all"
-    } >"$HANDOFF"
-  fi
-
-  if grep -q "^- \\*\\*${label}:\\*\\*" "$HANDOFF"; then
-    # Replace first matching line only
+  if grep -q "^- \\*\\*${label}:\\*\\*" "$file"; then
     awk -v lab="$label" -v val="$value" '
       BEGIN { done=0 }
       {
@@ -307,55 +301,100 @@ upsert_handoff_field() {
         }
         print
       }
-    ' "$HANDOFF" >"$tmp"
+    ' "$file" >"$tmp"
   else
-    # Append before trailing blank or at EOF
-    cat "$HANDOFF" >"$tmp"
+    cat "$file" >"$tmp"
     printf '\n- **%s:** %s\n' "$label" "$value" >>"$tmp"
   fi
-  mv "$tmp" "$HANDOFF"
+  mv "$tmp" "$file"
 }
 
-replace_outcomes_block() {
-  local outcomes_text="$1"
+# Replace Queue outcomes block using a side file (supports multiline; never awk -v).
+replace_outcomes_in_file() {
+  local file="$1"
+  local outcomes_file="$2"
   local tmp
   tmp="$(mktemp)"
-  awk -v outcomes="$outcomes_text" '
-    BEGIN { skip=0; done=0 }
+  awk -v ofile="$outcomes_file" '
+    BEGIN {
+      n = 0
+      while ((getline line < ofile) > 0) {
+        n++
+        lines[n] = line
+      }
+      close(ofile)
+      skip = 0
+      done = 0
+    }
+    function emit_outcomes(   i) {
+      print "- **Queue outcomes:**"
+      for (i = 1; i <= n; i++) {
+        if (lines[i] != "") print "  " lines[i]
+      }
+    }
     {
       if ($0 ~ /^- \*\*Queue outcomes:\*\*/) {
-        print "- **Queue outcomes:**"
-        n = split(outcomes, lines, "\n")
-        for (i = 1; i <= n; i++) {
-          if (lines[i] != "") print "  " lines[i]
-        }
-        skip=1
-        done=1
+        emit_outcomes()
+        skip = 1
+        done = 1
         next
       }
       if (skip == 1) {
         if ($0 ~ /^- \*\*/ || $0 ~ /^#/ || $0 ~ /^$/) {
-          skip=0
-          # fall through to print this line
+          skip = 0
         } else if ($0 ~ /^  / || $0 ~ /^[[:space:]]*-/) {
           next
         } else {
-          skip=0
+          skip = 0
         }
       }
       if (skip == 0) print
     }
     END {
-      if (!done) {
-        print "- **Queue outcomes:**"
-        n = split(outcomes, lines, "\n")
-        for (i = 1; i <= n; i++) {
-          if (lines[i] != "") print "  " lines[i]
-        }
-      }
+      if (!done) emit_outcomes()
     }
-  ' "$HANDOFF" >"$tmp"
-  mv "$tmp" "$HANDOFF"
+  ' "$file" >"$tmp"
+  mv "$tmp" "$file"
+}
+
+# Validate and normalize Queue outcomes BEFORE any HANDOFF mutation.
+# Prints normalized body lines (without the "- **Queue outcomes:**" header) to stdout.
+# Empty / "none" become "- none". (Bash argv cannot carry embedded NUL; no NUL check.)
+normalize_outcomes() {
+  local raw="$1"
+  # Strip CR so Windows pastes do not create phantom lines
+  raw="${raw//$'\r'/}"
+  if [[ -z "$raw" || "$raw" == "none" ]]; then
+    printf '%s\n' "- none"
+    return 0
+  fi
+  local line
+  local any=0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # Trim trailing whitespace only; preserve leading bullet / indent intent
+    line="$(printf '%s' "$line" | sed 's/[[:space:]]*$//')"
+    [[ -z "$line" ]] && continue
+    # Refuse machine-field lookalikes that would corrupt HANDOFF structure
+    if [[ "$line" =~ ^-\ \*\*[^*]+:\*\* ]]; then
+      die "--outcomes line looks like a HANDOFF machine field (refusing): $line"
+    fi
+    printf '%s\n' "$line"
+    any=1
+  done <<< "$raw"
+  if [[ "$any" -eq 0 ]]; then
+    printf '%s\n' "- none"
+  fi
+}
+
+# Atomic replace of dest with src (same-filesystem mv). Cleans src on success.
+atomic_replace_file() {
+  local src="$1"
+  local dest="$2"
+  local staged
+  staged="$(mktemp "${dest}.XXXXXX")"
+  cat "$src" >"$staged"
+  mv "$staged" "$dest"
+  rm -f "$src"
 }
 
 cmd_rewrite_queue() {
@@ -396,6 +435,16 @@ cmd_rewrite_queue() {
     die "--cursor $CURSOR out of range for queue length ${#items[@]}"
   fi
 
+  # Validate / normalize outcomes BEFORE any HANDOFF write (Q7/Q8/Q9).
+  local outcomes_file
+  outcomes_file="$(mktemp)"
+  normalize_outcomes "$OUTCOMES" >"$outcomes_file" || {
+    rm -f "$outcomes_file"
+    die "outcomes validation failed"
+  }
+  local outcomes_display
+  outcomes_display="$(cat "$outcomes_file")"
+
   local queue_bracket="["
   local i
   for i in "${!items[@]}"; do
@@ -407,11 +456,8 @@ cmd_rewrite_queue() {
   queue_bracket+="]"
 
   local cursor_line="${CURSOR} (current: ${items[$CURSOR]})"
-
-  local outcomes_display="$OUTCOMES"
-  if [[ "$OUTCOMES" == "none" ]]; then
-    outcomes_display="- none"
-  fi
+  local stamp
+  stamp="$(date '+%Y-%m-%d %H:%M')"
 
   info "rewrite HANDOFF queue fields:"
   info "  Plan (activate): $activate"
@@ -419,21 +465,43 @@ cmd_rewrite_queue() {
   info "  Run queue: $queue_bracket"
   info "  Queue cursor: $cursor_line"
   info "  Queue status: $STATUS"
-  info "  Queue outcomes: $outcomes_display"
+  info "  Queue outcomes:"
+  while IFS= read -r item || [[ -n "$item" ]]; do
+    [[ -n "$item" ]] && info "    $item"
+  done <<< "$outcomes_display"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
+    rm -f "$outcomes_file"
     info "dry-run: HANDOFF not written (pass --apply --approved to mutate)"
     return 0
   fi
 
-  upsert_handoff_field "Plan" "\`${activate}\`"
-  upsert_handoff_field "Last updated" "$(date '+%Y-%m-%d %H:%M')"
-  upsert_handoff_field "Mode" "run-plan-all"
-  upsert_handoff_field "Run queue" "$queue_bracket"
-  upsert_handoff_field "Queue cursor" "$cursor_line"
-  upsert_handoff_field "Queue status" "$STATUS"
-  replace_outcomes_block "$outcomes_display"
-  info "HANDOFF queue fields updated"
+  # Build the full rewrite in a working copy, then atomically replace HANDOFF.
+  local work
+  work="$(mktemp)"
+  if [[ -f "$HANDOFF" ]]; then
+    cat "$HANDOFF" >"$work"
+  else
+    {
+      echo "# Handoff - run-plan-all queue"
+      echo ""
+      echo "- **Plan:** \`none\`"
+      echo "- **Last updated:** $stamp"
+      echo "- **Mode:** run-plan-all"
+    } >"$work"
+  fi
+
+  upsert_field_in_file "$work" "Plan" "\`${activate}\`"
+  upsert_field_in_file "$work" "Last updated" "$stamp"
+  upsert_field_in_file "$work" "Mode" "run-plan-all"
+  upsert_field_in_file "$work" "Run queue" "$queue_bracket"
+  upsert_field_in_file "$work" "Queue cursor" "$cursor_line"
+  upsert_field_in_file "$work" "Queue status" "$STATUS"
+  replace_outcomes_in_file "$work" "$outcomes_file"
+  rm -f "$outcomes_file"
+
+  atomic_replace_file "$work" "$HANDOFF"
+  info "HANDOFF queue fields updated (atomic)"
 }
 
 cmd_merge_checklist() {

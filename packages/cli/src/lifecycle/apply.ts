@@ -7,10 +7,23 @@ import {
   MANIFEST_SCHEMA_VERSION,
 } from "../manifest/types.js";
 import { writeJson } from "../utils/fs.js";
+import {
+  type ManagedHashLedger,
+  contentHash,
+  isConsumerOverlayPath,
+  loadManagedHashLedger,
+  saveManagedHashLedger,
+  shouldPreserveCustomizedOverlay,
+} from "./overlay.js";
 import { resolveContained, toPosixRel } from "./paths.js";
-import { isProtectedPath, normalizeProtectedGlobs, resolveProtectedGlobs } from "./protected.js";
+import { isProtectedPath, normalizeProtectedGlobs } from "./protected.js";
 
-export type CopyOutcome = "written" | "skipped-protected" | "missing-source" | "unchanged";
+export type CopyOutcome =
+  | "written"
+  | "skipped-protected"
+  | "missing-source"
+  | "unchanged"
+  | "preserved-customized";
 
 export interface ApplyStats {
   written: string[];
@@ -19,6 +32,7 @@ export interface ApplyStats {
   skippedProtected: string[];
   missing: string[];
   unchanged: string[];
+  preservedCustomized: string[];
 }
 
 export function emptyStats(): ApplyStats {
@@ -29,6 +43,7 @@ export function emptyStats(): ApplyStats {
     skippedProtected: [],
     missing: [],
     unchanged: [],
+    preservedCustomized: [],
   };
 }
 
@@ -39,11 +54,23 @@ export function mergeStats(into: ApplyStats, from: ApplyStats): ApplyStats {
   into.skippedProtected.push(...from.skippedProtected);
   into.missing.push(...from.missing);
   into.unchanged.push(...from.unchanged);
+  into.preservedCustomized.push(...from.preservedCustomized);
   return into;
+}
+
+export interface CopyRegistryOptions {
+  /** When set, overlay ledger is read/written once by the caller across many copies. */
+  managedHashes?: ManagedHashLedger;
+  /** Persist ledger after mutation (default true when managedHashes provided or auto-loaded). */
+  persistManagedHashes?: boolean;
 }
 
 /**
  * Copy a file from registry root → project root, skipping L3 protected paths.
+ * Consumer overlay paths (agents/skills/commands) preserve local customizations
+ * when the local hash diverges from the managed ledger (or, when the ledger is
+ * absent, when local content is not a known shipped kit hash); unedited kit
+ * files refresh.
  */
 export async function copyRegistryFile(
   registryRoot: string,
@@ -51,6 +78,7 @@ export async function copyRegistryFile(
   sourceRel: string,
   targetRel: string,
   protectedGlobs: readonly string[],
+  options: CopyRegistryOptions = {},
 ): Promise<CopyOutcome> {
   const targetNorm = targetRel.split(path.sep).join("/");
   if (isProtectedPath(targetNorm, protectedGlobs)) {
@@ -73,11 +101,68 @@ export async function copyRegistryFile(
     existing = null;
   }
   const next = await readFile(sourceAbs, "utf8");
-  if (existing === next) return "unchanged";
+  if (existing === next) {
+    if (isConsumerOverlayPath(targetNorm)) {
+      await touchOverlayHash(projectRoot, targetNorm, next, options);
+    }
+    return "unchanged";
+  }
+
+  if (existing !== null && isConsumerOverlayPath(targetNorm)) {
+    const ledger = options.managedHashes ?? (await loadManagedHashLedger(projectRoot));
+    const recorded = ledger.hashes[targetNorm];
+    if (shouldPreserveCustomizedOverlay(existing, recorded)) {
+      // Ledger tracks last-managed kit content, not the local body. On
+      // ledger-absent preserve, seed with incoming kit hash so subsequent
+      // updates still see local≠managed and keep preserving.
+      if (!recorded) {
+        const managedHash = contentHash(next);
+        ledger.hashes[targetNorm] = managedHash;
+        if (options.managedHashes) {
+          options.managedHashes.hashes[targetNorm] = managedHash;
+        }
+        if (options.persistManagedHashes !== false) {
+          await saveManagedHashLedger(projectRoot, ledger);
+        }
+      }
+      return "preserved-customized";
+    }
+    await mkdir(path.dirname(targetAbs), { recursive: true });
+    await copyFile(sourceAbs, targetAbs);
+    ledger.hashes[targetNorm] = contentHash(next);
+    if (options.managedHashes) {
+      options.managedHashes.hashes[targetNorm] = ledger.hashes[targetNorm];
+    }
+    if (options.persistManagedHashes !== false) {
+      await saveManagedHashLedger(projectRoot, ledger);
+    }
+    return "written";
+  }
 
   await mkdir(path.dirname(targetAbs), { recursive: true });
   await copyFile(sourceAbs, targetAbs);
+  if (isConsumerOverlayPath(targetNorm)) {
+    await touchOverlayHash(projectRoot, targetNorm, next, options);
+  }
   return "written";
+}
+
+async function touchOverlayHash(
+  projectRoot: string,
+  targetNorm: string,
+  content: string,
+  options: CopyRegistryOptions,
+): Promise<void> {
+  const ledger = options.managedHashes ?? (await loadManagedHashLedger(projectRoot));
+  const hash = contentHash(content);
+  if (ledger.hashes[targetNorm] === hash) return;
+  ledger.hashes[targetNorm] = hash;
+  if (options.managedHashes) {
+    options.managedHashes.hashes[targetNorm] = hash;
+  }
+  if (options.persistManagedHashes !== false) {
+    await saveManagedHashLedger(projectRoot, ledger);
+  }
 }
 
 export function recordOutcome(stats: ApplyStats, targetRel: string, outcome: CopyOutcome): void {
@@ -95,6 +180,9 @@ export function recordOutcome(stats: ApplyStats, targetRel: string, outcome: Cop
     case "unchanged":
       stats.unchanged.push(rel);
       break;
+    case "preserved-customized":
+      stats.preservedCustomized.push(rel);
+      break;
   }
 }
 
@@ -106,7 +194,9 @@ export async function saveManifest(
   const payload = {
     ...manifest,
     schemaVersion: MANIFEST_SCHEMA_VERSION,
-    installedAt: new Date().toISOString(),
+    // Preserve installedAt on no-op updates (ADR factory-pseudo-consumer
+    // decision 4); a version change earns a fresh install timestamp.
+    installedAt: manifest.installedAt ?? new Date().toISOString(),
   };
   await writeJson(target, payload);
   return toPosixRel(projectRoot, target);

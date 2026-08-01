@@ -6,14 +6,15 @@ The commands read it directly: `update` uses it to refresh the right files, `dif
 
 **Machine-readable schema:** [schemas/agent-kit.manifest.schema.json](../schemas/agent-kit.manifest.schema.json). Layer model behind the fields: [layers-spec.md](layers-spec.md).
 
-## Two files under `.cursor/`
+## Three files under `.cursor/`
 
-| File | Role | Written by |
-|------|------|------------|
-| **`agent-kit.json`** | The manifest (this doc): what's installed | `install` / `add` / `update`; bootstrap / `@install.md` |
-| **`agent-kit.config.json`** | Guided-setup **profile** (stack, IDE, git workflow) | `agent-kit init` |
+| File | Role | Written by | Commit? |
+|------|------|------------|---------|
+| **`agent-kit.json`** | The manifest (this doc): what's installed | `install` / `add` / `update`; bootstrap / `@install.md` | **Yes** (version with the project) |
+| **`agent-kit.config.json`** | Guided-setup **profile** (stack, IDE, git workflow) | `agent-kit init` | **No** (typically gitignored; local profile) |
+| **`agent-kit.managed-hashes.json`** | Managed-content hash ledger for the consumer overlay (last kit-owned content under agents / skills / commands) | `install` / `add` / `update` when overlay paths are applied | **Yes** (recommended): commit so the ledger survives clone and teammates do not re-trigger first-update preserve/seed ambiguity |
 
-They're separate on purpose: the profile drives the guided setup; the manifest drives updates against the kit's source.
+The profile and the manifest stay separate on purpose: the profile drives guided setup; the manifest drives updates against the kit's source. The ledger is kit-written state for overlay preservation, not a substitute for either.
 
 ## Fields
 
@@ -46,7 +47,9 @@ Every install should protect session and project-unique state (also gitignored w
 
 Do **not** protect the whole `.cursor/context/**` tree: kit L0 ships `templates/**` and `config.example.json` there. Older manifests that listed `.cursor/context/**` are normalized on `install`/`update` to the session globs above.
 
-Add your project's own rules/skills/commands as extra patterns or `overrides` entries. Don't list a kit file as protected just to keep a local edit - that quietly forks it. Use an override or contribute the change upstream instead.
+Do **not** blanket-protect `.cursor/agents/**`, `.cursor/skills/**`, or `.cursor/commands/**`: that blocks pack and `agent-kit add` installs. User-added basenames in those trees already survive update; kit-owned files with local drift are preserved via the consumer overlay (managed-content hashes in `.cursor/agent-kit.managed-hashes.json`). Prefer distinct basenames or `overrides` for intentional forks; use `diff` / contribute when you want upstream to absorb a local edit. See [layers-spec.md](layers-spec.md) and decision `2026-07-29_consumer-l0-overlay-agents-optional.md`.
+
+Add your project's own domain rules as extra `protected` patterns or `overrides` entries when they live outside the overlay trees.
 
 ## Example
 

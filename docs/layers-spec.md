@@ -205,7 +205,9 @@ Only what is unique to the repo:
 - Local skills/commands not in the registry
 - `.cursor/HANDOFF.md`, `.cursor/plans/`, `.cursor/memory/`, `.cursor/context/`
 
-**Golden rule:** never hand-edit an installed L0–L2 file to “fix the project”. Override via L3 or contribute upstream.
+**Golden rule (overlay trees):** prefer not to hand-edit kit-owned files under `.cursor/agents/`, `.cursor/skills/`, or `.cursor/commands/` to “fix the project”. Those three trees use the consumer overlay: local drift is preserved (`preserved-customized`) via the managed-content ledger. For other L0–L2 paths (including pack `rule` members under `.cursor/rules/`), in-place edits are still overwritten on `update`; use a distinct L3 basename, an explicit manifest `overrides` entry, or contribute upstream.
+
+**Consumer overlay (agents / skills / commands):** user-added basenames under `.cursor/agents/`, `.cursor/skills/`, and `.cursor/commands/` survive `update` (they are not in the apply set unless a pack/skill targets them). Kit-owned files in those trees that diverge from the managed-content ledger are preserved (`preserved-customized`) instead of silent overwrite; unedited kit files still refresh. Pack rules under `.cursor/rules/` are **not** in this overlay and still clobber on drift. Do not blanket-protect `.cursor/agents/**` (or skills/commands) in `protected` — that blocks pack / `agent-kit add` installs. See decision `2026-07-29_consumer-l0-overlay-agents-optional.md`.
 
 Protected paths are listed in the manifest so `update` skips them.
 

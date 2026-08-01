@@ -30,6 +30,7 @@
 #   .cursor/scripts/plan-external-review.sh --force --autonomous --wait-monitor [plan]
 #   .cursor/scripts/plan-external-review.sh --wait-monitor [--wait-timeout SECONDS] [plan]
 #   .cursor/scripts/plan-external-review.sh --focus-terminal ...          # rollback: OS window focus
+#   .cursor/scripts/plan-external-review.sh --reap-audit-sessions [--dry-run] [plan]
 #
 # Modes:
 #   autonomous (config mode=autonomous, or --autonomous): spawn interactive Claude in an
@@ -55,16 +56,62 @@
 #     already-running review. Does not switch to invisible agent-shell claude -p.
 #   --wait-timeout SECONDS: poll budget for --wait-monitor (default 900).
 #
+# Progress gate (post-spawn PTY activity):
+#   A successful spawn is a launch, not a running review. After an autonomous background
+#   spawn on a channel that exposes scrollback (tmux capture-pane, screen hardcopy), the
+#   launcher polls for the first PTY output before entering the monitor wait. A silent PTY
+#   (no non-whitespace scrollback inside the grace window, or a session that vanished) is
+#   treated as a failed launch: print the diagnosis, dispose only the session this run
+#   spawned, print the paste fallback, then soft-fail instead of burning the remaining
+#   --wait-timeout. Channels without a scrollback API (Terminal.app, Linux/Windows
+#   emulators) degrade to advisory and proceed to the normal wait.
+#
+# Session lifecycle (cap, warn, opt-in reap):
+#   Kit-owned audit sessions are named agent-kit-audit-<ws8>-<pid>, where <ws8> is an
+#   8-hex workspace token derived from the repo ROOT. Cap, warn, count, and opt-in reap
+#   only consider sessions owned by THIS workspace (strict pattern match). Legacy
+#   unscoped agent-kit-audit-<pid> names and other workspaces' tokens are never counted
+#   or disposed by this process (operator may quit them manually). Attached sessions are
+#   never counted as pile pressure. At or above the warn threshold it warns and prints
+#   the dispose command; at or above the hard cap it refuses to spawn, prints the dispose
+#   instructions plus the paste fallback, and soft-fails without entering the monitor wait
+#   (no audit starts, Field Report stays owed).
+#   Reaping is opt-in (--reap-audit-sessions or AGENT_KIT_AUDIT_REAP=1) and disposes only
+#   detached, workspace-owned sessions whose age is at or above AGENT_KIT_AUDIT_REAP_MIN_AGE.
+#   Attached sessions are never touched, an unknown age counts as too young to reap, and
+#   --dry-run only previews. No pkill, no wildcard kill, nothing outside the owned namespace.
+#
+# Environment:
+#   AGENT_KIT_AUDIT_PROGRESS_TIMEOUT  progress-gate grace window in seconds (default 60).
+#                                     0 disables the gate; a non-integer value prints a tip
+#                                     and falls back to 60.
+#   AGENT_KIT_AUDIT_SESSION_WARN      warn at or above this many detached workspace-owned
+#                                     agent-kit-audit-<ws8>-* sessions (default 5). 0 disables
+#                                     the warning; a non-integer value prints a tip and falls
+#                                     back to 5.
+#   AGENT_KIT_AUDIT_SESSION_CAP       refuse to spawn at or above this many detached
+#                                     workspace-owned sessions (default 20). 0 disables the
+#                                     refusal; a non-integer value prints a tip and falls
+#                                     back to 20.
+#   AGENT_KIT_AUDIT_REAP_MIN_AGE      age floor in seconds for opt-in reaping (default 3600).
+#                                     A non-integer value prints a tip and falls back to 3600.
+#   AGENT_KIT_AUDIT_REAP              1/true: same as --reap-audit-sessions (opt-in disposal
+#                                     of detached workspace-owned sessions past the age floor).
+#   AGENT_KIT_AUDIT_FOCUS_TERMINAL    1/true: rollback to OS Terminal activate / emulator focus.
+#
 # Exit codes:
 #   0  ok / fresh monitor ready (with --wait-monitor) / soft-fail tip when NOT waiting
 #      (missing claude/template: tip + exit 0 when --wait-monitor is off)
 #   2  usage / argument error
 #   3  --wait-monitor timeout (no fresh monitor within budget)
 #   4  soft-fail while --wait-monitor was requested (e.g. missing claude on autonomous
-#      arm, or background spawn fell back to paste-only without a waitable arm)
+#      arm, background spawn fell back to paste-only without a waitable arm, the
+#      post-spawn progress gate aborted early on a silent PTY, or the audit-session cap
+#      refused the spawn). Without --wait-monitor the same soft-fails stay tip + exit 0.
 #
 # Freshness ADR: .cursor/memory/decisions/2026-07-27_audits-wait-freshness-enforce.md
 # Background PTY ADR: .cursor/memory/decisions/2026-07-28_audits-headless-terminal-honesty.md
+# Progress gate ADR: .cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
 
 set -euo pipefail
 
@@ -84,19 +131,101 @@ DRY_RUN=0
 WAIT_MONITOR=0
 WAIT_TIMEOUT=900
 WAIT_ARM_EPOCH=""
+# Post-spawn PTY activity gate grace window (seconds). 0 disables.
+PROGRESS_TIMEOUT=60
+# Kit-owned audit session namespace. Cap/reap only touch workspace-owned names (see token).
+AUDIT_SESSION_NS_PREFIX="agent-kit-audit-"
+# 8-hex token from ROOT so concurrent workspaces do not share cap/reap scope.
+audit_workspace_token() {
+  local hash=""
+  if command -v shasum >/dev/null 2>&1; then
+    hash="$(printf '%s' "$ROOT" | shasum -a 256 2>/dev/null | awk '{print substr($1,1,8)}')"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    hash="$(printf '%s' "$ROOT" | sha256sum 2>/dev/null | awk '{print substr($1,1,8)}')"
+  elif command -v openssl >/dev/null 2>&1; then
+    hash="$(printf '%s' "$ROOT" | openssl dgst -sha256 2>/dev/null | awk '{print substr($NF,1,8)}')"
+  else
+    hash="$(printf '%s' "$ROOT" | cksum 2>/dev/null | awk '{printf "%08x", $1}' | head -c 8)"
+  fi
+  if ! [[ "$hash" =~ ^[0-9a-f]{8}$ ]]; then
+    hash="$(printf '%s' "$ROOT" | cksum 2>/dev/null | awk '{printf "%08x", $1}' | head -c 8)"
+  fi
+  printf '%s' "$hash"
+}
+AUDIT_WS_TOKEN="$(audit_workspace_token)"
+AUDIT_SESSION_OWNED_PREFIX="${AUDIT_SESSION_NS_PREFIX}${AUDIT_WS_TOKEN}-"
+# Detached workspace-owned sessions: warn at or above WARN, refuse to spawn at or above CAP. 0 disables.
+AUDIT_SESSION_WARN=5
+AUDIT_SESSION_CAP=20
+# Age floor (seconds) for opt-in reaping. Younger sessions are left alone even when reaping is on.
+AUDIT_REAP_MIN_AGE=3600
+# Opt-in destructive disposal (--reap-audit-sessions / AGENT_KIT_AUDIT_REAP). Never the default.
+REAP_SESSIONS=0
 FOCUS_TERMINAL=0
 # Set by launch_background_terminal on success: tmux|screen|macos-terminal|linux-emulator|windows-terminal
 LAUNCH_CHANNEL=""
 LAUNCH_ATTACH_HINT=""
+# Multiplexer session this invocation created (tmux/screen only). Empty for emulator channels.
+LAUNCH_SESSION_NAME=""
 PLAN_ARG=""
 PLAN_ARGS=()
+
+# 0 when name is a strict workspace-owned audit session for THIS ROOT.
+is_owned_audit_session() {
+  local name="$1"
+  # Strict: agent-kit-audit-<8hex>-<digits> and token must match this workspace.
+  if [[ "$name" =~ ^agent-kit-audit-([0-9a-f]{8})-([0-9]+)$ ]]; then
+    [[ "${BASH_REMATCH[1]}" == "$AUDIT_WS_TOKEN" ]]
+    return $?
+  fi
+  return 1
+}
+
+# Build a fresh owned session name for this PID (collision-resistant across workspaces).
+make_audit_session_name() {
+  printf '%s%s' "$AUDIT_SESSION_OWNED_PREFIX" "$$"
+}
 
 if [[ "${AGENT_KIT_AUDIT_FOCUS_TERMINAL:-}" == "1" || "${AGENT_KIT_AUDIT_FOCUS_TERMINAL:-}" == "true" ]]; then
   FOCUS_TERMINAL=1
 fi
 
+# Bad env value is advisory, never a hard error: the gate must not break an audit arm.
+if [[ -n "${AGENT_KIT_AUDIT_PROGRESS_TIMEOUT:-}" ]]; then
+  if [[ "${AGENT_KIT_AUDIT_PROGRESS_TIMEOUT}" =~ ^[0-9]+$ ]]; then
+    PROGRESS_TIMEOUT="${AGENT_KIT_AUDIT_PROGRESS_TIMEOUT}"
+  else
+    echo "tip: AGENT_KIT_AUDIT_PROGRESS_TIMEOUT must be a non-negative integer (got: ${AGENT_KIT_AUDIT_PROGRESS_TIMEOUT}); using ${PROGRESS_TIMEOUT}" >&2
+  fi
+fi
+
+# Same advisory contract for the session-lifecycle knobs: a bad value tips and falls back.
+resolve_int_env() {
+  local var_name="$1"
+  local fallback="$2"
+  local raw="${!var_name:-}"
+  if [[ -z "$raw" ]]; then
+    printf '%s' "$fallback"
+    return 0
+  fi
+  if [[ "$raw" =~ ^[0-9]+$ ]]; then
+    printf '%s' "$raw"
+    return 0
+  fi
+  echo "tip: ${var_name} must be a non-negative integer (got: ${raw}); using ${fallback}" >&2
+  printf '%s' "$fallback"
+}
+
+AUDIT_SESSION_WARN="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_WARN "$AUDIT_SESSION_WARN")"
+AUDIT_SESSION_CAP="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_CAP "$AUDIT_SESSION_CAP")"
+AUDIT_REAP_MIN_AGE="$(resolve_int_env AGENT_KIT_AUDIT_REAP_MIN_AGE "$AUDIT_REAP_MIN_AGE")"
+
+if [[ "${AGENT_KIT_AUDIT_REAP:-}" == "1" || "${AGENT_KIT_AUDIT_REAP:-}" == "true" ]]; then
+  REAP_SESSIONS=1
+fi
+
 usage() {
-  sed -n '2,70p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,111p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -143,6 +272,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --focus-terminal)
       FOCUS_TERMINAL=1
+      shift
+      ;;
+    --reap-audit-sessions)
+      REAP_SESSIONS=1
       shift
       ;;
     --wait-timeout)
@@ -368,8 +501,13 @@ resolve_launch_mode() {
 }
 
 # Escape a string for embedding inside an AppleScript double-quoted literal.
+# Rejects control characters (including newlines) so shell payloads never enter AppleScript.
 applescript_escape() {
   local s="$1"
+  if [[ "$s" == *$'\n'* || "$s" == *$'\r'* || "$s" == *$'\0'* ]]; then
+    echo "error: applescript_escape refused control characters in payload" >&2
+    return 1
+  fi
   s="${s//\\/\\\\}"
   s="${s//\"/\\\"}"
   printf '%s' "$s"
@@ -377,7 +515,8 @@ applescript_escape() {
 
 # Spawn interactive Claude in an inspectable background PTY (or focused Terminal when
 # --focus-terminal / AGENT_KIT_AUDIT_FOCUS_TERMINAL). Never agent-shell claude -p.
-# Sets LAUNCH_CHANNEL + LAUNCH_ATTACH_HINT on success. Returns 0 on success.
+# Sets LAUNCH_CHANNEL + LAUNCH_ATTACH_HINT (and LAUNCH_SESSION_NAME on tmux/screen)
+# on success. Returns 0 on success.
 # ADR: decisions/2026-07-28_audits-headless-terminal-honesty.md
 launch_background_terminal() {
   local shell_cmd="$1"
@@ -385,13 +524,15 @@ launch_background_terminal() {
   uname_s="$(uname -s 2>/dev/null || echo unknown)"
   LAUNCH_CHANNEL=""
   LAUNCH_ATTACH_HINT=""
-  session_name="agent-kit-audit-$$"
+  LAUNCH_SESSION_NAME=""
+  session_name="$(make_audit_session_name)"
 
   # Prefer detached multiplexers (true headless/inspectable PTY, no OS window focus).
   if [[ "$FOCUS_TERMINAL" -eq 0 ]] && command -v tmux >/dev/null 2>&1; then
     if tmux new-session -d -s "$session_name" bash -lc "$shell_cmd" >/dev/null 2>&1; then
       LAUNCH_CHANNEL="tmux"
       LAUNCH_ATTACH_HINT="tmux attach -t $session_name"
+      LAUNCH_SESSION_NAME="$session_name"
       return 0
     fi
   fi
@@ -399,14 +540,23 @@ launch_background_terminal() {
     if screen -dmS "$session_name" bash -lc "$shell_cmd" >/dev/null 2>&1; then
       LAUNCH_CHANNEL="screen"
       LAUNCH_ATTACH_HINT="screen -r $session_name"
+      LAUNCH_SESSION_NAME="$session_name"
       return 0
     fi
   fi
 
-  # macOS Terminal.app: default without activate (no focus steal); --focus-terminal adds activate.
+  # macOS Terminal.app: never embed shell_cmd in AppleScript. Write a temp runner and
+  # pass only the quoted path (closes PLAN_EXTERNAL_REVIEW_APPLESCRIPT_INJECTION class).
   if [[ "$uname_s" == "Darwin" ]] && command -v osascript >/dev/null 2>&1; then
-    local esc
-    esc="$(applescript_escape "$shell_cmd")"
+    local cmd_file run_line esc
+    cmd_file="$(mktemp "${TMPDIR:-/tmp}/agent-kit-audit-cmd.XXXXXX")" || return 1
+    printf '%s\n' "$shell_cmd" >"$cmd_file"
+    chmod u+x "$cmd_file" 2>/dev/null || true
+    run_line="bash $(printf '%q' "$cmd_file")"
+    if ! esc="$(applescript_escape "$run_line")"; then
+      rm -f "$cmd_file"
+      return 1
+    fi
     if [[ "$FOCUS_TERMINAL" -eq 1 ]]; then
       if osascript <<EOF
 tell application "Terminal"
@@ -431,6 +581,7 @@ EOF
         return 0
       fi
     fi
+    rm -f "$cmd_file" >/dev/null 2>&1 || true
   fi
 
   # Linux / Windows emulators (may open a window; last resort before paste-only).
@@ -471,6 +622,376 @@ EOF
   fi
 
   return 1
+}
+
+# Non-whitespace scrollback bytes for a spawned session. Prints -1 when the channel has
+# no scrollback API (advisory only). screen -X hardcopy pads a blank buffer on some
+# builds, so raw file size lies: count non-whitespace bytes instead.
+pty_scrollback_bytes() {
+  local channel="$1"
+  local name="$2"
+  if [[ -z "$name" ]]; then
+    printf '%s' "-1"
+    return 0
+  fi
+  local count=""
+  case "$channel" in
+    screen)
+      local tmpfile
+      tmpfile="$(mktemp "${TMPDIR:-/tmp}/agent-kit-audit-hardcopy.XXXXXX" 2>/dev/null || true)"
+      if [[ -z "$tmpfile" ]]; then
+        printf '%s' "-1"
+        return 0
+      fi
+      # -p 0 is required: without an explicit window target a detached session writes an
+      # empty hardcopy even when the PTY has output (observed on macOS screen 4.00).
+      screen -S "$name" -p 0 -X hardcopy "$tmpfile" >/dev/null 2>&1 || true
+      count="$(tr -d '[:space:]' < "$tmpfile" 2>/dev/null | wc -c | tr -d '[:space:]' || true)"
+      rm -f "$tmpfile" >/dev/null 2>&1 || true
+      ;;
+    tmux)
+      count="$(tmux capture-pane -p -t "$name" 2>/dev/null | tr -d '[:space:]' | wc -c | tr -d '[:space:]' || true)"
+      ;;
+    *)
+      printf '%s' "-1"
+      return 0
+      ;;
+  esac
+  if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+    count=0
+  fi
+  printf '%s' "$count"
+}
+
+# 0 when the named session still exists. Channels without a session handle answer 0
+# (unknown lifecycle is not evidence of death).
+pty_session_alive() {
+  local channel="$1"
+  local name="$2"
+  if [[ -z "$name" ]]; then
+    return 1
+  fi
+  case "$channel" in
+    screen)
+      # screen -ls exits 1 while listing sessions, so capture first (pipefail is on).
+      local listing
+      listing="$(screen -ls 2>/dev/null || true)"
+      if printf '%s\n' "$listing" | grep -q "\.${name}[[:space:]]"; then
+        return 0
+      fi
+      return 1
+      ;;
+    tmux)
+      if tmux has-session -t "$name" >/dev/null 2>&1; then
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+# Dispose only the session this invocation spawned. No-op when the name is empty or the
+# session is already gone. Never touches any other session (including other workspaces).
+dispose_launched_session() {
+  local channel="$1"
+  local name="$2"
+  if [[ -z "$name" ]]; then
+    echo "audits: no session handle to dispose (channel: ${channel:-unknown})"
+    return 0
+  fi
+  if ! is_owned_audit_session "$name"; then
+    echo "audits: refuse dispose of non-owned session $name (workspace token ${AUDIT_WS_TOKEN})"
+    return 0
+  fi
+  case "$channel" in
+    screen)
+      if pty_session_alive screen "$name"; then
+        screen -S "$name" -X quit >/dev/null 2>&1 || true
+      fi
+      echo "audits: disposed screen session $name"
+      ;;
+    tmux)
+      if pty_session_alive tmux "$name"; then
+        tmux kill-session -t "$name" >/dev/null 2>&1 || true
+      fi
+      echo "audits: disposed tmux session $name"
+      ;;
+    *)
+      echo "audits: no disposal path for channel ${channel:-unknown}"
+      ;;
+  esac
+  return 0
+}
+
+# One line per existing workspace-owned session: channel<TAB>name<TAB>state<TAB>age_seconds.
+# state is attached|detached; age_seconds is -1 when it cannot be determined (callers must
+# treat unknown age as too young to reap). Prints nothing and succeeds when there is none.
+# ADR: decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
+list_audit_sessions() {
+  local now
+  now="$(date +%s)"
+
+  if command -v screen >/dev/null 2>&1; then
+    # screen -ls exits 1 while listing sessions, so capture first (pipefail is on).
+    local listing sockdir="" line pid name marker state socket mtime age
+    listing="$(screen -ls 2>/dev/null || true)"
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^[0-9]+[[:space:]]+Sockets?[[:space:]]+in[[:space:]]+(.+)\.$ ]]; then
+        sockdir="${BASH_REMATCH[1]}"
+      fi
+    done <<< "$listing"
+    while IFS= read -r line; do
+      if ! [[ "$line" =~ ^[[:space:]]+([0-9]+)\.([^[:space:]]+)[[:space:]]+\((.*)\) ]]; then
+        continue
+      fi
+      pid="${BASH_REMATCH[1]}"
+      name="${BASH_REMATCH[2]}"
+      marker="${BASH_REMATCH[3]}"
+      # Workspace ownership + strict pattern (rejects prefix pollution / foreign tokens).
+      if ! is_owned_audit_session "$name"; then
+        continue
+      fi
+      if [[ "$marker" =~ [Aa]ttached ]]; then
+        state="attached"
+      else
+        state="detached"
+      fi
+      age="-1"
+      socket="$sockdir/$pid.$name"
+      if [[ -n "$sockdir" && -e "$socket" ]]; then
+        mtime="$(file_mtime_epoch "$socket")"
+        if [[ "$mtime" =~ ^[0-9]+$ && "$mtime" -gt 0 && "$now" -ge "$mtime" ]]; then
+          age=$((now - mtime))
+        fi
+      fi
+      printf 'screen\t%s\t%s\t%s\n' "$name" "$state" "$age"
+    done <<< "$listing"
+  fi
+
+  if command -v tmux >/dev/null 2>&1; then
+    # No server running / no sessions: skip silently.
+    local tmux_out t_name t_attached t_created t_state t_age
+    tmux_out="$(tmux list-sessions -F '#{session_name} #{session_attached} #{session_created}' 2>/dev/null || true)"
+    while read -r t_name t_attached t_created; do
+      [[ -z "$t_name" ]] && continue
+      if ! is_owned_audit_session "$t_name"; then
+        continue
+      fi
+      if [[ "$t_attached" =~ ^[0-9]+$ && "$t_attached" -gt 0 ]]; then
+        t_state="attached"
+      else
+        t_state="detached"
+      fi
+      t_age="-1"
+      if [[ "$t_created" =~ ^[0-9]+$ && "$now" -ge "$t_created" ]]; then
+        t_age=$((now - t_created))
+      fi
+      printf 'tmux\t%s\t%s\t%s\n' "$t_name" "$t_state" "$t_age"
+    done <<< "$tmux_out"
+  fi
+
+  return 0
+}
+
+# Detached kit-owned sessions only: attached sessions are operator work in progress, not pile
+# pressure, and are never disposed.
+count_audit_sessions() {
+  local count
+  count="$(list_audit_sessions | awk -F'\t' '$3 == "detached"' | wc -l | tr -d '[:space:]' || true)"
+  if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+    count=0
+  fi
+  printf '%s' "$count"
+}
+
+# Operator disposal instructions. Namespace-scoped by design: never a bare quit on an
+# unrelated session, never pkill, never a wildcard kill.
+print_dispose_instructions() {
+  cat <<EOF
+dispose (opt-in; detached workspace-owned ${AUDIT_SESSION_OWNED_PREFIX}* sessions at or above ${AUDIT_REAP_MIN_AGE}s only):
+  $LAUNCHER_REL --reap-audit-sessions --dry-run        # preview, kills nothing
+  $LAUNCHER_REL --reap-audit-sessions                  # pure disposal, no audit starts
+  $LAUNCHER_REL --reap-audit-sessions --force --autonomous <plan>  # reap then launch a new audit
+  AGENT_KIT_AUDIT_REAP_MIN_AGE=0 lowers the age floor for one run.
+Inspect first, then dispose one session at a time:
+  screen -ls                          # or: tmux ls
+  screen -S <session-name> -X quit    # or: tmux kill-session -t <session-name>
+This workspace token: ${AUDIT_WS_TOKEN} (sessions: ${AUDIT_SESSION_OWNED_PREFIX}<pid>)
+Legacy unscoped agent-kit-audit-<pid> names are not owned here; quit them manually if needed.
+Policy: .cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
+EOF
+}
+
+# Opt-in disposal of stale workspace-owned sessions. Called only when REAP_SESSIONS is 1.
+# Skips attached sessions, unknown ages, foreign/legacy names, and anything younger than
+# the age floor, printing one line per decision. Under --dry-run it lists candidates and
+# kills nothing.
+reap_audit_sessions() {
+  local channel name state age seen=0
+  while IFS=$'\t' read -r channel name state age; do
+    [[ -z "$name" ]] && continue
+    # Belt and braces: list_audit_sessions already filters to owned strict names.
+    if ! is_owned_audit_session "$name"; then
+      echo "audits: reap skip $name (not owned by workspace ${AUDIT_WS_TOKEN})"
+      continue
+    fi
+    seen=$((seen + 1))
+    if [[ "$state" == "attached" ]]; then
+      echo "audits: reap skip $name (attached; operator-owned)"
+      continue
+    fi
+    if [[ "$age" == "-1" ]]; then
+      echo "audits: reap skip $name (age unknown; treated as too young)"
+      continue
+    fi
+    if [[ "$age" -lt "$AUDIT_REAP_MIN_AGE" ]]; then
+      echo "audits: reap skip $name (age ${age}s below min-age ${AUDIT_REAP_MIN_AGE}s)"
+      continue
+    fi
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "audits: reap candidate $name (channel: $channel, age ${age}s; dry-run, not disposed)"
+      continue
+    fi
+    dispose_launched_session "$channel" "$name"
+  done < <(list_audit_sessions)
+  if [[ "$seen" -eq 0 ]]; then
+    echo "audits: reap found no ${AUDIT_SESSION_OWNED_PREFIX}* sessions"
+  fi
+  return 0
+}
+
+# Pre-spawn pressure gate: reap when opted in, then warn or refuse on detached pile size.
+# A refusal never spawns and never enters the monitor wait.
+audit_session_pressure_gate() {
+  local kind="${1:-review}"
+  if [[ "$REAP_SESSIONS" -eq 1 ]]; then
+    echo "audits: reaping detached ${AUDIT_SESSION_OWNED_PREFIX}* sessions (min-age: ${AUDIT_REAP_MIN_AGE}s)"
+    reap_audit_sessions
+  fi
+  local count
+  count="$(count_audit_sessions)"
+  if [[ "$AUDIT_SESSION_CAP" -ne 0 && "$count" -ge "$AUDIT_SESSION_CAP" ]]; then
+    cat <<EOF
+
+audits: REFUSING to spawn - detached audit sessions are at the cap.
+  detached ${AUDIT_SESSION_OWNED_PREFIX}* sessions: ${count}
+  workspace token: ${AUDIT_WS_TOKEN}
+  cap: ${AUDIT_SESSION_CAP} (AGENT_KIT_AUDIT_SESSION_CAP; 0 disables)
+No audit is starting, no monitor will be written by this attempt, and the Field Report
+stays owed. Dispose the pile, then re-arm.
+EOF
+    print_dispose_instructions
+    emit_paste_only "$kind"
+    soft_fail_exit
+  fi
+  if [[ "$AUDIT_SESSION_WARN" -ne 0 && "$count" -ge "$AUDIT_SESSION_WARN" ]]; then
+    echo "audits: ${count} detached ${AUDIT_SESSION_OWNED_PREFIX}* sessions (warn threshold: ${AUDIT_SESSION_WARN}, cap: ${AUDIT_SESSION_CAP})"
+    echo "  dispose: $LAUNCHER_REL --reap-audit-sessions --dry-run   (then drop --dry-run)"
+  fi
+  return 0
+}
+
+# Dry-run view of the pressure gate. Reap preview included when opted in; kills nothing.
+print_session_pressure_dry_run() {
+  local count
+  count="$(count_audit_sessions)"
+  echo "  audit-sessions: ${count} detached owned (warn: ${AUDIT_SESSION_WARN}, cap: ${AUDIT_SESSION_CAP})"
+  echo "  audit-workspace-token: ${AUDIT_WS_TOKEN}"
+  echo "  audit-session-prefix: ${AUDIT_SESSION_OWNED_PREFIX}"
+  if [[ "$REAP_SESSIONS" -eq 1 ]]; then
+    echo "  reap: yes (min-age: ${AUDIT_REAP_MIN_AGE}s; owned prefix only)"
+    reap_audit_sessions | sed 's/^/  /'
+  else
+    echo "  reap: no (min-age: ${AUDIT_REAP_MIN_AGE}s; owned prefix only)"
+  fi
+  if [[ "$AUDIT_SESSION_CAP" -ne 0 && "$count" -ge "$AUDIT_SESSION_CAP" ]]; then
+    echo "  audit-sessions-gate: would refuse to spawn (cap reached)"
+  elif [[ "$AUDIT_SESSION_WARN" -ne 0 && "$count" -ge "$AUDIT_SESSION_WARN" ]]; then
+    echo "  audit-sessions-gate: would warn and continue"
+  else
+    echo "  audit-sessions-gate: clear"
+  fi
+}
+
+# Poll a spawned PTY for output beyond the launcher banner. 0 = activity observed, gate
+# skipped, or gate disabled. 1 = silent PTY (session vanished, or grace window closed with
+# only the pre-exec banner). ADR: decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
+wait_for_pty_progress() {
+  local channel="$1"
+  local name="$2"
+  if [[ "$PROGRESS_TIMEOUT" -eq 0 ]]; then
+    echo "audits: progress gate disabled (AGENT_KIT_AUDIT_PROGRESS_TIMEOUT=0)"
+    return 0
+  fi
+  local bytes
+  bytes="$(pty_scrollback_bytes "$channel" "$name")"
+  if [[ "$bytes" == "-1" ]]; then
+    echo "audits: progress gate skipped (channel: ${channel:-unknown}; no scrollback API)"
+    return 0
+  fi
+  echo "audits: progress gate waiting for PTY output (timeout=${PROGRESS_TIMEOUT}s session=${name})"
+  local start now elapsed
+  start="$(date +%s)"
+  # The launcher prints a pre-exec banner before exec claude. Wait briefly for it to land,
+  # then measure it as the baseline. The gate must see growth *beyond* that banner, not
+  # just any non-zero scrollback, so a stalled Claude after a healthy launch is still caught.
+  sleep 2
+  local baseline
+  baseline="$(pty_scrollback_bytes "$channel" "$name")"
+  local banner_wait=0
+  while [[ "$baseline" == "0" ]] && [[ "$banner_wait" -lt 5 ]]; do
+    sleep 1
+    baseline="$(pty_scrollback_bytes "$channel" "$name")"
+    banner_wait=$((banner_wait + 1))
+  done
+  if [[ "$baseline" == "0" ]]; then
+    echo "audits: progress gate failed (launcher banner did not appear)"
+    return 1
+  fi
+  local growth_threshold=50
+  while true; do
+    bytes="$(pty_scrollback_bytes "$channel" "$name")"
+    now="$(date +%s)"
+    elapsed=$((now - start))
+    if [[ "$bytes" != "-1" && "$bytes" -gt $((baseline + growth_threshold)) ]]; then
+      echo "audits: progress gate passed (scrollback grew from ${baseline} to ${bytes} bytes after ${elapsed}s)"
+      return 0
+    fi
+    if ! pty_session_alive "$channel" "$name"; then
+      echo "audits: progress gate failed (session ${name} vanished before producing output)"
+      return 1
+    fi
+    if [[ "$elapsed" -ge "$PROGRESS_TIMEOUT" ]]; then
+      echo "audits: progress gate failed (no growth beyond launcher banner after ${elapsed}s; baseline=${baseline}, current=${bytes})"
+      return 1
+    fi
+    if [[ "$elapsed" -gt 0 && $((elapsed % 20)) -eq 0 ]]; then
+      echo "audits: progress gate still silent beyond banner (${elapsed}s elapsed, baseline=${baseline}, current=${bytes})"
+    fi
+    sleep 2
+  done
+}
+
+# Silent PTY after a successful spawn: honest failed launch, not a running review.
+# Diagnose, dispose this run's session, print the paste fallback, then soft-fail.
+# Never enters wait_for_monitors, so the --wait-timeout budget is not burned.
+abort_silent_pty() {
+  local kind="${1:-review}"
+  cat <<EOF
+
+audits: silent PTY - treating this as a FAILED LAUNCH, not a running review.
+  channel: ${LAUNCH_CHANNEL:-unknown}
+  session: ${LAUNCH_SESSION_NAME:-unknown}
+The spawn succeeded, but the PTY produced no output within ${PROGRESS_TIMEOUT}s.
+No audit is running, no monitor will be written by this attempt, and the Field Report
+stays owed. Skipping the monitor wait instead of burning the remaining --wait-timeout.
+EOF
+  dispose_launched_session "$LAUNCH_CHANNEL" "$LAUNCH_SESSION_NAME"
+  emit_paste_only "$kind"
+  soft_fail_exit
 }
 
 # Run paste-only UX for $PASTE_CMD / optional $PROMPT / $TRIAGE_PASTE (already set).
@@ -706,10 +1227,11 @@ soft_fail_exit() {
   exit 0
 }
 
-# File mtime as unix epoch (macOS stat -f %m; Linux stat -c %Y).
+# File mtime as unix epoch (macOS stat -f %m; Linux stat -c %Y). Accepts any existing path:
+# screen session sockets are FIFOs, not regular files, and are aged by the same mtime read.
 file_mtime_epoch() {
   local full="$1"
-  if [[ ! -f "$full" ]]; then
+  if [[ ! -e "$full" ]]; then
     echo 0
     return
   fi
@@ -801,6 +1323,13 @@ wait_for_monitors() {
 
 print_wait_monitor_dry_run() {
   local paths=("$@")
+  if [[ "$PROGRESS_TIMEOUT" -eq 0 ]]; then
+    echo "  progress-gate: disabled"
+  else
+    echo "  progress-gate: yes"
+  fi
+  echo "  progress-timeout: ${PROGRESS_TIMEOUT}s"
+  echo "  progress-gate-channel: resolved at spawn time (tmux/screen sampled; other channels advisory)"
   if [[ "$WAIT_MONITOR" -eq 1 ]]; then
     if [[ -z "${WAIT_ARM_EPOCH:-}" ]]; then
       WAIT_ARM_EPOCH="$(date +%s)"
@@ -857,6 +1386,18 @@ resolve_launch_mode
 if [[ ! -f "$ROOT/$TEMPLATE_REL" ]]; then
   tip_no_template
   soft_fail_exit
+fi
+
+# Pure disposal mode: --reap-audit-sessions with no plan argument reaps and exits.
+# This avoids coupling cleanup to a new audit spawn. --dry-run previews only.
+if [[ "$REAP_SESSIONS" -eq 1 && "$BATCH" -eq 0 && "${#PLAN_ARGS[@]}" -eq 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "audits: reap-only dry-run preview (no plan argument; no audit will start)"
+  else
+    echo "audits: reap-only mode (no plan argument; no audit will start)"
+  fi
+  reap_audit_sessions
+  exit 0
 fi
 
 # Arm epoch before spawn/poll so pre-existing monitors are not false-ready.
@@ -935,6 +1476,7 @@ if [[ "$BATCH" -eq 1 ]]; then
     echo "  paste-cmd: $PASTE_CMD"
     echo "  focus-terminal: $FOCUS_TERMINAL"
     echo "  triage: $TRIAGE_PASTE"
+    print_session_pressure_dry_run
     print_wait_monitor_dry_run "${BATCH_MONITOR_PATHS[@]}"
     exit 0
   fi
@@ -957,6 +1499,7 @@ if [[ "$BATCH" -eq 1 ]]; then
       exit 0
       ;;
     autonomous)
+      audit_session_pressure_gate "batch review"
       echo "audits: starting background/inspectable launch (interactive Claude; no agent-shell -p)..."
       echo "  command: $VISIBLE_CMD"
       if launch_background_terminal "$VISIBLE_CMD"; then
@@ -969,6 +1512,9 @@ agent-shell claude -p is not. After monitors land, triage with:
 
   $TRIAGE_PASTE
 EOF
+        if ! wait_for_pty_progress "$LAUNCH_CHANNEL" "$LAUNCH_SESSION_NAME"; then
+          abort_silent_pty "batch review"
+        fi
         if [[ "$WAIT_MONITOR" -eq 1 ]]; then
           wait_for_monitors "${BATCH_MONITOR_PATHS[@]}"
         fi
@@ -1030,6 +1576,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "  paste-cmd: $PASTE_CMD"
   echo "  focus-terminal: $FOCUS_TERMINAL"
   echo "  triage: $TRIAGE_PASTE"
+  print_session_pressure_dry_run
   print_wait_monitor_dry_run "$SINGLE_MONITOR_PATH"
   exit 0
 fi
@@ -1052,6 +1599,7 @@ case "$MODE" in
     exit 0
     ;;
   autonomous)
+    audit_session_pressure_gate "review"
     echo "audits: starting background/inspectable launch (interactive Claude; no agent-shell -p)..."
     echo "  command: $VISIBLE_CMD"
     if launch_background_terminal "$VISIBLE_CMD"; then
@@ -1067,6 +1615,9 @@ Background PTY is honest; silent agent-shell claude -p is not. Then triage with:
 
   $TRIAGE_PASTE
 EOF
+      if ! wait_for_pty_progress "$LAUNCH_CHANNEL" "$LAUNCH_SESSION_NAME"; then
+        abort_silent_pty "review"
+      fi
       if [[ "$WAIT_MONITOR" -eq 1 ]]; then
         wait_for_monitors "$SINGLE_MONITOR_PATH"
       fi

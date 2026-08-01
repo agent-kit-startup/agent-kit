@@ -1,6 +1,7 @@
 import { defineCommand } from "citty";
 import { buildManifest, saveManifest } from "../lifecycle/apply.js";
 import { checkForUpdates } from "../lifecycle/check-updates.js";
+import { seedManagedHashLedger } from "../lifecycle/overlay.js";
 import { logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { syncFromManifest } from "../lifecycle/sync.js";
@@ -39,6 +40,12 @@ export const updateCommand = defineCommand({
     stamp: {
       type: "boolean",
       description: "Persist updateCheck.lastCheckedAt after a network check",
+      default: false,
+    },
+    "seed-overlay": {
+      type: "boolean",
+      description:
+        "Seed the managed-hash ledger from current local overlay files before applying (factory/dogfood only; consumers should not use this)",
       default: false,
     },
     ...REGISTRY_CLI_ARGS,
@@ -90,12 +97,20 @@ export const updateCommand = defineCommand({
       packs: existing.packs,
       skills: existing.skills,
       protected: existing.protected,
+      personalization: existing.personalization,
       registryUrl: registry.url ?? existing.registry?.url,
       registryRef: registry.ref ?? existing.registry?.ref,
     });
-    // Preserve overrides from existing manifest
+    // Preserve optional metadata from existing manifest
     if (existing.overrides?.length) next.overrides = existing.overrides;
+    if (next.version === existing.version && existing.installedAt) {
+      next.installedAt = existing.installedAt;
+    }
 
+    if (args["seed-overlay"]) {
+      await seedManagedHashLedger(args.cwd);
+      logger.info("Seeded managed-hash ledger from current local overlay files.");
+    }
     const stats = await syncFromManifest(registry.root, args.cwd, next);
     await saveManifest(args.cwd, next);
     logApplyStats(stats);

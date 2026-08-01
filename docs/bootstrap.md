@@ -65,16 +65,27 @@ The kit can update itself against the same source without ever touching your pla
 |---------|------|
 | `agent-kit add <id>` | Add a pack or skill |
 | `agent-kit update --check` | **Notify only:** compare installed version to the latest public release tag (no L0 writes) |
-| `agent-kit update` | Explicit apply: refresh installed rules/commands; skips protected files |
+| `agent-kit update` | Explicit apply: refresh installed rules/commands; skips protected files; preserves customized agents/skills/commands overlay |
 | `agent-kit diff` | Show what's changed vs the latest |
 | `agent-kit status` | Version, installed packs, readiness summary |
 | `agent-kit doctor` | Refresh or repair repository readiness |
 
 **Check ≠ apply.** Opt-in session nudges use `updateCheck.enabled` in `.cursor/context/config.json` (default `false`). When enabled, `sessionStart` may advise that a newer public release exists; it never rewrites `.cursor/`. Applying still requires `/update` with Ask confirmation (or an explicit terminal `agent-kit update`). `updateApply.auto` defaults to `false` and is not a silent background path.
 
+**Cursor product updates (separate):** opt-in `cursorUpdateCheck.enabled` (default `false`) plus `agent-kit cursor-awareness --check` / `/cursor-update-awareness` report advisory gaps vs `docs/cursor-native-audit.md`. Confirmed work routes through Ask → `/backlog-add` or `/dogfood`. Never auto Field Reports. See [cursor-update-awareness.md](cursor-update-awareness.md).
+
 Factory/dogfood installs (manifest registry URL `agent-kit-dev` or pre-prod refs such as `staging`) skip the public check with a warning so the factory is not treated as a consumer.
 
-This path is distinct from **public sync** (factory → public mirror) and from **remote-cache auto-refresh** (refreshing a cloned registry tree on resolve).
+This path is distinct from three other lanes:
+
+| Lane | Direction | Trigger | L0 writes? |
+|---|---|---|---|
+| **Public consumer update** | public release → consumer project | `agent-kit update` or `/update` HITL | Yes, explicit |
+| **Factory self-consumer** | factory source → factory `.cursor/` | `agent-kit update --cwd . --seed-overlay` (first), then `agent-kit update --cwd .` | Yes, local loop |
+| **Public sync** | factory → public mirror | `v*` tag CI or manual workflow | No L0 writes; opens public PR |
+| **Remote-cache refresh** | registry git → local cache | `--refresh` on resolve | No; refreshes cache before apply |
+
+The factory self-consumer loop is documented for maintainers in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Moving off an old nested copy
 

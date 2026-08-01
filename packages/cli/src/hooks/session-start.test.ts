@@ -1,11 +1,16 @@
+import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { CURSOR_AWARENESS_NUDGE } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
+  type CursorAwarenessSpawn,
   buildSessionStartAdditionalContext,
+  cursorAwarenessSection,
   parseUnprocessedDogfoodItems,
+  shouldEmitCursorAwarenessNudge,
 } from "./session-start.js";
 
 describe("parseUnprocessedDogfoodItems", () => {
@@ -132,5 +137,161 @@ describe("buildSessionStartAdditionalContext", () => {
     const { additional_context } = await buildSessionStartAdditionalContext(root);
     expect(additional_context).toContain("Optional readiness item: `pick-persona`");
     expect(additional_context).toContain("does not block");
+  });
+
+  it("surfaces dogfood inbox hint for factory dogfood/README.md", async () => {
+    const root = await fixtureRoot();
+    await mkdir(path.join(root, "dogfood"), { recursive: true });
+    await writeFile(
+      path.join(root, "dogfood", "README.md"),
+      "### Unprocessed Files\n\n- `cursor_example_2026_07_31.md` - example\n\n### Processed Files\n",
+      "utf8",
+    );
+    const { additional_context } = await buildSessionStartAdditionalContext(root);
+    expect(additional_context).toContain("## Dogfood inbox");
+    expect(additional_context).toContain("/dogfood");
+  });
+
+  it("surfaces dogfood inbox hint for consumer .cursor/dogfood/README.md", async () => {
+    const root = await fixtureRoot();
+    await mkdir(path.join(root, ".cursor", "dogfood"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "dogfood", "README.md"),
+      "### Unprocessed Files\n\n- `cursor_example_2026_07_31.md` - example\n\n### Processed Files\n",
+      "utf8",
+    );
+    const { additional_context } = await buildSessionStartAdditionalContext(root);
+    expect(additional_context).toContain("## Dogfood inbox");
+    expect(additional_context).toContain("/dogfood");
+  });
+
+  it("does not surface dogfood inbox hint when no unprocessed items exist", async () => {
+    const root = await fixtureRoot();
+    await mkdir(path.join(root, "dogfood"), { recursive: true });
+    await writeFile(
+      path.join(root, "dogfood", "README.md"),
+      "### Unprocessed Files\n\n*None*\n\n### Processed Files\n",
+      "utf8",
+    );
+    const { additional_context } = await buildSessionStartAdditionalContext(root);
+    expect(additional_context).not.toContain("## Dogfood inbox");
+  });
+});
+
+describe("cursor awareness sessionStart gate (T4)", () => {
+  it("shouldEmitCursorAwarenessNudge requires changelog-ahead", () => {
+    expect(
+      shouldEmitCursorAwarenessNudge({
+        status: "gaps-found",
+        gaps: [{ id: "open-action-A4" }],
+      }),
+    ).toBe(false);
+    expect(
+      shouldEmitCursorAwarenessNudge({
+        status: "gaps-found",
+        gaps: [{ id: "changelog-ahead" }],
+      }),
+    ).toBe(true);
+    expect(shouldEmitCursorAwarenessNudge({ status: "current", gaps: [] })).toBe(false);
+  });
+
+  it("omits nudge when gaps lack changelog-ahead", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-cursor-nudge-"));
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({ cursorUpdateCheck: { enabled: true } }),
+      "utf8",
+    );
+
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    const spawnFn = vi.fn(() => {
+      queueMicrotask(() => {
+        child.stdout.emit(
+          "data",
+          Buffer.from(
+            JSON.stringify({
+              status: "gaps-found",
+              gaps: [{ id: "open-action-A4" }],
+            }),
+          ),
+        );
+        child.emit("close", 0);
+      });
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    }) as unknown as CursorAwarenessSpawn;
+
+    const section = await cursorAwarenessSection(root, { spawnFn });
+    expect(section).toBeNull();
+  });
+
+  it("emits nudge only when changelog-ahead is present", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-cursor-nudge-"));
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({ cursorUpdateCheck: { enabled: true } }),
+      "utf8",
+    );
+
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    const spawnFn = vi.fn(() => {
+      queueMicrotask(() => {
+        child.stdout.emit(
+          "data",
+          Buffer.from(
+            JSON.stringify({
+              status: "gaps-found",
+              gaps: [{ id: "changelog-ahead" }],
+            }),
+          ),
+        );
+        child.emit("close", 0);
+      });
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    }) as unknown as CursorAwarenessSpawn;
+
+    const section = await cursorAwarenessSection(root, { spawnFn });
+    expect(section).toBe(CURSOR_AWARENESS_NUDGE);
+  });
+
+  it("ENOENT on primary starts exactly one fallback spawn", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-cursor-nudge-"));
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({ cursorUpdateCheck: { enabled: true } }),
+      "utf8",
+    );
+
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+    };
+    child.stdout = new EventEmitter();
+    const spawnMock = vi.fn(() => {
+      queueMicrotask(() => {
+        // Real ENOENT spawn emits error then close; both must hit the
+        // settled/fallbackStarted guard so runFallback runs exactly once.
+        child.emit("error", Object.assign(new Error("not found"), { code: "ENOENT" }));
+        child.emit("close", 1);
+      });
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    });
+    const spawnFn = spawnMock as unknown as CursorAwarenessSpawn;
+    const runFallback = vi.fn(async () => ({
+      status: "gaps-found",
+      gaps: [{ id: "changelog-ahead" }],
+    }));
+
+    const section = await cursorAwarenessSection(root, { spawnFn, runFallback });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(runFallback).toHaveBeenCalledTimes(1);
+    expect(section).toBe(CURSOR_AWARENESS_NUDGE);
   });
 });

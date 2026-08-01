@@ -26,7 +26,7 @@ Optional L1 packs (separate command):
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from a CLI package that ships `dashboard/` (Path C, after that publish) or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or `agent-kit dashboard` reports missing `start.mjs`, reinstall a Path C CLI or set kit-host env/sibling; do not assume older npm tags include the panel assets.
+After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from the CLI package, which ships `dashboard/` from 4.8.2 onward, or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or `agent-kit dashboard` reports missing `start.mjs`, the installed CLI predates 4.8.2: upgrade it, or set kit-host env/sibling.
 
 Contributors working from a kit monorepo checkout: use the local CLI examples in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (Working on the kit). Do not paste monorepo `pnpm --filter` commands into a consumer project.
 
@@ -104,6 +104,8 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/plan-external-review.md` | idem |
 | `.cursor/commands/plan-review-triage.md` | idem |
 | `.cursor/commands/field-report-resolve.md` | idem |
+| `.cursor/commands/dogfood.md` | idem |
+| `.cursor/commands/cursor-update-awareness.md` | idem |
 | `.cursor/context/templates/plan.md` | idem |
 | `.cursor/context/templates/context-pack.md` | idem |
 | `.cursor/context/templates/task-brief.md` | idem |
@@ -134,8 +136,12 @@ chmod +x .cursor/hooks/agent/*.sh .cursor/hooks/pre-commit/check-secrets.sh
 
 Managed `agent-kit install` / `update` already preserves the executable bit via `copyFile`.
 
-If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, fetch from the public registry URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** tool for any registry source confirmation:
+If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, prefer **Port A** (`npx @dadado/agent-kit-cli install`) so files come from the integrity-checked npm package. Port B raw fetches have **no package checksum**: treat them as a fallback only.
+
+Default public base URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** for any registry source confirmation:
 Options: `Fetch from public registry` / `Use different registry URL` / `Skip registry for now`
+
+When the operator picks **Use different registry URL**, stop and require an explicit trust decision before fetching. Do not silently substitute an untrusted host. Prefer pinning a known public commit SHA (or tag) in the URL path over floating `main` when the operator needs reproducibility. After copy, run `agent-kit doctor` / `agent-kit status` when the CLI is available so the install can be validated.
 
 **Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
 

@@ -67,6 +67,8 @@ html[data-dashboard-skin="legacy"] {
   --mc-space-xl: 16px;
   --mc-space-2xl: 24px;
   --mc-card-padding: 16px;
+  /* Dense list-card padding (agent/command/skill/process cards, health rows, recent plans). */
+  --mc-card-padding-dense: 10px 12px;
   --mc-header-pad-x: 24px;
   /* Trailing pad tighter so More (...) sits closer to the IDE ellipsis column. */
   --mc-header-pad-x-end: 8px;
@@ -135,6 +137,8 @@ a:focus-visible,
 .top-nav-anchor:focus-visible,
 .header-brand:focus-visible,
 .header-home-btn:focus-visible,
+.header-fullscreen-btn:focus-visible,
+.fullscreen-exit-btn:focus-visible,
 .section-home-back:focus-visible,
 .nav-more-btn:focus-visible,
 .nav-more-item:focus-visible,
@@ -341,6 +345,75 @@ a:focus-visible,
 .btn-refresh:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ===== Fullscreen (zen) viewport mode =====
+   Hides the 32px app header so the grid/stack reclaims the full panel height.
+   Enter control lives in the header; a floating exit control (or Escape) restores chrome. */
+.header-fullscreen-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: var(--mc-header-control-size);
+  height: var(--mc-header-control-size);
+  padding: 0;
+  border-radius: var(--mc-radius-chrome);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-fullscreen-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+.header-fullscreen-btn svg {
+  width: var(--mc-chrome-icon-size);
+  height: var(--mc-chrome-icon-size);
+  display: block;
+  flex-shrink: 0;
+}
+.fullscreen-exit-btn {
+  position: fixed;
+  top: var(--mc-space-md);
+  right: var(--mc-space-md);
+  z-index: 70;
+  width: var(--mc-header-control-size);
+  height: var(--mc-header-control-size);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius-chrome);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+}
+.fullscreen-exit-btn:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+.fullscreen-exit-btn[hidden] {
+  display: none;
+}
+.fullscreen-exit-btn svg {
+  width: var(--mc-chrome-icon-size);
+  height: var(--mc-chrome-icon-size);
+  display: block;
+  flex-shrink: 0;
+}
+body.mc-fullscreen .header {
+  display: none;
+}
+/* Reserve trailing space so the fixed exit control does not cover top-tabs. */
+body.mc-fullscreen .top-tabs-row {
+  padding-right: calc(var(--mc-header-control-size) + var(--mc-space-md) * 2 + var(--mc-space-sm));
 }
 
 /* ===== Layout ===== */
@@ -626,6 +699,7 @@ a:focus-visible,
 .dot-blue { background: var(--blue); box-shadow: 0 0 6px var(--blue-bg); }
 .dot-purple { background: var(--purple); box-shadow: 0 0 6px var(--purple-bg); }
 .dot-cyan { background: var(--cyan); box-shadow: 0 0 6px var(--cyan-bg); }
+.dot-orange { background: var(--orange); box-shadow: 0 0 6px var(--orange-bg); }
 .dot-gray { background: #3a4a5a; box-shadow: 0 0 6px rgba(58,74,90,0.3); }
 .dot-pulse::after {
   content: '';
@@ -639,6 +713,8 @@ a:focus-visible,
 .dot-green.dot-pulse::after { border-color: var(--green); }
 .dot-blue.dot-pulse::after { border-color: var(--blue); }
 .dot-yellow.dot-pulse::after { border-color: var(--yellow); }
+.dot-red.dot-pulse::after { border-color: var(--red); }
+.dot-orange.dot-pulse::after { border-color: var(--orange); }
 @keyframes pulse {
   0% { opacity: 0.6; transform: scale(1); }
   100% { opacity: 0; transform: scale(2.5); }
@@ -759,29 +835,66 @@ a:focus-visible,
   outline-offset: 1px;
 }
 
-/* ===== Agent List ===== */
-.agent-list { display: flex; flex-direction: column; gap: 4px; }
-.agent-item {
+/* ===== Agents ===== */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mc-card-padding-dense);
+  border-radius: var(--mc-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.agent-card:hover { border-color: var(--border-active); }
+.agent-card-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  transition: all 0.15s;
 }
-.agent-item:hover { background: var(--bg-card-hover); color: var(--text-primary); }
-.agent-item .agent-icon {
-  width: 20px; height: 20px;
+.agent-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: var(--mc-font-mono);
+}
+.agent-monogram {
+  width: 18px;
+  height: 18px;
   border-radius: 4px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
+.agent-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.agent-file {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mc-font-mono);
+  word-break: break-all;
+}
+.agent-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.agent-create-btn { margin-left: auto; }
 
 /* ===== Terminal List ===== */
 .terminal-list { display: flex; flex-direction: column; gap: 4px; }
@@ -816,8 +929,52 @@ a:focus-visible,
   font-size: 11px;
   color: var(--text-muted);
 }
-.healthcenter-presence .dot-pulse {
-  animation: pulse 1.6s ease-in-out infinite;
+/* Presence liveness rides the shared .dot-pulse::after halo; no element-level
+   pulse (it inflated the solid dot 250% and faded it out each cycle). */
+.health-vitals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+.health-vital-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mc-card-padding-dense);
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius);
+  background: var(--bg-card);
+}
+.health-vital-card[data-state="attention"] {
+  border-color: var(--border-active);
+}
+.health-vital-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.health-vital-score {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.health-vital-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.health-vital-card[data-state="pass"] .health-vital-state { color: var(--green); }
+.health-vital-card[data-state="attention"] .health-vital-state { color: var(--red); }
+.health-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.health-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
 .health-grid {
   display: grid;
@@ -828,7 +985,7 @@ a:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 0;
-  border-radius: var(--mc-radius-sm, 6px);
+  border-radius: var(--mc-radius);
   background: var(--bg-card);
   border: 1px solid var(--border);
   overflow: hidden;
@@ -838,15 +995,11 @@ a:focus-visible,
 .health-card.is-expanded {
   border-color: var(--border-active);
 }
-.health-card[data-severity="ok"] { border-left: 3px solid var(--green, #3fb950); }
-.health-card[data-severity="warning"] { border-left: 3px solid var(--yellow, #d29922); }
-.health-card[data-severity="degraded"] { border-left: 3px solid var(--orange, #db6d28); }
-.health-card[data-severity="error"] { border-left: 3px solid var(--red, #f85149); }
 .health-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: var(--mc-card-padding-dense);
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -870,6 +1023,10 @@ a:focus-visible,
   color: var(--text-muted);
   flex-shrink: 0;
 }
+.health-item-sev[data-sev="ok"] { color: var(--green); }
+.health-item-sev[data-sev="warning"] { color: var(--yellow); }
+.health-item-sev[data-sev="degraded"] { color: var(--orange); }
+.health-item-sev[data-sev="error"] { color: var(--red); }
 .health-item-chevron {
   color: var(--text-muted);
   font-size: 10px;
@@ -913,12 +1070,6 @@ a:focus-visible,
 .health-autofix-btn:hover {
   background: var(--bg-card-hover);
 }
-html[data-dashboard-skin="cursor"] .health-card {
-  border-radius: 8px;
-}
-html[data-dashboard-skin="legacy"] .health-card {
-  border-radius: 4px;
-}
 
 /* ===== Git ===== */
 .git-info {
@@ -936,6 +1087,98 @@ html[data-dashboard-skin="legacy"] .health-card {
 .git-label { color: var(--text-muted); }
 .git-value { color: var(--text-secondary); font-family: var(--mc-font-mono); font-size: 12px; }
 
+/* Git tab v2: promotion flow lanes, readable graph, staging hygiene */
+.git-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.git-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  flex-wrap: wrap;
+}
+.git-flow-lane {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.git-flow-arrow { color: var(--text-muted); flex-shrink: 0; }
+.git-flow-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+.git-flow-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  font-family: var(--mc-font-mono);
+  flex-shrink: 0;
+}
+.git-flow-badge.is-ahead { color: var(--yellow); border-color: rgba(234,179,8,0.3); }
+.git-flow-badge.is-behind { color: var(--orange); border-color: rgba(249,115,22,0.3); }
+.git-flow-badge.is-sync { color: var(--green); border-color: rgba(34,197,94,0.3); }
+.git-flow-cta { margin-left: auto; flex-shrink: 0; }
+.git-graph {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-family: var(--mc-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.git-graph-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 12px 0 6px;
+}
+.git-hygiene {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(234,179,8,0.35);
+  border-radius: 8px;
+  background: var(--yellow-bg);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.git-hygiene-body { flex: 1; min-width: 200px; }
+.git-hygiene-title { font-weight: 600; color: var(--yellow); margin-bottom: 2px; }
+.git-hygiene-paths {
+  font-family: var(--mc-font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  word-break: break-all;
+}
+
 /* ===== Memory ===== */
 .memory-list {
   display: flex;
@@ -952,6 +1195,91 @@ html[data-dashboard-skin="legacy"] .health-card {
   color: var(--text-secondary);
 }
 .memory-item:hover { background: var(--bg-card-hover); }
+
+/* Memory tab v2: error-o-meter KPIs, green/red icon panels, interactive error rows */
+.memory-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--mc-space-xl);
+  margin-bottom: var(--mc-space-xl);
+}
+@media (max-width: 900px) { .memory-kpi-grid { grid-template-columns: 1fr 1fr; } }
+.memory-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius-lg);
+  padding: var(--mc-space-lg) var(--mc-card-padding);
+}
+.memory-kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.memory-kpi-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
+.memory-kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.memory-tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.memory-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-family: var(--mc-font-mono);
+}
+.memory-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--mc-radius-lg); padding: var(--mc-card-padding); }
+.memory-panel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.memory-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.memory-panel-icon-green { color: var(--green); background: var(--green-bg); }
+.memory-panel-icon-red { color: var(--red); background: var(--red-bg); }
+.memory-panel-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.memory-panel-sub { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.memory-error-card {
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.memory-error-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.memory-error-head:hover { background: var(--bg-card-hover); }
+.memory-error-head:focus-visible { outline: 2px solid var(--accent, var(--green)); outline-offset: -2px; }
+.memory-error-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.memory-error-date { font-size: 11px; color: var(--text-muted); font-family: var(--mc-font-mono); flex-shrink: 0; }
+.memory-error-chevron { transition: transform 0.15s ease; color: var(--text-muted); flex-shrink: 0; }
+.memory-error-card.is-expanded .memory-error-chevron { transform: rotate(90deg); }
+.memory-error-detail { display: none; padding: 10px 12px; border-top: 1px solid var(--border); font-size: 12px; }
+.memory-error-card.is-expanded .memory-error-detail { display: block; }
+.memory-error-field { margin-bottom: 8px; }
+.memory-error-field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px; }
+.memory-error-field-body { color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; }
+.memory-error-files { font-family: var(--mc-font-mono); font-size: 11px; color: var(--text-muted); word-break: break-word; }
+.memory-error-actions { display: flex; gap: 8px; margin-top: 10px; }
+.memory-error-copy-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, var(--bg-card));
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.memory-error-copy-btn:hover { background: var(--bg-card-hover); }
 
 /* ===== Activity Timeline ===== */
 .activity-list {
@@ -1037,22 +1365,46 @@ html[data-dashboard-skin="legacy"] .health-card {
 /* ===== Commands ===== */
 .command-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
 }
-.command-item {
+.command-card {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: var(--mc-card-padding-dense);
+  border-radius: var(--mc-radius);
   background: var(--bg-card);
   border: 1px solid var(--border);
+}
+.command-card:hover { border-color: var(--border-active); }
+.command-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.command-name {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: var(--mc-font-mono);
 }
-.command-item:hover { border-color: var(--border-active); color: var(--text-primary); }
+.command-lock, .skill-lock, .agent-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.command-lock svg, .skill-lock svg, .agent-lock svg { display: block; }
+.command-file {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mc-font-mono);
+  word-break: break-all;
+}
+.command-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.command-create-btn { margin-left: auto; }
 
 /* ===== Loading ===== */
 .loading {
@@ -1084,7 +1436,7 @@ html[data-dashboard-skin="legacy"] .health-card {
   gap: var(--mc-chrome-label-gap);
   letter-spacing: 0;
 }
-.section-title .dot { width: 12px; height: 12px; }
+/* Section titles carry no dots: identity comes from the label text (dot semantics table). */
 .section-subtitle {
   font-size: var(--mc-chrome-subtitle-size);
   color: var(--text-muted);
@@ -1093,39 +1445,75 @@ html[data-dashboard-skin="legacy"] .health-card {
 }
 
 /* ===== Processes ===== */
-.processes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  font-family: var(--mc-font-mono);
-}
-.processes-table th {
-  text-align: left;
-  padding: 8px 10px;
-  color: var(--text-muted);
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.processes-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
+.processes-note {
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--blue-bg);
+  border: 1px solid rgba(59, 130, 246, 0.25);
   color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
 }
-.processes-table tr:hover td {
-  background: var(--bg-card-hover);
+.processes-note strong {
+  color: var(--blue);
+  font-weight: 600;
 }
-.processes-table .process-label {
+.process-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.process-card {
+  padding: var(--mc-card-padding-dense);
+  border-radius: var(--mc-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.process-card:hover {
+  border-color: var(--border-active);
+}
+.process-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
-.processes-table .process-label .dot { width: 8px; height: 8px; }
-.processes-table .process-actions {
+.process-label-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  letter-spacing: 0.03em;
+}
+.process-card-head .process-actions {
+  margin-left: auto;
   white-space: nowrap;
-  text-align: right;
+}
+.process-desc {
+  margin-top: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.process-meta {
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--mc-font-mono);
+}
+.process-cmd {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--mc-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .process-copy-btn {
   font-size: 10px;
@@ -1145,61 +1533,45 @@ html[data-dashboard-skin="legacy"] .health-card {
 }
 
 /* ===== Skills ===== */
-.skills-category {
-  margin-bottom: 20px;
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
 }
-.skills-category-title {
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mc-card-padding-dense);
+  border-radius: var(--mc-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.skill-card:hover { border-color: var(--border-active); }
+.skill-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.skill-name {
   font-size: 12px;
-  font-weight: 600;
+  color: var(--text-primary);
+}
+.skill-cat {
+  font-size: 10px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 10px;
-  padding: 0 2px;
 }
-.skills-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.skill-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: default;
-  transition: all 0.15s;
-  max-width: 280px;
-}
-.skill-tag:hover {
-  border-color: var(--border-active);
-  color: var(--text-primary);
-}
-.skill-tag .skill-cat-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.skill-tag .skill-title {
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.skill-tag .skill-desc {
-  font-size: var(--mc-chrome-meta-size);
-  font-weight: var(--mc-chrome-meta-weight);
+.skill-file {
+  font-size: 10px;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-family: var(--mc-font-mono);
+  word-break: break-all;
 }
+.skill-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.skill-create-btn { margin-left: auto; }
 
 /* ===== Context Packs ===== */
 .context-pack-item {
@@ -1281,16 +1653,6 @@ html[data-dashboard-skin="legacy"] .health-card {
 }
 .live-indicator.live-reconnecting {
   animation: pulse-text 1.5s ease-in-out infinite;
-}
-.live-pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-  position: relative;
-}
-.live-pulse-dot.live-dot-yellow {
-  background: var(--yellow);
 }
 /* Decorative ring pulses removed; header transport owns freshness */
 .live-activity-feed {
@@ -1378,6 +1740,21 @@ html[data-dashboard-skin="legacy"] .health-card {
   width: 1em;
   text-align: center;
 }
+.live-activity-feed .monitor-row .monitor-row-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  background: var(--bg-card-hover);
+  color: var(--text-secondary);
+}
 .live-activity-feed .monitor-row .feed-label {
   flex: 1;
   min-width: 0;
@@ -1387,6 +1764,32 @@ html[data-dashboard-skin="legacy"] .health-card {
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 400;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* Structured label spans: actor + verb never shrink; the plan filename is the
+   low-signal segment and ellipsises first. */
+.live-activity-feed .monitor-row .feed-seg {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.live-activity-feed .monitor-row .feed-sep {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.live-activity-feed .monitor-row .feed-seg-mid {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-activity-feed .monitor-row .feed-seg-plan {
+  flex-shrink: 3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
 }
 .live-activity-feed .monitor-row .feed-time {
   color: var(--text-muted);
@@ -1398,7 +1801,7 @@ html[data-dashboard-skin="legacy"] .health-card {
   margin-left: auto;
 }
 .activity-feed-empty {
-  padding: 24px;
+  padding: var(--mc-space-2xl);
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
@@ -1469,46 +1872,20 @@ html[data-dashboard-skin="legacy"] .health-card {
 }
 
 /* ===== Empty State ===== */
+/* Empty states scale with the card density ladder (viewport modes shrink
+   --mc-card-padding), so they stay intentional from fullscreen to thin sidebar. */
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
+  padding: calc(var(--mc-card-padding) * 2.5) calc(var(--mc-card-padding) * 1.25);
   color: var(--text-muted);
   font-size: 13px;
 }
 
 /* ===== Clickable Cursors (Phase 1) ===== */
 .plan-card { cursor: pointer; }
-.command-item { cursor: pointer; }
-.agent-item { cursor: pointer; }
 .health-item { cursor: pointer; }
 .terminal-item { cursor: pointer; }
 .memory-item { cursor: pointer; }
-
-/* ===== Agent Expanded View ===== */
-.agent-details {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.3s ease;
-  opacity: 0;
-  padding: 0 10px;
-}
-.agent-details.open {
-  max-height: 200px;
-  opacity: 1;
-  padding: 8px 10px;
-}
-.agent-details p {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-.agent-details .agent-path {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: var(--mc-font-mono);
-  margin-top: 4px;
-  word-break: break-all;
-}
 
 /* ===== Copied Toast ===== */
 .copied-toast {
@@ -1654,10 +2031,23 @@ html[data-dashboard-skin="legacy"] .health-card {
 
 /* ===== Config form (session prefs) ===== */
 .config-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
-  max-width: 520px;
+}
+.config-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.config-fieldset-wide {
+  grid-column: 1 / -1;
+}
+.config-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px 16px;
 }
 .config-fieldset {
   border: 1px solid var(--border);
@@ -1671,6 +2061,23 @@ html[data-dashboard-skin="legacy"] .health-card {
   font-size: var(--mc-chrome-subtitle-size);
   font-weight: var(--mc-chrome-subtitle-weight);
   color: var(--text-muted);
+}
+.btn-config-copy {
+  align-self: flex-start;
+  margin-top: 10px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.btn-config-copy:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
 }
 .config-row {
   display: flex;
@@ -1889,12 +2296,12 @@ html[data-dashboard-skin="legacy"] .health-card {
 /* ===== Phase 3: Empty State CTAs ===== */
 .empty-state-cta {
   text-align: center;
-  padding: 32px 20px;
+  padding: calc(var(--mc-card-padding) * 2) calc(var(--mc-card-padding) * 1.25);
   color: var(--text-muted);
   font-size: 13px;
 }
 .empty-state-cta.compact {
-  padding: 16px 10px;
+  padding: var(--mc-card-padding) var(--mc-space-lg);
   font-size: 12px;
 }
 .empty-state-cta .empty-state-icon {
@@ -1942,7 +2349,7 @@ html[data-dashboard-skin="legacy"] .health-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: var(--mc-space-md) 18px;
+  padding: var(--mc-space-md) var(--mc-space-xl);
   border-radius: var(--mc-radius-chrome);
   cursor: pointer;
   font-size: var(--mc-chrome-label-size);
@@ -2075,6 +2482,8 @@ html[data-dashboard-skin="legacy"] .health-card {
   .plan-card-footer { flex-wrap: wrap; gap: var(--mc-space-xs); }
   .health-grid { grid-template-columns: 1fr 1fr; }
   .command-grid { grid-template-columns: 1fr 1fr; }
+  .skill-grid { grid-template-columns: 1fr 1fr; }
+  .agent-grid { grid-template-columns: 1fr 1fr; }
   .git-row { flex-wrap: wrap; gap: var(--mc-space-xs); }
   .terminal-popup { max-width: 95vw; padding: 14px; }
 }
@@ -2093,10 +2502,58 @@ html[data-dashboard-skin="legacy"] .health-card {
   .terminal-popup { max-width: 95vw; padding: 14px; }
 }
 
+/* ===== Very thin sidebar (~<340px): tightest chrome, single-column card grids ===== */
+@media (max-width: 339px) {
+  :root {
+    --mc-card-padding: 10px;
+    --mc-header-pad-x: 8px;
+    --mc-header-pad-x-end: 2px;
+    --mc-content-pad: 8px;
+  }
+  .header { gap: var(--mc-space-sm); }
+  .header-right { gap: var(--mc-space-xs); }
+  .header-workspace { display: none; }
+  .health-grid,
+  .command-grid,
+  .skill-grid,
+  .agent-grid { grid-template-columns: 1fr; }
+  .live-activity-feed { max-height: 180px; }
+  /* Flex feed-label: allow actor/verb to ellipsis so fixed spans do not hard-clip. */
+  .live-activity-feed .monitor-row .feed-seg-actor,
+  .live-activity-feed .monitor-row .feed-seg-verb {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .overview-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* ===== Mid panel (~701-1023px): two-column overview grid, IA row-major =====
+   Collapse order follows the locked IA (Current mission -> Flight Log -> Checklist
+   -> Crew monitor): Current mission spans row 1, Flight Log + Checklist share row 2,
+   Crew monitor spans row 3. Page keeps scrolling; the one-fold lock starts at 1024px. */
+@media (min-width: 701px) and (max-width: 1023px) {
+  #section-overview.active .overview-stack {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "now now"
+      "attention checklist"
+      "monitor monitor";
+  }
+  #section-overview.active #now-execution-panel { grid-area: now; }
+  #section-overview.active #attention-panel { grid-area: attention; }
+  #section-overview.active #recent-plans-panel { grid-area: checklist; }
+  #section-overview.active #hero-activity {
+    grid-area: monitor;
+    margin-bottom: 0;
+  }
 }
 
 /* Desktop one-fold overview: 2x2 fixed-height grid; page does not scroll.
@@ -2208,7 +2665,7 @@ html[data-dashboard-skin="legacy"] .health-card {
   display: flex;
   flex-direction: column;
   gap: var(--mc-space-sm);
-  padding: 10px var(--mc-space-lg);
+  padding: var(--mc-card-padding-dense);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-card);
@@ -2437,6 +2894,25 @@ html[data-dashboard-skin="legacy"] .health-card {
   margin: 0 0 8px;
   line-height: 1.4;
 }
+.plan-next-action {
+  padding-top: 10px;
+  font-size: var(--mc-chrome-meta-size);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.plan-next-action-label {
+  color: var(--text-muted);
+  font-weight: var(--mc-chrome-label-weight);
+}
+.plan-accordion-actions .plan-action-primary,
+.plan-accordion-actions .plan-action-primary:hover {
+  background: var(--blue);
+  border-color: transparent;
+  color: #fff;
+}
+.plan-accordion-actions .plan-action-primary:hover {
+  filter: brightness(1.08);
+}
 .plan-todo-list-full {
   display: flex;
   flex-direction: column;
@@ -2448,7 +2924,7 @@ html[data-dashboard-skin="legacy"] .health-card {
 
 /* Flight Log empty state reuses attention-empty className with empty-state-cta. */
 .attention-empty {
-  padding: 14px 10px;
+  padding: var(--mc-space-lg) var(--mc-space-md);
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.45;
@@ -2456,7 +2932,7 @@ html[data-dashboard-skin="legacy"] .health-card {
 .empty-state-cta.attention-empty,
 .empty-state-cta.activity-feed-empty {
   /* Shared renderer already sets padding; keep panel chrome size. */
-  padding: 14px 10px;
+  padding: var(--mc-space-lg) var(--mc-space-md);
 }
 
 /* ===== Now execution panel (primary Current work) ===== */
@@ -2504,6 +2980,21 @@ html[data-dashboard-skin="legacy"] .health-card {
 .now-status-idle {
   color: var(--text-muted);
   background: var(--bg-card);
+}
+/* Busy-outside-plan chip: live run-loop activity while the mission is not
+   executing. Advice-family blue tokens (kind palette); text-only so the dot
+   and icon contracts stay untouched. */
+.mc-busy-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--mc-chrome-meta-size);
+  font-weight: var(--mc-chrome-meta-weight);
+  letter-spacing: 0.02em;
+  padding: 3px var(--mc-space-md);
+  border-radius: var(--mc-radius-pill);
+  color: var(--blue);
+  background: var(--blue-bg);
+  text-transform: uppercase;
 }
 .now-plan-name {
   margin-top: 10px;
@@ -2753,8 +3244,8 @@ html[data-dashboard-skin="legacy"] .health-card {
   width: 100%;
   text-align: left;
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: var(--mc-card-padding-dense);
+  border-radius: var(--mc-radius);
   border: 1px solid var(--border);
   background: var(--bg-elevated, var(--bg-card));
   color: var(--text-primary);
@@ -2762,10 +3253,10 @@ html[data-dashboard-skin="legacy"] .health-card {
   font: inherit;
   line-height: 1.4;
 }
-/* Base hover/focus: keyboard-visible ring; kind rules below set colors (no unset --accent → yellow). */
+/* Base hover/focus: keyboard-visible ring via --border-active (not invisible --border); kind rules below set colors. */
 .flight-log-card:hover,
 .flight-log-card:focus-visible {
-  outline: 2px solid var(--border);
+  outline: 2px solid var(--border-active);
   outline-offset: 1px;
 }
 .flight-log-card-current {
@@ -2829,37 +3320,49 @@ html[data-dashboard-skin="legacy"] .health-card {
 .flight-log-card-past.flight-log-kind-residual {
   border-color: color-mix(in srgb, var(--yellow) 35%, var(--border));
 }
-.flight-log-card-past.flight-log-kind-residual:hover,
-.flight-log-card-past.flight-log-kind-residual:focus-visible {
+/* Earlier: muted color-mix on hover; full kind token on focus-visible for ≥3:1 keyboard ring. */
+.flight-log-card-past.flight-log-kind-residual:hover {
   border-color: color-mix(in srgb, var(--yellow) 55%, var(--border));
   outline-color: color-mix(in srgb, var(--yellow) 55%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-residual:focus-visible {
+  border-color: var(--yellow);
+  outline-color: var(--yellow);
 }
 .flight-log-card-past.flight-log-kind-advice {
   border-color: color-mix(in srgb, var(--blue) 35%, var(--border));
 }
-.flight-log-card-past.flight-log-kind-advice:hover,
-.flight-log-card-past.flight-log-kind-advice:focus-visible {
+.flight-log-card-past.flight-log-kind-advice:hover {
   border-color: color-mix(in srgb, var(--blue) 55%, var(--border));
   outline-color: color-mix(in srgb, var(--blue) 55%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-advice:focus-visible {
+  border-color: var(--blue);
+  outline-color: var(--blue);
 }
 .flight-log-card-past.flight-log-kind-ok {
   border-color: color-mix(in srgb, var(--green) 30%, var(--border));
 }
-.flight-log-card-past.flight-log-kind-ok:hover,
-.flight-log-card-past.flight-log-kind-ok:focus-visible {
+.flight-log-card-past.flight-log-kind-ok:hover {
   border-color: color-mix(in srgb, var(--green) 50%, var(--border));
   outline-color: color-mix(in srgb, var(--green) 50%, var(--border));
+}
+.flight-log-card-past.flight-log-kind-ok:focus-visible {
+  border-color: var(--green);
+  outline-color: var(--green);
 }
 .flight-log-card-past.flight-log-kind-warning {
   border-color: color-mix(in srgb, var(--orange, var(--yellow)) 30%, var(--border));
 }
-.flight-log-card-past.flight-log-kind-warning:hover,
-.flight-log-card-past.flight-log-kind-warning:focus-visible {
+.flight-log-card-past.flight-log-kind-warning:hover {
   border-color: color-mix(in srgb, var(--orange, var(--yellow)) 50%, var(--border));
   outline-color: color-mix(in srgb, var(--orange, var(--yellow)) 50%, var(--border));
 }
+.flight-log-card-past.flight-log-kind-warning:focus-visible {
+  border-color: var(--orange, var(--yellow));
+  outline-color: var(--orange, var(--yellow));
+}
 .flight-log-card-warning {
-  padding: 10px 12px;
   border-color: color-mix(in srgb, var(--orange, var(--yellow)) 70%, var(--border));
   background: color-mix(in srgb, var(--orange-bg, var(--yellow-bg)) 55%, var(--bg-elevated, var(--bg-card)));
   font-size: 12px;
@@ -2987,6 +3490,7 @@ html[data-dashboard-skin="legacy"] .health-card {
     <span class="last-updated" id="lastUpdated" hidden></span>
     <button type="button" class="header-home-btn" id="headerHomeBtn" onclick="return goHome()" aria-label="Home, Overview" title="Home, Overview"></button>
     <button class="btn-refresh" onclick="refresh()" id="refreshBtn" aria-label="Refresh" title="Refresh"><svg class="btn-refresh-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14.5 2.75 14.5 6.75 10.5 6.75"/><path d="M13.25 10a5.5 5.5 0 1 1-1.3-5.72L14.5 6.75"/></svg></button>
+    <button type="button" class="header-fullscreen-btn" id="fullscreenToggleBtn" onclick="return toggleMcFullscreen()" aria-pressed="false" aria-label="Enter fullscreen" title="Enter fullscreen"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5h4v4"/><path d="M13.5 2.5 9 7"/><path d="M6.5 13.5h-4v-4"/><path d="M2.5 13.5 7 9"/></svg></button>
     <div class="nav-more">
       <button type="button" class="nav-more-btn" id="navMoreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="navMoreMenu" title="More sections"></button>
       <div class="nav-more-menu" id="navMoreMenu" role="menu" aria-label="More sections" hidden>
@@ -3026,12 +3530,10 @@ html[data-dashboard-skin="legacy"] .health-card {
         </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="terminals" tabindex="0" onclick="return showSection('terminals')" aria-label="Terminals section">
           Terminals
-          <span class="dot dot-blue" id="navTerminalsDot" aria-hidden="true"></span>
           <span class="top-tab-badge" id="navTerminalsBadge">0</span>
         </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="processes" tabindex="0" onclick="return showSection('processes')" aria-label="Processes section">
           Processes
-          <span class="dot dot-green" id="navProcessesDot" aria-hidden="true"></span>
           <span class="top-tab-badge" id="navProcessesBadge">0</span>
         </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="config" tabindex="0" onclick="return showSection('config')" aria-label="Config section">
@@ -3051,6 +3553,7 @@ html[data-dashboard-skin="legacy"] .health-card {
     </div>
   </div>
 </div>
+<button type="button" class="fullscreen-exit-btn" id="fullscreenExitBtn" onclick="return toggleMcFullscreen(false)" aria-label="Exit fullscreen" title="Exit fullscreen (Esc)" hidden><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 6.5h-4v-4"/><path d="M9.5 6.5 14 2"/><path d="M2.5 9.5h4v4"/><path d="M6.5 9.5 2 14"/></svg></button>
 
 <!-- Main -->
 <div class="main">
@@ -3187,8 +3690,46 @@ function escapeJsString(value) {
 }
 
 // ===== Sections =====
+/** Navigable section ids (More menu + hash deep links). */
+const SECTION_IDS = [
+  'overview',
+  'plans',
+  'activity',
+  'agents',
+  'skills',
+  'commands',
+  'health',
+  'git',
+  'memory',
+  'terminals',
+  'processes',
+  'config',
+];
+
+/** Read the active section from the URL hash (`#health` -> `health`). */
+function sectionFromHash() {
+  try {
+    const raw = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
+    return SECTION_IDS.includes(raw) ? raw : 'overview';
+  } catch {
+    return 'overview';
+  }
+}
+
+/** Keep the URL hash in sync so every tab is a shareable deep link. */
+function syncSectionHash(id) {
+  try {
+    const target = `#${id}`;
+    if (location.hash !== target && history.replaceState) {
+      history.replaceState(null, '', target);
+    }
+  } catch {
+    // file:// or restricted contexts: hash sync is best-effort
+  }
+}
+
 /** Active pane id (overview = Cockpit page; others = dropdown destinations). */
-let activeSectionId = 'overview';
+let activeSectionId = sectionFromHash();
 /** Last Cockpit in-page anchor while overview is active. */
 let activeCockpitAnchor = 'now-execution-panel';
 /** Activity tab source filter chip id (`all` or a source key). */
@@ -3214,6 +3755,25 @@ function clearCockpitAnchorActive() {
 function goHome() {
   return showSection('overview');
 }
+
+/** Fullscreen (zen) viewport mode: hide the app header; Escape or the floating exit control restores chrome. */
+function toggleMcFullscreen(force) {
+  const on = typeof force === 'boolean' ? force : !document.body.classList.contains('mc-fullscreen');
+  document.body.classList.toggle('mc-fullscreen', on);
+  const enterBtn = document.getElementById('fullscreenToggleBtn');
+  if (enterBtn) enterBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const exitBtn = document.getElementById('fullscreenExitBtn');
+  if (exitBtn) exitBtn.hidden = !on;
+  return false;
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !document.body.classList.contains('mc-fullscreen')) return;
+  // Layered Escape: dismiss open menus first; only then exit fullscreen.
+  if (typeof isNavMoreOpen === 'function' && isNavMoreOpen()) return;
+  if (typeof openRecentPlanActionsKey !== 'undefined' && openRecentPlanActionsKey) return;
+  e.preventDefault();
+  toggleMcFullscreen(false);
+});
 
 /** Sync header Home chrome + section-title back control with active section. */
 function updateHeaderHomeChrome() {
@@ -3271,11 +3831,18 @@ function showSection(id) {
   }
 
   updateHeaderHomeChrome();
+  syncSectionHash(activeSectionId);
 
   const content = document.getElementById('content');
   if (content) content.scrollTop = 0;
   return false;
 }
+
+/** Back/forward or pasted deep links switch tabs. */
+window.addEventListener('hashchange', () => {
+  const id = sectionFromHash();
+  if (id !== activeSectionId) showSection(id);
+});
 
 /**
  * Anchor scroll still travelling. A snapshot re-render restores the scroll
@@ -3536,14 +4103,15 @@ function progressColor(pct) {
   return 'red';
 }
 
+// Dot semantics: only state signals survive. completed = good, cancelled =
+// attention. pending / in_progress are steady states and get no dot (the
+// status text on the row stays the source of truth).
 function statusDot(status) {
   const map = {
     completed: 'dot-green',
-    in_progress: 'dot-blue dot-pulse',
-    pending: 'dot-gray',
     cancelled: 'dot-red',
   };
-  return map[status] || 'dot-gray';
+  return map[status] || null;
 }
 
 // ===== Client diagnostic activity =====
@@ -3621,11 +4189,12 @@ function semanticEventInfo(kind, commitType) {
   const map = {
     // Monitor live kinds: distinct resting color+icon (no kind-tag text, no left rail).
     // run_plan follows .now-status-executing green; delivery uses cyan to avoid green wash.
-    run_plan:      { icon: '\u25b6', tag: 'tick',     gloss: 'tick - live execution',  color: 'var(--green)',  bg: 'var(--green-bg)' },
-    handoff:       { icon: '\u23f8', tag: 'handoff',  gloss: 'handoff - awaiting gate', color: 'var(--yellow)', bg: 'var(--yellow-bg)' },
-    agent_step:    { icon: '\u25c9', tag: 'step',     gloss: 'step - agent/task unit',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
-    plan_progress: { icon: '\u2691', tag: 'plan',     gloss: 'plan - milestone',        color: 'var(--orange)', bg: 'var(--orange-bg)' },
-    delivery:      { icon: '\u2714', tag: 'delivery', gloss: 'delivery - shipped unit', color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
+    // Gloss strings are default software lexicon display masks (kind ids unchanged).
+    run_plan:      { icon: '\u25b6', tag: 'tick',     gloss: 'Tech Lead - live execution',  color: 'var(--green)',  bg: 'var(--green-bg)' },
+    handoff:       { icon: '\u23f8', tag: 'handoff',  gloss: 'Scrum Master - awaiting gate', color: 'var(--yellow)', bg: 'var(--yellow-bg)' },
+    agent_step:    { icon: '\u25c9', tag: 'step',     gloss: 'Full-Stack Developer - task unit',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
+    plan_progress: { icon: '\u2691', tag: 'plan',     gloss: 'Product Owner - milestone',        color: 'var(--orange)', bg: 'var(--orange-bg)' },
+    delivery:      { icon: '\u2714', tag: 'delivery', gloss: 'DevOps Engineer - shipped unit', color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
     commit:        { icon: '\u25cf', tag: 'commit',   gloss: 'commit',  color: 'var(--orange)', bg: 'var(--orange-bg)' },
     agent:         { icon: '\u25c6', tag: 'agent',    gloss: 'agent',   color: 'var(--purple)', bg: 'var(--purple-bg)' },
     skill:         { icon: '\u2726', tag: 'skill',    gloss: 'skill',   color: 'var(--orange)', bg: 'var(--orange-bg)' },
@@ -3637,12 +4206,12 @@ function semanticEventInfo(kind, commitType) {
   // Locked BMP map (hotfix 2026-07-27): feat✦ fix⚙ docs✎ chore⚒ pr⑂ ship✈
   if (kind === 'delivery' && commitType) {
     const subtypes = {
-      feat:  { icon: '\u2726', tag: 'delivery', gloss: 'delivery - feat',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
-      fix:   { icon: '\u2699', tag: 'delivery', gloss: 'delivery - fix',   color: 'var(--red)',    bg: 'var(--red-bg)' },
-      docs:  { icon: '\u270e', tag: 'delivery', gloss: 'delivery - docs',  color: 'var(--blue)',   bg: 'var(--blue-bg)' },
-      chore: { icon: '\u2692', tag: 'delivery', gloss: 'delivery - chore', color: 'var(--orange)', bg: 'var(--orange-bg)' },
-      pr:    { icon: '\u2442', tag: 'delivery', gloss: 'delivery - PR',    color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
-      ship:  { icon: '\u2708', tag: 'delivery', gloss: 'delivery - shipped unit', color: 'var(--cyan)', bg: 'var(--cyan-bg)' },
+      feat:  { icon: '\u2726', tag: 'delivery', gloss: 'DevOps Engineer - feat',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
+      fix:   { icon: '\u2699', tag: 'delivery', gloss: 'DevOps Engineer - fix',   color: 'var(--red)',    bg: 'var(--red-bg)' },
+      docs:  { icon: '\u270e', tag: 'delivery', gloss: 'DevOps Engineer - docs',  color: 'var(--blue)',   bg: 'var(--blue-bg)' },
+      chore: { icon: '\u2692', tag: 'delivery', gloss: 'DevOps Engineer - chore', color: 'var(--orange)', bg: 'var(--orange-bg)' },
+      pr:    { icon: '\u2442', tag: 'delivery', gloss: 'DevOps Engineer - PR',    color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
+      ship:  { icon: '\u2708', tag: 'delivery', gloss: 'DevOps Engineer - shipped unit', color: 'var(--cyan)', bg: 'var(--cyan-bg)' },
     };
     if (subtypes[commitType]) return subtypes[commitType];
   }
@@ -3835,6 +4404,38 @@ function semanticEventTime(ev, _info) {
 }
 
 /**
+ * Crew feed time: source timestamp first, then the client first-seen stamp so
+ * every row stays timestamped even when the emitter omits `at`.
+ */
+function crewEventTime(ev, info) {
+  const source = semanticEventTime(ev, info);
+  if (source) return source;
+  const seenAt = ev && ev.id ? semanticSeenAt.get(ev.id) : null;
+  return seenAt ? escapeHtml(relativeTime(seenAt)) : '';
+}
+
+/**
+ * Crew feed actor: kit agent id, else Engineering Manager for delivery, else
+ * Squad when a plan is present (never the full plan filename), else Platform
+ * Engineer. Default software lexicon masks; mirrors briefActivityActor.
+ */
+function crewEventActor(ev) {
+  if (ev && ev.agent) return String(ev.agent);
+  if (ev && ev.kind === 'delivery') return 'Engineering Manager';
+  if (ev && ev.refs && ev.refs.plan) return 'Squad';
+  return 'Platform Engineer';
+}
+
+/** Avatar-style monogram: first letters of the first two kebab/space parts, else first two chars. */
+function agentInitials(id) {
+  const clean = String(id || '').trim();
+  if (!clean) return '';
+  const parts = clean.split(/[-_\s.]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return clean.slice(0, 2).toUpperCase();
+}
+
+/**
  * Mission Control is read-only: it copies text to the clipboard and a human
  * pastes it. The panel cannot open a file, a chat, or an editor, so no label,
  * tooltip, aria-label, or confirmation may promise an open. These are the only
@@ -3982,6 +4583,59 @@ function checklistPlanActionCommands(plan) {
     edit: `/backlog-edit ${basename}`,
     cancel: `/archive-plan ${basename}`,
   };
+}
+
+/**
+ * Plans tab v2: next actionable to-do (in_progress first, else first pending).
+ * Terminal plans return null (no next step to surface).
+ */
+function planNextActionTodo(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const current = items.find((t) => t.status === 'in_progress');
+  if (current) return { id: current.id || '', content: current.content || '' };
+  const next = items.find((t) => t.status === 'pending');
+  if (next) return { id: next.id || '', content: next.content || '' };
+  return null;
+}
+
+/**
+ * Plans tab v2: status-aware copy-only actions. Chat commands name the chat
+ * input as paste destination; the path action names the file picker (open =
+ * copy path). The first action is the row's primary next step per lifecycle:
+ * active resumes, backlog runs, parked resumes, exhausted (incomplete)
+ * resumes, completed opens/archives.
+ */
+function planTabActions(p) {
+  const basename = checklistPlanBasename(p);
+  const resume = { kind: 'chat', label: 'Copy resume prompt', command: `/continue-plan ${basename}` };
+  const run = { kind: 'chat', label: 'Copy run command', command: `/run-plan ${basename}` };
+  const edit = { kind: 'chat', label: 'Copy edit command', command: `/backlog-edit ${basename}` };
+  const archive = { kind: 'chat', label: 'Copy archive command', command: `/archive-plan ${basename}` };
+  const path = { kind: 'path', label: 'Copy plan path' };
+  switch (p?.lifecycle) {
+    case 'executing':
+    case 'awaiting_user':
+      return [resume, run, path];
+    case 'backlog':
+      return [run, edit, path];
+    case 'parked':
+      return [resume, path];
+    case 'incomplete':
+      return [resume, run, path];
+    case 'completed':
+      return [path, archive];
+    default:
+      return [resume, path];
+  }
+}
+
+function renderPlanTabActionButton(action, p, key, idx) {
+  const primary = idx === 0 ? ' plan-action-primary' : '';
+  const focusKey = `plan-act-${escapeAttr(key)}-${idx}`;
+  if (action.kind === 'path') {
+    return `<button type="button" class="status-bar-btn${primary}" data-focus-key="${focusKey}" onclick="event.stopPropagation();${copyRepoPathHandler(p.path)}" title="${escapeAttr(pathActionTitle(p.path))}">${escapeHtml(action.label)}</button>`;
+  }
+  return `<button type="button" class="status-bar-btn${primary}" data-focus-key="${focusKey}" onclick="event.stopPropagation();${copyForPasteHandler(action.command, action.command, 'chatInput')}" title="${escapeAttr(copyActionTitle(action.command, 'chatInput'))}">${escapeHtml(action.label)}</button>`;
 }
 
 let openRecentPlanActionsKey = null;
@@ -4342,6 +4996,118 @@ function renderGitFileList(git) {
   `;
 }
 
+// ===== Git tab v2: promotion flow lanes + graph + staging hygiene (Phase 4) =====
+/** Divergence badge: sync (green), ahead (yellow), behind (orange). */
+function gitFlowBadge(div) {
+  if (!div) return '<span class="git-flow-badge">no upstream</span>';
+  const bits = [];
+  if (div.ahead > 0) bits.push(`<span class="git-flow-badge is-ahead">ahead ${div.ahead}</span>`);
+  if (div.behind > 0) bits.push(`<span class="git-flow-badge is-behind">behind ${div.behind}</span>`);
+  if (!bits.length) bits.push('<span class="git-flow-badge is-sync">in sync</span>');
+  return bits.join(' ');
+}
+
+/**
+ * State label + dot per Phase 1 dot semantics (state only, always paired
+ * with a label). tone: green = good/in sync, yellow = important (promotion
+ * pending or branch ahead), red never used here (git surface is read-only).
+ */
+function gitFlowStateLabel(div, { syncText, aheadText, behindText }) {
+  if (!div) return { tone: null, text: 'upstream unavailable' };
+  if (div.ahead === 0 && div.behind === 0) return { tone: 'green', text: syncText };
+  if (div.ahead > 0 && div.behind === 0) return { tone: 'yellow', text: aheadText(div.ahead) };
+  if (div.ahead === 0 && div.behind > 0) return { tone: 'yellow', text: behindText(div.behind) };
+  return { tone: 'yellow', text: `diverged (ahead ${div.ahead}, behind ${div.behind})` };
+}
+
+function gitFlowDot(tone) {
+  return tone ? `<span class="dot dot-${tone}" aria-hidden="true"></span>` : '';
+}
+
+function renderGitFlowRow({ from, to, div, texts, cta }) {
+  const state = gitFlowStateLabel(div, texts);
+  return `
+    <div class="git-flow-row">
+      <span class="git-flow-lane">${escapeHtml(from)}</span>
+      <span class="git-flow-arrow" aria-hidden="true">&rarr;</span>
+      <span class="git-flow-lane">${escapeHtml(to)}</span>
+      <span class="git-flow-state">${gitFlowDot(state.tone)}<span>${escapeHtml(state.text)}</span>${gitFlowBadge(div)}</span>
+      ${cta || ''}
+    </div>
+  `;
+}
+
+/** Promotion flow lanes: work -> staging -> main (what Cursor's git panel does not show). */
+function renderGitFlowCard(git) {
+  const flow = git?.flow || {};
+  const branch = git?.branch || 'HEAD';
+  const rows = [];
+  rows.push(renderGitFlowRow({
+    from: branch,
+    to: 'origin/staging',
+    div: flow.vsStaging,
+    texts: {
+      syncText: 'Nothing to promote',
+      aheadText: (n) => `${n} commit${n !== 1 ? 's' : ''} ready for staging`,
+      behindText: (n) => `${n} commit${n !== 1 ? 's' : ''} behind staging`,
+    },
+    cta: flow.vsStaging && flow.vsStaging.ahead > 0
+      ? `<button type="button" class="git-action-btn primary git-flow-cta" onclick="copyGitStagingCommand()" title="${escapeAttr(copyActionTitle('/git-staging', 'chatInput'))}">Copy /git-staging</button>`
+      : '',
+  }));
+  rows.push(renderGitFlowRow({
+    from: 'origin/staging',
+    to: 'origin/main',
+    div: flow.stagingVsMain,
+    texts: {
+      syncText: 'main is current',
+      aheadText: (n) => `${n} commit${n !== 1 ? 's' : ''} awaiting promotion to main`,
+      behindText: (n) => `staging is ${n} commit${n !== 1 ? 's' : ''} behind main`,
+    },
+    cta: flow.stagingVsMain && flow.stagingVsMain.ahead > 0
+      ? `<button type="button" class="git-action-btn git-flow-cta" onclick="${copyForPasteHandler('/git-prod', '/git-prod', 'chatInput')}" title="${escapeAttr(copyActionTitle('/git-prod', 'chatInput'))}">Copy /git-prod</button>`
+      : '',
+  }));
+  rows.push(renderGitFlowRow({
+    from: branch,
+    to: 'origin/main',
+    div: flow.vsMain,
+    texts: {
+      syncText: 'In sync with main',
+      aheadText: (n) => `${n} commit${n !== 1 ? 's' : ''} not yet in main`,
+      behindText: (n) => `${n} commit${n !== 1 ? 's' : ''} behind main`,
+    },
+    cta: '',
+  }));
+  return `<div class="git-flow" aria-label="Promotion flow: work to staging to main">${rows.join('')}</div>`;
+}
+
+/** Readable git graph: pre-rendered branch lanes + merges from git log --graph. */
+function renderGitGraphCard(git) {
+  const lines = Array.isArray(git?.graph) ? git.graph : [];
+  if (!lines.length) return '';
+  return `
+    <div class="git-graph-title">Recent history (all branches, ${lines.length} lines)</div>
+    <pre class="git-graph" aria-label="Git commit graph with branch lanes and merges">${escapeHtml(lines.join('\n'))}</pre>
+  `;
+}
+
+/** Staging hygiene: untracked plan-monitor WIP (add-by-name only; ADR 2026-07-29 R14). */
+function renderGitHygieneHint(git) {
+  const wip = git?.hygiene?.monitorWip || [];
+  if (!wip.length) return '';
+  return `
+    <div class="git-hygiene" role="status">
+      <div class="git-hygiene-body">
+        <div class="git-hygiene-title"><span class="dot dot-yellow" aria-hidden="true"></span> Staging hygiene: ${wip.length} untracked plan-monitor file${wip.length !== 1 ? 's' : ''}</div>
+        <div>Stage monitor files add-by-name only; never a broad <code>git add</code> of <code>.cursor/memory/</code>.</div>
+        <div class="git-hygiene-paths">${wip.map((p) => escapeHtml(p)).join('<br>')}</div>
+      </div>
+      <button type="button" class="git-action-btn git-flow-cta" onclick="copyGitStagingCommand()" title="${escapeAttr(copyActionTitle('/git-staging', 'chatInput'))}">Copy /git-staging</button>
+    </div>
+  `;
+}
+
 // ===== Copy to clipboard + toast (Phase 1) =====
 /** Fallback confirmation. Callers should pass a destination-aware message. */
 function copyToastLabel(text) {
@@ -4359,7 +5125,9 @@ async function copyToClipboard(text, options) {
     }
     throw new Error('Clipboard API unavailable');
   } catch {
-    showToast(`Copy failed - select manually: ${text}`, true);
+    const raw = String(text || '');
+    const preview = raw.length > 120 ? `${raw.slice(0, 117)}...` : raw;
+    showToast(`Copy failed - select manually: ${preview}`, true);
   }
 }
 
@@ -4441,10 +5209,14 @@ function renderConfigSection(d) {
   return `
     <div class="content-section" id="section-config">
       <div class="section-title">
-        <span class="dot dot-blue"></span> Config
+        Config
         <span class="section-subtitle">Session prefs in .cursor/context/config.json</span>
       </div>
       <form class="config-form" id="mission-config-form" onsubmit="return saveMissionConfig(event)">
+        <div class="config-actions">
+          <button type="submit" class="btn-config-save" id="config-save-btn" data-focus-key="config-save-btn">Save Configuration</button>
+          <span class="config-hint">Writes to .cursor/context/config.json via the loopback allowlist. Write path unavailable (server down, non-loopback, read-only deploy)? Use a per-fieldset Copy snippet button and paste into the file by hand.</span>
+        </div>
         <fieldset class="config-fieldset">
           <legend>Read-only</legend>
           <p class="config-readonly">Onboarded: <strong>${escapeHtml(onboarded)}</strong> · Onboarding status: <strong>${escapeHtml(onboardingStatus)}</strong></p>
@@ -4459,7 +5231,7 @@ function renderConfigSection(d) {
           <div class="config-row">
             <label for="config-interTickCooldownMs">Inter-tick cooldown (ms)</label>
             <input type="number" id="config-interTickCooldownMs" name="interTickCooldownMs" min="0" max="3600000" step="1" value="${escapeAttr(String(cooldown))}" data-focus-key="config-interTickCooldownMs" />
-            <span class="config-hint">0 disables cooldown (default for named-model runs). On Auto continuous /run-plan, recommend 15000 ms.</span>
+            <span class="config-hint">0 disables; recommend 15000 on Auto continuous /run-plan.</span>
           </div>
           <div class="config-row config-row-inline">
             <input type="checkbox" id="config-cadence-enabled" name="cadenceEnabled" ${cadenceEnabled ? 'checked' : ''} data-focus-key="config-cadence-enabled" />
@@ -4468,8 +5240,10 @@ function renderConfigSection(d) {
           <div class="config-row">
             <label for="config-cadence-threshold">Cadence tick threshold</label>
             <input type="number" id="config-cadence-threshold" name="cadenceThreshold" min="1" max="100" step="1" value="${escapeAttr(String(cadenceThreshold))}" data-focus-key="config-cadence-threshold" />
-            <span class="config-hint">Warn after this many completed /run-plan ticks (or each /run-plan-all queue complete) when unreviewed work remains. Default 3.</span>
+            <span class="config-hint">Warn when unreviewed work remains after N ticks. Default 3.</span>
           </div>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-session" onclick="return copyConfigSnippet('session')">Copy config.json snippet</button>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-dogfood" onclick="return copyStaticConfigSnippet('dogfood')" title="Copy-only; never writable via this tab">Copy dogfood.factoryRoot snippet</button>
         </fieldset>
         <fieldset class="config-fieldset">
           <legend>Update check (opt-in)</legend>
@@ -4480,10 +5254,12 @@ function renderConfigSection(d) {
           <div class="config-row">
             <label for="config-updateCheck-intervalDays">Check interval (days)</label>
             <input type="number" id="config-updateCheck-intervalDays" name="updateCheckIntervalDays" min="1" max="365" step="1" value="${escapeAttr(String(updateCheckInterval))}" data-focus-key="config-updateCheck-intervalDays" />
-            <span class="config-hint">Notify only. Apply stays via /update Ask confirm. updateApply.auto is never editable here.</span>
+            <span class="config-hint">Notify only; apply stays via the /update confirm. updateApply.auto is never writable here.</span>
           </div>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-updateCheck" onclick="return copyConfigSnippet('updateCheck')">Copy config.json snippet</button>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-updateApply" onclick="return copyStaticConfigSnippet('updateApply')" title="Copy-only; never writable via this tab">Copy updateApply.auto snippet</button>
         </fieldset>
-        <fieldset class="config-fieldset">
+        <fieldset class="config-fieldset config-fieldset-wide">
           <legend>Audits (external plan review)</legend>
           <div class="config-row config-row-inline">
             <input type="checkbox" id="config-epr-enabled" name="eprEnabled" ${epr.enabled ? 'checked' : ''} data-focus-key="config-epr-enabled" />
@@ -4502,6 +5278,7 @@ function renderConfigSection(d) {
             <select id="config-epr-backend" name="eprBackend" data-focus-key="config-epr-backend">
               <option value="claude"${epr.backend === 'claude' || !epr.backend ? ' selected' : ''}>claude</option>
             </select>
+            <span class="config-hint">claude is the only backend today.</span>
           </div>
           <div class="config-row">
             <label for="config-epr-mode">Arming mode</label>
@@ -4509,7 +5286,7 @@ function renderConfigSection(d) {
               <option value="paste"${epr.mode !== 'autonomous' ? ' selected' : ''}>paste (legacy)</option>
               <option value="autonomous"${epr.mode === 'autonomous' ? ' selected' : ''}>autonomous</option>
             </select>
-            <span class="config-hint">Missing mode keeps paste behavior for existing installs. Autonomous auto-launches a visible review (Phase 2+).</span>
+            <span class="config-hint">Missing mode keeps paste behavior. Autonomous auto-launches a visible review.</span>
           </div>
           <div class="config-row config-row-inline">
             <input type="checkbox" id="config-epr-midBatch" name="eprMidBatch" ${epr.midBatchAudits ? 'checked' : ''} data-focus-key="config-epr-midBatch" />
@@ -4524,8 +5301,9 @@ function renderConfigSection(d) {
             </select>
             <span class="config-hint">Check owed/untriaged audits before plan-run commands. Missing key = off.</span>
           </div>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-audits" onclick="return copyConfigSnippet('audits')">Copy config.json snippet</button>
         </fieldset>
-        <fieldset class="config-fieldset">
+        <fieldset class="config-fieldset config-fieldset-wide">
           <legend>Agent Personas</legend>
           <div class="config-row">
             <label for="config-persona-default">Default persona</label>
@@ -4534,19 +5312,17 @@ function renderConfigSection(d) {
             </select>
             <span class="config-hint">Chat/CLI tone only. Interface Skins stay in the More menu.</span>
           </div>
-          ${modeRows}
+          <div class="config-grid-2">
+            ${modeRows}
+          </div>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-personas" onclick="return copyConfigSnippet('personas')">Copy config.json snippet</button>
         </fieldset>
-        <button type="submit" class="btn-config-save" id="config-save-btn" data-focus-key="config-save-btn">Save</button>
       </form>
     </div>
   `;
 }
 
-async function saveMissionConfig(event) {
-  if (event && typeof event.preventDefault === 'function') event.preventDefault();
-  const btn = document.getElementById('config-save-btn');
-  if (btn) btn.disabled = true;
-
+function collectMissionConfigPayload() {
   const autoHandoff = !!document.getElementById('config-autoHandoff')?.checked;
   const cooldownRaw = document.getElementById('config-interTickCooldownMs')?.value;
   const interTickCooldownMs = Number.parseInt(String(cooldownRaw || '0'), 10);
@@ -4587,6 +5363,51 @@ async function saveMissionConfig(event) {
     const el = document.getElementById(`config-persona-${mode.id}`);
     if (el && el.value) payload.agentPersona.modes[mode.id] = el.value;
   }
+  return payload;
+}
+
+/* Copy-only CRUD fallback: snippets reflect current form values and go to the
+   clipboard only. No write surface is added; paste target is config.json. */
+const CONFIG_SNIPPET_GROUPS = {
+  session: ['autoHandoff', 'interTickCooldownMs', 'fieldReportReviewCadence'],
+  updateCheck: ['updateCheck'],
+  audits: ['externalPlanReview'],
+  personas: ['agentPersona'],
+};
+
+function copyConfigSnippet(group) {
+  const keys = CONFIG_SNIPPET_GROUPS[group];
+  if (!keys) return false;
+  const payload = collectMissionConfigPayload();
+  const snippet = {};
+  for (const key of keys) snippet[key] = payload[key];
+  void copyToClipboard(JSON.stringify(snippet, null, 2), {
+    toastMessage: 'Copied config snippet - paste into .cursor/context/config.json',
+  });
+  return false;
+}
+
+/* Static copy-only snippets for knobs the tab can never write (allowlist unchanged). */
+const CONFIG_STATIC_SNIPPETS = {
+  updateApply: { updateApply: { auto: false } },
+  dogfood: { dogfood: { factoryRoot: '/absolute/path/to/agent-kit-dev' } },
+};
+
+function copyStaticConfigSnippet(id) {
+  const snippet = CONFIG_STATIC_SNIPPETS[id];
+  if (!snippet) return false;
+  void copyToClipboard(JSON.stringify(snippet, null, 2), {
+    toastMessage: 'Copied config snippet - paste into .cursor/context/config.json (not writable via tab)',
+  });
+  return false;
+}
+
+async function saveMissionConfig(event) {
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  const btn = document.getElementById('config-save-btn');
+  if (btn) btn.disabled = true;
+
+  const payload = collectMissionConfigPayload();
 
   try {
     const res = await fetch('/api/config', {
@@ -4620,17 +5441,6 @@ async function saveMissionConfig(event) {
   return false;
 }
 
-// ===== Toggle agent details (Phase 1) =====
-function toggleAgentDetails(id) {
-  const el = document.getElementById('agent-details-' + id);
-  if (!el) return;
-  el.classList.toggle('open');
-  const arrow = document.getElementById('agent-arrow-' + id);
-  if (arrow) {
-    arrow.style.transform = el.classList.contains('open') ? 'rotate(180deg)' : 'rotate(0deg)';
-  }
-}
-
 // ===== Healthcenter: per-check expand + Autofix map (copy-only) =====
 /** Fixed v1 check set: plans, handoff, agents, commands, memory, git, config. */
 const HEALTH_CHECK_META = {
@@ -4645,9 +5455,10 @@ const HEALTH_CHECK_META = {
     autofix: { text: '/continue-plan', subject: '/continue-plan', destination: 'chatInput', label: 'Autofix' },
   },
   agents: {
-    okDetail: 'At least one agent is cataloged under .cursor/agents/.',
-    failDetail: 'No agents found. Kit install or onboard may be incomplete.',
-    autofix: { text: '/agent-kit-onboard', subject: '/agent-kit-onboard', destination: 'chatInput', label: 'Autofix' },
+    okDetail: 'Agents are optional in L0; empty .cursor/agents/ is healthy. Cataloged agents (if any) are listed in Agents.',
+    // Intentionally unreachable: dashboard-data keeps agents.ok constant-true (L0-optional).
+    failDetail: 'Intentionally unreachable (agents ok is constant-true; L0-optional inventory).',
+    autofix: null,
   },
   commands: {
     okDetail: 'Slash commands are available under .cursor/commands/.',
@@ -4671,6 +5482,14 @@ const HEALTH_CHECK_META = {
   },
 };
 
+/** Vitals grouping: checks grouped into vital systems for the diagnosis dashboard. */
+const HEALTH_VITAL_GROUPS = [
+  { label: 'Planning spine', checks: ['plans', 'handoff'] },
+  { label: 'Agent surface', checks: ['agents', 'commands'] },
+  { label: 'Memory loop', checks: ['memory'] },
+  { label: 'Workspace', checks: ['git', 'config'] },
+];
+
 function healthCheckSeverity(check, aggregateStatus) {
   if (check && check.ok) return 'ok';
   if (aggregateStatus === 'degraded') return 'degraded';
@@ -4678,19 +5497,25 @@ function healthCheckSeverity(check, aggregateStatus) {
   return 'warning';
 }
 
+/* Single severity chrome mapping (ok | warning | degraded | error): tone drives
+   the dot class, label drives text/aria, token names the [data-sev] CSS color. */
+const HEALTH_SEVERITY_CHROME = {
+  ok: { tone: 'green', label: 'ok', token: 'green' },
+  warning: { tone: 'yellow', label: 'warn', token: 'yellow' },
+  degraded: { tone: 'orange', label: 'degraded', token: 'orange' },
+  error: { tone: 'red', label: 'error', token: 'red' },
+};
+
+function healthSeverityChrome(sev) {
+  return HEALTH_SEVERITY_CHROME[sev] || { tone: 'gray', label: sev || 'unknown', token: 'text-muted' };
+}
+
 function healthSeverityLabel(sev) {
-  if (sev === 'ok') return 'ok';
-  if (sev === 'warning') return 'warn';
-  if (sev === 'degraded') return 'degraded';
-  if (sev === 'error') return 'error';
-  return sev || 'unknown';
+  return healthSeverityChrome(sev).label;
 }
 
 function healthDotClass(sev) {
-  if (sev === 'ok') return 'dot-green';
-  if (sev === 'warning') return 'dot-yellow';
-  if (sev === 'degraded') return 'dot-yellow';
-  return 'dot-red';
+  return `dot-${healthSeverityChrome(sev).tone}`;
 }
 
 function toggleHealthCheck(checkId) {
@@ -4706,6 +5531,57 @@ function healthCheckKeydown(event, checkId) {
     event.preventDefault();
     toggleHealthCheck(checkId);
   }
+}
+
+// ===== Memory tab: interactive error rows (expand + copy fix prompt) =====
+function toggleMemoryError(idx) {
+  const card = document.getElementById('memory-error-' + idx);
+  if (!card) return;
+  const open = card.classList.toggle('is-expanded');
+  const btn = card.querySelector('.memory-error-head');
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/**
+ * One expandable error row: header toggles detail (error / cause / solution /
+ * files / tags), and a copy-only fix prompt names the chat input as destination.
+ */
+function renderMemoryErrorRow(entry, idx) {
+  const title = entry.title || entry.id;
+  const dateLabel = entry.date || (entry.modifiedAt ? entry.modifiedAt.slice(0, 10) : '');
+  const fixPrompt = [
+    `Fix this recorded problem class: ${title}`,
+    entry.error ? `Symptom: ${entry.error}` : '',
+    entry.solution ? `Known solution direction: ${entry.solution}` : '',
+    entry.path || `.cursor/memory/errors/${entry.id}.md`,
+  ].filter(Boolean).join('\n');
+  const fields = [
+    ['Error', entry.error],
+    ['Cause', entry.cause],
+    ['Solution', entry.solution],
+  ].filter(([, body]) => body);
+  return `
+    <div class="memory-error-card" id="memory-error-${idx}">
+      <button type="button" class="memory-error-head" aria-expanded="false" aria-controls="memory-error-detail-${idx}" onclick="toggleMemoryError(${idx})">
+        <span class="memory-error-title">${escapeHtml(title)}</span>
+        ${dateLabel ? `<span class="memory-error-date">${escapeHtml(dateLabel)}</span>` : ''}
+        <span class="memory-error-chevron" aria-hidden="true">›</span>
+      </button>
+      <div class="memory-error-detail" id="memory-error-detail-${idx}">
+        ${fields.map(([label, body]) => `
+          <div class="memory-error-field">
+            <div class="memory-error-field-label">${escapeHtml(label)}</div>
+            <div class="memory-error-field-body">${escapeHtml(body)}</div>
+          </div>
+        `).join('')}
+        ${entry.files ? `<div class="memory-error-field"><div class="memory-error-field-label">Files</div><div class="memory-error-files">${escapeHtml(entry.files)}</div></div>` : ''}
+        ${(entry.tags || []).length > 0 ? `<div class="memory-tag-row">${entry.tags.map(t => `<span class="memory-tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        <div class="memory-error-actions">
+          <button type="button" class="memory-error-copy-btn" onclick="event.stopPropagation(); ${copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">Copy fix prompt</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 /** @deprecated Prefer toggleHealthCheck; kept for any leftover callers. */
@@ -4797,7 +5673,8 @@ function updateTransportChrome() {
   if (!statusDot || !statusLabel) return;
 
   const healthStatus = data?.health?.status || 'ok';
-  const healthTone = healthStatus === 'ok' ? 'green' : healthStatus === 'warning' ? 'yellow' : 'red';
+  const healthChrome = healthSeverityChrome(healthStatus);
+  const healthTone = healthChrome.tone;
 
   if (sseReconnecting) {
     statusDot.className = 'dot dot-yellow dot-pulse reconnecting-pulse';
@@ -4813,10 +5690,14 @@ function updateTransportChrome() {
     statusDot.className = healthStatus === 'ok'
       ? 'dot dot-green'
       : `dot dot-${healthTone} dot-pulse`;
-    statusLabel.textContent = healthStatus === 'ok' ? 'Live' : healthStatus === 'warning' ? 'Warning' : 'Degraded';
+    statusLabel.textContent = healthStatus === 'ok'
+      ? 'Live'
+      : healthChrome.label.charAt(0).toUpperCase() + healthChrome.label.slice(1);
   } else {
     statusDot.className = `dot dot-${healthStatus === 'ok' ? 'yellow' : healthTone}`;
-    statusLabel.textContent = healthStatus === 'ok' ? 'Polling' : healthStatus === 'warning' ? 'Warning' : 'Degraded';
+    statusLabel.textContent = healthStatus === 'ok'
+      ? 'Polling'
+      : healthChrome.label.charAt(0).toUpperCase() + healthChrome.label.slice(1);
   }
 
   if (sseTimer) {
@@ -4934,6 +5815,7 @@ function nowFingerprint(now) {
     nextTodo: now.nextTodo?.id || null,
     modifiedAt: now.modifiedAt,
     lifecycle: now.lifecycle,
+    busyOutsidePlan: now.busyOutsidePlan?.active === true,
   });
 }
 
@@ -4998,7 +5880,6 @@ function captureUiState() {
   return {
     scrollTop: contentEl ? contentEl.scrollTop : 0,
     focusKey,
-    openAgents: Array.from(document.querySelectorAll('.agent-details.open')).map((el) => el.id),
     panelScrolls: capturePanelScrollOffsets(),
     openRecentPlanActionsKey,
   };
@@ -5006,14 +5887,6 @@ function captureUiState() {
 
 function restoreUiState(state) {
   if (!state) return;
-  for (const id of state.openAgents || []) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.classList.add('open');
-    const arrowId = id.replace(/^agent-details-/, 'agent-arrow-');
-    const arrow = document.getElementById(arrowId);
-    if (arrow) arrow.style.transform = 'rotate(180deg)';
-  }
   const contentEl = document.getElementById('content');
   if (contentEl) {
     if (pendingAnchorScroll && Date.now() < pendingAnchorScroll.until) {
@@ -5096,8 +5969,20 @@ function mergePlansForUi(d) {
       .split('/')
       .pop();
     const enriched = byKey.get(key) || {};
-    const completed = raw.todos?.completed ?? enriched.progress?.completed ?? 0;
-    const total = raw.todos?.total ?? enriched.progress?.total ?? 0;
+    // Live status bar data: frontmatter to-do items are the source of truth.
+    // Summary fields only fill in when items are absent (malformed frontmatter).
+    const items = Array.isArray(raw.todos?.items) ? raw.todos.items : [];
+    const fromItems = items.length > 0;
+    const completed = fromItems
+      ? items.filter((t) => t.status === 'completed').length
+      : (raw.todos?.completed ?? enriched.progress?.completed ?? 0);
+    const total = fromItems
+      ? items.length
+      : (raw.todos?.total ?? enriched.progress?.total ?? 0);
+    const inProgress = fromItems
+      ? items.filter((t) => t.status === 'in_progress').length
+      : (raw.todos?.inProgress ?? 0);
+    const nextActionTodo = planNextActionTodo(items);
     let lifecycle = enriched.lifecycle;
     if (!lifecycle) {
       if (total > 0 && completed >= total && (raw.todos?.inProgress || 0) === 0) {
@@ -5113,14 +5998,16 @@ function mergePlansForUi(d) {
       overview: raw.overview || enriched.overview || '',
       modifiedAt: raw.modifiedAt || enriched.modifiedAt || null,
       progressPct:
-        typeof raw.progress === 'number'
-          ? raw.progress
-          : total > 0
-            ? Math.round((completed / total) * 100)
+        total > 0
+          ? Math.round((completed / total) * 100)
+          : typeof raw.progress === 'number'
+            ? raw.progress
             : 0,
-      progressLabel: enriched.progress?.label || `${completed} of ${total}`,
+      progressLabel: `${completed} of ${total} complete`,
       progressCompleted: completed,
       progressTotal: total,
+      progressInProgress: inProgress,
+      nextActionTodo,
       lifecycle,
       // /run-plan-all layer from the semantic model (display-only; the panel
       // never writes the queue). 'none' / null outside queue mode.
@@ -5383,21 +6270,26 @@ function renderPlansAccordion(d) {
                 ${queueRolePill(p)}
                 <span class="recent-plan-progress">${escapeHtml(p.progressLabel)}</span>
               </span>
-              <span class="progress-bar plan-progress-bar" role="img" aria-label="Progress ${escapeAttr(p.progressLabel)}">
+              <span class="progress-bar plan-progress-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-valuetext="${escapeAttr(p.progressLabel)}" aria-label="Progress">
                 <span class="progress-fill plan-progress-fill ${color}${life.key === 'executing' ? ' is-executing' : ''}" style="width:${pct}%"></span>
               </span>
               <span class="plan-accordion-overview">${escapeHtml(p.overview || '\u2014')}</span>
               <span class="plan-accordion-meta">
                 <span>${fmtDate(p.modifiedAt)}</span>
                 <span>${pct}%</span>
+                ${p.progressInProgress > 0 ? `<span>${p.progressInProgress} in progress</span>` : ''}
+                ${p.nextActionTodo ? `<span>Next: <code>${escapeHtml(p.nextActionTodo.id)}</code></span>` : ''}
               </span>
             </span>
             <span class="plan-accordion-chevron" aria-hidden="true">\u25BC</span>
           </button>
           <div class="plan-accordion-panel" id="plan-panel-${escapeAttr(key)}" role="region" aria-labelledby="plan-trigger-${escapeAttr(key)}"${open ? '' : ' hidden'}>
             <p class="plan-accordion-hint">Narrow panels open one plan at a time. Shift-click a header (or turn Multiple open on) to keep more expanded.</p>
+            ${p.nextActionTodo
+              ? `<div class="plan-next-action"><span class="plan-next-action-label">Next action:</span> <code>${escapeHtml(p.nextActionTodo.id)}</code>${p.nextActionTodo.content ? ` \u2014 ${escapeHtml(p.nextActionTodo.content)}` : ''}</div>`
+              : ''}
             <div class="plan-accordion-actions">
-              <button type="button" class="status-bar-btn" data-focus-key="plan-copy-${escapeAttr(key)}" onclick="event.stopPropagation();${copyRepoPathHandler(p.path)}" title="${escapeAttr(pathActionTitle(p.path))}" style="font-size:11px;padding:3px 10px">Copy plan path</button>
+              ${planTabActions(p).map((action, idx) => renderPlanTabActionButton(action, p, key, idx)).join('')}
             </div>
             ${todos.length > 0
               ? `<div class="plan-todo-list plan-todo-list-full" role="list">
@@ -5410,7 +6302,7 @@ function renderPlansAccordion(d) {
                     title="${escapeAttr(pathActionTitle(p.path))}"
                     onclick="${copyRepoPathHandler(p.path)}"
                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${copyRepoPathHandler(p.path)}}">
-                    <span class="dot ${statusDot(t.status)}"></span>
+                    ${statusDot(t.status) ? `<span class="dot ${statusDot(t.status)}" aria-hidden="true"></span>` : ''}
                     <span style="flex:1"><code style="font-size:11px">${escapeHtml(t.id || '')}</code>${t.content ? ` \u2014 ${escapeHtml(t.content)}` : ''}</span>
                     <span style="color:var(--text-muted);font-size:11px">${escapeHtml(t.status)}</span>
                   </div>`,
@@ -5517,6 +6409,10 @@ function nowMetaIconSvg(kind, opts) {
  * Space-theme Cockpit/nav icon set (inline SVG, no font/fetch/dependency).
  * Shared chrome SVG shell with header refresh / nowMetaIconSvg:
  * viewBox 0 0 16 16, stroke 1.5, round caps/joins, CSS box via --mc-chrome-icon-size.
+ * Legibility floor (holds at every render size, hero included): no feature
+ * smaller than the 1.5 stroke; stroke-edge clearance between adjacent
+ * features >= 1 unit. Detail that cannot meet the floor is drawn filled
+ * (fill="currentColor" stroke="none"), never as a sub-stroke stroked shape.
  * Static path markup only; never concatenate untrusted text into the SVG.
  * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'memory'|'terminals'|'processes'|'config'} kind
  * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
@@ -5546,18 +6442,16 @@ function spaceIconSvg(kind, opts) {
     config: 'Config',
   };
   const paths = {
-    // Rocket (mission)
+    // Rocket (mission) — window is a solid dot (a stroked ring here would sit below the stroke floor)
     'current-mission':
       '<path d="M8 2c1.4 2 2.5 4 2.5 6a2.5 2.5 0 01-5 0C5.5 6 6.6 4 8 2z"/>' +
-      '<circle cx="8" cy="7.5" r=".9"/>' +
+      '<circle cx="8" cy="7.5" r="1" fill="currentColor" stroke="none"/>' +
       '<path d="M6 10.5l-1 2M10 10.5l1 2M7 13h2"/>',
-    // Radar (monitor) — concentric rings + sweep wedge (not a gauge needle)
+    // Radar (monitor) — two rings + sweep wedge; a third ring or centre dot would sit below the stroke floor
     monitor:
       '<circle cx="8" cy="8" r="5.5"/>' +
-      '<circle cx="8" cy="8" r="3.5"/>' +
-      '<circle cx="8" cy="8" r="1.5"/>' +
-      '<path d="M8 8L12.8 4.2A5.5 5.5 0 0 1 13.3 7.2Z"/>' +
-      '<circle cx="8" cy="8" r=".55"/>',
+      '<circle cx="8" cy="8" r="2.75"/>' +
+      '<path d="M8 8L12.8 4.2A5.5 5.5 0 0 1 13.3 7.2Z"/>',
     // Clipboard (Flight Log) — matches copy/source affordance; not PTT radio
     'field-report':
       '<rect x="4.5" y="3.5" width="7" height="10" rx="1.2"/>' +
@@ -5567,16 +6461,16 @@ function spaceIconSvg(kind, opts) {
     checklist:
       '<path d="M3.5 4.5h9M3.5 8h6.5M3.5 11.5h5.5"/>' +
       '<path d="M10.5 10.5l1.2 1.2L14 9.5"/>',
-    // Ellipsis (more sections) — radii sized for stroke 1.5
+    // Ellipsis (more sections) — solid dots: stroked rings at 4px spacing land on exact tangency
     'more-sections':
-      '<circle cx="4" cy="8" r="1.25"/>' +
-      '<circle cx="8" cy="8" r="1.25"/>' +
-      '<circle cx="12" cy="8" r="1.25"/>',
-    // House (overview / home) — roof + walls + door as one coherent glyph
+      '<circle cx="4" cy="8" r="1.1" fill="currentColor" stroke="none"/>' +
+      '<circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/>' +
+      '<circle cx="12" cy="8" r="1.1" fill="currentColor" stroke="none"/>',
+    // House (overview / home) — roof + walls + door as one coherent glyph; door interior stays above the stroke floor
     overview:
       '<path d="M2.5 7.5L8 2.75l5.5 4.75"/>' +
       '<path d="M4.25 7.75v6.5h7.5v-6.5"/>' +
-      '<path d="M6.75 14.25v-3.25h2.5v3.25"/>',
+      '<path d="M6.5 14.25v-3.25h3v3.25"/>',
     // Document (plans)
     plans:
       '<path d="M4.5 2.5h5l4 4v8.5a1 1 0 01-1 1h-8a1 1 0 01-1-1v-12a1 1 0 011-1z"/>' +
@@ -5588,10 +6482,10 @@ function spaceIconSvg(kind, opts) {
     agents:
       '<circle cx="8" cy="5.5" r="2.5"/>' +
       '<path d="M3 14.5c0-3 2.2-5 5-5s5 2 5 5"/>',
-    // Gear (skills)
+    // Gear (skills) — ring + 8 spokes outside it; arcs/teeth cut into the ring would sink below the stroke floor
     skills:
       '<circle cx="8" cy="8" r="2"/>' +
-      '<path d="M10.5 8a2.5 2.5 0 000-2.5l.8-.8M5.5 8a2.5 2.5 0 010 2.5l-.8.8M8 5.5l-.5-1M8 10.5l-.5 1M10.5 6.5l1-.5M5.5 9.5l-1 .5M10.5 9.5l1 .5M5.5 6.5l-1-.5"/>',
+      '<path d="M8 5V3.5M8 11v1.5M5 8H3.5M11 8h1.5M10.1 5.9l1.1-1.1M10.1 10.1l1.1 1.1M5.9 10.1l-1.1 1.1M5.9 5.9l-1.1-1.1"/>',
     // Overlapping swatches (skins) — distinct from Skills gear
     skins:
       '<rect x="2.5" y="3.5" width="7" height="7" rx="1.25"/>' +
@@ -5609,11 +6503,11 @@ function spaceIconSvg(kind, opts) {
       '<path d="M10.5 4.5v7a2 2 0 01-2 2h-2"/>' +
       '<path d="M6.5 11.5a2 2 0 100-4 2 2 0 000 4z"/>' +
       '<path d="M10.5 6.5v2"/>',
-    // Chip (memory)
+    // Chip (memory) — two internal lines 3 units apart; a third line would drop clearance below the stroke floor
     memory:
       '<path d="M4.5 2.5h7a1 1 0 011 1v9a1 1 0 01-1 1h-7a1 1 0 01-1-1v-9a1 1 0 011-1z"/>' +
       '<path d="M6.5 1.5v2M9.5 1.5v2M6.5 12.5v2M9.5 12.5v2"/>' +
-      '<path d="M6 6.5h4M6 8.5h4M6 10.5h2.5"/>',
+      '<path d="M6 6.5h4M6 9.5h2.5"/>',
     // Screen (terminals)
     terminals:
       '<path d="M1.5 3.5h13a1 1 0 011 1v7a1 1 0 01-1 1H1.5a1 1 0 01-1-1v-7a1 1 0 011-1z"/>' +
@@ -5735,9 +6629,10 @@ function flightLogKindClassName(kind) {
 }
 
 /**
- * Gaps card on Flight Log (Live large / Earlier smaller). Labels locked.
+ * Gaps card on Flight Log (NOW large / Earlier smaller). Labels locked.
  * Kind selects Mission Control palette tokens (typed notification chrome).
- * @param {{ text?: string, at?: string|null, sourcePath?: string, variant?: string, kind?: string }} entry
+ * One composed action button per entry (semantic model action; fallback compose).
+ * @param {{ text?: string, at?: string|null, sourcePath?: string, variant?: string, kind?: string, action?: { label?: string, command?: string, sourcePath?: string } }} entry
  * @param {number} idx
  */
 function renderFlightLogCard(entry, idx) {
@@ -5748,7 +6643,7 @@ function renderFlightLogCard(entry, idx) {
       ? entry.sourcePath.trim()
       : '.cursor/HANDOFF.md';
   const variant = entry?.variant === 'past' ? 'past' : 'current';
-  const label = variant === 'current' ? 'Live' : 'Earlier';
+  const label = variant === 'current' ? 'NOW' : 'Earlier';
   const kind = flightLogMessageKind(text, { kind: entry?.kind });
   const kindClass = flightLogKindClassName(kind);
   const metaBits = [];
@@ -5756,8 +6651,16 @@ function renderFlightLogCard(entry, idx) {
     metaBits.push(escapeHtml(String(entry.at)));
   }
   metaBits.push(escapeHtml(sourcePath));
-  const copyTextHandler = copyForPasteHandler(text, 'Gaps text', 'chatInput');
-  const copyPathHandler = copyRepoPathHandler(sourcePath);
+  const action = entry?.action && typeof entry.action === 'object' ? entry.action : null;
+  const actionLabel =
+    typeof action?.label === 'string' && action.label.trim()
+      ? action.label.trim()
+      : 'Copy fix prompt';
+  const actionCommand =
+    typeof action?.command === 'string' && action.command.trim()
+      ? action.command
+      : `${variant === 'current' ? 'Act on these open residuals:' : 'Act on these earlier residuals:'}\n${text}\n${sourcePath}`;
+  const copyActionHandler = copyForPasteHandler(actionCommand, 'fix prompt', 'chatInput');
   const cardClass =
     variant === 'current'
       ? `flight-log-card flight-log-card-current ${kindClass}`
@@ -5769,8 +6672,7 @@ function renderFlightLogCard(entry, idx) {
       <div class="flight-log-card-text">${escapeHtml(text)}</div>
       <div class="flight-log-card-meta">${metaBits.join(' · ')}</div>
       <div class="flight-log-card-actions">
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-copy-text-${variant}-${idx}" onclick="${copyTextHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('Gaps text', 'chatInput'))}">Copy text</button>
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-copy-path-${variant}-${idx}" onclick="${copyPathHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(pathActionTitle(sourcePath))}">${PATH_COPY_LABEL}</button>
+        <button type="button" class="status-bar-btn" data-focus-key="flight-log-action-${variant}-${idx}" onclick="${copyActionHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">${escapeHtml(actionLabel)}</button>
       </div>
     </div>
   `;
@@ -5778,8 +6680,9 @@ function renderFlightLogCard(entry, idx) {
 
 /**
  * Operator Warning card on Flight Log (API/usage or orchestrator heads-up).
- * No Review all / Resolve all / cadence CTAs.
- * @param {{ id?: string, kind?: string, title?: string, text?: string, sourcePath?: string }} warning
+ * No Review all / Resolve all / cadence CTAs. One composed action button
+ * per entry (semantic model action; fallback compose).
+ * @param {{ id?: string, kind?: string, title?: string, text?: string, sourcePath?: string, action?: { label?: string, command?: string, sourcePath?: string } }} warning
  * @param {number} idx
  */
 function renderFlightLogWarningCard(warning, idx) {
@@ -5794,8 +6697,17 @@ function renderFlightLogWarningCard(warning, idx) {
       ? warning.sourcePath.trim()
       : '.cursor/HANDOFF.md';
   const kind = typeof warning?.kind === 'string' ? warning.kind : 'warning';
-  const copyTextHandler = copyForPasteHandler(text, 'Warning text', 'chatInput');
-  const copyPathHandler = copyRepoPathHandler(sourcePath);
+  const actionSubject = kind === 'api_limit' ? 'recovery prompt' : 'follow-up prompt';
+  const action = warning?.action && typeof warning.action === 'object' ? warning.action : null;
+  const actionLabel =
+    typeof action?.label === 'string' && action.label.trim()
+      ? action.label.trim()
+      : `Copy ${actionSubject}`;
+  const actionCommand =
+    typeof action?.command === 'string' && action.command.trim()
+      ? action.command
+      : `${kind === 'api_limit' ? 'Resume after this quota pause:' : 'Act on this heads-up:'}\n${text}\n${sourcePath}`;
+  const copyActionHandler = copyForPasteHandler(actionCommand, actionSubject, 'chatInput');
   const aria = `${title}: ${text}`;
   return `
     <div class="flight-log-card flight-log-card-warning" role="listitem" tabindex="0" data-focus-key="flight-log-warning-${idx}" data-warning-kind="${escapeAttr(kind)}" aria-label="${escapeAttr(aria)}">
@@ -5803,8 +6715,7 @@ function renderFlightLogWarningCard(warning, idx) {
       <div class="flight-log-card-text">${escapeHtml(text)}</div>
       <div class="flight-log-card-meta">${escapeHtml(sourcePath)}</div>
       <div class="flight-log-card-actions">
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-warning-copy-text-${idx}" onclick="${copyTextHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('Warning text', 'chatInput'))}">Copy text</button>
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-warning-copy-path-${idx}" onclick="${copyPathHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(pathActionTitle(sourcePath))}">${PATH_COPY_LABEL}</button>
+        <button type="button" class="status-bar-btn" data-focus-key="flight-log-warning-action-${idx}" onclick="${copyActionHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle(actionSubject, 'chatInput'))}">${escapeHtml(actionLabel)}</button>
       </div>
     </div>
   `;
@@ -5812,9 +6723,9 @@ function renderFlightLogWarningCard(warning, idx) {
 
 /**
  * Quiet-state open-triage row (untriaged external review). Prompt chrome;
- * per-row Copy triage + path only. No Review all / Resolve all.
+ * one composed triage-command button per row. No Review all / Resolve all.
  * Kind class from flightLogKindClassName('prompt') (SoT map; not a literal).
- * @param {{ id?: string, label?: string, sourcePath?: string, action?: { target?: string, label?: string, subject?: string } }} item
+ * @param {{ id?: string, label?: string, sourcePath?: string, action?: { target?: string, label?: string, subject?: string, command?: string } }} item
  * @param {number} idx
  */
 function renderFlightLogQuietOpenTriageCard(item, idx) {
@@ -5831,8 +6742,19 @@ function renderFlightLogQuietOpenTriageCard(item, idx) {
     typeof item?.action?.target === 'string' && item.action.target.trim()
       ? item.action.target.trim()
       : `/plan-review-triage ${sourcePath}`;
-  const copyTriageHandler = copyForPasteHandler(triageCmd, 'triage command', 'chatInput');
-  const copyPathHandler = copyRepoPathHandler(sourcePath);
+  const actionSubject =
+    typeof item?.action?.subject === 'string' && item.action.subject.trim()
+      ? item.action.subject.trim()
+      : 'triage command';
+  const actionLabel =
+    typeof item?.action?.label === 'string' && item.action.label.trim()
+      ? item.action.label.trim()
+      : 'Copy triage command';
+  const actionCommand =
+    typeof item?.action?.command === 'string' && item.action.command.trim()
+      ? item.action.command
+      : triageCmd;
+  const copyActionHandler = copyForPasteHandler(actionCommand, actionSubject, 'chatInput');
   const aria = `Review: ${label}`;
   const kindClass = flightLogKindClassName('prompt');
   return `
@@ -5841,8 +6763,7 @@ function renderFlightLogQuietOpenTriageCard(item, idx) {
       <div class="flight-log-card-text">${escapeHtml(label)}</div>
       <div class="flight-log-card-meta">${escapeHtml(sourcePath)}</div>
       <div class="flight-log-card-actions">
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-open-triage-cmd-${idx}" onclick="${copyTriageHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('triage command', 'chatInput'))}">Copy triage command</button>
-        <button type="button" class="status-bar-btn" data-focus-key="flight-log-open-triage-path-${idx}" onclick="${copyPathHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(pathActionTitle(sourcePath))}">${PATH_COPY_LABEL}</button>
+        <button type="button" class="status-bar-btn" data-focus-key="flight-log-open-triage-action-${idx}" onclick="${copyActionHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle(actionSubject, 'chatInput'))}">${escapeHtml(actionLabel)}</button>
       </div>
     </div>
   `;
@@ -5922,6 +6843,7 @@ function renderAttentionPanel(d, attentionChanged) {
           sourcePath: e.sourcePath || sourcePath,
           variant: 'past',
           kind: e.kind || null,
+          action: e.action && typeof e.action === 'object' ? e.action : null,
         },
         idx,
       ),
@@ -5967,11 +6889,15 @@ function renderAttentionPanel(d, attentionChanged) {
             sourcePath,
             variant: 'current',
             kind: typeof fl?.currentKind === 'string' ? fl.currentKind : null,
+            action:
+              fl?.currentAction && typeof fl.currentAction === 'object'
+                ? fl.currentAction
+                : null,
           },
           0,
         )
-      : `<div class="flight-log-card flight-log-card-current flight-log-kind-ok" role="status" data-flight-log-kind="ok" aria-label="No live Gaps">
-          <span class="flight-log-card-label">Live</span>
+      : `<div class="flight-log-card flight-log-card-current flight-log-kind-ok" role="status" data-flight-log-kind="ok" aria-label="No Gaps now">
+          <span class="flight-log-card-label">NOW</span>
           <div class="flight-log-card-text" style="color:var(--text-muted)">Quiet · nothing live</div>
         </div>`;
     body = `${warningsBlock}<div class="flight-log-stack" role="list">${currentCard}${pastCards}</div>`;
@@ -5995,6 +6921,7 @@ function renderAttentionPanel(d, attentionChanged) {
     <div class="card${attentionChanged ? ' card-flash' : ''}" id="attention-panel">
       <div class="card-header now-panel-header">
         <span class="card-title">${spaceIconSvg('field-report')}Flight Log</span>
+        ${renderBusyOutsideChip(d.missionControl?.now)}
         <span class="section-subtitle" style="margin-left:auto">${escapeHtml(countLabel)}</span>
       </div>
       <div class="panel-scroll-body">${body}</div>
@@ -6092,7 +7019,9 @@ function flightLogFingerprint(d) {
           )
           .join('\n')
       : '';
-  return `${current}\0${past}\0${warnings}\0${openTriages}`;
+  // Busy-outside-plan header chip must re-render the card on flip.
+  const busy = (d.missionControl?.now ?? d.now)?.busyOutsidePlan?.active === true;
+  return `${current}\0${past}\0${warnings}\0${openTriages}\0${busy ? 'busy' : ''}`;
 }
 
 // Step progress bar: one segment per plan step (completed / current / remaining).
@@ -6228,6 +7157,14 @@ function renderNowStepper(now, handoff, status, meta) {
   `;
 }
 
+// Live "busy outside the plan" header chip (Current mission + Flight Log).
+// Text-only on the advice-family blue tokens; not a Flight Log entry, so the
+// Gaps voice, kind, and NOW/Earlier/All clear label contracts stay untouched.
+function renderBusyOutsideChip(now) {
+  if (!now?.busyOutsidePlan?.active) return '';
+  return `<span class="mc-busy-chip" role="status" aria-label="Agents working outside the active plan" title="Run-loop activity outside the active plan">Busy \u00b7 outside plan</span>`;
+}
+
 function renderNowExecutionPanel(d, nowChanged) {
   const now = d.missionControl?.now || null;
   const handoff = d.system?.handoff || null;
@@ -6246,6 +7183,7 @@ function renderNowExecutionPanel(d, nowChanged) {
   const updatedSource = now?.modifiedAt || handoff?.lastUpdated || null;
 
   const statusClass = `now-status now-status-${meta.key}${meta.live ? ' now-status-live' : ''}`;
+  const busyChip = renderBusyOutsideChip(now);
 
   // True idle: no HANDOFF plan reference (or non-mission status). Reserve empty IDLE for that case.
   if (!showMission) {
@@ -6258,6 +7196,7 @@ function renderNowExecutionPanel(d, nowChanged) {
             <span class="now-status-mark" aria-hidden="true">${meta.mark}</span>
             ${escapeHtml(meta.label)}
           </span>
+          ${busyChip}
         </div>
         <div class="panel-scroll-body">
           ${renderEmptyStateCta({
@@ -6289,6 +7228,7 @@ function renderNowExecutionPanel(d, nowChanged) {
           <span class="now-status-mark" aria-hidden="true">${meta.mark}</span>
           ${escapeHtml(meta.label)}
         </span>
+        ${busyChip}
       </div>
       <div class="panel-scroll-body">
         <div class="now-plan-name">${escapeHtml(planName)}</div>
@@ -6465,14 +7405,7 @@ function renderUnsafe() {
     gitDot.className = 'dot dot-green';
   }
 
-  // Terminals / processes: steady state color only
-  const termDot = document.getElementById('navTerminalsDot');
-  termDot.className = `dot dot-${d.terminals.length > 0 ? 'blue' : 'gray'}`;
-
-  const procDot = document.getElementById('navProcessesDot');
-  if (procDot) {
-    procDot.className = `dot dot-${d.processes.length > 0 ? 'green' : 'gray'}`;
-  }
+  // Terminals / processes nav items carry count badges only (no decorative dots).
 
   // Build full HTML string once
   const parts = [];
@@ -6520,15 +7453,42 @@ function renderUnsafe() {
                   const info = semanticEventInfo(ev.kind, ev.refs?.commitType);
                   const gloss = info.gloss || info.tag || ev.kind || 'event';
                   const staggerIdx = Math.min(idx, 5);
+                  const actor = crewEventActor(ev);
+                  const initials = agentInitials(actor);
                   const actionAttrs = activityTargetAttributes(ev, 'monitor-activity', { kindGloss: gloss });
                   const rowA11y = actionAttrs
                     ? actionAttrs
                     : ` aria-label="${escapeAttr(`${gloss}: ${ev.label || ''}`)}"`;
+                  // Structured label spans: actor + verb stay fixed; later segments
+                  // shrink, and the low-signal plan filename ellipsises first.
+                  // Prefer refs.plan over sniffing the rendered string (truncation-safe).
+                  const planRef = ev.refs && ev.refs.plan ? String(ev.refs.plan) : '';
+                  const planBase = planRef.replace(/\.plan\.md$/i, '');
+                  const feedSegs = String(ev.label || '').split(' · ');
+                  const feedLabelHtml = feedSegs
+                    .map((seg, i) => {
+                      const isPlanSeg = Boolean(planRef) && (
+                        seg === planRef ||
+                        seg === planBase ||
+                        /\.plan\.md/i.test(seg)
+                      );
+                      const cls = i === 0
+                        ? 'feed-seg feed-seg-actor'
+                        : i === 1
+                          ? 'feed-seg feed-seg-verb'
+                          : isPlanSeg
+                            ? 'feed-seg feed-seg-plan'
+                            : 'feed-seg feed-seg-mid';
+                      return `<span class="${cls}">${escapeHtml(seg)}</span>`;
+                    })
+                    .join('<span class="feed-sep" aria-hidden="true"> · </span>');
+                  const feedTitle = ev.labelFull || ev.label || '';
                   return `
                     <div class="monitor-row stagger-fade stagger-${staggerIdx}"${rowA11y}>
+                      <span class="monitor-row-avatar" title="${escapeAttr(actor)}" aria-hidden="true">${escapeHtml(initials)}</span>
                       <span class="monitor-row-chip" style="background:${info.bg};color:${info.color}" title="${escapeAttr(gloss)}" aria-hidden="true"><span class="monitor-row-icon">${info.icon}</span></span>
-                      <span class="feed-label">${escapeHtml(ev.label)}</span>
-                      <span class="feed-time">${semanticEventTime(ev, info)}</span>
+                      <span class="feed-label" title="${escapeAttr(feedTitle)}">${feedLabelHtml}</span>
+                      <span class="feed-time">${crewEventTime(ev, info)}</span>
                     </div>`;
                 }).join('')}
           </div>
@@ -6541,7 +7501,7 @@ function renderUnsafe() {
   parts.push(`
     <div class="content-section" id="section-plans">
       <div class="section-title">
-        <span class="dot dot-green"></span> Plans
+        Plans
         <span class="section-subtitle">${d.plans.length} total</span>
       </div>
       ${renderPlansAccordion(d)}
@@ -6549,13 +7509,18 @@ function renderUnsafe() {
   `);
 
   // ===== Agents =====
+  const agents = d.agents || [];
+  const agentLockSvg = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>`;
+  const agentCreatePrompt = 'Create a new agent definition under .cursor/agents/ (markdown file with a description plus the behavior body). Ask me for the name and behavior first.';
+  const agentEditableCount = agents.filter(a => a.kitManaged !== true).length;
   parts.push(`
     <div class="content-section" id="section-agents">
       <div class="section-title">
-        <span class="dot dot-purple"></span> Agents
-        <span class="section-subtitle">${d.agents.length} available</span>
+        Agents
+        <span class="section-subtitle">${agents.length} agents · ${agentEditableCount} editable</span>
+        <button type="button" class="git-action-btn primary agent-create-btn" data-focus-key="cta-agent-create" onclick="${copyForPasteHandler(agentCreatePrompt, 'create prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('create prompt', 'chatInput'))}">Copy create prompt</button>
       </div>
-      ${d.agents.length === 0
+      ${agents.length === 0
         ? renderEmptyStateCta({
             headline: 'No agents aboard',
             supportHtml: 'Add <code>.md</code> files under <code>.cursor/agents/</code>.',
@@ -6568,34 +7533,49 @@ function renderUnsafe() {
             },
           })
         : ''}
-      <div class="agent-list">
-        ${d.agents.map(a => {
-          const colors = ['#3b82f6','#a855f7','#22c55e','#eab308','#ef4444','#06b6d4','#f97316','#ec4899'];
-          const c = colors[a.id.length % colors.length];
-          const agentId = a.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+      <div class="agent-grid">
+        ${agents.map(a => {
+          const kitManaged = a.kitManaged === true;
+          const lockBadge = kitManaged
+            ? `<span class="agent-lock" title="Kit managed: owned by kit updates, read-only here">${agentLockSvg}Kit managed</span>`
+            : '';
+          const agentPath = a.path || `.cursor/agents/${a.file || `${a.id}.md`}`;
+          const usePrompt = `Use this agent definition when it matches the task:\n${agentPath}`;
+          const useBtn = `<button type="button" class="git-action-btn primary" onclick="${copyForPasteHandler(usePrompt, 'use prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('use prompt', 'chatInput'))}">Copy use prompt</button>`;
+          const editPrompt = `Edit this agent definition file (markdown body):\n${agentPath}`;
+          const editBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(editPrompt, 'edit prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('edit prompt', 'chatInput'))}">Copy edit prompt</button>`;
+          const deletePrompt = `Delete this agent definition file after confirming with me:\n${agentPath}`;
+          const deleteBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(deletePrompt, 'delete prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('delete prompt', 'chatInput'))}">Copy delete prompt</button>`;
           return `
-            <div class="agent-item" role="button" tabindex="0" aria-label="Toggle details for ${escapeAttr(a.id)}" onclick="toggleAgentDetails('${escapeJsString(agentId)}')">
-              <span class="agent-icon" style="background:${c}20;color:${c}">${escapeHtml(a.id.slice(0, 2).toUpperCase())}</span>
-              <span style="flex:1">${escapeHtml(a.id)}</span>
-              <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.description || '')}</span>
-              <span style="font-size:10px;color:var(--text-muted);transition:transform 0.2s" id="agent-arrow-${escapeAttr(agentId)}">\u25bc</span>
+          <div class="agent-card"${kitManaged ? ' data-kit-managed="true"' : ''}>
+            <div class="agent-card-head">
+              <span class="agent-name"><span class="agent-monogram" aria-hidden="true">${escapeHtml(agentInitials(a.id))}</span>${escapeHtml(a.id)}</span>
+              ${lockBadge}
             </div>
-            <div class="agent-details" id="agent-details-${escapeAttr(agentId)}">
-              <p>${escapeHtml(a.description || 'No description available.')}</p>
-              <div class="agent-path">${escapeHtml(a.path || 'Path not available')}</div>
-            </div>
-          `;
+            <div class="agent-desc">${escapeHtml(a.description || 'No description available.')}</div>
+            <div class="agent-file">${escapeHtml(agentPath)}</div>
+            <div class="agent-actions">${useBtn}${editBtn}${deleteBtn}</div>
+          </div>
+        `;
         }).join('')}
       </div>
     </div>
   `);
 
   // ===== Commands =====
+  const commandLockSvg = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>`;
+  const commandCreatePrompt = 'Create a new slash command under .cursor/commands/ (plain markdown body, no frontmatter). Ask me for the name and behavior first.';
+  const commandEditableCount = d.commands.filter(c => c.kitManaged !== true).length;
   parts.push(`
     <div class="content-section" id="section-commands">
       <div class="section-title">
-        <span class="dot" style="background:var(--cyan)"></span> Commands
-        <span class="section-subtitle">${d.commands.length} slash commands</span>
+        Commands
+        <span class="section-subtitle">${d.commands.length} slash commands · ${commandEditableCount} editable</span>
+        <button type="button" class="git-action-btn primary command-create-btn" data-focus-key="cta-command-create" onclick="${copyForPasteHandler(commandCreatePrompt, 'create prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('create prompt', 'chatInput'))}">Copy create prompt</button>
       </div>
       ${d.commands.length === 0
         ? renderEmptyStateCta({
@@ -6614,10 +7594,28 @@ function renderUnsafe() {
       <div class="command-grid">
         ${d.commands.map(c => {
           const slash = `/${c.id}`;
+          const cmdPath = c.path || `.cursor/commands/${c.file || `${c.id}.md`}`;
+          const kitManaged = c.kitManaged === true;
+          const lockBadge = kitManaged
+            ? `<span class="command-lock" title="Kit managed: owned by kit updates, read-only here">${commandLockSvg}Kit managed</span>`
+            : '';
+          const runBtn = `<button type="button" class="git-action-btn primary" onclick="${copyForPasteHandler(slash, slash, 'chatInput')}" title="${escapeAttr(copyActionTitle(slash, 'chatInput'))}">Copy run command</button>`;
+          const editPrompt = `Edit this slash command file (plain markdown body, no frontmatter):\n${cmdPath}`;
+          const editBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(editPrompt, 'edit prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('edit prompt', 'chatInput'))}">Copy edit prompt</button>`;
+          const deletePrompt = `Delete this slash command file after confirming with me:\n${cmdPath}`;
+          const deleteBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(deletePrompt, 'delete prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('delete prompt', 'chatInput'))}">Copy delete prompt</button>`;
           return `
-          <div class="command-item" role="button" tabindex="0" aria-label="Copy ${escapeAttr(slash)}" onclick="${copyForPasteHandler(slash, slash, 'chatInput')}" title="${escapeAttr(copyActionTitle(slash, 'chatInput'))}">
-            <span class="dot" style="background:var(--cyan);width:6px;height:6px"></span>
-            ${escapeHtml(slash)}
+          <div class="command-card"${kitManaged ? ' data-kit-managed="true"' : ''}>
+            <div class="command-card-head">
+              <span class="command-name">${escapeHtml(slash)}</span>
+              ${lockBadge}
+            </div>
+            <div class="command-file">${escapeHtml(cmdPath)}</div>
+            <div class="command-actions">${runBtn}${editBtn}${deleteBtn}</div>
           </div>
         `;
         }).join('')}
@@ -6631,7 +7629,7 @@ function renderUnsafe() {
   const passing = checks.filter(c => c.ok).length;
   const isSnapshotError = healthStatus === 'error' && checks.length === 0;
   const isOffline = !isSnapshotError && checks.length === 0;
-  const presenceTone = healthStatus === 'ok' ? 'green' : healthStatus === 'warning' ? 'yellow' : 'red';
+  const presenceTone = healthSeverityChrome(healthStatus).tone;
   const presencePulse = healthStatus !== 'ok' ? ' dot-pulse' : '';
   const presenceLabel = isSnapshotError
     ? 'Snapshot error'
@@ -6679,44 +7677,73 @@ function renderUnsafe() {
       },
     });
   } else {
-    healthBody = `
-      <div class="health-grid" role="list">
-        ${checks.map(c => {
-          const id = c.id || c.label || 'check';
-          const meta = HEALTH_CHECK_META[id] || {
-            okDetail: 'Check is passing.',
-            failDetail: 'Check is failing. Review configuration for this item.',
-            autofix: null,
-          };
-          const sev = healthCheckSeverity(c, healthStatus);
-          const detail = c.ok ? meta.okDetail : meta.failDetail;
-          const autofix = !c.ok && meta.autofix ? meta.autofix : null;
-          const autofixBtn = autofix
-            ? `<button type="button" class="health-autofix-btn" data-focus-key="health-autofix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(autofix.text, autofix.subject, autofix.destination)}" title="${escapeAttr(copyActionTitle(autofix.subject, autofix.destination))}">${escapeHtml(autofix.label || 'Autofix')}</button>`
-            : (c.ok
-              ? `<span class="health-detail-copy" style="margin:0">No Autofix needed.</span>`
-              : `<span class="health-detail-copy" style="margin:0">No Autofix mapped for this check.</span>`);
+    const checkId = (c) => c.id || c.label || 'check';
+    const renderCheckCard = (c) => {
+      const id = checkId(c);
+      const meta = HEALTH_CHECK_META[id] || {
+        okDetail: 'Check is passing.',
+        failDetail: 'Check is failing. Review configuration for this item.',
+        autofix: null,
+      };
+      const sev = healthCheckSeverity(c, healthStatus);
+      const detail = c.ok ? meta.okDetail : meta.failDetail;
+      const autofix = !c.ok && meta.autofix ? meta.autofix : null;
+      const fixPrompt = [`Fix this failing health check: ${c.label || id}`, detail].join('\n');
+      const fixBtn = `<button type="button" class="health-autofix-btn" data-focus-key="health-fix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">Copy fix prompt</button>`;
+      const autofixBtn = autofix
+        ? `<button type="button" class="health-autofix-btn" data-focus-key="health-autofix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(autofix.text, autofix.subject, autofix.destination)}" title="${escapeAttr(copyActionTitle(autofix.subject, autofix.destination))}">${escapeHtml(autofix.label || 'Autofix')}</button>`
+        : '';
+      const actions = c.ok
+        ? `<span class="health-detail-copy" style="margin:0">No action needed.</span>`
+        : `${fixBtn}${autofixBtn}`;
+      return `
+      <div class="health-card" role="listitem" id="health-card-${escapeAttr(id)}" data-check-id="${escapeAttr(id)}" data-severity="${escapeAttr(sev)}">
+        <button type="button" class="health-item" aria-expanded="false" aria-controls="health-detail-${escapeAttr(id)}" aria-label="${escapeAttr(c.label)}: ${escapeAttr(healthSeverityLabel(sev))}" onclick="toggleHealthCheck('${escapeJsString(id)}')" onkeydown="healthCheckKeydown(event, '${escapeJsString(id)}')">
+          <span class="dot ${healthDotClass(sev)}"></span>
+          <span class="health-item-label">${escapeHtml(c.label)}</span>
+          <span class="health-item-sev" data-sev="${escapeAttr(sev)}">${escapeHtml(healthSeverityLabel(sev))}</span>
+          <span class="health-item-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="health-detail" id="health-detail-${escapeAttr(id)}">
+          <p class="health-detail-copy">${escapeHtml(detail)}</p>
+          <div class="health-detail-actions">${actions}</div>
+        </div>
+      </div>`;
+    };
+    const grouped = HEALTH_VITAL_GROUPS.map(g => ({
+      label: g.label,
+      items: g.checks.map(id => checks.find(c => checkId(c) === id)).filter(Boolean),
+    })).filter(g => g.items.length > 0);
+    const knownIds = new Set(HEALTH_VITAL_GROUPS.flatMap(g => g.checks));
+    const others = checks.filter(c => !knownIds.has(checkId(c)));
+    if (others.length > 0) grouped.push({ label: 'Other checks', items: others });
+    const vitalsStrip = `
+      <div class="health-vitals" role="list" aria-label="Vital systems">
+        ${grouped.map(g => {
+          const total = g.items.length;
+          const okCount = g.items.filter(c => c.ok).length;
+          const state = okCount === total ? 'pass' : 'attention';
           return `
-          <div class="health-card" role="listitem" id="health-card-${escapeAttr(id)}" data-check-id="${escapeAttr(id)}" data-severity="${escapeAttr(sev)}">
-            <button type="button" class="health-item" aria-expanded="false" aria-controls="health-detail-${escapeAttr(id)}" aria-label="${escapeAttr(c.label)}: ${escapeAttr(healthSeverityLabel(sev))}" onclick="toggleHealthCheck('${escapeJsString(id)}')" onkeydown="healthCheckKeydown(event, '${escapeJsString(id)}')">
-              <span class="dot ${healthDotClass(sev)}"></span>
-              <span class="health-item-label">${escapeHtml(c.label)}</span>
-              <span class="health-item-sev">${escapeHtml(healthSeverityLabel(sev))}</span>
-              <span class="health-item-chevron" aria-hidden="true">▾</span>
-            </button>
-            <div class="health-detail" id="health-detail-${escapeAttr(id)}">
-              <p class="health-detail-copy">${escapeHtml(detail)}</p>
-              <div class="health-detail-actions">${autofixBtn}</div>
-            </div>
+          <div class="health-vital-card" role="listitem" data-state="${state}">
+            <span class="health-vital-name">${escapeHtml(g.label)}</span>
+            <span class="health-vital-score">${okCount}/${total} passing</span>
+            <span class="health-vital-state"><span class="dot ${state === 'pass' ? 'dot-green' : 'dot-red'}"></span>${state === 'pass' ? 'Pass' : 'Attention'}</span>
           </div>`;
         }).join('')}
       </div>`;
+    healthBody = `${vitalsStrip}
+      ${grouped.map(g => `
+      <section class="health-group" aria-label="${escapeAttr(g.label)}">
+        <div class="health-group-title">${escapeHtml(g.label)}</div>
+        <div class="health-grid" role="list">
+          ${g.items.map(renderCheckCard).join('')}
+        </div>
+      </section>`).join('')}`;
   }
 
   parts.push(`
     <div class="content-section" id="section-health">
       <div class="section-title">
-        <span class="dot dot-${presenceTone}${healthStatus !== 'ok' ? ' dot-pulse' : ''}"></span>
         Health
         <span class="section-subtitle">${escapeHtml(subtitle)}</span>
       </div>
@@ -6724,7 +7751,6 @@ function renderUnsafe() {
         <div class="healthcenter-presence" role="status" aria-live="polite">
           <span class="dot dot-${presenceTone}${presencePulse}"></span>
           <span>${escapeHtml(presenceLabel)}</span>
-          <span>· same seven checks · copy-only Autofix</span>
         </div>
         ${healthBody}
       </div>
@@ -6735,9 +7761,8 @@ function renderUnsafe() {
   parts.push(`
     <div class="content-section" id="section-git">
       <div class="section-title">
-        <span class="dot dot-${d.git?.dirty ? 'yellow' : 'green'}"></span>
         Git
-        <span class="section-subtitle">${escapeHtml(d.git?.branch || '\u2014')}</span>
+        <span class="section-subtitle">${escapeHtml(d.git?.branch || '\u2014')}${d.git?.branch ? (d.git?.dirty ? ` · ${d.git.dirtyCount} changed` : ' · clean') : ''}</span>
       </div>
       ${!d.git?.branch
         ? renderEmptyStateCta({
@@ -6746,28 +7771,15 @@ function renderUnsafe() {
           })
         : ''}
       <div class="card" style="${d.git?.branch ? '' : 'display:none'}">
+        ${renderGitHygieneHint(d.git)}
+        ${renderGitFlowCard(d.git)}
         <div class="git-info">
-          <div class="git-row">
-            <span class="git-label">Branch</span>
-            <span class="git-value">${escapeHtml(d.git?.branch || '\u2014')}</span>
-          </div>
-          <div class="git-row">
-            <span class="git-label">Working tree</span>
-            <span class="git-value">${d.git?.dirty ? `${d.git.dirtyCount} file${d.git.dirtyCount !== 1 ? 's' : ''} modified` : 'Clean'}</span>
-          </div>
           <div class="git-row">
             <span class="git-label">Last commit</span>
             <span class="git-value">${escapeHtml(d.git?.lastCommit || '\u2014')}</span>
           </div>
-          <div class="git-row">
-            <span class="git-label">Ahead of origin/main</span>
-            <span class="git-value">${d.git?.ahead ?? '\u2014'}</span>
-          </div>
-          <div class="git-row">
-            <span class="git-label">Behind origin/main</span>
-            <span class="git-value">${d.git?.behind ?? '\u2014'}</span>
-          </div>
         </div>
+        ${renderGitGraphCard(d.git)}
         ${d.git?.dirty ? renderGitFileList(d.git) : ''}
       </div>
     </div>
@@ -6775,49 +7787,79 @@ function renderUnsafe() {
 
   // ===== Memory =====
   const recentDecisions = d.memory?.recentDecisions || [];
+  const recentErrors = d.memory?.recentErrors || [];
+  const errorStats = d.memory?.errorStats || null;
   parts.push(`
     <div class="content-section" id="section-memory">
       <div class="section-title">
-        <span class="dot dot-yellow"></span> Memory
+        Memory
         <span class="section-subtitle">${d.memory.errors || 0} errors \u00b7 ${d.memory.decisions || 0} decisions</span>
       </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Error Records</span>
-            <span class="dot dot-red"></span>
-          </div>
-          <div class="card-value">${d.memory.errors || 0}</div>
-          <div class="card-subtitle">resolved errors in memory</div>
+      <div class="memory-kpi-grid" aria-label="Error-o-meter: memory error statistics">
+        <div class="memory-kpi">
+          <div class="memory-kpi-label">Error-o-meter</div>
+          <div class="memory-kpi-value">${errorStats ? errorStats.total : (d.memory.errors || 0)}</div>
+          <div class="memory-kpi-sub">resolved errors recorded</div>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Decisions</span>
-            <span class="dot dot-yellow"></span>
+        <div class="memory-kpi">
+          <div class="memory-kpi-label">Last 30 days</div>
+          <div class="memory-kpi-value">${errorStats ? errorStats.last30d : 0}</div>
+          <div class="memory-kpi-sub">new error entries</div>
+        </div>
+        <div class="memory-kpi">
+          <div class="memory-kpi-label">Weekly rate</div>
+          <div class="memory-kpi-value">${errorStats ? errorStats.weeklyRate : 0}</div>
+          <div class="memory-kpi-sub">errors per week (30d avg)</div>
+        </div>
+        <div class="memory-kpi">
+          <div class="memory-kpi-label">Top tags</div>
+          <div class="memory-tag-row">
+            ${errorStats && errorStats.topTags.length > 0
+              ? errorStats.topTags.map(t => `<span class="memory-tag" title="${escapeAttr(`${t.count} entries tagged ${t.tag}`)}">${escapeHtml(t.tag)} ×${t.count}</span>`).join('')
+              : '<span class="memory-kpi-sub">no tags recorded</span>'}
           </div>
-          <div class="card-value">${d.memory.decisions || 0}</div>
-          <div class="card-subtitle">architectural decisions</div>
         </div>
       </div>
-      ${recentDecisions.length > 0 ? `
-        <div class="card" style="margin-top:16px">
-          <div class="card-header">
-            <span class="card-title">Recent Decisions</span>
+      <div class="grid-2">
+        <div class="memory-panel">
+          <div class="memory-panel-header">
+            <span class="memory-panel-icon memory-panel-icon-green" aria-hidden="true">✓</span>
+            <span class="memory-panel-title">Healthy memory</span>
+            <span class="memory-panel-sub">${d.memory.decisions || 0} decisions recorded</span>
           </div>
-          <div class="memory-list">
-            ${recentDecisions.map(dd => {
-              const memPath = dd.path || `.cursor/memory/decisions/${dd.id || dd}.md`;
-              const memId = dd.id || dd;
-              return `
-              <div class="memory-item" role="button" tabindex="0" aria-label="Copy path for ${escapeAttr(memId)}" onclick="${copyRepoPathHandler(memPath)}" title="${escapeAttr(pathActionTitle(memPath))}">
-                <span class="dot dot-yellow"></span>
-                <span>${escapeHtml(memId)}</span>
-              </div>
-            `;
-            }).join('')}
-          </div>
+          ${recentDecisions.length > 0 ? `
+            <div class="memory-list">
+              ${recentDecisions.map(dd => {
+                const memPath = dd.path || `.cursor/memory/decisions/${dd.id || dd}.md`;
+                const memId = dd.id || dd;
+                return `
+                <div class="memory-item" role="button" tabindex="0" aria-label="Copy path for ${escapeAttr(memId)}" onclick="${copyRepoPathHandler(memPath)}" title="${escapeAttr(pathActionTitle(memPath))}">
+                  <span>${escapeHtml(memId)}</span>
+                </div>
+              `;
+              }).join('')}
+            </div>
+          ` : renderEmptyStateCta({
+            headline: 'No decisions yet',
+            support: 'Accepted tradeoffs land in .cursor/memory/decisions/ as ADR-lite entries.',
+            compact: true,
+          })}
         </div>
-      ` : ''}
+        <div class="memory-panel">
+          <div class="memory-panel-header">
+            <span class="memory-panel-icon memory-panel-icon-red" aria-hidden="true">⚠</span>
+            <span class="memory-panel-title">Recent errors</span>
+            <span class="memory-panel-sub">${recentErrors.length} of ${d.memory.errors || 0}</span>
+          </div>
+          ${recentErrors.length > 0
+            ? recentErrors.map((entry, idx) => renderMemoryErrorRow(entry, idx)).join('')
+            : renderEmptyStateCta({
+                headline: 'No errors recorded',
+                support: 'Investigated errors with cause and fix land in .cursor/memory/errors/.',
+                compact: true,
+              })}
+        </div>
+      </div>
     </div>
   `);
 
@@ -6826,7 +7868,6 @@ function renderUnsafe() {
   parts.push(`
     <div class="content-section" id="section-terminals">
       <div class="section-title">
-        <span class="dot dot-${d.terminals.length > 0 ? 'blue dot-pulse' : 'gray'}"></span>
         Terminals
         <span class="section-subtitle">${d.terminals.length} active</span>
       </div>
@@ -6872,55 +7913,40 @@ function renderUnsafe() {
   parts.push(`
     <div class="content-section" id="section-processes">
       <div class="section-title">
-        <span class="dot dot-${processes.length > 0 ? 'green' : 'gray'}"></span>
         Processes
         <span class="section-subtitle">${processes.length} running</span>
+      </div>
+      <div class="processes-note">
+        <span><strong>Live ps snapshot.</strong> Agent chats spawned inside the IDE do not appear here; the Crew monitor on the Overview tab tracks that activity.</span>
       </div>
       ${processes.length === 0
         ? renderEmptyStateCta({
             headline: 'All quiet',
-            support: 'No relevant processes running.',
+            support: 'No relevant processes running. Node, git, and dashboard processes appear here while active.',
           })
         : `
-        <div class="card" style="overflow-x:auto">
-          <table class="processes-table">
-            <thead>
-              <tr>
-                <th>Process</th>
-                <th>PID</th>
-                <th>CPU%</th>
-                <th>MEM%</th>
-                <th>Command</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${processes.map(p => {
-                const dotClass = p.label === 'dashboard-server' ? 'dot-green dot-pulse'
-                  : p.label === 'node' ? 'dot-blue'
-                  : p.label === 'git' ? 'dot-yellow'
-                  : 'dot-gray';
-                const pidStr = String(p.pid ?? '');
-                return `
-                  <tr>
-                    <td>
-                      <span class="process-label">
-                        <span class="dot ${dotClass}"></span>
-                        <span>${escapeHtml(p.label || 'other')}</span>
-                      </span>
-                    </td>
-                    <td style="color:var(--text-muted)">${escapeHtml(pidStr)}</td>
-                    <td>${escapeHtml(p.cpu || '\u2014')}</td>
-                    <td>${escapeHtml(p.mem || '\u2014')}</td>
-                    <td style="color:var(--text-muted);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeAttr(p.command || '\u2014')}">${escapeHtml(p.command || '\u2014')}</td>
-                    <td class="process-actions">
-                      <button type="button" class="process-copy-btn" onclick="event.stopPropagation();${copyForPasteHandler(pidStr, `PID ${pidStr}`, 'terminal')}" title="${escapeAttr(copyActionTitle(`PID ${pidStr}`, 'terminal'))}">Copy PID</button>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+        <div class="process-list">
+          ${processes.map(p => {
+            const pidStr = String(p.pid ?? '');
+            return `
+              <div class="process-card">
+                <div class="process-card-head">
+                  <span class="process-label-badge">${escapeHtml(p.label || 'other')}</span>
+                  <span class="process-actions">
+                    <button type="button" class="process-copy-btn" onclick="event.stopPropagation();${copyForPasteHandler(pidStr, `PID ${pidStr}`, 'terminal')}" title="${escapeAttr(copyActionTitle(`PID ${pidStr}`, 'terminal'))}">Copy PID</button>
+                  </span>
+                </div>
+                ${p.description ? `<div class="process-desc">${escapeHtml(p.description)}</div>` : ''}
+                <div class="process-meta">
+                  <span>PID ${escapeHtml(pidStr)}</span>
+                  <span>CPU ${escapeHtml(p.cpu || '\u2014')}%</span>
+                  <span>MEM ${escapeHtml(p.mem || '\u2014')}%</span>
+                  ${p.etime ? `<span>up ${escapeHtml(p.etime)}</span>` : ''}
+                </div>
+                <div class="process-cmd" title="${escapeAttr(p.command || '\u2014')}">${escapeHtml(p.command || '\u2014')}</div>
+              </div>
+            `;
+          }).join('')}
         </div>
       `}
     </div>
@@ -6928,19 +7954,15 @@ function renderUnsafe() {
 
   // ===== Skills =====
   const skills = d.skills || [];
-  const categories = {};
-  skills.forEach(s => {
-    const cat = s.category || 'other';
-    if (!categories[cat]) categories[cat] = [];
-    categories[cat].push(s);
-  });
-  const catColors = ['#a855f7','#3b82f6','#22c55e','#eab308','#f97316','#06b6d4','#ec4899','#ef4444'];
-  let catIdx = 0;
+  const skillLockSvg = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>`;
+  const skillCreatePrompt = 'Create a new Agent Skill under .cursor/skills/ (directory with a SKILL.md markdown body). Ask me for the name and behavior first.';
+  const skillEditableCount = skills.filter(s => s.kitManaged !== true).length;
   parts.push(`
     <div class="content-section" id="section-skills">
       <div class="section-title">
-        <span class="dot dot-orange" style="background:var(--orange)"></span> Skills
-        <span class="section-subtitle">${skills.length} discovered</span>
+        Skills
+        <span class="section-subtitle">${skills.length} skills · ${skillEditableCount} editable</span>
+        <button type="button" class="git-action-btn primary skill-create-btn" data-focus-key="cta-skill-create" onclick="${copyForPasteHandler(skillCreatePrompt, 'create prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('create prompt', 'chatInput'))}">Copy create prompt</button>
       </div>
       ${skills.length === 0
         ? renderEmptyStateCta({
@@ -6955,23 +7977,38 @@ function renderUnsafe() {
               focusKey: 'cta-skills-path',
             },
           })
-        : Object.entries(categories).map(([cat, items]) => {
-        const catColor = catColors[catIdx++ % catColors.length];
-        return `
-          <div class="skills-category">
-            <div class="skills-category-title">${escapeHtml(cat)}</div>
-            <div class="skills-tags">
-              ${items.map(s => `
-                <div class="skill-tag" title="${escapeAttr(s.description || '')}">
-                  <span class="skill-cat-dot" style="background:${catColor}"></span>
-                  <span class="skill-title">${escapeHtml(s.title)}</span>
-                  ${s.description ? `<span class="skill-desc">\u2014 ${escapeHtml(s.description)}</span>` : ''}
-                </div>
-              `).join('')}
+        : ''}
+      <div class="skill-grid">
+        ${skills.map(s => {
+          const skillFile = s.file || `.cursor/skills/${s.id}/SKILL.md`;
+          const skillDir = skillFile.replace(/\/SKILL\.md$/, '');
+          const kitManaged = s.kitManaged === true;
+          const lockBadge = kitManaged
+            ? `<span class="skill-lock" title="Kit managed: owned by kit updates, read-only here">${skillLockSvg}Kit managed</span>`
+            : '';
+          const usePrompt = `Read this skill file and follow its instructions:\n${skillFile}`;
+          const useBtn = `<button type="button" class="git-action-btn primary" onclick="${copyForPasteHandler(usePrompt, 'use prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('use prompt', 'chatInput'))}">Copy use prompt</button>`;
+          const editPrompt = `Edit this skill file (SKILL.md markdown body):\n${skillFile}`;
+          const editBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(editPrompt, 'edit prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('edit prompt', 'chatInput'))}">Copy edit prompt</button>`;
+          const deletePrompt = `Delete this skill directory after confirming with me:\n${skillDir}`;
+          const deleteBtn = kitManaged
+            ? ''
+            : `<button type="button" class="git-action-btn" onclick="${copyForPasteHandler(deletePrompt, 'delete prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('delete prompt', 'chatInput'))}">Copy delete prompt</button>`;
+          return `
+          <div class="skill-card"${kitManaged ? ' data-kit-managed="true"' : ''} title="${escapeAttr(s.description || '')}">
+            <div class="skill-card-head">
+              <span class="skill-name">${escapeHtml(s.title)}</span>
+              ${lockBadge}
             </div>
+            <span class="skill-cat">${escapeHtml(s.category || 'root')}</span>
+            <div class="skill-file">${escapeHtml(skillFile)}</div>
+            <div class="skill-actions">${useBtn}${editBtn}${deleteBtn}</div>
           </div>
         `;
-      }).join('')}
+        }).join('')}
+      </div>
     </div>
   `);
 
@@ -7011,7 +8048,7 @@ function renderUnsafe() {
   parts.push(`
     <div class="content-section" id="section-activity">
       <div class="section-title">
-        <span class="dot" style="background:var(--cyan)"></span> Activity
+        Activity
         <span class="section-subtitle">${escapeHtml(activityCountLabel)} · Last refreshed ${escapeHtml(relativeTime(d.generatedAt))}</span>
       </div>
       ${renderActivityFilterChips()}

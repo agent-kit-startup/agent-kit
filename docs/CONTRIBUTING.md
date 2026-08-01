@@ -17,7 +17,7 @@ New to the kit? Here's where things land and how to test before your PR:
 - **Skills:** Community contributions go under `registry/skills/community/<skill-id>/SKILL.md` - see the [new skill vs improving existing](#new-skill-vs-improving-an-existing-one) section below
 - **Core changes:** CLI features, base rules, and templates live in their respective folders (`packages/cli/`, `.cursor/`, etc.)
 - **Test locally:** `pnpm install && pnpm lint && pnpm test` from the repo root
-- **Mission Control pack (Path C):** After the CLI publish that ships it, `@dadado/agent-kit-cli` includes `dashboard/**` in the npm tarball (synced from repo-root SoT at build/`prepack`). Do not assume the current published tag already has it; check [CHANGELOG](../CHANGELOG.md) Unreleased / the release notes. Local pack check: `node scripts/verify-cli-dashboard-pack.mjs`. Version bump stays `/git-prod` HITL ([npm-publish-checklist.md](npm-publish-checklist.md)).
+- **Mission Control pack (Path C):** `@dadado/agent-kit-cli` includes `dashboard/**` in the npm tarball from 4.8.2 onward (synced from repo-root SoT at build/`prepack`). Local pack check: `node scripts/verify-cli-dashboard-pack.mjs`. To confirm a published tag, run `npm pack @dadado/agent-kit-cli@<version>` and inspect the tarball for `package/dashboard/`. Version bump stays `/git-prod` HITL ([npm-publish-checklist.md](npm-publish-checklist.md)).
 
 See [getting-started.md](getting-started.md) for the full development setup and workflow details.
 
@@ -48,6 +48,27 @@ Other local CLI commands follow the same pattern:
 # status, update, etc.
 pnpm --filter @dadado/agent-kit-cli start -- status --cwd /path/to/your-project
 ```
+
+### Factory self-consumer (local apply loop)
+
+This repo can act as its own consumer to validate L0 changes before a public release. This is distinct from the public consumer update-check and from the public sync mirror.
+
+1. **Build the CLI** from the current source:
+   ```bash
+   pnpm --filter @dadado/agent-kit-cli build
+   ```
+2. **First seed** (only when `.cursor/agent-kit.managed-hashes.json` is absent):
+   ```bash
+   pnpm --filter @dadado/agent-kit-cli start -- update --cwd . --seed-overlay
+   ```
+   `--seed-overlay` records current local overlay files as the managed baseline so future updates can distinguish kit drift from local customization.
+3. **Subsequent local refreshes**:
+   ```bash
+   pnpm --filter @dadado/agent-kit-cli start -- update --cwd .
+   ```
+   The factory checkout resolves its own `registry/` as the source (cwd has `registry/registry.json`). The public update-check is skipped because the registry is local (`skipped-factory`).
+
+Do not use this path in a public consumer project; consumers should rely on the public release tag and `/update` HITL.
 
 ## Standards
 

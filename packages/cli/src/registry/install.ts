@@ -7,6 +7,7 @@ import {
   mergeStats,
   recordOutcome,
 } from "../lifecycle/apply.js";
+import { loadManagedHashLedger, saveManagedHashLedger } from "../lifecycle/overlay.js";
 import { resolveContained } from "../lifecycle/paths.js";
 import { readJson } from "../utils/fs.js";
 import { allSkills, findPack, loadRegistry } from "./client.js";
@@ -98,14 +99,17 @@ export async function installSkill(
   const category = skill.path.includes("/core/") ? "core" : "community";
   const sourceRel = path.posix.join(skill.path, "SKILL.md");
   const targetRel = path.posix.join(".cursor", "skills", category, skill.id, "SKILL.md");
+  const managedHashes = await loadManagedHashLedger(projectRoot);
   const outcome = await copyRegistryFile(
     registryRoot,
     projectRoot,
     sourceRel,
     targetRel,
     options.protectedGlobs ?? [],
+    { managedHashes, persistManagedHashes: false },
   );
   recordOutcome(stats, targetRel, outcome);
+  await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;
 }
 
@@ -157,6 +161,8 @@ export async function installPack(
   const packManifest = await loadPackManifest(registryRoot, packId);
   const stats = emptyStats();
   const protectedGlobs = options.protectedGlobs ?? [];
+  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const copyOpts = { managedHashes, persistManagedHashes: false as const };
 
   for (const member of packManifest.members) {
     const { sourceRel, targetRel } = targetForMember(member);
@@ -166,9 +172,11 @@ export async function installPack(
       sourceRel,
       targetRel,
       protectedGlobs,
+      copyOpts,
     );
     recordOutcome(stats, targetRel, outcome);
   }
+  await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;
 }
 

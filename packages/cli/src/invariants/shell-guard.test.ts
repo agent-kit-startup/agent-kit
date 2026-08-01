@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { SHELL_DENY_RULES, evaluateShellCommand } from "./shell-guard.js";
 
 describe("evaluateShellCommand", () => {
+  afterEach(() => {
+    // Node coerces env values to strings: `= undefined` sets the literal "undefined".
+    // biome-ignore lint/performance/noDelete: process.env must be removed, not set to "undefined"
+    delete process.env.ALLOW_MAIN_PUSH;
+  });
+
   it("allows benign git status", () => {
     expect(evaluateShellCommand("git status").permission).toBe("allow");
   });
@@ -35,6 +41,73 @@ describe("evaluateShellCommand", () => {
     expect(evaluateShellCommand("git push origin HEAD:main").rule).toBe("git-push-main");
   });
 
+  it("allows push to main when ALLOW_MAIN_PUSH=1 is inline (git-prod path)", () => {
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 git push origin main").permission).toBe("allow");
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 git push origin HEAD:main").permission).toBe(
+      "allow",
+    );
+  });
+
+  it("allows push to main when process.env.ALLOW_MAIN_PUSH=1", () => {
+    process.env.ALLOW_MAIN_PUSH = "1";
+    expect(evaluateShellCommand("git push origin main").permission).toBe("allow");
+    expect(evaluateShellCommand("git push origin HEAD:main").permission).toBe("allow");
+  });
+
+  it("denies bare push to main when ALLOW_MAIN_PUSH is unset", () => {
+    // biome-ignore lint/performance/noDelete: process.env must be removed, not set to "undefined"
+    delete process.env.ALLOW_MAIN_PUSH;
+    expect(evaluateShellCommand("git push origin main").permission).toBe("deny");
+    expect(evaluateShellCommand("git push origin main").rule).toBe("git-push-main");
+  });
+
+  it("denies bare push to main when ALLOW_MAIN_PUSH=0", () => {
+    process.env.ALLOW_MAIN_PUSH = "0";
+    expect(evaluateShellCommand("git push origin main").permission).toBe("deny");
+    expect(evaluateShellCommand("git push origin main").rule).toBe("git-push-main");
+  });
+
+  it("does not let ALLOW_MAIN_PUSH on a later segment authorize an earlier push", () => {
+    expect(evaluateShellCommand("git push origin main && ALLOW_MAIN_PUSH=1 echo ok").rule).toBe(
+      "git-push-main",
+    );
+  });
+
+  it("denies unsafe main-push forms even when ALLOW_MAIN_PUSH=1 is present", () => {
+    const denyWhileEnv: string[] = [
+      "ALLOW_MAIN_PUSH=1 git push --force origin main",
+      "ALLOW_MAIN_PUSH=1 git push -f origin main",
+      "ALLOW_MAIN_PUSH=1 git push --force-with-lease origin main",
+      "ALLOW_MAIN_PUSH=1 git push --no-verify origin main",
+      "ALLOW_MAIN_PUSH=1 git push origin prod",
+      "ALLOW_MAIN_PUSH=1 git push origin master",
+      "ALLOW_MAIN_PUSH=1 git push origin main --tags",
+      "ALLOW_MAIN_PUSH=1 git push origin main --all",
+      "ALLOW_MAIN_PUSH=1 git push --tags --all origin main",
+      "ALLOW_MAIN_PUSH=1 git push origin +main",
+    ];
+    for (const cmd of denyWhileEnv) {
+      const r = evaluateShellCommand(cmd);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe("git-push-main");
+    }
+
+    process.env.ALLOW_MAIN_PUSH = "1";
+    const denyWithProcessEnv: string[] = [
+      "git push --force origin main",
+      "git push --force-with-lease origin main",
+      "git push --no-verify origin main",
+      "git push origin prod",
+      "git push origin master",
+      "git push origin main --tags --all",
+    ];
+    for (const cmd of denyWithProcessEnv) {
+      const r = evaluateShellCommand(cmd);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe("git-push-main");
+    }
+  });
+
   it("denies force-refspec and refs/heads/ pushes to main", () => {
     expect(evaluateShellCommand("git push origin +main").rule).toBe("git-push-main");
     expect(evaluateShellCommand("git push origin refs/heads/main").rule).toBe("git-push-main");
@@ -44,6 +117,45 @@ describe("evaluateShellCommand", () => {
   it("denies quoted push refspecs to main", () => {
     expect(evaluateShellCommand("git push origin 'main'").rule).toBe("git-push-main");
     expect(evaluateShellCommand('git push origin "+main"').rule).toBe("git-push-main");
+  });
+
+  it("denies prefixed and embedded quote push forms that shell collapses to main", () => {
+    const denyForms = [
+      "+'main'",
+      '+"main"',
+      "ma'in'",
+      'm"ain"',
+      "''main''",
+      "'refs/heads'/main",
+      "+refs/'heads'/main",
+    ];
+    for (const dest of denyForms) {
+      expect(evaluateShellCommand(`git push origin ${dest}`).rule).toBe("git-push-main");
+    }
+  });
+
+  it("denies backslash push forms that shell collapses to main", () => {
+    // JS source needs \\ so the refspec token retains a literal backslash.
+    const denyForms = ["\\main", "ma\\in", "mai\\n", "'\\main'", '"ma\\in"', "+\\main"];
+    for (const dest of denyForms) {
+      expect(evaluateShellCommand(`git push origin ${dest}`).rule).toBe("git-push-main");
+    }
+  });
+
+  it("does not over-block staging or mainline-like branches after quote/backslash strip", () => {
+    const allowForms = [
+      "'staging'",
+      '"+staging"',
+      "'mainline'",
+      '"feature/main-fix"',
+      '"refs/heads/staging"',
+      "\\staging",
+      "sta\\ging",
+      "\\mainline",
+    ];
+    for (const dest of allowForms) {
+      expect(evaluateShellCommand(`git push origin ${dest}`).permission).toBe("allow");
+    }
   });
 
   it("denies bare push / force HEAD when current branch is protected", () => {

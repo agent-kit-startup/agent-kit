@@ -14,7 +14,7 @@ npx @dadado/agent-kit-cli install
 
 Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
-That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (Path C, after the publish that ships it) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (4.8.2 onward) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
@@ -48,7 +48,7 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. After a CLI publish that ships Path C, `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package; until then use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `/dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `/dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
@@ -60,6 +60,7 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 | `agent-kit add <id>` | Add one skill or pack later |
 | `agent-kit status` | Show install state, readiness summary, and profile origin |
 | `agent-kit update --check` | Notify-only version compare vs public tags (no L0 writes) |
+| `agent-kit cursor-awareness --check` | Opt-in advisory: Cursor changelog vs native-audit inventory (no apply) |
 | `agent-kit update` | Explicit apply: pull latest rules/commands; leaves your own files alone |
 | `agent-kit diff` | Show what changed between what you have and the latest |
 | `agent-kit contribute` | Send an improvement you made locally back upstream |
@@ -108,6 +109,8 @@ Do not re-author Gate A/B or continuous tick contracts here; link L0 commands wh
 ### Agent Personas
 
 Personas change **chat tone and CLI tick banners only**. Defaults by mode: Autopilot for `/continue-plan`, Night Shift for `/run-plan`, Ghost Runner for `agent-kit run-plan`. They never alter commits, HANDOFF, memory, or product documentation. Configure them after readiness (personalization step, Mission Control **Config** under More, or edit `agentPersona` in `.cursor/context/config.json`). Contract and contribute path: [personas-contract.md](personas-contract.md), [creating-personas.md](creating-personas.md).
+
+For the full list of consumer-configurable knobs (session config, dashboard skin, install-time choices, CLI flags) with copy-paste snippets for each, see [consumer-configuration.md](consumer-configuration.md).
 
 ### Less babysitting
 
@@ -172,9 +175,9 @@ Mission Control is a **local, single-developer** observability panel. Treat it a
 
 Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
 
-**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C; Unreleased until that publish), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
+**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
 
-**First failure (no `dashboard/start.mjs`):** reinstall a CLI version whose npm package includes `dashboard/` (check CHANGELOG Unreleased / publish checklist; do not assume `@dadado/agent-kit-cli@4.8.0` has Path C), or point env/sibling at a kit tree. Do not expect Port B alone to place the panel binary in the project.
+**First failure (no `dashboard/start.mjs`):** the installed CLI is older than 4.8.2 (4.8.0 has no Path C assets; 4.8.1 was never published). Upgrade to 4.8.2+, or point env/sibling at a kit tree. Do not expect Port B alone to place the panel binary in the project.
 
 The exact git steps behind staging and production live in `autogit/gitupdate.md`; plan modes in `autogit/plan-routine.md`. Both are installed with the kit. Native hooks are listed in [layers-spec.md](layers-spec.md) (L0).
 
@@ -187,5 +190,10 @@ If you're developing the kit (not just using it):
 3. Try the scanner: `pnpm --filter @dadado/agent-kit-cli start scan`
 4. Install into a test project: `pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/project`
 5. Check this repo's own install: `pnpm --filter @dadado/agent-kit-cli start status`
+6. Refresh this repo's own L0 from local source (factory self-consumer):
+   - First time: `pnpm --filter @dadado/agent-kit-cli start -- update --cwd . --seed-overlay`
+   - Later: `pnpm --filter @dadado/agent-kit-cli start -- update --cwd .`
+
+   This is a local maintainer loop, not a public consumer update. See [CONTRIBUTING](CONTRIBUTING.md) for the three-way distinction (public consumer / factory self-consumer / public sync).
 
 See the root [README](../README.md) for the big picture and [CONTRIBUTING](CONTRIBUTING.md) for how changes flow.

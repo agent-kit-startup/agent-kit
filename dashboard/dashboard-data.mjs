@@ -24,6 +24,7 @@ import {
   buildMissionControlView,
   collectDeferredCheckIds,
   collectReadinessPendingFromReport,
+  describeProcess,
   detectAwaitingPrompt,
   dismissedAttentionIds,
   extractChatSnippet,
@@ -37,15 +38,26 @@ import {
   serializeFlightLogLedger,
   serializeMissionTimingLedger,
 } from "./lib/semantic-model.mjs";
+import { MAX_TERMINAL_BYTES, buildTerminalSnapshotFields } from "./lib/terminal-snapshot.mjs";
 
 const KIT_ROOT = resolve(import.meta.dirname, "..");
 /** Snapshot root: consumer workspace when MISSION_CONTROL_REPO_ROOT is set, else kit tree. */
 const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
 const MAX_TERMINALS = 20;
 const MAX_PROCESSES = 25;
-const MAX_TERMINAL_BYTES = 64 * 1024;
-const MAX_LAST_OUTPUT_LINES = 15;
-const MAX_LAST_OUTPUT_CHARS = 1200;
+const MAX_GIT_GRAPH_LINES = 25;
+const MAX_GIT_GRAPH_LINE_CHARS = 160;
+
+/** Soft wall-clock budget for optional collectors (transcripts, reports, ps). */
+const SNAPSHOT_STARTED_MS = Date.now();
+const SNAPSHOT_BUDGET_MS = (() => {
+  const raw = process.env.AGENT_KIT_DASHBOARD_DATA_BUDGET_MS;
+  const n = raw != null && raw !== "" ? Number(raw) : 12_000;
+  return Number.isFinite(n) && n > 0 ? n : 12_000;
+})();
+function withinSnapshotBudget(reserveMs = 400) {
+  return Date.now() - SNAPSHOT_STARTED_MS + reserveMs < SNAPSHOT_BUDGET_MS;
+}
 
 // Agent-prompt scan bounds (fs half of the detection contract in semantic-model.mjs).
 const MAX_TRANSCRIPT_FILES = 60; // cap directory reads per snapshot
@@ -82,31 +94,6 @@ function redactTerminalOutput(text) {
   return out;
 }
 
-/** Last N lines of terminal body after YAML header, char-capped and redacted. */
-function extractLastOutput(rawContent) {
-  const lines = rawContent.split("\n");
-  let headerEnd = 0;
-  let dashCount = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() === "---") {
-      dashCount++;
-      if (dashCount === 2) {
-        headerEnd = i + 1;
-        break;
-      }
-    }
-  }
-  if (headerEnd === 0) headerEnd = 10;
-
-  const bodyLines = lines.slice(headerEnd).filter((l) => l.trim() && !l.startsWith("---"));
-  if (bodyLines.length === 0) return null;
-
-  const tail = bodyLines.slice(-MAX_LAST_OUTPUT_LINES);
-  let text = redactTerminalOutput(tail.join("\n"));
-  text = truncateStr(text, MAX_LAST_OUTPUT_CHARS);
-  return text?.trim() ? text : null;
-}
-
 const SNAPSHOT = {
   _schema: {
     version: "1.2.0",
@@ -119,18 +106,20 @@ const SNAPSHOT = {
         "System metadata: repoRoot, listen port, handoff state, allowlisted config summary, package info, version, name, contextPacks",
       agents: "Agent definitions from .cursor/agents/*.md",
       commands: "Slash commands from .cursor/commands/*.md",
-      memory: "Memory records: error count, decision count, recent decisions",
-      git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[]",
+      memory:
+        "Memory records: error count, decision count, recent decisions, recent parsed errors, error-o-meter stats",
+      git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[], promotion flow vs staging/main, graph lines, staging hygiene",
       terminals:
         "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
-      processes: "Running process snapshots (node, serve.mjs, git operations)",
+      processes:
+        "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
       health: "Aggregated health status with per-check results",
       missionControl: "Normalized now/activity/attention/plans view model (source-backed; bounded)",
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.2.0",
+  dashboardDataVersion: "1.3.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -243,9 +232,123 @@ if (existsSync(commandsDir)) {
   }
 }
 
+// 4b. Kit-managed marker: commands, skills, and agents listed in registry/registry.json are
+// owned by kit updates (read-only from the dashboard). No registry: all project-local.
+const kitCommandPaths = new Set();
+const kitSkillDirs = new Set();
+const kitAgentPaths = new Set();
+const registryFile = join(ROOT, "registry", "registry.json");
+if (existsSync(registryFile)) {
+  try {
+    const registry = JSON.parse(readFileSync(registryFile, "utf8"));
+    const entries = Array.isArray(registry?.artifacts) ? registry.artifacts : [];
+    for (const entry of entries) {
+      if (entry?.kind === "command" && typeof entry?.path === "string") {
+        kitCommandPaths.add(entry.path);
+      }
+      if (
+        entry?.kind === "skill" &&
+        typeof entry?.path === "string" &&
+        entry.path.startsWith("registry/skills/")
+      ) {
+        kitSkillDirs.add(entry.path.replace(/^registry\/skills\//, ".cursor/skills/"));
+      }
+      if (entry?.kind === "agent" && typeof entry?.path === "string") {
+        kitAgentPaths.add(entry.path);
+      }
+    }
+  } catch {
+    // Unreadable registry: degrade to all-editable rather than locking everything.
+  }
+}
+for (const c of SNAPSHOT.commands) {
+  c.kitManaged = kitCommandPaths.has(c.path);
+}
+for (const a of SNAPSHOT.agents) {
+  a.kitManaged = kitAgentPaths.has(a.path);
+}
+
 // 5. Memory
 const memoryErrorsDir = join(ROOT, ".cursor", "memory", "errors");
 const memoryDecisionsDir = join(ROOT, ".cursor", "memory", "decisions");
+const MAX_MEMORY_RECENT_ERRORS = 12; // cap parsed entries shipped per snapshot
+const MAX_MEMORY_ERROR_BYTES = 64 * 1024; // skip oversized entries, degrade quietly
+
+/** Parse one `.cursor/memory/errors/*.md` entry into the KPI-friendly shape. */
+function parseMemoryErrorFile(dir, file) {
+  const id = file.replace(/\.md$/, "");
+  const path = `.cursor/memory/errors/${file}`;
+  const full = join(dir, file);
+  let modifiedAt = null;
+  try {
+    modifiedAt = statSync(full).mtime.toISOString();
+  } catch {
+    modifiedAt = null;
+  }
+  let raw = "";
+  try {
+    raw = readFileSync(full, "utf-8").slice(0, MAX_MEMORY_ERROR_BYTES);
+  } catch {
+    return {
+      id,
+      path,
+      title: id,
+      date: "",
+      error: "",
+      cause: "",
+      solution: "",
+      files: "",
+      tags: [],
+      modifiedAt,
+    };
+  }
+  const field = (...names) => {
+    for (const name of names) {
+      const m = raw.match(new RegExp(`^- \\*\\*${name}:\\*\\*\\s*(.+)$`, "im"));
+      if (m) return truncateStr(m[1].trim(), 600);
+    }
+    return "";
+  };
+  const titleMatch = raw.match(/^#\s+(.+)$/m);
+  const tags = field("Tags")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return {
+    id,
+    path,
+    title: titleMatch ? truncateStr(titleMatch[1].trim(), 200) : id,
+    date: field("Date", "Data"),
+    error: field("Error", "Erro"),
+    cause: field("Cause", "Causa"),
+    solution: field("Solution", "Solução", "Solucao"),
+    files: field("Files", "Arquivos"),
+    tags,
+    modifiedAt,
+  };
+}
+
+/** Error-o-meter aggregates: counts, rates, and top tags across parsed entries. */
+function computeMemoryErrorStats(entries) {
+  const total = entries.length;
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const last30d = entries.filter((e) => {
+    const t = Date.parse(e.date || e.modifiedAt || "");
+    return Number.isFinite(t) && now - t <= 30 * DAY_MS;
+  }).length;
+  const weeklyRate = Math.round((last30d / 30) * 7 * 10) / 10;
+  const tagCounts = new Map();
+  for (const e of entries) {
+    for (const t of e.tags || []) tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+  }
+  const topTags = [...tagCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 6)
+    .map(([tag, count]) => ({ tag, count }));
+  return { total, last30d, weeklyRate, topTags };
+}
+
 if (existsSync(memoryErrorsDir)) {
   const errorFiles = readdirSync(memoryErrorsDir).filter((f) => f.endsWith(".md"));
   SNAPSHOT.memory.errors = errorFiles.length;
@@ -259,6 +362,11 @@ if (existsSync(memoryErrorsDir)) {
     }
     return { id, modifiedAt };
   });
+  const parsedErrors = errorFiles
+    .map((f) => parseMemoryErrorFile(memoryErrorsDir, f))
+    .sort((a, b) => String(b.date || b.id).localeCompare(String(a.date || a.id)));
+  SNAPSHOT.memory.recentErrors = parsedErrors.slice(0, MAX_MEMORY_RECENT_ERRORS);
+  SNAPSHOT.memory.errorStats = computeMemoryErrorStats(parsedErrors);
 }
 if (existsSync(memoryDecisionsDir)) {
   const files = readdirSync(memoryDecisionsDir).filter((f) => f.endsWith(".md"));
@@ -314,6 +422,44 @@ try {
     recentLog = [];
   }
 
+  // Promotion flow state: ahead/behind of HEAD vs BOTH origin/staging and
+  // origin/main, plus staging vs main (pending promotion count).
+  const countDivergence = (range) => {
+    try {
+      const out = execSync(`git rev-list --left-right --count ${range}`, gitOpts).trim();
+      const [left, right] = out.split(/\s+/).map((n) => Number.parseInt(n, 10) || 0);
+      return { ahead: right, behind: left };
+    } catch {
+      return null;
+    }
+  };
+  const flow = {
+    vsStaging: countDivergence("origin/staging...HEAD"),
+    vsMain: countDivergence("origin/main...HEAD"),
+    stagingVsMain: countDivergence("origin/main...origin/staging"),
+  };
+
+  // Readable graph (branch lanes + merges) as pre-rendered text lines.
+  let graphLines = [];
+  try {
+    graphLines = execSync(
+      `git log --graph --oneline --decorate --date-order --all -n ${MAX_GIT_GRAPH_LINES}`,
+      gitOpts,
+    )
+      .trimEnd()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => truncateStr(line, MAX_GIT_GRAPH_LINE_CHARS));
+  } catch {
+    graphLines = [];
+  }
+
+  // Staging hygiene: untracked plan-monitor WIP (add-by-name only, never a
+  // broad git add of .cursor/memory/; ADR 2026-07-29 staging hygiene R14/R15).
+  const monitorWip = parsed.files
+    .filter((f) => f.untracked && /^\.cursor\/memory\/plan-monitor-.+\.md$/.test(f.path))
+    .map((f) => f.path);
+
   SNAPSHOT.git = {
     branch: truncateStr(branch, MAX_STRING.branch),
     dirty: parsed.total > 0,
@@ -323,6 +469,9 @@ try {
     lastCommit: truncateStr(lastCommit, MAX_STRING.lastCommit),
     ahead,
     behind,
+    flow,
+    graph: graphLines,
+    hygiene: { monitorWip },
   };
   SNAPSHOT._gitRecentLog = recentLog;
 } catch {
@@ -344,26 +493,24 @@ if (existsSync(terminalProjectPath)) {
     for (const file of files) {
       const full = join(terminalProjectPath, file);
       const raw = readFileSync(full, "utf-8");
-      // Cap huge terminal dumps: only header meta + a line count estimate is needed
-      const content = raw.length > MAX_TERMINAL_BYTES ? raw.slice(0, MAX_TERMINAL_BYTES) : raw;
-      const lines = content.split("\n");
-      const meta = {};
-      for (const line of lines.slice(0, 15)) {
-        if (line.startsWith("pid:")) meta.pid = line.slice(4).trim();
-        if (line.startsWith("cwd:")) meta.cwd = line.slice(4).trim();
-        if (line.startsWith("command:")) meta.lastCommand = line.slice(8).trim();
-        if (line.startsWith("last_command:")) meta.lastCommand = line.slice(13).trim();
-        if (line.startsWith("last_exit_code:")) meta.lastExitCode = line.slice(15).trim();
-      }
-      const outputLines = lines.slice(10).filter((l) => {
-        return l.trim() && !l.startsWith("---");
-      }).length;
-      const lastOutput = extractLastOutput(content);
+      // Meta from file head; body/output from tail-cap so over-cap terminals keep pid/cwd/exit
+      // (plain tail-slice previously dropped the header and blanked exit-code dots).
+      const { meta, outputLines, lastOutput } = buildTerminalSnapshotFields(raw, {
+        maxBytes: MAX_TERMINAL_BYTES,
+        redact: redactTerminalOutput,
+        truncate: truncateStr,
+      });
       const entry = {
         id: file,
         ...redactTerminalMeta(meta),
         outputLines,
       };
+      // File mtime feeds the busy-outside-plan freshness window (semantic model).
+      try {
+        entry.updatedAt = statSync(full).mtime.toISOString();
+      } catch {
+        // Missing mtime only disables the busy freshness signal for this terminal.
+      }
       if (lastOutput) entry.lastOutput = lastOutput;
       SNAPSHOT.terminals.push(entry);
     }
@@ -431,6 +578,7 @@ if (existsSync(skillsDir)) {
             title: titleMatch ? titleMatch[1].trim() : relativeDir.split("/").pop(),
             description: descMatch ? descMatch[1].trim().slice(0, 150) : "",
             file: fullPath.replace(`${ROOT}/`, ""),
+            kitManaged: kitSkillDirs.has(`.cursor/skills/${relativeDir}`),
           });
         }
       }
@@ -443,36 +591,43 @@ if (existsSync(skillsDir)) {
 
 // 13. Process scanning (capped list: the UI only needs a sample of relevant procs)
 try {
-  const psOutput = execSync("ps -axo pid=,pcpu=,pmem=,command=", {
-    encoding: "utf-8",
-    timeout: 3000,
-  }).trim();
-  if (psOutput) {
-    const interesting = [];
-    for (const line of psOutput.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      if (!/node|git|serve\.mjs|dashboard/i.test(trimmed)) continue;
-      if (/grep|dashboard-data/.test(trimmed)) continue;
-      const parts = trimmed.split(/\s+/);
-      const pid = parts[0];
-      const cpu = parts[1];
-      const mem = parts[2];
-      const cmd = parts.slice(3).join(" ") || "unknown";
-      let label = "other";
-      if (cmd.includes("serve.mjs") || cmd.includes("node dashboard")) label = "dashboard-server";
-      else if (/\bgit\b/.test(cmd)) label = "git";
-      else if (cmd.includes("node")) label = "node";
-      interesting.push({
-        pid,
-        cpu,
-        mem,
-        command: truncateStr(cmd, MAX_STRING.processCommand),
-        label,
-      });
-      if (interesting.length >= MAX_PROCESSES) break;
+  if (!withinSnapshotBudget(500)) {
+    SNAPSHOT.processes = [];
+  } else {
+    const psOutput = execSync("ps -axo pid=,pcpu=,pmem=,etime=,command=", {
+      encoding: "utf-8",
+      timeout: 3000,
+    }).trim();
+    if (psOutput) {
+      const interesting = [];
+      for (const line of psOutput.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (!/node|git|serve\.mjs|dashboard/i.test(trimmed)) continue;
+        if (/grep|dashboard-data/.test(trimmed)) continue;
+        const parts = trimmed.split(/\s+/);
+        const pid = parts[0];
+        const cpu = parts[1];
+        const mem = parts[2];
+        const etime = parts[3];
+        const cmd = parts.slice(4).join(" ") || "unknown";
+        let label = "other";
+        if (cmd.includes("serve.mjs") || cmd.includes("node dashboard")) label = "dashboard-server";
+        else if (/\bgit\b/.test(cmd)) label = "git";
+        else if (cmd.includes("node")) label = "node";
+        interesting.push({
+          pid,
+          cpu,
+          mem,
+          etime,
+          command: truncateStr(cmd, MAX_STRING.processCommand),
+          label,
+          description: describeProcess({ label, command: cmd, cpu, etime }),
+        });
+        if (interesting.length >= MAX_PROCESSES) break;
+      }
+      SNAPSHOT.processes = interesting;
     }
-    SNAPSHOT.processes = interesting;
   }
 } catch {
   SNAPSHOT.processes = [];
@@ -483,7 +638,8 @@ const checks = [
   { id: "plans", label: "Plans directory", ok: existsSync(plansDir) && SNAPSHOT.plans.length > 0 },
   // Present + parseable HANDOFF is healthy even when Plan is none/null (idle).
   { id: "handoff", label: "HANDOFF.md", ok: !!SNAPSHOT.system.handoff },
-  { id: "agents", label: "Agents", ok: SNAPSHOT.agents.length > 0 },
+  // L0-optional: empty .cursor/agents/ is healthy (packs/skills may add agents later).
+  { id: "agents", label: "Agents", ok: true },
   { id: "commands", label: "Commands", ok: SNAPSHOT.commands.length > 0 },
   {
     id: "memory",
@@ -518,6 +674,7 @@ SNAPSHOT.health.status = checks.every((c) => c.ok)
  * never an error state.
  */
 function collectAgentPrompts() {
+  if (!withinSnapshotBudget(800)) return [];
   const projectsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
   const slug = ROOT.replace(/\//g, "-").replace(/^-/, "");
   const transcriptsDir = join(projectsDir, slug, "agent-transcripts");
@@ -592,6 +749,7 @@ function collectAgentPrompts() {
  * directory yields an empty list, never an error state.
  */
 function collectExternalReports() {
+  if (!withinSnapshotBudget(600)) return [];
   const memoryDir = join(ROOT, ".cursor", "memory");
   if (!existsSync(memoryDir)) return [];
 

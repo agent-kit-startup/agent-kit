@@ -7,7 +7,7 @@ Local guards for the DevOps spine (staging -> prod flow). Git doesn't version `.
 | Hook | What it does |
 |------|--------------|
 | `pre-commit` | Aborts direct commit to `main`/`master`. Work goes to working branch or `staging`. |
-| `pre-push` | Aborts direct push to `main`/`master` on any remote, unless `ALLOW_MAIN_PUSH=1` (used by `/git-prod`). |
+| `pre-push` | Aborts direct push to `main`/`master` on any remote, unless `ALLOW_MAIN_PUSH=1` (used by `/git-prod`). Also aborts force-update or delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1`. |
 | `prepare-commit-msg` | Removes the `Co-authored-by: Cursor` trailer from commit message. |
 
 ## Install
@@ -32,7 +32,23 @@ After merging `staging` into `main` locally, publish with the env gate (keeps th
 ALLOW_MAIN_PUSH=1 git push origin main
 ```
 
+The same form works from the Cursor agent Shell: `agent-kit guard shell` (CLI SoT; thin beforeShellExecution adapter) allows that command when `ALLOW_MAIN_PUSH=1` is present (inline or process env), matching `pre-push`. Bare `git push origin main` stays denied in both places.
+
+**WARNING**: Avoid exporting `ALLOW_MAIN_PUSH=1` in your IDE session or terminal environment (e.g., `export ALLOW_MAIN_PUSH=1`). This disables main-push protection for every subsequent agent Shell command until unset, not just the intended `/git-prod` push. Use the inline prefix form `ALLOW_MAIN_PUSH=1 git push origin main` for authorized single commands only.
+
 Do **not** set `ALLOW_MAIN_PUSH` for everyday pushes. Accidental `git push origin main` stays blocked.
+
+## Immutable `v*` tags
+
+`pre-push` blocks force-updating or deleting `refs/tags/v*` (new tag creates still allowed). Aligns with `autogit/gitupdate.md` §9.5: if tag CI fails after the first push, cut a **new** patch tag rather than rewriting the published one.
+
+Emergency rewrite (rare):
+
+```sh
+ALLOW_TAG_FORCE=1 git push --force origin vX.Y.Z
+```
+
+**Optional GitHub ruleset (operator):** on the private repo, add a ruleset for `v*` tags with "Restrict deletions" and "Block force pushes" so server-side policy matches the local hook even when `--no-verify` is used.
 
 ## Emergency override
 

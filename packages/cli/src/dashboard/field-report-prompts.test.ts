@@ -586,12 +586,23 @@ describe("Flight Log panel contract (dashboard.html)", () => {
     expect(dashboardHtml).not.toContain("Resolve all</button>");
   });
 
-  it("exposes copy text and HANDOFF path actions on Flight Log cards", () => {
-    expect(dashboardHtml).toContain("Copy text");
-    expect(dashboardHtml).toContain("Gaps text");
-    expect(dashboardHtml).toContain("copyForPasteHandler(text, 'Gaps text', 'chatInput')");
-    expect(dashboardHtml).toContain("copyRepoPathHandler(sourcePath)");
-    expect(dashboardHtml).toContain("PATH_COPY_LABEL");
+  it("exposes one composed copy action per Flight Log entry", () => {
+    expect(dashboardHtml).not.toContain("Copy text");
+    expect(dashboardHtml).not.toContain("flight-log-copy-text-");
+    expect(dashboardHtml).not.toContain("flight-log-copy-path-");
+    expect(dashboardHtml).not.toContain("flight-log-warning-copy-text-");
+    expect(dashboardHtml).not.toContain("flight-log-warning-copy-path-");
+    expect(dashboardHtml).not.toContain("flight-log-open-triage-path-");
+    expect(dashboardHtml).toContain(
+      "copyForPasteHandler(actionCommand, 'fix prompt', 'chatInput')",
+    );
+    expect(dashboardHtml).toContain(
+      "copyForPasteHandler(actionCommand, actionSubject, 'chatInput')",
+    );
+    expect(dashboardHtml).toContain("flight-log-action-");
+    expect(dashboardHtml).toContain("flight-log-warning-action-");
+    expect(dashboardHtml).toContain("flight-log-open-triage-action-");
+    expect(dashboardHtml).toContain("fl?.currentAction");
   });
 
   it("does not keep orphaned Field Report attention render helpers", () => {

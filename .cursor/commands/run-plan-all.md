@@ -137,6 +137,8 @@ Use the safe helper after the confirm Ask grants consolidations. Canonical launc
 | Drop / archive | `.cursor/scripts/run-plan-all-consolidate.sh --drop PLAN.plan.md --apply --approved` (refuse overwrite unless `--force-overwrite`) |
 | HANDOFF queue rewrite | `.cursor/scripts/run-plan-all-consolidate.sh --rewrite-queue --queue "a.plan.md,b.plan.md" --cursor 0 --status running --activate a.plan.md --apply --approved` |
 
+`--rewrite-queue` validates and normalizes `--outcomes` (including multiline) **before** any HANDOFF mutation, then applies Plan/Mode/queue/cursor/status/outcomes as one atomic rewrite. Invalid outcomes (for example a line that looks like a HANDOFF machine field) refuse with the file untouched. Backlog CRUD callers still cannot rewrite the queue.
+
 Queue field shape aligns with `serializeRunPlanAllQueueFields` in `packages/cli/src/plan-loop/run-plan-all-orchestrator.ts` (machine-field bullets only). Never `/git-prod` from this path.
 
 ## Execute the Queue
@@ -180,6 +182,8 @@ Read `externalPlanReview` before the queue confirm Ask and at each advance:
 | Queue exhausted | Final HANDOFF; cadence `batch-complete`; then queue-end audit arm covering remaining owed/unreviewed targets (enabled → `--force --autonomous --wait-monitor` or paste per `mode`; else `offerOnExhausted` Ask). Prefer one launcher `--batch` + wait_all when multiple basenames. After wait exit `0`: run `/plan-review-triage` Ask with an **explicit path list** of fresh monitors (batch uniform Ask when outcomes match; sequential fallback when mixed; durable heading per file). Then suggest `/git-prod` if staging is ahead of `main` (separate HITL). |
 
 Never steal `/git-prod` confirmation. Chat never runs silent headless `--force` / `claude -p` in the agent shell. Spawn-only exit 0 without `--wait-monitor` is **not** review done. Never stop at Final HANDOFF "when monitors exist, run triage" after arming: wait (freshness) then continue (mid-batch waits for file only; queue-end waits then triage Ask with explicit paths). ADR: `2026-07-27_audits-autonomous-plan-review-contract.md` (supersedes queue-end-only); wait freshness: `2026-07-27_audits-wait-freshness-enforce.md`.
+
+**Exit 3 stays timeout-only across the queue.** A mid-queue or queue-end arm that returns `3` reviewed nothing: leave that plan Field Report **owed**, keep its path out of the queue-end triage list, and never narrate it as reviewed. Monitors that show up later, including monitors written by a different arm or a later queue position, do **not** retroactively upgrade an earlier `3`. Exit `4` covers the launcher soft-fails: missing `claude`, background spawn unavailable, a **silent PTY** early abort (spawn succeeded but produced no scrollback in the grace window), and a **session-cap refusal** (detached `agent-kit-audit-*` pile at the cap, so nothing spawned). Advance the queue on soft-fail, but record the target as owed, never as reviewed. ADR: `2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 
 ### External plan review (legacy heading)
 

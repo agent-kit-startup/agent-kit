@@ -452,6 +452,15 @@ export function serializeFlightLogLedger(ledger) {
  * @param {string | null | undefined} liveGaps
  * @param {{ nowMs?: number, sourcePath?: string, pastCap?: number, flightKey?: string | null }} [opts]
  */
+/**
+ * Compose one copy-only Flight Log action per the locked composed-command
+ * spec: dynamic label, a paste-ready command (action prompt, then the
+ * document path on its own line), and the referenced document path.
+ */
+function flightLogCopyAction(label, prompt, path) {
+  return { label, command: `${prompt}\n${path}`, sourcePath: path };
+}
+
 export function observeFlightLog(ledger, liveGaps, opts = {}) {
   const nowMs =
     typeof opts.nowMs === "number" && Number.isFinite(opts.nowMs) ? opts.nowMs : Date.now();
@@ -487,6 +496,11 @@ export function observeFlightLog(ledger, liveGaps, opts = {}) {
   const pastWithKind = past.map((entry) => ({
     ...entry,
     kind: classifyFlightLogMessageKind(entry.text),
+    action: flightLogCopyAction(
+      "Copy fix prompt",
+      `Act on these earlier residuals:\n${entry.text}`,
+      entry.sourcePath || ".cursor/HANDOFF.md",
+    ),
   }));
   return {
     ledger: nextLedger,
@@ -495,6 +509,13 @@ export function observeFlightLog(ledger, liveGaps, opts = {}) {
       currentKind: classifyFlightLogMessageKind(current),
       past: pastWithKind,
       sourcePath,
+      currentAction: current
+        ? flightLogCopyAction(
+            "Copy fix prompt",
+            `Act on these open residuals:\n${current}`,
+            sourcePath,
+          )
+        : null,
     },
   };
 }
@@ -517,7 +538,7 @@ export const FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP = 5;
  * WARNING cards, Review/Resolve CTAs, and Field Report attention kinds.
  * @param {object|null|undefined} handoff - parseHandoffMarkdown result
  * @param {{ cap?: number }} [opts]
- * @returns {{ id: string, kind: 'api_limit'|'orchestrator_heads_up', severity: 'warning', title: string, text: string, sourcePath: string }[]}
+ * @returns {{ id: string, kind: 'api_limit'|'orchestrator_heads_up', severity: 'warning', title: string, text: string, sourcePath: string, action: { label: string, command: string, sourcePath: string } }[]}
  */
 export function buildFlightLogWarnings(handoff, opts = {}) {
   const cap =
@@ -545,6 +566,11 @@ export function buildFlightLogWarnings(handoff, opts = {}) {
       title: "Quota pause",
       text: truncateStr(text.trim(), MAX_SEMANTIC_LABEL),
       sourcePath,
+      action: flightLogCopyAction(
+        "Copy recovery prompt",
+        `Resume after this quota pause:\n${truncateStr(text.trim(), MAX_SEMANTIC_LABEL)}`,
+        sourcePath,
+      ),
     });
   }
 
@@ -562,6 +588,11 @@ export function buildFlightLogWarnings(handoff, opts = {}) {
         title: "Heads up",
         text: truncateStr(text.trim(), MAX_SEMANTIC_LABEL),
         sourcePath,
+        action: flightLogCopyAction(
+          "Copy follow-up prompt",
+          `Act on this heads-up:\n${truncateStr(text.trim(), MAX_SEMANTIC_LABEL)}`,
+          sourcePath,
+        ),
       });
     }
   }
@@ -2142,16 +2173,18 @@ export function formatDeliveryActivity(logLines, { plans = [], limit = MAX_GIT_A
 
 /**
  * Actor segment for Monitor return-brief labels.
- * Kit agent id, else orchestrator for delivery, else plan ref, else system.
+ * Kit agent id, else Engineering Manager for delivery, else Squad when a plan
+ * is present (never the full plan filename), else Platform Engineer.
+ * Default software lexicon display masks (resolution kinds unchanged).
  * @param {string|null|undefined} agent
  * @param {{ kind?: string, plan?: string|null }} [opts]
  */
 export function briefActivityActor(agent, { kind, plan } = {}) {
   const kit = normalizeKitAgentId(agent);
   if (kit) return kit;
-  if (kind === "delivery") return "orchestrator";
-  if (plan) return String(plan);
-  return "system";
+  if (kind === "delivery") return "Engineering Manager";
+  if (plan) return "Squad";
+  return "Platform Engineer";
 }
 
 /**
@@ -2184,28 +2217,30 @@ export function formatPlanHandoffActivity({ now, handoff, plans }) {
   if (now?.status === "executing" && now.currentTodo) {
     const planRef = now.planFile || handoff?.plan || "plan";
     const actor = briefActivityActor(agentFromPlan, { kind: "run_plan", plan: planRef });
+    const fullLabel = `${actor} \u00b7 running \u00b7 ${now.currentTodo.id} \u00b7 ${planRef}`;
     events.push({
       id: activityId("run_plan", [now.planFile, now.currentTodo.id]),
       kind: "run_plan",
       at: now.modifiedAt || null,
       agent: agentFromPlan,
-      label: truncateStr(
-        `${actor} \u00b7 tick \u00b7 ${planRef} \u00b7 ${now.currentTodo.id}`,
-        MAX_SEMANTIC_LABEL,
-      ),
+      label: truncateStr(fullLabel, MAX_SEMANTIC_LABEL),
+      labelFull: fullLabel,
       sourcePath: now.planPath || null,
       refs: { plan: now.planFile, todo: now.currentTodo.id },
     });
   } else if (now?.status === "awaiting_user") {
     const planRef = now.planFile || handoff?.plan || "plan";
     const actor = briefActivityActor(agentFromPlan, { kind: "handoff", plan: planRef });
-    const gate = now.nextTodo?.id ? `next ${now.nextTodo.id}` : "awaiting user";
+    const gate = now.nextTodo?.id ? `next ${now.nextTodo.id}` : "user input";
+    const visible = `${actor} \u00b7 awaiting \u00b7 ${gate}`;
+    const fullLabel = `${visible} \u00b7 ${planRef}`;
     events.push({
       id: activityId("handoff", [now.planFile, "awaiting"]),
       kind: "handoff",
       at: now.modifiedAt || null,
       agent: agentFromPlan,
-      label: truncateStr(`${actor} \u00b7 handoff \u00b7 ${gate}`, MAX_SEMANTIC_LABEL),
+      label: truncateStr(visible, MAX_SEMANTIC_LABEL),
+      labelFull: fullLabel,
       sourcePath: ".cursor/HANDOFF.md",
       refs: { plan: now.planFile },
     });
@@ -2232,15 +2267,15 @@ export function formatPlanHandoffActivity({ now, handoff, plans }) {
         kind: "agent_step",
         plan: planRef,
       });
+      const visible = `${actor} \u00b7 ${row.phase} \u00b7 ${row.todo.id}`;
+      const fullLabel = `${visible} \u00b7 ${planRef}`;
       events.push({
         id: activityId("agent_step", [planRef, row.todo.id, row.phase]),
         kind: "agent_step",
         at: now.modifiedAt || null,
         agent: agentFromPlan,
-        label: truncateStr(
-          `${actor} \u00b7 step \u00b7 ${row.todo.id} \u00b7 ${row.phase}`,
-          MAX_SEMANTIC_LABEL,
-        ),
+        label: truncateStr(visible, MAX_SEMANTIC_LABEL),
+        labelFull: fullLabel,
         sourcePath: now.planPath || activePlan.path || null,
         refs: { plan: now.planFile || activePlan.file, todo: row.todo.id, phase: row.phase },
       });
@@ -2264,16 +2299,15 @@ export function formatPlanHandoffActivity({ now, handoff, plans }) {
     const kitAgent = normalizeKitAgentId(plan.agent);
     const planRef = plan.file || plan.id || "plan";
     const actor = briefActivityActor(kitAgent, { kind: "plan_progress", plan: planRef });
-    const verb = stillParked ? "parked" : "plan";
+    const verb = stillParked ? "parked" : "done";
+    const fullLabel = `${actor} \u00b7 ${verb} \u00b7 ${stats.completed}/${stats.total} \u00b7 ${planRef}`;
     events.push({
       id: activityId("plan_progress", [plan.file, stillParked ? "parked" : "done"]),
       kind: "plan_progress",
       at: plan.modifiedAt || null,
       agent: kitAgent,
-      label: truncateStr(
-        `${actor} \u00b7 ${verb} \u00b7 ${planRef} \u00b7 ${stats.completed}/${stats.total}`,
-        MAX_SEMANTIC_LABEL,
-      ),
+      label: truncateStr(fullLabel, MAX_SEMANTIC_LABEL),
+      labelFull: fullLabel,
       sourcePath: plan.path || null,
       refs: { plan: plan.file },
     });
@@ -2283,6 +2317,13 @@ export function formatPlanHandoffActivity({ now, handoff, plans }) {
 }
 
 /**
+ * Explicit run-plan loop lines in terminal output. Shared detection for the
+ * Crew feed (formatTerminalRunEvidence) and the busy-outside-plan derivation
+ * so both surfaces agree on what counts as run-loop evidence.
+ */
+const TERMINAL_RUN_EVIDENCE_RE = /\/run-plan|LOOP_TICK_RESULT|Night shift:.*run-plan/i;
+
+/**
  * Narrow execution evidence from terminal lastOutput (explicit run-plan lines only).
  */
 export function formatTerminalRunEvidence(terminals, { limit = 3 } = {}) {
@@ -2290,7 +2331,7 @@ export function formatTerminalRunEvidence(terminals, { limit = 3 } = {}) {
   for (const t of terminals || []) {
     if (events.length >= limit) break;
     const out = t?.lastOutput || "";
-    if (!out || !/\/run-plan|LOOP_TICK_RESULT|Night shift:.*run-plan/i.test(out)) {
+    if (!out || !TERMINAL_RUN_EVIDENCE_RE.test(out)) {
       continue;
     }
     const line =
@@ -2303,12 +2344,41 @@ export function formatTerminalRunEvidence(terminals, { limit = 3 } = {}) {
       id: activityId("run_plan", ["term", t.id, line.slice(0, 40)]),
       kind: "run_plan",
       at: null,
-      label: truncateStr(`system \u00b7 tick \u00b7 ${line}`, MAX_SEMANTIC_LABEL),
+      label: truncateStr(`system \u00b7 running \u00b7 ${line}`, MAX_SEMANTIC_LABEL),
       sourcePath: null,
       refs: { terminal: t.id },
     });
   }
   return events;
+}
+
+/** Freshness window for busy-outside-plan evidence (terminal file mtime). */
+export const BUSY_OUTSIDE_PLAN_FRESH_MS = 10 * 60 * 1000;
+/** Cap busy-outside-plan evidence rows (terminal ids only; not rendered as feed). */
+export const MAX_BUSY_OUTSIDE_PLAN_EVIDENCE = 3;
+
+/**
+ * "Busy outside the plan" live state. True when the Current mission is not
+ * executing (idle, awaiting, or completed) yet at least one terminal shows
+ * fresh run-loop evidence (same detection as the Crew feed) inside the
+ * freshness window. In-plan execution never raises this flag: the normal
+ * executing chrome owns that state. Evidence rows are terminal ids plus the
+ * observed mtime, never terminal output bodies.
+ */
+export function deriveBusyOutsidePlan({ now, terminals, nowMs = Date.now() } = {}) {
+  const inactive = { active: false, evidence: [] };
+  if (!now || now.status === "executing") return inactive;
+  const evidence = [];
+  for (const t of terminals || []) {
+    if (evidence.length >= MAX_BUSY_OUTSIDE_PLAN_EVIDENCE) break;
+    const out = t?.lastOutput || "";
+    if (!out || !TERMINAL_RUN_EVIDENCE_RE.test(out)) continue;
+    const ms = Date.parse(t?.updatedAt || "");
+    if (!Number.isFinite(ms)) continue;
+    if (!Number.isFinite(nowMs) || nowMs - ms > BUSY_OUTSIDE_PLAN_FRESH_MS) continue;
+    evidence.push({ terminal: t.id || null, at: new Date(ms).toISOString() });
+  }
+  return evidence.length > 0 ? { active: true, evidence } : inactive;
 }
 
 /**
@@ -3438,6 +3508,8 @@ function shapeExternalReportItem(report, group) {
       label: "Copy triage command",
       subject: "triage command",
       pasteDestination: "chatInput",
+      command: `/plan-review-triage ${report.path}`,
+      sourcePath: report.path,
     },
   });
 }
@@ -3511,6 +3583,10 @@ export function buildMissionControlView({
     { nowMs, todoItems: activeForTiming?.todos?.items || [] },
   );
   const now = withMissionTiming(nowBase, timing);
+  // Live "busy outside the plan" flag: fresh run-loop terminal evidence while
+  // the mission is not executing. Attached to the now slice so the existing
+  // now fingerprint drives SSE re-render on change.
+  now.busyOutsidePlan = deriveBusyOutsidePlan({ now, terminals, nowMs });
   const { ledger: nextFlightLogLedger, flightLog } = observeFlightLog(
     parseFlightLogLedger(flightLogLedger),
     now.gaps,
@@ -3593,4 +3669,79 @@ export function buildMissionControlView({
     timingLedger: nextTimingLedger,
     flightLogLedger: nextFlightLogLedger,
   };
+}
+
+/** Cap for the generated per-process narration line. */
+export const MAX_PROCESS_DESCRIPTION = 160;
+
+const PROCESS_PORT_RE = /(?:--port[=\s]|PORT=|:)(\d{4,5})\b/;
+const PROCESS_GIT_SUB_RE = /\bgit\s+([a-z][a-z-]*)/i;
+const PROCESS_NODE_SCRIPT_RE = /(?:^|\s)(?:\S*\/)*([\w.-]+\.(?:mjs|cjs|js|ts))(?:\s|$)/;
+const PROCESS_PKG_RUN_RE = /^(npm|pnpm|yarn|bun|npx)\s+([\w:.-]+)/;
+
+const PROCESS_GIT_ACTIONS = Object.freeze({
+  add: "Staging changes",
+  checkout: "Switching branches",
+  clone: "Cloning a repository",
+  commit: "Recording a commit",
+  diff: "Comparing changes",
+  fetch: "Fetching updates from the remote",
+  log: "Reading the commit history",
+  merge: "Merging branches",
+  pull: "Pulling updates from the remote",
+  push: "Pushing commits to the remote",
+  rebase: "Rebasing commits",
+  status: "Checking the working tree status",
+  switch: "Switching branches",
+});
+
+function describeProcessBase(label, command) {
+  if (label === "dashboard-server" || /serve\.mjs|node dashboard/.test(command)) {
+    const port = command.match(PROCESS_PORT_RE);
+    return port
+      ? `Serving the Mission Control dashboard on port ${port[1]}`
+      : "Serving the Mission Control dashboard";
+  }
+  const gitSub = command.match(PROCESS_GIT_SUB_RE);
+  if (label === "git" || gitSub) {
+    const sub = gitSub ? gitSub[1].toLowerCase() : null;
+    if (sub && PROCESS_GIT_ACTIONS[sub]) return PROCESS_GIT_ACTIONS[sub];
+    if (sub) return `Running git ${sub}`;
+    return "Running a git operation";
+  }
+  if (label === "node" || /\bnode\b/.test(command)) {
+    const script = command.match(PROCESS_NODE_SCRIPT_RE);
+    if (script) return `Running the ${script[1]} Node script`;
+    return "Running a Node.js process";
+  }
+  const pkgRun = command.match(PROCESS_PKG_RUN_RE);
+  if (pkgRun) return `Running ${pkgRun[1]} ${pkgRun[2]}`;
+  const bin = (command.split(/\s+/)[0] || "").split("/").pop();
+  if (bin) return `Running ${bin}`;
+  return "Running an unrecognized process";
+}
+
+/**
+ * Deterministic per-process narration for the Processes tab ("what is it
+ * doing right now"). Pure heuristics over the ps snapshot fields (label,
+ * command, cpu, etime); no external calls. One short sentence.
+ *
+ * Design choice (accepted): heuristics replace LLM narration for the local
+ * dashboard (no latency, no API cost, deterministic tests). README/CHANGELOG
+ * "narrated" / "generated" language means this function, not an AI call.
+ */
+export function describeProcess(proc) {
+  const command = String(proc?.command || "").trim();
+  const label = String(proc?.label || "other");
+  const base = describeProcessBase(label, command);
+  const cpuRaw = String(proc?.cpu ?? "").trim();
+  const cpuNum = Number.parseFloat(cpuRaw);
+  const hasCpu = cpuRaw !== "" && Number.isFinite(cpuNum);
+  const signal = !hasCpu ? null : cpuNum >= 50 ? "busy" : cpuNum >= 10 ? "active" : "idle";
+  const etime = String(proc?.etime || "").trim();
+  const detail = [signal, hasCpu ? `${cpuRaw}% CPU` : null, etime ? `up ${etime}` : null]
+    .filter(Boolean)
+    .join(", ");
+  const text = detail ? `${base} (${detail}).` : `${base}.`;
+  return truncateStr(text, MAX_PROCESS_DESCRIPTION);
 }

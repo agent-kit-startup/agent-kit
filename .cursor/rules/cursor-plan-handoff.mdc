@@ -63,7 +63,7 @@ Mission Control parses **machine fields** as `- **Field:**` bullets only. Do **n
 - **Parked plans:** none
 ```
 
-**Gaps voice:** `- **Gaps:**` is short operator residuals for Flight Log (Live / Earlier), not mid-batch monitor paths, cadence WARNING ids, or `/git-prod` boilerplate. Prefer exact `none` when only audit/queue plumbing changed. Do not write `none. Residuals…` as Gaps body when the intent is OK (put pointers in Instruction). Say/avoid examples: `.cursor/context/templates/handoff.md` and ADR `2026-07-27_mc-flight-log-panel.md`.
+**Gaps voice:** `- **Gaps:**` is short operator residuals for Flight Log (NOW / Earlier), not mid-batch monitor paths, cadence WARNING ids, or `/git-prod` boilerplate. Prefer exact `none` when only audit/queue plumbing changed. Do not write `none. Residuals…` as Gaps body when the intent is OK (put pointers in Instruction). Say/avoid examples: `.cursor/context/templates/handoff.md` and ADR `2026-07-27_mc-flight-log-panel.md`.
 
 **Mode on API/usage limit hard stop:** set `- **Mode:**` to the prior run mode plus `— STOPPED: API/usage limit` (example: `run-plan (orchestrated) — STOPPED: API/usage limit`). Mission Control matches `STOPPED` in Mode. Mirror the stop reason in `- **Gaps:**` and `- **Instruction for the next agent:**` (recovery: named model switch and/or wait; resume via `/continue-plan` or `/run-plan` after confirm).
 
