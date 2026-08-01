@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUSY_OUTSIDE_PLAN_FRESH_MS,
   FLIGHT_LOG_LEDGER_REL,
   FLIGHT_LOG_PAST_CAP,
   FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP,
@@ -28,6 +29,8 @@ import {
   collectDeferredCheckIds,
   collectReadinessPendingFromReport,
   deliverySupersededShas,
+  deriveBusyOutsidePlan,
+  describeProcess,
   emptyCadenceLedger,
   emptyFlightLogLedger,
   emptyMissionTimingLedger,
@@ -1211,7 +1214,7 @@ describe("formatDeliveryActivity", () => {
       plan: null,
       commitType: "docs",
     });
-    expect(events[1].label).toContain("orchestrator · shipped ·");
+    expect(events[1].label).toContain("Engineering Manager · shipped ·");
     expect(events[1].label).toContain("docs: update plan-review-triage for multi-path walk");
     expect(events[1].label).toContain("PR #320 · 74954c7");
     expect(events[1].label).not.toMatch(/\(#320\)/);
@@ -1275,9 +1278,9 @@ describe("formatDeliveryActivity", () => {
     ]);
     expect(events[1].refs.commits).toEqual(["528901c", "6051036"]);
     expect(events[0].label).not.toContain("field-report-owed-external-review");
-    // Plan attribution stays on refs; label actor is orchestrator when agent is not a kit id.
+    // Plan attribution stays on refs; label actor is Engineering Manager when agent is not a kit id.
     expect(events[1].refs.plan).toBe("monitor-agent-activity-focus.plan.md");
-    expect(events[1].label).toContain("orchestrator · shipped ·");
+    expect(events[1].label).toContain("Engineering Manager · shipped ·");
   });
 
   it("honors a limit option like other activity producers", () => {
@@ -1305,9 +1308,13 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
       plans: samplePlans,
     });
     expect(planEvents[0].kind).toBe("run_plan");
-    expect(planEvents[0].label).toMatch(/· tick ·/);
+    expect(planEvents[0].label).toMatch(/· running ·/);
     expect(planEvents[0].label).toContain("semantic-snapshot-model");
     expect(planEvents[0].label).toContain("mission-control-plugin-ux.plan.md");
+    // Meaningful info first: todo id lands before the plan filename.
+    expect(planEvents[0].label.indexOf("semantic-snapshot-model")).toBeLessThan(
+      planEvents[0].label.indexOf("mission-control-plugin-ux.plan.md"),
+    );
 
     const merged = mergeActivity([
       planEvents,
@@ -1335,7 +1342,7 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
     });
     expect(planEvents[0].agent).toBe("docs-repo");
     expect(planEvents[0].kind).toBe("run_plan");
-    expect(planEvents[0].label).toMatch(/^docs-repo · tick ·/);
+    expect(planEvents[0].label).toMatch(/^docs-repo · running ·/);
   });
 
   it("emits denser agent_step rows for active-plan completed/running todos", () => {
@@ -1370,8 +1377,44 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
     expect(steps.length).toBe(3);
     expect(steps.map((e) => e.refs?.todo)).toEqual(["step-a", "step-b", "step-c"]);
     expect(steps.map((e) => e.refs?.phase)).toEqual(["done", "done", "running"]);
+    // Natural voice: phase word first, then the todo id; no robotic "step" separator.
+    // "generalPurpose" is not a kit agent id, so the actor falls back to Squad.
+    expect(steps[0].label).toMatch(/^Squad · done · step-a/);
+    expect(steps[2].label).toMatch(/^Squad · running · step-c/);
     expect(steps.every((e) => MONITOR_ACTIVITY_KINDS.includes(e.kind))).toBe(true);
     expect(planEvents.some((e) => e.kind === "run_plan")).toBe(true);
+  });
+
+  it("labels handoff rows as awaiting with the gate first", () => {
+    const handoff = {
+      plan: "mission-control-plugin-ux.plan.md",
+      mode: "START-PROJECT Gate A complete, awaiting Gate B",
+      parkedPlans: [],
+      nextTodos: "`semantic-snapshot-model`",
+    };
+    const pendingPlan = {
+      ...samplePlans[0],
+      todos: {
+        ...samplePlans[0].todos,
+        inProgress: 0,
+        items: samplePlans[0].todos.items.map((todo) => ({
+          ...todo,
+          status: "pending",
+        })),
+      },
+    };
+    const now = buildCurrentExecution([pendingPlan], handoff);
+    expect(now.status).toBe("awaiting_user");
+    const planEvents = formatPlanHandoffActivity({
+      now,
+      handoff,
+      plans: samplePlans,
+    });
+    const gate = planEvents.find((e) => e.kind === "handoff");
+    expect(gate.label).toMatch(/^Squad · awaiting · next \S+/);
+    expect(gate.label).not.toContain("mission-control-plugin-ux.plan.md");
+    expect(gate.labelFull).toContain("mission-control-plugin-ux.plan.md");
+    expect(gate.labelFull.startsWith(gate.label)).toBe(true);
   });
 
   it("sets agent on plan_progress from plan.agent when it is a kit agent id", () => {
@@ -1397,7 +1440,7 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
     const progress = events.filter((e) => e.kind === "plan_progress");
     expect(progress.length).toBeGreaterThan(0);
     expect(progress[0].agent).toBe("tech-lead");
-    expect(progress[0].label).toMatch(/^tech-lead · plan ·/);
+    expect(progress[0].label).toMatch(/^tech-lead · done ·/);
     expect(progress[0].label).toContain("2/2");
     // Monitor hero: live actions + denser agent_step; milestones stay on Activity
     expect(MONITOR_ACTIVITY_KINDS).toEqual(["run_plan", "handoff", "delivery", "agent_step"]);
@@ -1429,11 +1472,108 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
 });
 
 describe("briefActivityActor", () => {
-  it("prefers kit agent, then delivery orchestrator, then plan, then system", () => {
+  it("prefers kit agent, then delivery Engineering Manager, then Squad, then Platform Engineer", () => {
     expect(briefActivityActor("docs-repo", { kind: "run_plan" })).toBe("docs-repo");
-    expect(briefActivityActor(null, { kind: "delivery", plan: "x.plan.md" })).toBe("orchestrator");
-    expect(briefActivityActor(null, { kind: "run_plan", plan: "x.plan.md" })).toBe("x.plan.md");
-    expect(briefActivityActor(null, { kind: "handoff" })).toBe("system");
+    expect(briefActivityActor(null, { kind: "delivery", plan: "x.plan.md" })).toBe(
+      "Engineering Manager",
+    );
+    // Lexicon fallback: never the full plan filename in the actor slot.
+    expect(briefActivityActor(null, { kind: "run_plan", plan: "x.plan.md" })).toBe("Squad");
+    expect(briefActivityActor(null, { kind: "agent_step", plan: "x.plan.md" })).toBe("Squad");
+    expect(briefActivityActor(null, { kind: "handoff", plan: "x.plan.md" })).toBe("Squad");
+    expect(briefActivityActor(null, { kind: "plan_progress", plan: "x.plan.md" })).toBe("Squad");
+    expect(briefActivityActor(null, { kind: "handoff" })).toBe("Platform Engineer");
+  });
+});
+
+describe("deriveBusyOutsidePlan", () => {
+  const nowMs = Date.parse("2026-07-31T20:00:00.000Z");
+  const freshAt = new Date(nowMs - 60_000).toISOString();
+  const staleAt = new Date(nowMs - BUSY_OUTSIDE_PLAN_FRESH_MS - 60_000).toISOString();
+  const runEvidenceTerminal = {
+    id: "7.txt",
+    updatedAt: freshAt,
+    lastOutput: "LOOP_TICK_RESULT tick ok",
+  };
+
+  it("is inactive without a now slice or without terminals", () => {
+    expect(deriveBusyOutsidePlan({ terminals: [runEvidenceTerminal], nowMs })).toEqual({
+      active: false,
+      evidence: [],
+    });
+    expect(deriveBusyOutsidePlan({ now: { status: "idle" }, nowMs })).toEqual({
+      active: false,
+      evidence: [],
+    });
+  });
+
+  it("activates on fresh run-loop terminal evidence while the mission is idle", () => {
+    const result = deriveBusyOutsidePlan({
+      now: { status: "idle" },
+      terminals: [runEvidenceTerminal],
+      nowMs,
+    });
+    expect(result.active).toBe(true);
+    expect(result.evidence).toEqual([{ terminal: "7.txt", at: freshAt }]);
+  });
+
+  it("activates while awaiting_user or completed, not only idle", () => {
+    for (const status of ["awaiting_user", "completed"]) {
+      const result = deriveBusyOutsidePlan({
+        now: { status },
+        terminals: [runEvidenceTerminal],
+        nowMs,
+      });
+      expect(result.active).toBe(true);
+    }
+  });
+
+  it("stays inactive while the mission is executing (in-plan chrome owns the state)", () => {
+    const result = deriveBusyOutsidePlan({
+      now: { status: "executing" },
+      terminals: [runEvidenceTerminal],
+      nowMs,
+    });
+    expect(result.active).toBe(false);
+    expect(result.evidence).toEqual([]);
+  });
+
+  it("ignores stale evidence outside the freshness window", () => {
+    const stale = { ...runEvidenceTerminal, updatedAt: staleAt };
+    expect(
+      deriveBusyOutsidePlan({ now: { status: "idle" }, terminals: [stale], nowMs }).active,
+    ).toBe(false);
+  });
+
+  it("ignores terminals without run-loop evidence or without a parseable mtime", () => {
+    const noEvidence = { id: "8.txt", updatedAt: freshAt, lastOutput: "npm test passed" };
+    const noMtime = { id: "9.txt", lastOutput: "LOOP_TICK_RESULT tick ok" };
+    const badMtime = { ...runEvidenceTerminal, id: "10.txt", updatedAt: "not-a-date" };
+    const result = deriveBusyOutsidePlan({
+      now: { status: "idle" },
+      terminals: [noEvidence, noMtime, badMtime],
+      nowMs,
+    });
+    expect(result.active).toBe(false);
+  });
+
+  it("buildMissionControlView attaches busyOutsidePlan to the now slice", () => {
+    const idleView = buildMissionControlView({ terminals: [runEvidenceTerminal], nowMs });
+    expect(idleView.now.status).toBe("idle");
+    expect(idleView.now.busyOutsidePlan?.active).toBe(true);
+
+    const executingView = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "run-plan (in-session loop)",
+        parkedPlans: [],
+      },
+      terminals: [runEvidenceTerminal],
+      nowMs,
+    });
+    expect(executingView.now.status).toBe("executing");
+    expect(executingView.now.busyOutsidePlan?.active).toBe(false);
   });
 });
 
@@ -2701,5 +2841,152 @@ describe("listFlightLogQuietOpenTriages", () => {
     expect(view.flightLog.quietOpenTriages.length).toBeGreaterThan(0);
     expect(view.flightLog.quietOpenTriages[0].kind).toBe("report");
     expect(view.flightLogQuietOpenTriagesCap).toBe(FLIGHT_LOG_QUIET_OPEN_TRIAGES_CAP);
+  });
+});
+
+describe("Flight Log composed action commands", () => {
+  it("Gaps NOW carries a Copy fix prompt action with the HANDOFF path", () => {
+    const { flightLog } = observeFlightLog(null, "Enqueue residuals for F1", {
+      nowMs: Date.parse("2026-07-28T01:00:00.000Z"),
+      sourcePath: ".cursor/HANDOFF.md",
+    });
+    expect(flightLog.currentAction?.label).toBe("Copy fix prompt");
+    expect(flightLog.currentAction?.sourcePath).toBe(".cursor/HANDOFF.md");
+    expect(flightLog.currentAction?.command).toBe(
+      "Act on these open residuals:\nEnqueue residuals for F1\n.cursor/HANDOFF.md",
+    );
+  });
+
+  it("Gaps NOW action is null when there are no live gaps", () => {
+    const { flightLog } = observeFlightLog(null, null, {
+      nowMs: Date.parse("2026-07-28T01:00:00.000Z"),
+    });
+    expect(flightLog.current).toBeNull();
+    expect(flightLog.currentAction).toBeNull();
+  });
+
+  it("Gaps Earlier entries carry a Copy fix prompt action with the entry sourcePath", () => {
+    const { ledger } = observeFlightLog(null, "first gap", {
+      nowMs: Date.parse("2026-07-28T01:00:00.000Z"),
+      sourcePath: ".cursor/HANDOFF.md",
+    });
+    const { flightLog } = observeFlightLog(ledger, "second gap", {
+      nowMs: Date.parse("2026-07-28T02:00:00.000Z"),
+      sourcePath: ".cursor/HANDOFF.md",
+    });
+    expect(flightLog.past).toHaveLength(1);
+    const earlier = flightLog.past[0];
+    expect(earlier.action?.label).toBe("Copy fix prompt");
+    expect(earlier.action?.sourcePath).toBe(".cursor/HANDOFF.md");
+    expect(earlier.action?.command).toBe(
+      "Act on these earlier residuals:\nfirst gap\n.cursor/HANDOFF.md",
+    );
+  });
+
+  it("api_limit warning carries a Copy recovery prompt action", () => {
+    const warnings = buildFlightLogWarnings({
+      mode: "run-plan (orchestrated) — STOPPED: API/usage limit",
+      gaps: "API/usage limit; cursor on phase-2",
+      instruction: "",
+    });
+    const w = warnings.find((x) => x.kind === "api_limit");
+    expect(w?.action?.label).toBe("Copy recovery prompt");
+    expect(w?.action?.sourcePath).toBe(".cursor/HANDOFF.md");
+    expect(w?.action?.command).toContain("Resume after this quota pause:");
+    expect(w?.action?.command.endsWith("\n.cursor/HANDOFF.md")).toBe(true);
+  });
+
+  it("orchestrator_heads_up warning carries a Copy follow-up prompt action", () => {
+    const warnings = buildFlightLogWarnings({
+      mode: "manual",
+      gaps: "Heads up: rebalance the queue before the next tick",
+      instruction: "",
+    });
+    const w = warnings.find((x) => x.kind === "orchestrator_heads_up");
+    expect(w?.action?.label).toBe("Copy follow-up prompt");
+    expect(w?.action?.sourcePath).toBe(".cursor/HANDOFF.md");
+    expect(w?.action?.command).toContain("Act on this heads-up:");
+    expect(w?.action?.command.endsWith("\n.cursor/HANDOFF.md")).toBe(true);
+  });
+
+  it("quiet open-triage rows carry the slash-command payload with monitor sourcePath", () => {
+    const report = parseExternalReport({
+      file: "plan-monitor-widget-rollout.md",
+      content:
+        "# Monitor log - widget-rollout\n\n**Plan:** `widget-rollout.plan.md`\n\n### Residual items for human attention\n\n1. Fix the live blocker.\n",
+      modifiedAt: "2026-07-28T12:00:00.000Z",
+    });
+    const view = buildMissionControlView({
+      plans: samplePlans,
+      handoff: {
+        plan: "mission-control-plugin-ux.plan.md",
+        mode: "manual",
+      },
+      externalReports: [report],
+      nowMs: Date.parse("2026-07-28T12:00:00.000Z"),
+    });
+    const row = view.flightLog.quietOpenTriages[0];
+    expect(row.action?.label).toBe("Copy triage command");
+    expect(row.action?.pasteDestination).toBe("chatInput");
+    expect(row.action?.sourcePath).toBe(row.sourcePath);
+    expect(row.action?.command).toBe(`/plan-review-triage ${row.sourcePath}`);
+  });
+});
+
+describe("describeProcess", () => {
+  it("narrates the dashboard server, with its port when present", () => {
+    expect(
+      describeProcess({
+        label: "dashboard-server",
+        command: "node dashboard/serve.mjs --port 3333",
+        cpu: "0.2",
+        etime: "02:10:11",
+      }),
+    ).toBe("Serving the Mission Control dashboard on port 3333 (idle, 0.2% CPU, up 02:10:11).");
+    expect(
+      describeProcess({ label: "dashboard-server", command: "node dashboard/serve.mjs" }),
+    ).toBe("Serving the Mission Control dashboard.");
+  });
+
+  it("narrates git operations by subcommand", () => {
+    expect(describeProcess({ label: "git", command: "git push origin staging", cpu: "12.5" })).toBe(
+      "Pushing commits to the remote (active, 12.5% CPU).",
+    );
+    expect(describeProcess({ label: "git", command: "git bisect start", cpu: "0.0" })).toBe(
+      "Running git bisect (idle, 0.0% CPU).",
+    );
+  });
+
+  it("narrates node scripts by file name", () => {
+    expect(
+      describeProcess({
+        label: "node",
+        command: "node /tmp/scripts/build.mjs --watch",
+        cpu: "55.0",
+      }),
+    ).toBe("Running the build.mjs Node script (busy, 55.0% CPU).");
+    expect(describeProcess({ label: "node", command: "node", cpu: "1.0" })).toBe(
+      "Running a Node.js process (idle, 1.0% CPU).",
+    );
+  });
+
+  it("falls back to package runners and binary names for other processes", () => {
+    expect(describeProcess({ label: "other", command: "pnpm vitest run", cpu: "30.0" })).toBe(
+      "Running pnpm vitest (active, 30.0% CPU).",
+    );
+    expect(describeProcess({ label: "other", command: "/usr/bin/SCREEN -dmS audit bash" })).toBe(
+      "Running SCREEN.",
+    );
+  });
+
+  it("degrades gracefully on empty input and caps long narrations", () => {
+    expect(describeProcess({})).toBe("Running an unrecognized process.");
+    expect(describeProcess(null)).toBe("Running an unrecognized process.");
+    const long = describeProcess({
+      label: "node",
+      command: `node /tmp/${"a".repeat(200)}.mjs`,
+    });
+    expect(long.endsWith("\u2026")).toBe(true);
+    expect(long.length).toBeLessThanOrEqual(161);
   });
 });

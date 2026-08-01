@@ -200,6 +200,7 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("--mc-radius-lg: 12px");
     expect(dashboardHtml).toContain("--mc-radius-pill: 999px");
     expect(dashboardHtml).toContain("--mc-card-padding: 16px");
+    expect(dashboardHtml).toContain("--mc-card-padding-dense: 10px 12px");
     expect(dashboardHtml).toContain("--mc-header-pad-x: 24px");
     expect(dashboardHtml).toContain("--mc-header-pad-x-end: 8px");
     expect(dashboardHtml).toContain("--mc-content-pad: 24px");
@@ -226,6 +227,38 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     );
     expect(dashboardHtml).toMatch(/\.card\s*\{[^}]*padding:\s*var\(--mc-card-padding\)/);
     expect(dashboardHtml).toMatch(/\.plan-card\s*\{[^}]*padding:\s*var\(--mc-card-padding\)/);
+    // Unified card contract (G9): dense list cards share the dense padding
+    // token and the ladder radius; no per-card pixel one-offs.
+    expect(dashboardHtml).toMatch(
+      /\.agent-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.agent-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/);
+    expect(dashboardHtml).toMatch(
+      /\.command-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.skill-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.process-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.recent-plan-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.flight-log-card\s*\{[^}]*padding:\s*var\(--mc-card-padding-dense\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.flight-log-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/);
+    expect(dashboardHtml).toMatch(
+      /\.memory-panel\s*\{[^}]*border-radius:\s*var\(--mc-radius-lg\)[^}]*padding:\s*var\(--mc-card-padding\)/,
+    );
+    // Empty states scale with the card density ladder across viewport modes.
+    expect(dashboardHtml).toMatch(
+      /\.empty-state\s*\{[^}]*padding:\s*calc\(var\(--mc-card-padding\) \* 2\.5\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.empty-state-cta\s*\{[^}]*padding:\s*calc\(var\(--mc-card-padding\) \* 2\)/,
+    );
     expect(dashboardHtml).toMatch(
       /\.header-version\s*\{[^}]*font-size:\s*var\(--mc-chrome-meta-size\)/,
     );
@@ -270,10 +303,15 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       dashboardHtml.match(/id="navMoreMenu"[\s\S]*?id="navSkinsLabel"/)?.[0] ?? "";
     expect(moreMenuBlock.length).toBeGreaterThan(0);
     expect(moreMenuBlock).not.toMatch(/<svg\b/);
+    // Nav dots survive only where they signal state (dot semantics table):
+    // health (ok/warning/attention) and git (clean/dirty). Terminals and
+    // processes carry count badges instead of decorative dots.
     expect(moreMenuBlock).toContain('id="navHealthDot"');
     expect(moreMenuBlock).toContain('id="navGitDot"');
-    expect(moreMenuBlock).toContain('id="navTerminalsDot"');
-    expect(moreMenuBlock).toContain('id="navProcessesDot"');
+    expect(moreMenuBlock).not.toContain('id="navTerminalsDot"');
+    expect(moreMenuBlock).not.toContain('id="navProcessesDot"');
+    expect(moreMenuBlock).toContain('id="navTerminalsBadge"');
+    expect(moreMenuBlock).toContain('id="navProcessesBadge"');
     expect(dashboardHtml).toContain("function closeNavMore(");
     expect(dashboardHtml).toContain("function openNavMore(");
     expect(dashboardHtml).toContain("Escape");
@@ -523,6 +561,177 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     );
   });
 
+  it("renders the Commands tab as an actionable card grid with CRUD CTAs and lock markers", () => {
+    // Card grid replaces the flat chip list; decorative row dots stay out.
+    expect(dashboardHtml).toContain("command-card");
+    expect(dashboardHtml).toContain("command-card-head");
+    expect(dashboardHtml).toContain("command-actions");
+    expect(dashboardHtml).not.toContain("command-item");
+    // Per-card actions are explicit copy-only buttons (clear run/edit/delete affordances).
+    expect(dashboardHtml).toContain("Copy run command");
+    expect(dashboardHtml).toContain("Copy edit prompt");
+    expect(dashboardHtml).toContain("Copy delete prompt");
+    // Kit-managed commands get a lock badge and no fake edit/delete affordances.
+    expect(dashboardHtml).toContain("command-lock");
+    expect(dashboardHtml).toContain("Kit managed");
+    expect(dashboardHtml).toContain("read-only here");
+    expect(dashboardHtml).toContain("c.kitManaged === true");
+    expect(dashboardHtml).toContain('data-kit-managed="true"');
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy edit prompt/);
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy delete prompt/);
+    // Create CTA sits on the section header and names the chat input destination.
+    expect(dashboardHtml).toContain("command-create-btn");
+    expect(dashboardHtml).toContain("cta-command-create");
+    expect(dashboardHtml).toContain("Copy create prompt");
+    expect(dashboardHtml).toContain("create prompt', 'chatInput'");
+    // Edit/delete payloads carry the command file path for the chat agent.
+    expect(dashboardHtml).toContain(
+      "Edit this slash command file (plain markdown body, no frontmatter):",
+    );
+    expect(dashboardHtml).toContain("Delete this slash command file after confirming with me:");
+    // Subtitle surfaces the editable count next to the total.
+    expect(dashboardHtml).toContain("editable</span>");
+    expect(dashboardHtml).toContain("commandEditableCount");
+  });
+
+  it("renders the Skills tab as an actionable card grid with CRUD CTAs and lock markers", () => {
+    // Card grid replaces the flat category chip list; decorative category dots stay out.
+    expect(dashboardHtml).toContain("skill-card");
+    expect(dashboardHtml).toContain("skill-card-head");
+    expect(dashboardHtml).toContain("skill-actions");
+    expect(dashboardHtml).not.toContain("skills-category");
+    expect(dashboardHtml).not.toContain("skill-tag");
+    // Per-card actions are explicit copy-only buttons (clear use/edit/delete affordances).
+    expect(dashboardHtml).toContain("Copy use prompt");
+    expect(dashboardHtml).toContain("Copy edit prompt");
+    expect(dashboardHtml).toContain("Copy delete prompt");
+    // Kit-managed skills get a lock badge and no fake edit/delete affordances.
+    expect(dashboardHtml).toContain("skill-lock");
+    expect(dashboardHtml).toContain("Kit managed");
+    expect(dashboardHtml).toContain("read-only here");
+    expect(dashboardHtml).toContain("s.kitManaged === true");
+    expect(dashboardHtml).toContain('data-kit-managed="true"');
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy edit prompt/);
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy delete prompt/);
+    // Create CTA sits on the section header and names the chat input destination.
+    expect(dashboardHtml).toContain("skill-create-btn");
+    expect(dashboardHtml).toContain("cta-skill-create");
+    expect(dashboardHtml).toContain("Copy create prompt");
+    expect(dashboardHtml).toContain("create prompt', 'chatInput'");
+    // Use/edit/delete payloads carry the skill file or directory path for the chat agent.
+    expect(dashboardHtml).toContain("Read this skill file and follow its instructions:");
+    expect(dashboardHtml).toContain("Edit this skill file (SKILL.md markdown body):");
+    expect(dashboardHtml).toContain("Delete this skill directory after confirming with me:");
+    // Subtitle surfaces the editable count next to the total.
+    expect(dashboardHtml).toContain("skills · ");
+    expect(dashboardHtml).toContain("skillEditableCount");
+    // Kit-managed flag is registry-driven in the data layer.
+    const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
+    expect(dataSource).toContain("kitSkillDirs");
+    expect(dataSource).toMatch(/kitManaged:\s*kitSkillDirs\.has/);
+  });
+
+  it("renders the Agents tab as an actionable card grid with CRUD CTAs and lock markers", () => {
+    // Card grid replaces the accordion roster; decorative row dots and hash-color icons stay out.
+    expect(dashboardHtml).toContain("agent-card");
+    expect(dashboardHtml).toContain("agent-card-head");
+    expect(dashboardHtml).toContain("agent-actions");
+    expect(dashboardHtml).not.toContain("agent-item");
+    expect(dashboardHtml).not.toContain("agent-details");
+    expect(dashboardHtml).not.toContain("agent-icon");
+    expect(dashboardHtml).not.toContain("toggleAgentDetails");
+    // Per-card actions are explicit copy-only buttons (clear use/edit/delete affordances).
+    expect(dashboardHtml).toContain("Copy use prompt");
+    expect(dashboardHtml).toContain("Copy edit prompt");
+    expect(dashboardHtml).toContain("Copy delete prompt");
+    // Kit-managed agents get a lock badge and no fake edit/delete affordances.
+    expect(dashboardHtml).toContain("agent-lock");
+    expect(dashboardHtml).toContain("Kit managed");
+    expect(dashboardHtml).toContain("read-only here");
+    expect(dashboardHtml).toContain("a.kitManaged === true");
+    expect(dashboardHtml).toContain('data-kit-managed="true"');
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy edit prompt/);
+    expect(dashboardHtml).toMatch(/kitManaged\s*\?\s*''\s*:\s*`<button[^`]*Copy delete prompt/);
+    // Create CTA sits on the section header and names the chat input destination.
+    expect(dashboardHtml).toContain("agent-create-btn");
+    expect(dashboardHtml).toContain("cta-agent-create");
+    expect(dashboardHtml).toContain("Copy create prompt");
+    // Use/edit/delete payloads carry the agent file path for the chat agent.
+    expect(dashboardHtml).toContain("Use this agent definition when it matches the task:");
+    expect(dashboardHtml).toContain("Edit this agent definition file (markdown body):");
+    expect(dashboardHtml).toContain("Delete this agent definition file after confirming with me:");
+    // Subtitle surfaces the editable count next to the total.
+    expect(dashboardHtml).toContain("agents · ");
+    expect(dashboardHtml).toContain("agentEditableCount");
+    // Neutral identity monogram per card (initials, no rainbow hash colors).
+    expect(dashboardHtml).toContain("agent-monogram");
+    expect(dashboardHtml).not.toContain("'#3b82f6','#a855f7','#22c55e'");
+    // Kit-managed flag is registry-driven in the data layer.
+    const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
+    expect(dataSource).toContain("kitAgentPaths");
+    expect(dataSource).toMatch(/a\.kitManaged\s*=\s*kitAgentPaths\.has/);
+  });
+
+  it("renders Crew Monitor rows as a timestamped feed with agent initials monograms", () => {
+    // Per entry: avatar monogram (agent initials) + kind chip + action label + timestamp.
+    expect(dashboardHtml).toContain("monitor-row-avatar");
+    expect(dashboardHtml).toContain("function agentInitials(id)");
+    expect(dashboardHtml).toContain("function crewEventActor(ev)");
+    expect(dashboardHtml).toContain("function crewEventTime(ev, info)");
+    // Actor resolution mirrors briefActivityActor: kit agent, else Engineering
+    // Manager (delivery), else Squad when a plan is present, else Platform Engineer.
+    expect(dashboardHtml).toContain("if (ev && ev.agent) return String(ev.agent);");
+    expect(dashboardHtml).toContain(
+      "if (ev && ev.kind === 'delivery') return 'Engineering Manager';",
+    );
+    expect(dashboardHtml).toContain("if (ev && ev.refs && ev.refs.plan) return 'Squad';");
+    expect(dashboardHtml).toContain("return 'Platform Engineer';");
+    // Structured label spans: actor + verb fixed, plan filename ellipsises first;
+    // full context stays on the title tooltip.
+    expect(dashboardHtml).toContain("feed-seg-actor");
+    expect(dashboardHtml).toContain("feed-seg-verb");
+    expect(dashboardHtml).toContain("feed-seg-plan");
+    expect(dashboardHtml).toContain(".split(' · ')");
+    expect(dashboardHtml).toContain("ev.labelFull || ev.label || ''");
+    expect(dashboardHtml).toContain(
+      '<span class="feed-label" title="${escapeAttr(feedTitle)}">${feedLabelHtml}</span>',
+    );
+    expect(dashboardHtml).toContain('<span class="feed-sep" aria-hidden="true"> · </span>');
+    expect(dashboardHtml).toContain("ev.refs && ev.refs.plan");
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.feed-seg-plan\s*\{[^}]*flex-shrink:\s*3/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.feed-seg\s*\{[^}]*flex-shrink:\s*0/,
+    );
+    // Row order: avatar, chip, label, time.
+    expect(dashboardHtml).toMatch(
+      /monitor-row-avatar[\s\S]*?monitor-row-chip[\s\S]*?feed-label[\s\S]*?feed-time/,
+    );
+    // Timestamp fallback: first-seen stamp when the emitter omits `at`.
+    expect(dashboardHtml).toContain("semanticSeenAt.get(ev.id)");
+    expect(dashboardHtml).toContain("${crewEventTime(ev, info)}");
+    // Avatar styling: neutral square chip, not a state dot.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-avatar\s*\{[^}]*width:\s*18px/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-avatar\s*\{[^}]*background:\s*var\(--bg-card-hover\)/,
+    );
+  });
+
+  it("keeps the Activity tab on the plain activity-label (no Crew feed spans)", () => {
+    // Contract: Crew Monitor structured spans stay scoped; Activity tab is plain.
+    expect(dashboardHtml).toContain('id="section-activity"');
+    expect(dashboardHtml).toContain('<span class="activity-label">${escapeHtml(ev.label)}</span>');
+    expect(dashboardHtml).not.toMatch(
+      /id="section-activity"[\s\S]*feed-seg-actor[\s\S]*<\/div>\s*<\/div>\s*`/,
+    );
+    // New Crew CSS must stay under .live-activity-feed .monitor-row, not .activity-label.
+    expect(dashboardHtml).toMatch(/\.live-activity-feed \.monitor-row \.feed-seg-plan/);
+    expect(dashboardHtml).not.toMatch(/\.activity-label[\s\S]{0,80}feed-seg/);
+  });
+
   it("renders Flight Log Gaps stack (live + earlier) without Field Report review CTAs", () => {
     expect(dashboardHtml).toContain("function renderFlightLogCard(entry, idx)");
     expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
@@ -534,15 +743,100 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("flight-log-kind-ok");
     expect(dashboardHtml).toContain("data-flight-log-kind");
     expect(dashboardHtml).toContain("function flightLogMessageKind(text, opts");
-    expect(dashboardHtml).toContain("'Live'");
+    expect(dashboardHtml).toContain("'NOW'");
     expect(dashboardHtml).toContain("'Earlier'");
+    expect(dashboardHtml).toContain("variant === 'current' ? 'NOW' : 'Earlier'");
+    // Quiet placeholder (past empty, warnings present): label + a11y stay NOW, not Live.
+    expect(dashboardHtml).toContain('<span class="flight-log-card-label">NOW</span>');
+    expect(dashboardHtml).toContain('aria-label="No Gaps now"');
+    expect(dashboardHtml).not.toContain('aria-label="No live Gaps"');
     expect(dashboardHtml).not.toContain("Current Gaps");
     expect(dashboardHtml).not.toContain("Past Gaps");
-    expect(dashboardHtml).toContain("Copy text");
+    expect(dashboardHtml).not.toContain("Copy text");
+    expect(dashboardHtml).toContain("flight-log-action-");
     expect(dashboardHtml).not.toContain("Review all</button>");
     expect(dashboardHtml).not.toContain("Resolve all</button>");
     expect(dashboardHtml).not.toContain("vscode://");
     expect(dashboardHtml).not.toContain("cursor://");
+  });
+
+  it("behaviourally exercises Flight Log quiet-gate helpers (five monitor scenarios)", () => {
+    const sources = [
+      /function resolveFlightLogCurrent\(d\) \{[\s\S]*?\n\}/,
+      /function flightLogHasPastEntries\(fl\) \{[\s\S]*?\n\}/,
+      /function flightLogHasWarningEntries\(fl\) \{[\s\S]*?\n\}/,
+      /function isFlightLogQuiet\(d\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const {
+      resolveFlightLogCurrent,
+      flightLogHasPastEntries,
+      flightLogHasWarningEntries,
+      isFlightLogQuiet,
+    } = new Function(
+      `${sources.join("\n")}\nreturn { resolveFlightLogCurrent, flightLogHasPastEntries, flightLogHasWarningEntries, isFlightLogQuiet };`,
+    )() as {
+      resolveFlightLogCurrent: (d: unknown) => string | null;
+      flightLogHasPastEntries: (fl: unknown) => boolean;
+      flightLogHasWarningEntries: (fl: unknown) => boolean;
+      isFlightLogQuiet: (d: unknown) => boolean;
+    };
+
+    // 1) Plan:none + handoff Gaps → residual-B case (not quiet; current from handoff)
+    const handoffGaps = {
+      system: { handoff: { gaps: "Need triage on shell quote strip" } },
+      missionControl: { flightLog: { current: null, past: [], warnings: [] } },
+    };
+    expect(isFlightLogQuiet(handoffGaps)).toBe(false);
+    expect(resolveFlightLogCurrent(handoffGaps)).toBe("Need triage on shell quote strip");
+
+    // 2) Genuinely quiet
+    const quiet = {
+      missionControl: { flightLog: { current: null, past: [], warnings: [] } },
+    };
+    expect(isFlightLogQuiet(quiet)).toBe(true);
+    expect(resolveFlightLogCurrent(quiet)).toBeNull();
+
+    // 3) Gaps from missionControl.now (first fallback rung)
+    const nowGaps = {
+      missionControl: {
+        now: { gaps: "API/usage limit hard stop" },
+        flightLog: { current: null, past: [], warnings: [] },
+      },
+    };
+    expect(isFlightLogQuiet(nowGaps)).toBe(false);
+    expect(resolveFlightLogCurrent(nowGaps)).toBe("API/usage limit hard stop");
+
+    // 4) Past entries present → not quiet; no current
+    const withPast = {
+      missionControl: {
+        flightLog: {
+          current: null,
+          past: [{ text: "Earlier residual closed" }],
+          warnings: [],
+        },
+      },
+    };
+    expect(isFlightLogQuiet(withPast)).toBe(false);
+    expect(resolveFlightLogCurrent(withPast)).toBeNull();
+    expect(flightLogHasPastEntries(withPast.missionControl.flightLog)).toBe(true);
+
+    // 5) Text-less warning dropped (mirrors render-side filter) → quiet
+    const textlessWarning = {
+      missionControl: {
+        flightLog: {
+          current: null,
+          past: [],
+          warnings: [{ kind: "cadence", text: "   " }],
+        },
+      },
+    };
+    expect(flightLogHasWarningEntries(textlessWarning.missionControl.flightLog)).toBe(false);
+    expect(isFlightLogQuiet(textlessWarning)).toBe(true);
+    expect(resolveFlightLogCurrent(textlessWarning)).toBeNull();
   });
 
   it("pins Flight Log OK-normalize regex parity and CSS kind rules", () => {
@@ -591,9 +885,17 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
   });
 
   it("pins Flight Log kind-aware hover/focus chrome (not yellow-only via unset --accent)", () => {
-    // Regression: shared hover must not fall back to yellow via unset --accent.
-    expect(dashboardHtml).not.toContain("border-color: var(--accent, var(--yellow));");
-    expect(dashboardHtml).not.toContain("outline: 2px solid var(--accent, var(--yellow));");
+    // Regression: shared hover must not fall back to yellow via unset --accent (whitespace-tolerant).
+    expect(dashboardHtml).not.toMatch(
+      /border-color:\s*var\(\s*--accent\s*,\s*var\(\s*--yellow\s*\)\s*\)\s*;/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /outline:\s*2px\s+solid\s+var\(\s*--accent\s*,\s*var\(\s*--yellow\s*\)\s*\)\s*;/,
+    );
+    // Base fallback must stay visible (not same as rest border ≈1.1:1).
+    expect(dashboardHtml).toMatch(
+      /\.flight-log-card:hover,\s*\n\.flight-log-card:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--border-active\)/,
+    );
 
     const kindHoverTokens: Array<{ kind: string; token: string }> = [
       { kind: "ok", token: "var(--green)" },
@@ -610,7 +912,7 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       expect(dashboardHtml).toContain(
         `.flight-log-card-past.flight-log-kind-${kind}:focus-visible`,
       );
-      // Live hover/focus outline follows the kind palette token.
+      // NOW (current) hover/focus outline + border follow the kind palette token.
       const liveHoverBlock = dashboardHtml.match(
         new RegExp(
           `\\.flight-log-card-current\\.flight-log-kind-${kind}:hover,\\s*` +
@@ -618,9 +920,31 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
         ),
       );
       expect(liveHoverBlock?.[0]).toContain(`outline-color: ${token}`);
+      expect(liveHoverBlock?.[0]).toContain(`border-color: ${token}`);
+      // Earlier: muted color-mix on hover; full kind token on keyboard focus.
+      const pastHoverBlock = dashboardHtml.match(
+        new RegExp(`\\.flight-log-card-past\\.flight-log-kind-${kind}:hover\\s*\\{[^}]+\\}`),
+      );
+      expect(pastHoverBlock?.[0]).toMatch(/outline-color:\s*color-mix\(/);
+      expect(pastHoverBlock?.[0]).toMatch(/border-color:\s*color-mix\(/);
+      const pastFocusBlock = dashboardHtml.match(
+        new RegExp(
+          `\\.flight-log-card-past\\.flight-log-kind-${kind}:focus-visible\\s*\\{[^}]+\\}`,
+        ),
+      );
+      expect(pastFocusBlock?.[0]).toContain(`outline-color: ${token}`);
     }
     expect(dashboardHtml).toContain(".flight-log-card-warning:hover");
     expect(dashboardHtml).toContain(".flight-log-card-warning:focus-visible");
+
+    // Every flight-log-card root template emits a kind class or the warning class.
+    const cardRoots = [
+      ...dashboardHtml.matchAll(/(?:class="|`)flight-log-card(?![a-z-])[^"'`]*/g),
+    ].map((m) => m[0]);
+    expect(cardRoots.length).toBeGreaterThan(0);
+    for (const tpl of cardRoots) {
+      expect(/flight-log-kind-|flight-log-card-warning|\$\{kindClass\}/.test(tpl)).toBe(true);
+    }
   });
 
   it("renders Flight Log operator Warnings lane without cadence Review/Resolve CTAs", () => {
@@ -753,6 +1077,35 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     // Executing glow/pulse is gone; solid fill only (no live-pulse keyframes).
     expect(dashboardHtml).not.toContain("@keyframes now-status-live-pulse");
     expect(dashboardHtml).not.toMatch(/\.now-status-executing\s*\{[^}]*box-shadow/);
+  });
+
+  it("pins the busy-outside-plan chip chrome on Current mission and Flight Log", () => {
+    // Advice-family blue tokens on the pinned pill ladder; text-only (no dot, no icon).
+    expect(dashboardHtml).toMatch(/\.mc-busy-chip\s*\{[^}]*color:\s*var\(--blue\)/);
+    expect(dashboardHtml).toMatch(/\.mc-busy-chip\s*\{[^}]*background:\s*var\(--blue-bg\)/);
+    expect(dashboardHtml).toMatch(
+      /\.mc-busy-chip\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.mc-busy-chip\s*\{[^}]*font-size:\s*var\(--mc-chrome-meta-size\)/,
+    );
+    expect(dashboardHtml).not.toMatch(/\.mc-busy-chip\s*\{[^}]*box-shadow/);
+    expect(dashboardHtml).not.toMatch(/\.mc-busy-chip[^{]*:hover/);
+    const chipFn = dashboardHtml.match(/function renderBusyOutsideChip\([\s\S]*?\n\}/);
+    expect(chipFn).not.toBeNull();
+    expect(chipFn?.[0]).toContain("busyOutsidePlan?.active");
+    expect(chipFn?.[0]).not.toContain("spaceIconSvg");
+    expect(chipFn?.[0]).not.toContain("flight-log-card");
+    // Both headers render the chip; SSE fingerprints flip on the busy flag.
+    const nowPanelFn = dashboardHtml.match(/function renderNowExecutionPanel\([\s\S]*?\n\}/);
+    expect(nowPanelFn?.[0]).toContain("renderBusyOutsideChip(now)");
+    const attentionFn = dashboardHtml.match(/function renderAttentionPanel\([\s\S]*?\n\}/);
+    expect(attentionFn?.[0]).toContain("renderBusyOutsideChip(d.missionControl?.now)");
+    expect(dashboardHtml).toMatch(/busyOutsidePlan: now\.busyOutsidePlan\?\.active === true/);
+    const flightLogFingerprintFn = dashboardHtml.match(
+      /function flightLogFingerprint\([\s\S]*?\n\}/,
+    );
+    expect(flightLogFingerprintFn?.[0]).toContain("busyOutsidePlan");
   });
 
   it("demotes Mode and Updated to icon-led discreet meta with accessible names", () => {
@@ -1032,8 +1385,12 @@ describe("plugin-ux-validation: unified Activity feed", () => {
     expect(dashboardHtml).toMatch(/chore:\s+\{\s*icon:\s*'\\u2692'/);
     expect(dashboardHtml).toMatch(/pr:\s+\{\s*icon:\s*'\\u2442'/);
     expect(dashboardHtml).toMatch(/ship:\s+\{\s*icon:\s*'\\u2708'/);
-    expect(dashboardHtml).toContain("gloss: 'delivery - feat'");
-    expect(dashboardHtml).toContain("gloss: 'tick - live execution'");
+    expect(dashboardHtml).toContain("gloss: 'DevOps Engineer - feat'");
+    expect(dashboardHtml).toContain("gloss: 'Tech Lead - live execution'");
+    expect(dashboardHtml).toContain("gloss: 'Scrum Master - awaiting gate'");
+    expect(dashboardHtml).toContain("gloss: 'Full-Stack Developer - task unit'");
+    expect(dashboardHtml).toContain("gloss: 'Product Owner - milestone'");
+    expect(dashboardHtml).toContain("gloss: 'DevOps Engineer - shipped unit'");
     expect(dashboardHtml).toContain("kindGloss: gloss");
     expect(dashboardHtml).toMatch(
       /\.live-activity-feed \.monitor-row \.feed-time\s*\{[^}]*margin-left:\s*auto/,
@@ -1330,24 +1687,110 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     expect(dashboardHtml).toMatch(
       /#section-overview\.active \.overview-stack\s*\{[^}]*overflow:\s*hidden/,
     );
-    expect(dashboardHtml).toContain("grid-template-areas:");
-    expect(dashboardHtml).toContain('"now attention"');
-    expect(dashboardHtml).toContain('"checklist monitor"');
+    // Grid-area pins scoped to the one-fold block (residual B): future grid
+    // extensions elsewhere in the file must not false-pass or false-fail these.
+    const oneFold = dashboardHtml.match(
+      /@media \(min-width: 1024px\)\s*\{[\s\S]*?\n\}\n\n\/\* ===== Recent plan cards/,
+    );
+    expect(oneFold).not.toBeNull();
+    const block = oneFold?.[0] ?? "";
+    expect(block).toContain("grid-template-areas:");
+    expect(block).toContain('"now attention"');
+    expect(block).toContain('"checklist monitor"');
     expect(dashboardHtml).toMatch(
       /#section-overview\.active \.overview-stack\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/,
     );
-    expect(dashboardHtml).toMatch(
+    expect(block).toMatch(
       /#section-overview\.active #now-execution-panel\s*\{[^}]*grid-area:\s*now/,
     );
-    expect(dashboardHtml).toMatch(
-      /#section-overview\.active #hero-activity\s*\{[^}]*grid-area:\s*monitor/,
-    );
-    expect(dashboardHtml).toMatch(
+    expect(block).toMatch(/#section-overview\.active #hero-activity\s*\{[^}]*grid-area:\s*monitor/);
+    expect(block).toMatch(
       /#section-overview\.active #attention-panel\s*\{[^}]*grid-area:\s*attention/,
     );
-    expect(dashboardHtml).toMatch(
+    expect(block).toMatch(
       /#section-overview\.active #recent-plans-panel\s*\{[^}]*grid-area:\s*checklist/,
     );
+  });
+
+  it("collapses the overview to a two-column IA grid at mid widths (701-1023px)", () => {
+    const mid = dashboardHtml.match(
+      /@media \(min-width: 701px\) and \(max-width: 1023px\)\s*\{[\s\S]*?\n\}\n\n\/\* Desktop one-fold/,
+    );
+    expect(mid).not.toBeNull();
+    const block = mid?.[0] ?? "";
+    expect(block).toMatch(/#section-overview\.active \.overview-stack\s*\{[^}]*display:\s*grid/);
+    expect(block).toMatch(
+      /#section-overview\.active \.overview-stack\s*\{[^}]*grid-template-columns:\s*1fr 1fr/,
+    );
+    // Row-major collapse follows the locked IA: Current mission -> Flight Log
+    // -> Checklist -> Crew monitor.
+    expect(block).toContain("grid-template-areas:");
+    expect(block).toContain('"now now"');
+    expect(block).toContain('"attention checklist"');
+    expect(block).toContain('"monitor monitor"');
+    expect(block).toMatch(
+      /#section-overview\.active #now-execution-panel\s*\{[^}]*grid-area:\s*now/,
+    );
+    expect(block).toMatch(
+      /#section-overview\.active #attention-panel\s*\{[^}]*grid-area:\s*attention/,
+    );
+    expect(block).toMatch(
+      /#section-overview\.active #recent-plans-panel\s*\{[^}]*grid-area:\s*checklist/,
+    );
+    expect(block).toMatch(/#section-overview\.active #hero-activity\s*\{[^}]*grid-area:\s*monitor/);
+    // Mid grid is stacked (page scrolls): the one-fold height lock stays at >=1024px.
+    expect(block).not.toMatch(/height:\s*100%/);
+    expect(block).not.toMatch(/overflow:\s*hidden/);
+    // Mobile stack stays DOM-order flex; no CSS order property anywhere on the stack.
+    expect(dashboardHtml).not.toMatch(/\.overview-stack\s*\{[^}]*order:/);
+  });
+
+  it("adds a very thin sidebar mode (~<340px) with single-column card grids", () => {
+    expect(dashboardHtml).toContain("@media (max-width: 339px)");
+    const thin = dashboardHtml.match(/@media \(max-width: 339px\)\s*\{[\s\S]*?\n\}\n/);
+    expect(thin).not.toBeNull();
+    const block = thin?.[0] ?? "";
+    expect(block).toContain("--mc-card-padding: 10px");
+    expect(block).toContain("--mc-content-pad: 8px");
+    expect(block).toMatch(
+      /\.health-grid,[\s\S]*?\.agent-grid\s*\{[^}]*grid-template-columns:\s*1fr;/,
+    );
+    // Thin mode tightens the shared ladder; it does not fork it with new tokens.
+    expect(block).not.toMatch(
+      /--mc-(?!card-padding|header-pad-x|header-pad-x-end|content-pad)[a-z-]+:/,
+    );
+  });
+
+  it("adds a fullscreen viewport mode toggle with floating exit and Escape restore", () => {
+    expect(dashboardHtml).toMatch(/class="header-right"[\s\S]*?id="fullscreenToggleBtn"/);
+    expect(dashboardHtml).toMatch(/id="fullscreenToggleBtn"[^>]*aria-pressed="false"/);
+    expect(dashboardHtml).toContain('id="fullscreenExitBtn"');
+    expect(dashboardHtml).toMatch(/id="fullscreenExitBtn"[^>]*hidden/);
+    expect(dashboardHtml).toContain("function toggleMcFullscreen(");
+    expect(dashboardHtml).toMatch(
+      /addEventListener\('keydown'[\s\S]*?classList\.contains\('mc-fullscreen'\)/,
+    );
+    expect(dashboardHtml).toContain("Layered Escape");
+    expect(dashboardHtml).toContain("isNavMoreOpen()");
+    expect(dashboardHtml).toMatch(/body\.mc-fullscreen \.top-tabs-row\s*\{[^}]*padding-right:/);
+    expect(dashboardHtml).toMatch(/body\.mc-fullscreen \.header\s*\{[^}]*display:\s*none/);
+    expect(dashboardHtml).toMatch(/\.fullscreen-exit-btn\[hidden\]\s*\{[^}]*display:\s*none/);
+    // Fullscreen controls follow the chrome icon contract (16px, stroke 1.5, currentColor).
+    const enterBtn = dashboardHtml.match(/id="fullscreenToggleBtn"[^>]*>([\s\S]*?)<\/button>/);
+    expect(enterBtn).not.toBeNull();
+    expect(enterBtn?.[1]).toContain('stroke="currentColor"');
+    expect(enterBtn?.[1]).toContain('stroke-width="1.5"');
+    expect(enterBtn?.[1]).toContain('width="16" height="16"');
+    // Skin-neutral: fullscreen chrome uses shared surface tokens only.
+    const fsCss = dashboardHtml.match(/\.fullscreen-exit-btn\s*\{[\s\S]*?\n\}/);
+    expect(fsCss?.[0]).toContain("var(--bg-secondary)");
+    expect(fsCss?.[0]).not.toMatch(/#[0-9a-fA-F]{3,6}/);
+  });
+
+  it("routes header transport health tone through healthSeverityChrome", () => {
+    expect(dashboardHtml).toContain("function updateTransportChrome()");
+    expect(dashboardHtml).toContain("const healthChrome = healthSeverityChrome(healthStatus);");
+    expect(dashboardHtml).toContain("const healthTone = healthChrome.tone;");
   });
 
   it("hides the Cockpit subheader on desktop; More menu stays in the header", () => {
@@ -1516,6 +1959,39 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     expect(dashboardHtml).toMatch(
       /class="nav-more-menu"[^>]*role="menu"[^>]*aria-label="More sections"/,
     );
+  });
+
+  it("applies the dot semantics table: dots only signal good / important / attention", () => {
+    // Section titles carry no identity dots; the label text is the identity.
+    const sectionTitles = dashboardHtml.match(/<div class="section-title">[\s\S]*?<\/div>/g) ?? [];
+    expect(sectionTitles.length).toBeGreaterThan(0);
+    for (const title of sectionTitles) {
+      expect(title).not.toContain('class="dot');
+    }
+    expect(dashboardHtml).not.toContain(".section-title .dot");
+    // Decorative per-row dots are stripped (skills categories, processes labels).
+    expect(dashboardHtml).not.toContain("skill-cat-dot");
+    expect(dashboardHtml).not.toContain("live-pulse-dot");
+    expect(dashboardHtml).not.toContain("navTerminalsDot");
+    expect(dashboardHtml).not.toContain("navProcessesDot");
+    // Plan to-do dots survive only for good (completed) and attention (cancelled).
+    const statusDotFn = dashboardHtml.match(/function statusDot\(status\) \{[\s\S]*?\n\}/);
+    expect(statusDotFn).not.toBeNull();
+    expect(statusDotFn?.[0]).toContain("completed: 'dot-green'");
+    expect(statusDotFn?.[0]).toContain("cancelled: 'dot-red'");
+    expect(statusDotFn?.[0]).not.toContain("in_progress");
+    expect(statusDotFn?.[0]).not.toContain("pending");
+    // Surviving state dots stay paired with labels: health checks keep severity text.
+    expect(dashboardHtml).toContain("healthDotClass");
+    expect(dashboardHtml).toContain("health-item-sev");
+  });
+
+  it("syncs tabs with the URL hash for deep-linkable navigation", () => {
+    expect(dashboardHtml).toContain("function sectionFromHash()");
+    expect(dashboardHtml).toContain("function syncSectionHash(id)");
+    expect(dashboardHtml).toContain("window.addEventListener('hashchange'");
+    expect(dashboardHtml).toContain("history.replaceState");
+    expect(dashboardHtml).toContain("let activeSectionId = sectionFromHash()");
   });
 
   it("does not offer a Copy start header control (terminal: npm run dashboard / agent-kit dashboard)", () => {
@@ -1767,11 +2243,13 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       expect(labelled).toContain(`aria-label="${name}"`);
       expect(labelled).toContain(`title="${name}"`);
     }
-    // Home house: roof meets walls (no split roof/base gap).
+    // Home house: roof meets walls (no split roof/base gap); door interior stays above the stroke floor.
     const home = spaceIconSvg("overview");
     expect(home).toContain("M2.5 7.5L8 2.75l5.5 4.75");
     expect(home).toContain("M4.25 7.75v6.5h7.5v-6.5");
+    expect(home).toContain("M6.5 14.25v-3.25h3v3.25");
     expect(home).not.toContain("M4.5 10v4h3M11.5 10v4h-3");
+    expect(home).not.toContain("M6.75 14.25v-3.25h2.5v3.25");
     // Skins palette swatches (not Skills gear).
     const skins = spaceIconSvg("skins");
     expect(skins).toContain('<rect x="2.5" y="3.5"');
@@ -1782,6 +2260,83 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
     expect(spaceIconSvg("not-a-kind")).toBe("");
     // Inline SVG only: no icon font, sprite fetch, or frontend dependency.
     expect(dashboardHtml).not.toMatch(/font-awesome|material-icons|iconify/i);
+  });
+
+  it("keeps every space-icon glyph at or above the stroke-1.5 legibility floor", () => {
+    const spaceIconSvg = loadSpaceIconSvg();
+    const kinds = [
+      "current-mission",
+      "monitor",
+      "field-report",
+      "checklist",
+      "more-sections",
+      "overview",
+      "plans",
+      "activity",
+      "agents",
+      "skills",
+      "skins",
+      "commands",
+      "health",
+      "git",
+      "memory",
+      "terminals",
+      "processes",
+      "config",
+    ];
+    // No stroked circle may be smaller than the stroke that draws it
+    // (filled accents opt out via stroke="none" and stay solid at any size).
+    for (const kind of kinds) {
+      const svg = spaceIconSvg(kind);
+      for (const m of svg.matchAll(/<circle[^>]*\sr="([\d.]+)"([^>]*)\/?>/g)) {
+        if ((m[2] || "").includes('stroke="none"')) continue;
+        expect(
+          Number(m[1]),
+          `${kind} stroked circle radius ${m[1]} is below the stroke-1.5 floor`,
+        ).toBeGreaterThan(0.75);
+      }
+    }
+    // Radar: two rings (1.25 clearance), no centre dot below the floor.
+    const radar = spaceIconSvg("monitor");
+    expect(radar).toContain('<circle cx="8" cy="8" r="2.75"/>');
+    expect(radar).not.toContain('<circle cx="8" cy="8" r="1.5"/>');
+    expect(radar).not.toContain('r=".55"');
+    // Gear: spokes sit outside the ring instead of arcs burying into it.
+    const gear = spaceIconSvg("skills");
+    expect(gear).toContain('<circle cx="8" cy="8" r="2"/>');
+    expect(gear).toContain("M8 5V3.5");
+    expect(gear).not.toContain("M10.5 8a2.5 2.5 0 000-2.5");
+    // Rocket window: solid dot, not a sub-stroke ring.
+    const rocket = spaceIconSvg("current-mission");
+    expect(rocket).toContain('<circle cx="8" cy="7.5" r="1" fill="currentColor" stroke="none"/>');
+    expect(rocket).not.toContain('r=".9"');
+    // Chip: two internal lines with 1.5 clearance, not three at 0.5.
+    const chip = spaceIconSvg("memory");
+    expect(chip).toContain("M6 6.5h4M6 9.5h2.5");
+    expect(chip).not.toContain("M6 8.5h4");
+    // Home door interior pin (paired with overview glyph contract).
+    const home = spaceIconSvg("overview");
+    // Ellipsis: adjacent dots must clear each other (no tangency or fusion).
+    const more = spaceIconSvg("more-sections");
+    const dots = [...more.matchAll(/<circle cx="([\d.]+)" cy="8" r="([\d.]+)"([^>]*)\/?>/g)].map(
+      (m) => ({
+        cx: Number(m[1]),
+        reach: Number(m[2]) + ((m[3] || "").includes('stroke="none"') ? 0 : 0.75),
+      }),
+    );
+    expect(dots).toHaveLength(3);
+    for (let i = 1; i < dots.length; i++) {
+      const gap = dots[i].cx - dots[i - 1].cx - dots[i].reach - dots[i - 1].reach;
+      expect(gap, `more-sections dots ${i - 1}/${i} fuse (gap ${gap})`).toBeGreaterThanOrEqual(1);
+    }
+    // Chip internal lines: vertical clearance between the two strokes is ≥ 1 unit.
+    const chipPaths = [...chip.matchAll(/M6 ([\d.]+)h/g)].map((m) => Number(m[1]));
+    expect(chipPaths.length).toBeGreaterThanOrEqual(2);
+    expect(chipPaths[1] - chipPaths[0], "memory chip line clearance").toBeGreaterThanOrEqual(1);
+    // Home door interior: opening height stays above the stroke floor (≥ 1 unit usable).
+    expect(home).toMatch(/M6\.5 14\.25v-([\d.]+)h/);
+    const doorDrop = Number(home.match(/M6\.5 14\.25v-([\d.]+)h/)?.[1] || 0);
+    expect(doorDrop, "overview door interior height").toBeGreaterThanOrEqual(3);
   });
 
   it("gives every terminal expand control a name that says which terminal", () => {
@@ -1875,6 +2430,58 @@ describe("plugin-ux-validation: hardening regressions", () => {
     expect(dashboardHtml).toContain("/api/config");
     expect(dashboardHtml).toMatch(/method:\s*['"]PATCH['"]/);
     expect(dashboardHtml).toContain('id="config-save-btn"');
+  });
+
+  it("pins Config tab chrome: grid layout, Save on top, trimmed hints", () => {
+    // Grid layout, not vertical-only.
+    expect(dashboardHtml).toMatch(
+      /\.config-form\s*\{[^}]*display:\s*grid[^}]*grid-template-columns/,
+    );
+    // Save Configuration pinned in a top actions bar, before the first fieldset.
+    expect(dashboardHtml).toContain('class="config-actions"');
+    expect(dashboardHtml).toMatch(
+      /<form class="config-form"[\s\S]*?config-save-btn[\s\S]*?config-fieldset/,
+    );
+    expect(dashboardHtml.indexOf('id="config-save-btn"')).toBeLessThan(
+      dashboardHtml.indexOf("Read-only"),
+    );
+    // Wide fieldsets span the grid; persona mode selects use a two-column grid.
+    expect(dashboardHtml).toContain("config-fieldset-wide");
+    expect(dashboardHtml).toContain("config-grid-2");
+    // Helper-text slop stays trimmed.
+    expect(dashboardHtml).not.toContain("What it does:");
+    expect(dashboardHtml).not.toContain("0 disables cooldown (default for named-model runs)");
+  });
+
+  it("pins Config tab copy-CRUD fallback: per-fieldset snippets, copy-only, dead-control hints", () => {
+    // One copy-snippet button per writable fieldset (Read-only fieldset has none).
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-session"');
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-updateCheck"');
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-audits"');
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-personas"');
+    // Never-writable knobs still get copy-only static snippets (allowlist unchanged).
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-updateApply"');
+    expect(dashboardHtml).toContain('data-focus-key="config-copy-dogfood"');
+    expect(dashboardHtml).toContain("function copyStaticConfigSnippet(");
+    expect(dashboardHtml).toContain("CONFIG_STATIC_SNIPPETS");
+    expect(dashboardHtml.match(/btn-config-copy/g)?.length).toBeGreaterThanOrEqual(6);
+    // Snippet builder shares the save payload and stays copy-only (no fetch).
+    expect(dashboardHtml).toContain("function collectMissionConfigPayload(");
+    expect(dashboardHtml).toContain("function copyConfigSnippet(");
+    const copyFn = dashboardHtml.match(/function copyConfigSnippet\([\s\S]*?\n\}/)?.[0];
+    expect(copyFn).toBeTruthy();
+    expect(copyFn).toContain("copyToClipboard");
+    expect(copyFn).not.toContain("fetch(");
+    expect(copyFn).not.toContain("/api/config");
+    const staticFn = dashboardHtml.match(/function copyStaticConfigSnippet\([\s\S]*?\n\}/)?.[0];
+    expect(staticFn).toBeTruthy();
+    expect(staticFn).not.toContain("fetch(");
+    expect(staticFn).not.toContain("/api/config");
+    // Clipboard failure toast truncates long snippets instead of dumping the full body.
+    expect(dashboardHtml).toContain("const preview = raw.length > 120");
+    // Dead-control hints: backend is claude-only; updateApply.auto never writable.
+    expect(dashboardHtml).toContain("claude is the only backend today.");
+    expect(dashboardHtml).toContain("updateApply.auto is never writable here.");
   });
 
   it("preserves loopback default bind and localhost CORS allowlist", () => {
@@ -2243,6 +2850,85 @@ describe("cockpit checklist: plan cards only (notes moved to Field Report)", () 
     expect(dashboardHtml).not.toContain("function renderAttentionItem(item, idx)");
     expect(dashboardHtml).toContain("function renderAttentionPanel(d, attentionChanged)");
     expect(dashboardHtml).toContain("function flightLogFingerprint(d)");
+  });
+});
+
+describe("plans tab v2: actionable rows, live status bar, next action", () => {
+  const plansRenderer = () =>
+    dashboardHtml.match(/function renderPlansAccordion\([\s\S]*?(?=\nfunction \w+)/)?.[0];
+
+  it("derives the live status bar from frontmatter to-do counts, not enriched labels", () => {
+    // To-do items are the source of truth for counts (summary fields are only
+    // a fallback when items are absent).
+    expect(dashboardHtml).toContain("items.filter((t) => t.status === 'completed').length");
+    expect(dashboardHtml).toContain("items.filter((t) => t.status === 'in_progress').length");
+    expect(dashboardHtml).toContain("progressLabel: `${completed} of ${total} complete`");
+    expect(dashboardHtml).not.toContain("progressLabel: enriched.progress?.label");
+    expect(dashboardHtml).toContain("progressInProgress: inProgress");
+    expect(dashboardHtml).toContain("nextActionTodo,");
+    // Bar carries real progressbar semantics with the live value.
+    const renderer = plansRenderer();
+    expect(renderer).toBeTruthy();
+    expect(renderer).toContain('role="progressbar"');
+    expect(renderer).toContain('aria-valuenow="${pct}"');
+    expect(renderer).toContain('aria-valuemax="100"');
+    expect(renderer).toContain('aria-valuetext="${escapeAttr(p.progressLabel)}"');
+    expect(renderer).not.toContain('role="img"');
+    // Live signals stay visible as text: in-progress count and next to-do id.
+    expect(renderer).toContain("${p.progressInProgress} in progress");
+    expect(renderer).toContain("Next: <code>${escapeHtml(p.nextActionTodo.id)}</code>");
+  });
+
+  it("computes the next actionable to-do (in_progress first, else first pending)", () => {
+    expect(dashboardHtml).toContain("function planNextActionTodo(items)");
+    expect(dashboardHtml).toContain("items.find((t) => t.status === 'in_progress')");
+    expect(dashboardHtml).toContain("items.find((t) => t.status === 'pending')");
+    const renderer = plansRenderer();
+    expect(renderer).toContain('class="plan-next-action"');
+    expect(renderer).toContain("Next action:");
+  });
+
+  it("renders status-aware copy-only actions naming the chat input as paste destination", () => {
+    expect(dashboardHtml).toContain("function planTabActions(p)");
+    // Per-lifecycle affordances: active/incomplete resume, backlog runs/edits,
+    // parked resumes, completed opens (copy path) / archives.
+    expect(dashboardHtml).toContain("case 'executing':");
+    expect(dashboardHtml).toContain("case 'awaiting_user':");
+    expect(dashboardHtml).toContain("case 'backlog':");
+    expect(dashboardHtml).toContain("case 'parked':");
+    expect(dashboardHtml).toContain("case 'incomplete':");
+    expect(dashboardHtml).toContain("case 'completed':");
+    // Locked clipboard labels and commands (basename from plan.file).
+    expect(dashboardHtml).toContain("Copy resume prompt");
+    expect(dashboardHtml).toContain("Copy run command");
+    expect(dashboardHtml).toContain("Copy edit command");
+    expect(dashboardHtml).toContain("Copy archive command");
+    expect(dashboardHtml).toContain("Copy plan path");
+    expect(dashboardHtml).toContain("command: `/continue-plan ${basename}`");
+    expect(dashboardHtml).toContain("command: `/run-plan ${basename}`");
+    expect(dashboardHtml).toContain("command: `/backlog-edit ${basename}`");
+    expect(dashboardHtml).toContain("command: `/archive-plan ${basename}`");
+    // Chat commands go through the chat-input paste helpers; path stays a
+    // file-picker copy. First action per row is visually primary.
+    expect(dashboardHtml).toContain(
+      "copyForPasteHandler(action.command, action.command, 'chatInput')",
+    );
+    expect(dashboardHtml).toContain("copyActionTitle(action.command, 'chatInput')");
+    expect(dashboardHtml).toContain("copyRepoPathHandler(p.path)");
+    expect(dashboardHtml).toContain("plan-action-primary");
+    const renderer = plansRenderer();
+    expect(renderer).toContain(
+      "planTabActions(p).map((action, idx) => renderPlanTabActionButton(action, p, key, idx))",
+    );
+  });
+
+  it("keeps to-do status dots limited to good/attention states (status via label)", () => {
+    const statusDot = dashboardHtml.match(/function statusDot\(status\) \{[\s\S]*?\n\}/)?.[0];
+    expect(statusDot).toBeTruthy();
+    expect(statusDot).toContain("completed: 'dot-green'");
+    expect(statusDot).toContain("cancelled: 'dot-red'");
+    expect(statusDot).not.toContain("pending");
+    expect(statusDot).not.toContain("in_progress");
   });
 });
 
@@ -2673,7 +3359,88 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     for (const id of ["plans", "handoff", "agents", "commands", "memory", "git", "config"]) {
       expect(dashboardHtml).toContain(`${id}:`);
     }
-    expect(dashboardHtml).toContain("same seven checks · copy-only Autofix");
+  });
+
+  it("renders a vitals diagnosis dashboard grouped by vital system", () => {
+    const healthBlock = dashboardHtml.match(
+      /\/\/ ===== Healthcenter \(More → Health\) =====[\s\S]*?(?=\n {2}\/\/ ===== Git =====)/,
+    )?.[0];
+    expect(healthBlock).toBeTruthy();
+    expect(healthBlock).toContain("HEALTH_VITAL_GROUPS");
+    expect(healthBlock).toContain('class="health-vitals"');
+    expect(healthBlock).toContain("health-vital-card");
+    expect(healthBlock).toContain("health-group-title");
+    for (const label of ["Planning spine", "Agent surface", "Memory loop", "Workspace"]) {
+      expect(dashboardHtml).toContain(`label: '${label}'`);
+    }
+    expect(healthBlock).toContain("passing</span>");
+    expect(healthBlock).toContain("'Attention'");
+    expect(dashboardHtml).toMatch(/\.health-vitals\s*\{/);
+    expect(dashboardHtml).toMatch(
+      /\.health-vital-card\[data-state="pass"\][^{]*\{[^}]*var\(--green/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.health-vital-card\[data-state="attention"\][^{]*\{[^}]*var\(--red/,
+    );
+  });
+
+  it("strips left-bar highlight slop and colors severity via the Cursor palette", () => {
+    expect(dashboardHtml).not.toMatch(/\.health-card\[data-severity[^\]]*\]\s*\{[^}]*border-left/);
+    expect(dashboardHtml).not.toContain("same seven checks");
+    expect(dashboardHtml).toMatch(/\.health-item-sev\[data-sev="ok"\]\s*\{[^}]*var\(--green/);
+    expect(dashboardHtml).toMatch(/\.health-item-sev\[data-sev="warning"\]\s*\{[^}]*var\(--yellow/);
+    expect(dashboardHtml).toMatch(
+      /\.health-item-sev\[data-sev="degraded"\]\s*\{[^}]*var\(--orange/,
+    );
+    expect(dashboardHtml).toMatch(/\.health-item-sev\[data-sev="error"\]\s*\{[^}]*var\(--red/);
+    expect(dashboardHtml).toContain('class="health-item-sev" data-sev=');
+    // Token hygiene: no misleading fallback hexes on severity/radius rules.
+    expect(dashboardHtml).not.toContain("var(--mc-radius-sm, 6px)");
+    expect(dashboardHtml).not.toContain("var(--green, #3fb950)");
+    expect(dashboardHtml).not.toContain("var(--yellow, #d29922)");
+    expect(dashboardHtml).not.toContain("var(--red, #f85149)");
+  });
+
+  it("unifies severity chrome on one {tone, label, token} mapping across all call sites", () => {
+    expect(dashboardHtml).toContain("HEALTH_SEVERITY_CHROME");
+    expect(dashboardHtml).toContain(
+      "degraded: { tone: 'orange', label: 'degraded', token: 'orange' }",
+    );
+    // Presence dot, card dot, and severity label all read the same mapping.
+    expect(dashboardHtml).toContain(
+      "const presenceTone = healthSeverityChrome(healthStatus).tone;",
+    );
+    expect(dashboardHtml).toMatch(
+      /function healthDotClass\(sev\) \{\s*return `dot-\$\{healthSeverityChrome\(sev\)\.tone\}`;/,
+    );
+    expect(dashboardHtml).toMatch(
+      /function healthSeverityLabel\(sev\) \{\s*return healthSeverityChrome\(sev\)\.label;/,
+    );
+    // Degraded tone exists as a dot and carries a matching pulse halo; the red
+    // halo fallback hole (grey currentColor) is closed.
+    expect(dashboardHtml).toMatch(/\.dot-orange\s*\{[^}]*background:\s*var\(--orange\)/);
+    expect(dashboardHtml).toMatch(
+      /\.dot-orange\.dot-pulse::after\s*\{[^}]*border-color:\s*var\(--orange\)/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.dot-red\.dot-pulse::after\s*\{[^}]*border-color:\s*var\(--red\)/,
+    );
+    // Presence liveness rides the ::after halo, not an element-level pulse that
+    // inflated the solid dot 250% and faded it out each cycle.
+    expect(dashboardHtml).not.toMatch(/\.healthcenter-presence \.dot-pulse\s*\{[^}]*animation/);
+  });
+
+  it("gives every problem row a copy-paste fix prompt CTA naming the chat input", () => {
+    const healthBlock = dashboardHtml.match(
+      /\/\/ ===== Healthcenter \(More → Health\) =====[\s\S]*?(?=\n {2}\/\/ ===== Git =====)/,
+    )?.[0];
+    expect(healthBlock).toBeTruthy();
+    expect(healthBlock).toContain("Copy fix prompt");
+    expect(healthBlock).toContain("copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')");
+    expect(healthBlock).toContain("copyActionTitle('fix prompt', 'chatInput')");
+    expect(healthBlock).toContain("Fix this failing health check: ${c.label || id}");
+    expect(healthBlock).toContain("No action needed.");
+    expect(healthBlock).not.toContain("No Autofix mapped for this check.");
   });
 
   it("maps Autofix to copyForPaste destinations (no Open/protocol)", () => {
@@ -2697,13 +3464,236 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(healthBlock).toContain("Health offline");
   });
 
-  it("keeps dual-skin Healthcard radius and reduced-motion press on .health-item", () => {
-    expect(dashboardHtml).toMatch(
-      /html\[data-dashboard-skin="cursor"\] \.health-card\s*\{[^}]*border-radius:\s*8px/,
+  it("unifies Health card radius on the ladder (skin-neutral) with reduced-motion press on .health-item", () => {
+    expect(dashboardHtml).toMatch(/\.health-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/);
+    // Structure stays skin-neutral: no per-skin radius overrides on health cards.
+    expect(dashboardHtml).not.toMatch(
+      /html\[data-dashboard-skin="(?:cursor|legacy)"\] \.health-card\s*\{/,
     );
     expect(dashboardHtml).toMatch(
-      /html\[data-dashboard-skin="legacy"\] \.health-card\s*\{[^}]*border-radius:\s*4px/,
+      /\.health-vital-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/,
     );
     expect(dashboardHtml).toMatch(/\.health-item:active\s*\{[^}]*transform:\s*scale\(0\.98\)/);
+  });
+});
+
+describe("plugin-ux-validation: Memory tab (error-o-meter + live recent errors)", () => {
+  const memoryBlock = dashboardHtml.match(
+    /\/\/ ===== Memory =====[\s\S]*?(?=\n {2}\/\/ ===== Terminals =====)/,
+  )?.[0];
+
+  it("renders the error-o-meter KPI grid from memory.errorStats", () => {
+    expect(memoryBlock).toBeTruthy();
+    expect(memoryBlock).toContain("d.memory?.recentErrors || []");
+    expect(memoryBlock).toContain("d.memory?.errorStats || null");
+    expect(memoryBlock).toContain('class="memory-kpi-grid"');
+    expect(memoryBlock).toContain("Error-o-meter");
+    expect(memoryBlock).toContain("errorStats.last30d");
+    expect(memoryBlock).toContain("errorStats.weeklyRate");
+    expect(memoryBlock).toContain("errorStats.topTags");
+    expect(dashboardHtml).toMatch(/\.memory-kpi-grid\s*\{/);
+    expect(dashboardHtml).toMatch(/\.memory-tag\s*\{/);
+  });
+
+  it("lays out green and red icon-led panels side by side", () => {
+    expect(memoryBlock).toContain("memory-panel-icon-green");
+    expect(memoryBlock).toContain("memory-panel-icon-red");
+    expect(memoryBlock).toContain("Healthy memory");
+    expect(memoryBlock).toContain("Recent errors");
+    expect(memoryBlock).toContain("renderEmptyStateCta");
+    expect(dashboardHtml).toMatch(/\.memory-panel-icon-green\s*\{[^}]*var\(--green\)/);
+    expect(dashboardHtml).toMatch(/\.memory-panel-icon-red\s*\{[^}]*var\(--red\)/);
+  });
+
+  it("renders interactive error rows with expand detail and copy fix-prompt", () => {
+    expect(memoryBlock).toContain(
+      "recentErrors.map((entry, idx) => renderMemoryErrorRow(entry, idx)).join('')",
+    );
+    expect(dashboardHtml).toContain("function renderMemoryErrorRow(entry, idx)");
+    expect(dashboardHtml).toContain("function toggleMemoryError(idx)");
+    expect(dashboardHtml).toContain("memory-error-card");
+    expect(dashboardHtml).toContain("memory-error-detail");
+    expect(dashboardHtml).toContain("Copy fix prompt");
+    expect(dashboardHtml).toContain("copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')");
+    expect(dashboardHtml).toContain("copyActionTitle('fix prompt', 'chatInput')");
+    const rowFn = dashboardHtml.match(
+      /function renderMemoryErrorRow\(entry, idx\) \{[\s\S]*?\n\}/,
+    )?.[0];
+    expect(rowFn).toBeTruthy();
+    expect(rowFn).toContain("Fix this recorded problem class: ${title}");
+    expect(rowFn).toContain("aria-expanded");
+  });
+
+  it("keeps the Memory tab free of decorative dots", () => {
+    expect(memoryBlock).not.toMatch(/class="dot/);
+    expect(memoryBlock).not.toContain("dot-green");
+    expect(memoryBlock).not.toContain("dot-red");
+  });
+
+  it("wires live memory parsing in dashboard-data.mjs", () => {
+    const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
+    expect(dataSource).toContain("function parseMemoryErrorFile(dir, file)");
+    expect(dataSource).toContain("function computeMemoryErrorStats(entries)");
+    expect(dataSource).toContain(
+      "SNAPSHOT.memory.recentErrors = parsedErrors.slice(0, MAX_MEMORY_RECENT_ERRORS)",
+    );
+    expect(dataSource).toContain(
+      "SNAPSHOT.memory.errorStats = computeMemoryErrorStats(parsedErrors)",
+    );
+    expect(dataSource).toContain("weeklyRate");
+    expect(dataSource).toContain("topTags");
+  });
+});
+
+describe("plugin-ux-validation: Git tab (promotion flow + graph + staging hygiene)", () => {
+  const gitBlock = dashboardHtml.match(
+    /\/\/ ===== Git =====[\s\S]*?(?=\n {2}\/\/ ===== Memory =====)/,
+  )?.[0];
+
+  it("renders promotion flow lanes for work -> staging -> main", () => {
+    expect(gitBlock).toBeTruthy();
+    expect(gitBlock).toContain("${renderGitHygieneHint(d.git)}");
+    expect(gitBlock).toContain("${renderGitFlowCard(d.git)}");
+    expect(gitBlock).toContain("${renderGitGraphCard(d.git)}");
+    expect(dashboardHtml).toContain("function renderGitFlowCard(git)");
+    expect(dashboardHtml).toContain("function renderGitFlowRow({ from, to, div, texts, cta })");
+    const flowFn = dashboardHtml.match(/function renderGitFlowCard\(git\) \{[\s\S]*?\n\}/)?.[0];
+    expect(flowFn).toBeTruthy();
+    // Three lanes: branch vs staging, staging vs main, branch vs main.
+    expect(flowFn).toContain("to: 'origin/staging'");
+    expect(flowFn).toContain("from: 'origin/staging'");
+    expect(flowFn).toContain("to: 'origin/main'");
+    expect(flowFn).toContain("awaiting promotion to main");
+    // CTA gated on ahead, never unconditional.
+    expect(flowFn).toContain("flow.vsStaging && flow.vsStaging.ahead > 0");
+    expect(flowFn).toContain("flow.stagingVsMain && flow.stagingVsMain.ahead > 0");
+    expect(flowFn).toContain("Copy /git-staging");
+    expect(flowFn).toContain("Copy /git-prod");
+    expect(dashboardHtml).toMatch(/\.git-flow-row\s*\{/);
+    expect(dashboardHtml).toMatch(/\.git-flow-badge\.is-ahead\s*\{[^}]*var\(--yellow\)/);
+    expect(dashboardHtml).toMatch(/\.git-flow-badge\.is-sync\s*\{[^}]*var\(--green\)/);
+  });
+
+  it("keeps flow badges and state labels honest (sync / ahead / behind)", () => {
+    const sources = [
+      /function gitFlowBadge\(div\) \{[\s\S]*?\n\}/,
+      /function gitFlowStateLabel\(div, \{ syncText, aheadText, behindText \}\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const { gitFlowBadge, gitFlowStateLabel } = new Function(
+      `${sources.join("\n")}\nreturn { gitFlowBadge, gitFlowStateLabel };`,
+    )() as {
+      gitFlowBadge: (div: { ahead: number; behind: number } | null) => string;
+      gitFlowStateLabel: (
+        div: { ahead: number; behind: number } | null,
+        texts: {
+          syncText: string;
+          aheadText: (n: number) => string;
+          behindText: (n: number) => string;
+        },
+      ) => { tone: string | null; text: string };
+    };
+    expect(gitFlowBadge(null)).toContain("no upstream");
+    expect(gitFlowBadge({ ahead: 0, behind: 0 })).toContain("is-sync");
+    expect(gitFlowBadge({ ahead: 2, behind: 0 })).toContain("is-ahead");
+    expect(gitFlowBadge({ ahead: 0, behind: 3 })).toContain("is-behind");
+    const texts = {
+      syncText: "sync",
+      aheadText: (n: number) => `ahead ${n}`,
+      behindText: (n: number) => `behind ${n}`,
+    };
+    expect(gitFlowStateLabel({ ahead: 0, behind: 0 }, texts)).toEqual({
+      tone: "green",
+      text: "sync",
+    });
+    expect(gitFlowStateLabel({ ahead: 1, behind: 0 }, texts).tone).toBe("yellow");
+    expect(gitFlowStateLabel({ ahead: 0, behind: 1 }, texts).tone).toBe("yellow");
+    expect(gitFlowStateLabel({ ahead: 1, behind: 1 }, texts).text).toContain("diverged");
+    expect(gitFlowStateLabel(null, texts).tone).toBeNull();
+  });
+
+  it("renders a readable git graph block (no decorative per-commit dots)", () => {
+    expect(dashboardHtml).toContain("function renderGitGraphCard(git)");
+    const graphFn = dashboardHtml.match(/function renderGitGraphCard\(git\) \{[\s\S]*?\n\}/)?.[0];
+    expect(graphFn).toBeTruthy();
+    expect(graphFn).toContain('class="git-graph"');
+    expect(graphFn).toContain("aria-label");
+    expect(graphFn).toContain("escapeHtml(lines.join('\\n'))");
+    expect(graphFn).not.toContain("dot");
+    expect(dashboardHtml).toMatch(/\.git-graph\s*\{[^}]*var\(--mc-font-mono\)/);
+    // Old stat rows are gone; flow lanes carry ahead/behind now.
+    expect(gitBlock).not.toContain("Ahead of origin/main");
+    expect(gitBlock).not.toContain("Behind origin/main");
+    // Dots inside the Git tab only appear paired with state labels (flow/hygiene).
+    expect(gitBlock).not.toContain("dot-gray");
+    for (const dotMatch of gitBlock?.match(/<span class="dot dot-[a-z]+"/g) ?? []) {
+      expect(['<span class="dot dot-green"', '<span class="dot dot-yellow"']).toContain(dotMatch);
+    }
+  });
+
+  it("surfaces staging hygiene for untracked plan-monitor WIP", () => {
+    expect(dashboardHtml).toContain("function renderGitHygieneHint(git)");
+    const hintFn = dashboardHtml.match(/function renderGitHygieneHint\(git\) \{[\s\S]*?\n\}/)?.[0];
+    expect(hintFn).toBeTruthy();
+    expect(hintFn).toContain("git?.hygiene?.monitorWip || []");
+    expect(hintFn).toContain("if (!wip.length) return '';");
+    expect(hintFn).toContain("add-by-name only");
+    expect(hintFn).toContain("Copy /git-staging");
+    expect(dashboardHtml).toMatch(/\.git-hygiene\s*\{[^}]*var\(--yellow-bg\)/);
+  });
+
+  it("wires flow, graph, and hygiene data in dashboard-data.mjs", () => {
+    const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
+    expect(dataSource).toContain("git rev-list --left-right --count ${range}");
+    expect(dataSource).toContain('countDivergence("origin/staging...HEAD")');
+    expect(dataSource).toContain('countDivergence("origin/main...HEAD")');
+    expect(dataSource).toContain('countDivergence("origin/main...origin/staging")');
+    expect(dataSource).toContain("git log --graph --oneline --decorate --date-order --all");
+    expect(dataSource).toContain("MAX_GIT_GRAPH_LINES");
+    expect(dataSource).toContain("/^\\.cursor\\/memory\\/plan-monitor-.+\\.md$/");
+    expect(dataSource).toContain("hygiene: { monitorWip }");
+  });
+});
+
+describe("plugin-ux-validation: processes tab narration", () => {
+  const processesSection =
+    dashboardHtml.match(/id="section-processes"[\s\S]*?id="section-skills"/)?.[0] ?? "";
+
+  it("renders a narrated live list with an informational (not alarm) note", () => {
+    // Informational note uses the blue informational palette, never attention red.
+    const noteCss = dashboardHtml.match(/\.processes-note\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    expect(noteCss).toContain("var(--blue-bg)");
+    expect(noteCss).not.toContain("var(--red");
+    expect(processesSection).toContain('class="processes-note"');
+    expect(processesSection).toContain("Live ps snapshot.");
+    // Crew monitor pointer keeps IDE-spawned agent activity discoverable.
+    expect(processesSection).toContain("Crew monitor");
+    // Live list chrome: per-process card with the generated narration.
+    expect(processesSection).toContain('class="process-list"');
+    expect(processesSection).toContain('class="process-card"');
+    expect(processesSection).toContain('class="process-label-badge"');
+    expect(processesSection).toContain('class="process-desc"');
+    expect(processesSection).toContain("escapeHtml(p.description)");
+    expect(processesSection).toContain("escapeHtml(p.etime)");
+    // Honest empty state, no decorative filler.
+    expect(processesSection).toContain("All quiet");
+    expect(processesSection).toContain("appear here while active");
+    // Copy-only action kept, terminal as paste destination.
+    expect(processesSection).toContain("Copy PID");
+    // Dot semantics: no decorative dots in the Processes tab.
+    expect(processesSection).not.toMatch(/class="dot/);
+    // The old table chrome is gone.
+    expect(dashboardHtml).not.toContain("processes-table");
+  });
+
+  it("ships per-process narration fields from dashboard-data.mjs", () => {
+    const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
+    expect(dataSource).toContain("ps -axo pid=,pcpu=,pmem=,etime=,command=");
+    expect(dataSource).toContain(
+      "description: describeProcess({ label, command: cmd, cpu, etime })",
+    );
   });
 });

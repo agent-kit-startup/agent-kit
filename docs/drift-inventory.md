@@ -1,8 +1,16 @@
 # Drift inventory - workspaces × Agent Kit
 
-Snapshot of how Agent Kit (or a folder copy) appears across local workspaces. Used as input to the layer model (L0–L3), manifest, and CLI lifecycle. Counts are from a filesystem scan on **2026-07-19**; they will drift again until distribution stops being “copy the folder”.
+Historical snapshot of how Agent Kit (or a folder copy) appeared across local workspaces. Used as input to the layer model (L0–L3), manifest, and CLI lifecycle.
 
-**Source of truth (SoT):** Agent Kit monorepo at this repo. **Product release:** per `package.json` current version. **`package.json` / plugin manifest** version checked against current state. Staging is **18 commits ahead** of `main` with EN sweep + breaking L1 pack id rename in `[Unreleased]`.
+**Evidence class:** maintained documentation (derived). Fleet workspace counts are from a filesystem scan on **2026-07-19** and are **historical**; they are not current lane state.
+
+**Lane freshness (recomputed 2026-07-31):**
+- Private SoT branch: `staging` @ `7e5315d9c58c7ddc7e7d908626f44ba056085354`
+- Private `main` @ `67391111910e9e6a7b2496ce8e5821a30b51c900`
+- Ahead of `main` at that observation: **105** commits / **53** first-parent merges (replaces the obsolete fixed ahead-count from the 2026-07-19 snapshot)
+- Product version at observation: `4.8.4` (`package.json` / `packages/cli/package.json`)
+
+Regenerate ahead-counts with `git rev-list --count main..staging` before citing them elsewhere. Do not treat this file as proof of current delivery.
 
 ## Summary
 

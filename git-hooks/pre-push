@@ -1,23 +1,58 @@
 #!/bin/sh
 # Block direct pushes to the production branch (main/master) on any remote.
 # main is promoted only via `git prod` (merge from staging). Feature/staging pushes are fine.
+# Also block force-updating or deleting published v* tags (immutability).
 # Install: cp git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 #
 # Authorized prod push (from the `git prod` routine):
 #   ALLOW_MAIN_PUSH=1 git push origin main
 #
+# Authorized tag rewrite (emergency only; prefer a new patch tag):
+#   ALLOW_TAG_FORCE=1 git push --force origin vX.Y.Z
+#
+# WARNING: `git push --no-verify` skips this entire hook (branch + tag immutability).
+# Prefer ALLOW_MAIN_PUSH=1 / ALLOW_TAG_FORCE=1 so only the intended gate is bypassed.
+# Never use --no-verify for routine work; it can corrupt published v* tags.
+#
 # Git feeds pre-push lines on stdin: <local ref> <local sha> <remote ref> <remote sha>
+zero=0000000000000000000000000000000000000000
 while read -r local_ref local_sha remote_ref remote_sha; do
+  # Fail closed on pathological ref names (shell metacharacters / control chars).
+  case "$remote_ref" in
+    *[!A-Za-z0-9._/-]*|"")
+      echo "BLOCKED: refusing unsafe remote ref name." >&2
+      exit 1
+      ;;
+  esac
   case "$remote_ref" in
     refs/heads/main|refs/heads/master)
       if [ "${ALLOW_MAIN_PUSH:-}" = "1" ]; then
-        echo "pre-push: ALLOW_MAIN_PUSH=1 - allowing push to $remote_ref (git prod)." >&2
+        echo "pre-push: ALLOW_MAIN_PUSH=1 - allowing push to ${remote_ref} (git prod)." >&2
         continue
       fi
-      echo "BLOCKED: direct push to '$remote_ref'." >&2
+      echo "BLOCKED: direct push to '${remote_ref}'." >&2
       echo "Promote via the staging -> prod flow ('git prod'), not a direct push." >&2
       echo "Authorized override: ALLOW_MAIN_PUSH=1 git push origin main" >&2
-      echo "Emergency only: git push --no-verify" >&2
+      echo "Do not use git push --no-verify (skips tag immutability too)." >&2
+      exit 1
+      ;;
+    refs/tags/v*)
+      # New tag create (remote absent) is allowed. Force-move or delete is blocked.
+      if [ "${remote_sha}" = "${zero}" ]; then
+        continue
+      fi
+      if [ "${ALLOW_TAG_FORCE:-}" = "1" ]; then
+        echo "pre-push: ALLOW_TAG_FORCE=1 - allowing update/delete of ${remote_ref}." >&2
+        continue
+      fi
+      if [ "${local_sha}" = "${zero}" ]; then
+        echo "BLOCKED: deleting immutable tag '${remote_ref}'." >&2
+      else
+        echo "BLOCKED: force-moving immutable tag '${remote_ref}' (${remote_sha} -> ${local_sha})." >&2
+      fi
+      echo "Published v* tags must not move. Cut a new patch tag on the fixed commit instead." >&2
+      echo "See autogit/gitupdate.md section 9.5. Emergency override: ALLOW_TAG_FORCE=1" >&2
+      echo "Do not use git push --no-verify (disables all pre-push protections)." >&2
       exit 1
       ;;
   esac

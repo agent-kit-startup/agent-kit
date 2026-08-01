@@ -14,7 +14,7 @@ Machine fields below must stay as `- **Field:**` bullets (Mission Control parses
 
 ### Gaps voice (Flight Log)
 
-`- **Gaps:**` is operator residuals for Mission Control Flight Log (Live / Earlier), not a system-status dump. Flight Log uses palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); OK must not look like a yellow residual debit.
+`- **Gaps:**` is operator residuals for Mission Control Flight Log (NOW / Earlier), not a system-status dump. Flight Log uses palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); OK must not look like a yellow residual debit.
 
 | Say | Avoid |
 |-----|--------|

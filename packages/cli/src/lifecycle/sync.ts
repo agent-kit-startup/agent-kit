@@ -10,6 +10,7 @@ import {
 } from "./apply.js";
 import { L0_ARTIFACTS } from "./l0.js";
 import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
+import { loadManagedHashLedger, saveManagedHashLedger } from "./overlay.js";
 import { resolveProtectedGlobs } from "./protected.js";
 
 export async function installL0(
@@ -18,6 +19,8 @@ export async function installL0(
   protectedGlobs: readonly string[],
 ): Promise<ApplyStats> {
   const stats = emptyStats();
+  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const copyOpts = { managedHashes, persistManagedHashes: false as const };
   for (const artifact of L0_ARTIFACTS) {
     const outcome = await copyRegistryFile(
       registryRoot,
@@ -25,9 +28,11 @@ export async function installL0(
       artifact.source,
       artifact.target,
       protectedGlobs,
+      copyOpts,
     );
     recordOutcome(stats, artifact.target, outcome);
   }
+  await saveManagedHashLedger(projectRoot, managedHashes);
   const migration = await migrateLegacyOnboardCommand(projectRoot);
   if (migration === "removed-managed") {
     stats.removed.push(".cursor/commands/onboard.md");

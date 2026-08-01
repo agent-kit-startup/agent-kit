@@ -8,6 +8,156 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [4.8.8] - 2026-08-01
+
+### Fixed
+
+- Regenerate `docs/evidence/knowledge-classification.json` (`summary.totalObjectCount` 682→715) so tag CI `evidence:knowledge-classification:check` passes (v4.8.5–v4.8.7 tags retained)
+
+## [4.8.7] - 2026-08-01
+
+### Fixed
+
+- Public docs index: drop relative link from `docs/README.md` to denied `docs/evidence/config-tab-write-verification.md` so `pnpm check:public-deny-links` passes on tag CI (v4.8.5/v4.8.6 tags retained)
+
+## [4.8.6] - 2026-08-01
+
+### Fixed
+
+- Biome import order in `session-start.test.ts` so tag CI lint passes after the 4.8.5 typecheck unblock (v4.8.5 tag retained; do not force-move)
+
+## [4.8.5] - 2026-08-01
+
+### Added
+
+- Landing page redesign & consumer copy rewrite (plan `agentkit-landing-redesign-copy`): STK design system identity, Mission Control mockup tokens, consumer feature copy, and deployment config for `agent.startupkit.com.br` (`.cursor/context/landing-agentkit/`, `docs/agentkit-landing.md`)
+
+- Public Agent Kit landing page note (`docs/agentkit-landing.md`) pointing at live `https://startupkit.com.br/agentkit` (WP page id 3001); design inventory and HTML source under `.cursor/context/landing-agentkit/` (plan `agentkit-landing-startupkit`)
+- Crew / Team Member framework (plan `crew-monitor-profession-masking`): ADRs for Team Member composition (`2026-08-01_crew-team-member-framework`), core vs specialist gap inventory (`2026-08-01_crew-core-specialist-gap-inventory`), and Crew-tab composition contract (`2026-08-01_crew-tab-composition-contract`); glossary ADR amended with default software lexicon display-mask contract (kind ids unchanged); Crew Monitor chip glosses and actor fallbacks use profession masks (Tech Lead / Scrum Master / Full-Stack Developer / Product Owner / DevOps Engineer; Squad / Engineering Manager / Platform Engineer); `crewTeam` config shape documented as contract-only in `docs/consumer-configuration.md` (not wired; heavy UI follow-up)
+- Cursor update awareness (plan `cursor-update-awareness-auto-dogfood`): ADR for changelog-primary detection (`2026-08-01_cursor-update-detection-source`); CLI `agent-kit cursor-awareness --check` (opt-in `cursorUpdateCheck.*`, never apply / never Field Reports); L0 slash `/cursor-update-awareness` routes confirmed gaps via Ask → `/backlog-add` or `/dogfood`; sessionStart nudge when enabled; docs `docs/cursor-update-awareness.md`
+- Consumer configuration inventory (`docs/consumer-configuration.md`): every consumer-configurable knob in one doc (session config keys, dashboard skin, install-time choices, repo profile, CLI flags and env vars) with where-defined / read-by evidence, a writable-via-tab column, and a copy-paste snippet per knob; pointer added from getting-started (plan `consumer-config-inventory-copy-crud`)
+- Mission Control Config tab copy-CRUD fallback: per-fieldset Copy config.json snippet buttons (Session, Update check, Audits, Agent Personas) that build the fragment from current form values via a shared `collectMissionConfigPayload` and copy to clipboard only (no new write surface); dead-control hints (backend is claude-only; `updateApply.auto` never writable); actions bar names the manual paste path for server-down / non-loopback / read-only deploys
+- Mission Control responsive grid (plan `mc-grid-responsive-ui-design-tokens`, Phase 1): mid-width 2-column overview grid (701-1023px) with row-major IA collapse, very-thin sidebar mode (max 339px) with tighter ladder values, and a fullscreen zen toggle (header enter button, floating exit, Escape restore); grid extends the locked Current mission → Flight Log → Checklist → Crew monitor IA without reopening it (ADR `2026-07-29_mc-main-tabs-order`)
+- Crew Monitor row wording contract (plan `crew-monitor-wording-readability`): natural-voice verbs (`running` / `awaiting` / `done` / `parked` / `shipped`) replace robotic `· tick ·` / `· step ·` / `· handoff ·` separators; todo id / gate / progress count leads the label and the plan filename moves last; actor fallback is a short human `crew` label instead of the full plan filename; `.feed-label` renders structured spans so the low-signal plan filename ellipsises first, with the full label on a `title` tooltip (ADR `2026-07-27_crew-monitor-vs-plan-monitor-glossary` amend, `2026-07-27_mc-flight-log-panel` decision 17 amend)
+- Mission Control icon design-system sweep (Phase 2): 16px / stroke-1.5 / currentColor / round caps-joins contract enforced across `spaceIconSvg` at all render sizes; four sub-stroke glyphs (radar, gear, rocket window, chip) redrawn above the legibility floor, `more-sections` dots respaced to positive clearance, header home icon door widened; legibility floor documented and pinned by a new UX test suite
+- Mission Control card and empty-state unification (Phase 3): card surfaces on the overview / health / config families consolidated onto the `--mc-card-padding` / `--mc-radius-*` / `--mc-space-*` density ladder (new documented `--mc-card-padding-dense` token); denser list rows (terminals/memory) and pill badges may keep tighter radii off the 4/8/12 ladder; healthcenter severity chrome unified into one `{tone, label, token}` mapping with presence-pulse halo and fallback-hex hygiene (presentation only, check semantics unchanged); empty states scale with card density across every viewport mode; both skins verified skin-neutral
+- Mission Control "busy outside the plan" live state (Phase 4): text-only busy chip on Current mission and Flight Log headers when terminals show fresh run-loop activity while the mission is not executing; derivation shares the Crew feed run-loop evidence with a 10-minute freshness window (`BUSY_OUTSIDE_PLAN_FRESH_MS`), rides the existing advice-family blue tokens on both skins, and leaves Flight Log kinds, Gaps voice, and locked labels untouched
+- Mission Control UX overhaul (plan `mc-flight-log-dynamic-action-command`): dot semantics table (colored dots signal good / important / attention / neutral-idle, always paired with a label or icon) applied across all tabs, URL-hash deep-linkable tabs, and a uniform copy-only CTA pattern
+- Flight Log one-command contract: every entry kind (Gaps NOW/Earlier, operator Warnings, quiet open-triage) renders one dynamically-labeled action button (`Copy fix prompt` / `Copy recovery prompt` / `Copy follow-up prompt` / `Copy triage command`); Gaps/Warnings compose prompt + path, quiet open-triage copies `/plan-review-triage <path>` only (ADR `2026-07-27_mc-flight-log-panel` decisions 11/13)
+- Mission Control tab redesigns: Config grid form with Save pinned on top; Memory live recent-errors panel with green/red icon panels and error-o-meter KPIs from `.cursor/memory/errors/`; Git promotion flow lanes + readable commit graph + staging-hygiene hints; Health vitals diagnosis dashboard with per-problem Copy fix prompt CTAs; Commands / Skills / Agents card grids with copy-only CRUD CTAs and registry-driven lock badges; Crew Monitor timestamped feed with agent initials + action; Plans v2 actionable rows with live progress bar from frontmatter to-do counts; Processes live narrated list via deterministic `describeProcess` heuristics (no LLM; accepted design for local dashboard)
+- Design evidence: nine catalogued UX prints under `.cursor/context/mc-ux-prints/` with per-print analysis and per-tab issue inventory
+- `/dogfood` slash command ships as an L0 artifact (`packages/cli/src/lifecycle/l0.ts` + Port B install table), closing the packaging gap that left consumers without the command file (EXT-201)
+- `.cursor/context/config.example.json` documents the advisory `dogfood.factoryRoot` key referenced by the `/dogfood` cross-repo bridge (EXT-208)
+- `/dogfood` slash command for filing private dogfood notes into factory `dogfood/` or consumer `.cursor/dogfood/`, with optional public-issue HITL path (never auto-creates issues or Field Reports)
+- Factory self-consumer local apply loop: `agent-kit update --seed-overlay` seeds the managed-hash ledger on first update; docs in `docs/CONTRIBUTING.md`, `docs/bootstrap.md`, and `docs/getting-started.md`
+- ADRs for dogfood factory/consumer lanes, ingest contract, and factory-as-pseudo-consumer local apply loop
+
+### Fixed
+
+- Landing G/H closeout (`close-queue-end-t-r-landing-residuals`): annotate curated PNG byte-identical copies in INVENTORY; reconcile COPY.md CTA hierarchy to shipped GitHub-primary buttons; R15 Closed-by on T/R + landing monitors
+- Landing A–E (`close-queue-end-t-r-landing-residuals`): publish page 3001 as Custom HTML (wpautop brs cleared); WCAG AA contrast tokens (`--blue-cta` / `--blue-pill` / secondary muted); `:focus-visible` on `.ak-btn`; demote landing hero to `h2`; document page excerpt vs theme meta description
+- U4 terminal snapshot (`close-queue-end-t-r-landing-residuals`): trim partial first body line on windowed over-cap path; document 4KB head-meta contract (U5 note)
+- U2/U3 test hygiene (`close-queue-end-t-r-landing-residuals`): ENOENT fallback spawn test emits `close` after `error` so the settled guard is exercised; remove tautological actor-mask length pins from `plugin-ux-validation.test.ts`
+- U1 / T6 honesty (`close-queue-end-t-r-landing-residuals`): live `agent-kit cursor-awareness --check --json` recorded under `docs/evidence/runtime/cursor-awareness-u1-2026-08-01/`; append-only T6 Closed-by correction on `plan-monitor-close-two-monitor-still-open-residuals.md`; R14 stage of mid-batch T/R + landing plan monitors with `_index.md`
+- Residuals T1–T8 + R1/R2/R4/R5/R7 (`close-queue-end-two-monitor-t-r-residuals`): Positioning inventory counts 25/89; cursor-awareness stamp-guard reachability test + one-shot advise/stamp docs; sessionStart changelog-ahead / single-fallback hook tests; terminal snapshot head+tail window via `TERMINAL_HEAD_META_BYTES`; Crew actor-mask noshrink acceptance + Squad outside core slots; composition ADR `registry/schemas/` deferral; R14 monitor+_index same-commit staging; `update.test.ts` timeout 15s under parallel load
+- Residuals A–E + R1–R8 (`close-two-monitor-still-open-residuals`): Biome format on `plugin-ux-validation.test.ts`; terminal head-meta + tail-body (`dashboard/lib/terminal-snapshot.mjs`) so over-cap files keep pid/cwd/exit; restore `updateApply.auto` silent L0 overwrite risk copy; dogfood monitor Closed-by count 660→682; glossary ADR plan-segment wording; Cursor changelog extract anchors to release labels + plausibility bound (stops `49.511` stamp poison); sessionStart nudge gated on `changelog-ahead`; spawn timeout above fetch + double-fallback guard; capability-inventory 27/18 counts; conveyor reverse pointers; staging R14 reinforce; network closeout expectation doc
+- Knowledge ledger CHANGELOG object count matches `summary.totalObjectCount` (682) in `docs/evidence/knowledge-classification.json` (EXT-210; refreshed after queue-end monitor land)
+- `DOGFOOD_INBOX_HINT` resolution documented: hint stays unconditional because `/dogfood` ships as L0 (EXT-201); no lane-conditional guard required (EXT-212)
+- Crew Monitor tooltips use pre-truncation `labelFull` (plan filename restored on `handoff` / `agent_step` titles); plan segment marked from `refs.plan`; feed separators include spaces for readable row copy; quiet open-triage copy drops the duplicated path line; Activity tab stays on plain `.activity-label` (residuals plan Phase 1)
+- Mission Control grid residuals: fullscreen exit clears top-tabs; layered Escape dismisses menus before exiting zen; header transport consumes `healthSeverityChrome` (degraded stays orange); terminal lastOutput tail-slices capped files; very-thin sidebar lets Crew feed actor/verb ellipsis; legibility-floor pins raised (residuals plan Phase 2)
+- Consumer configuration inventory adds an `implemented?` column; Config tab gains copy-only snippets for never-writable `updateApply.auto` / `dogfood.factoryRoot` (allowlist unchanged); clipboard-failure toast truncates long snippets; durable write-path matrix at `docs/evidence/config-tab-write-verification.md` (residuals plan Phase 3)
+- Knowledge classification fixture lane: generate and check both use `--handoff-fixture`; artifact stamps fixture path; `update.test.ts` fixture imports `KIT_VERSION`; npm publish checklist requires `sync-cli-dashboard.mjs` before Path C promote; five queue-end monitors carry `## Closed by residuals plan` (residuals plan Phase 4)
+- Risk-hotspot scorer is a pure function of committed ledgers: churn derives from `delivery-reconciliation.json` rows only (no live `git diff` on frozen SHAs), so `docs/evidence/codebase-risk-hotspots.json` reproduces in shallow CI clones (EXT-203)
+- Knowledge classification corpus is git-index (tracked) files only; gitignored `.cursor/plans/**` no longer leaks into `docs/evidence/knowledge-classification.json`; HANDOFF-listed gitignored plans are reported as `missingPlans`; the `--check` staleness comparison normalizes commit provenance so the artifact is no longer stale-by-construction after any commit (EXT-203)
+- `agent-kit update` preserves `installedAt` when no version change occurs and `update.test.ts` asserts the preserved value (ADR factory-pseudo-consumer decision 4, EXT-205)
+- CHANGELOG hotspot counts match the committed artifact tally (90 pending:audit-risk-hotspots, deferred:census 1820, 91 reviewed) (EXT-204)
+- `dogfood-command-pseudo-consumer.plan.md` marks `phase3-fix-personalization-preserve` completed, matching the shipped personalization preserve fix (EXT-206)
+- `agent-kit update` preserves `manifest.personalization` and `overrides` instead of dropping them during no-op L0 syncs
+- `sessionStart` dogfood inbox hint now recognizes both factory `dogfood/` and consumer `.cursor/dogfood/` unprocessed files and mentions `/dogfood`
+- Public storefront: add sync-allowed `docs/five-layer-claim-matrix.md` and `pnpm check:public-deny-links` to prevent README→denied-path regressions
+- Capability inventory: positioning table row count 87→89; CHANGELOG no longer claims every cell is verbatim
+- Authority graph: registry publicationRoute is public-PR Phase B SoT, not private sync-public (AUDIT-004)
+- Public sync: replace remaining `forEach` with `for...of` so `biome check scripts/sync-public.mjs` is clean (AUDIT-006)
+- Knowledge classification focused tests: assert current HANDOFF active/parked counts and archive storefront path (AUDIT-003)
+- Evidence ledgers: `batchId` is the full `contentHash` (no scheme-prefix truncation); disposition rows de-duped; hotspot/findings coverage counts sum to unique batches
+- Evidence scripts: `evidence:codebase-findings:check` and `evidence:risk-hotspots:check` no longer regenerate ledgers (prevents wiping consolidated hotspot reviews; AUDIT-001)
+- Install/docs Path C honesty: consumer guidance names the published floor (`4.8.2` onward) instead of relative "until that publish" hedges; Port B registry fetch prefers Port A and requires Ask before alternate URLs (RC-001, INSTALL_MD_MISSING_VALIDATION)
+- Drift/capability inventories: replace stale ahead-count and closed surface-census claims with lane-qualified freshness metadata (RC-003, RC-006)
+- Public sync: exclude `docs/evidence/**` from the allowlist and hard-prohibit it so generated ledgers no longer trip the denylist (closes SYNC_DENYLIST_EVIDENCE)
+- Public sync: reject path traversal / escaping symlinks, allowlist GitHub remotes only, and redact tokens in sync errors (closes SYNC_PUBLIC_* / PUBLIC_SYNC_MANIFEST_* hotspot findings)
+- CLI: `agent-kit --version` reports package version via citty `meta.version` (closes CLI_VERSION_FLAG)
+- Mission Control: soft wall-clock budget skips optional collectors so `dashboard-data.mjs` fails soft under load (closes MC_DASHBOARD_DATA_SLOW)
+- Git pre-push: refuse unsafe remote ref names and warn that `--no-verify` skips tag immutability (closes GIT_HOOKS_*)
+- Authority graph: CLI dashboard copy is a generated output (not a writable mirror); CI runs `evidence:authority-graph:check` and refuses a tracked `packages/cli/dashboard/`
+- npm storefront README: `packages/cli/README.md` ships in the packed tarball; `scripts/verify-cli-dashboard-pack.mjs` asserts non-empty `package/README.md` (closes PLUGIN_README_ABSENT for the CLI package)
+- Queue consolidate helper: `--rewrite-queue` validates/normalizes `--outcomes` (including multiline) before any HANDOFF write and applies Plan/Mode/queue/cursor/status/outcomes as one atomic temp+replace rewrite (closes QUEUE_REWRITE_NONATOMIC)
+- Audit launcher sessions: names are `agent-kit-audit-<ws8>-<pid>` with an 8-hex workspace token; cap/warn/reap only count or dispose strict workspace-owned sessions (closes AUDIT_SESSION_UNSCOPED); macOS Terminal spawn writes a temp runner instead of embedding shell_cmd in AppleScript
+
+### Added
+
+- Five-layer README claim matrix: `docs/evidence/five-layer-claim-matrix.md` classifies prompt/HITL, context/memory, safeguards, iterative review, and workflow coordination as shipped core, optional pack, planned, or unsupported with lane-qualified evidence
+- Independent final audit matrix: `docs/evidence/independent-final-audit.json` plus operator `docs/evidence/release-gate-checklist.md` (BIGFIX Phase 10)
+- Cross-repo parity matrix: `docs/evidence/cross-repo-parity.json` records private/public/npm/release/registry/Marketplace lane verdicts and clean-room evidence (BIGFIX Phase 9)
+- Guidance claim matrix and stale-claim gate: `docs/evidence/guidance-claim-matrix.md` plus `scripts/check-guidance-stale-claims.mjs` (blocks revived Path C / drift hedges)
+- Memory index gate: `scripts/validate-memory-index.mjs` requires every `decisions/` and `errors/` file to be linked from `_index.md`; supersession Status applied for BIGFIX proposal links (`docs/evidence/memory-adr-reconciliation.md`)
+- Plan review audit `plan-review-repo-wide-evidence-functionality-bigfix`: Phase 5 consolidation verified against the committed artifact (90 pending:audit-risk-hotspots, deferred:census 1820, zero-unassigned partition, ownership map intact)
+- Finding-to-remediation ownership map: all 64 ledger findings (6 inherited + 58 hotspot) carry `ownerRemediation` Phase 6 owners (`fix-confirmed-orchestration-defects`, `fix-package-storefront`, `remediate-code-findings`, docs rebuilds, or `none-required`); `CLI_VERSION_FLAG` restored into inheritedFindings from runtime evidence
+- Hotspot audit evidence (tick 5 / complete): 90 risk hotspots pending:audit-risk-hotspots; coverage 91 reviewed batches (58 newFindings preserved); deferred:census 1820
+- Hotspot audit evidence (tick 4): findings ledger to 58 newFindings / 81 reviewed batches; hotspot set 80 reviewed + 10 pending (deferred:census 1820)
+- Hotspot audit evidence (tick 3): expands findings ledger to 46 newFindings / 56 reviewed batches; hotspot set now 55 reviewed + 35 pending (deferred:census 1820); dispositions reconciled by contentHash
+- Hotspot audit evidence (tick 2): expands `docs/evidence/codebase-findings.json` with nine additional findings (AppleScript/tmux session issues in plan-external-review, git-hooks bypass/injection, sync-public path traversal and command exec, manifest inclusion bypass); coverage 31 reviewed batches; hotspot dispositions reconciled by contentHash (60 pending, deferred:census 1820)
+- Hotspot audit evidence (tick 1): `docs/evidence/codebase-findings.json` adds seven findings from the top risk batches (high: plan-external-review background launch sanitization; medium: audit session lifecycle, install.md registry validation, shell-guard `ALLOW_MAIN_PUSH` bypass breadth; plus positives for resolve.ts and the risk scorer); `docs/evidence/codebase-risk-hotspots.json` marks five hotspot batches reviewed (85 remain pending)
+- Deterministic codebase risk-hotspot scorer: `scripts/score-codebase-risk-surface.mjs` ranks unique content batches from authority criticality, missing tests, publication route, inherited findings, security path globs, and delivery churn; emits `docs/evidence/codebase-risk-hotspots.json` (top-15 per domain + global top; non-hotspots `deferred:census`); `pnpm evidence:risk-hotspots` / `:check`; ADR `2026-07-30_bigfix-phase5-risk-hotspots-not-census`
+- ADR `2026-07-30_evidence-policy-lane-qualified-hierarchy`: lane-qualified evidence classes, conflict hierarchies, anti-circularity and supersession rules validated against the three BIGFIX ledger fixtures
+- Authority graph generator: `docs/evidence/authority-graph.json` maps 15 artifact families from authority through generators, mirrors, consumers, and publication routes; validates zero cycles, zero undeclared multiple authorities; generator `scripts/generate-authority-graph.mjs` with `pnpm evidence:authority-graph` and focused tests
+- Runtime evidence for Phase 3 CLI/install packaging audit: `docs/evidence/runtime/audit-cli-install-packaging-2026-07-30/` (matrix, command logs, three code-confirmed findings: broken `--version`, public-sync denylist hits in evidence ledgers, missing plugin README)
+- Runtime evidence for Phase 3 orchestration audit: `docs/evidence/runtime/audit-orchestration-runtime-2026-07-30/` (behavior matrix, failure injection, 59 + 233 focused tests, and findings for non-atomic multiline queue rewrite, unscoped audit sessions, and slow Mission Control data generation)
+- Delivery reconciliation artifact: `docs/evidence/delivery-reconciliation.json` classifies eight cross-lane states, eight contradicted claims, and eight remediation items against frozen file, history, artifact, authority, and runtime evidence
+- Deterministic knowledge classification ledger: `docs/evidence/knowledge-classification.json` covers 682 plans, memory, ADR, monitor, context, project-context, and index-row objects with zero unclassified; generate and check share the `--handoff-fixture` lane and stamp the real handoff input path (EXT-211); the census corpus is git-index (tracked) files only, so the artifact is reproducible in a clean clone; separates epistemic labels from HANDOFF active/backlog/parked state and records reproducible working-tree freshness identities
+- Audit launcher post-spawn progress gate: after an autonomous background spawn, `plan-external-review.sh` samples PTY scrollback (tmux `capture-pane`, screen `hardcopy` with an explicit window target) for a grace window (`AGENT_KIT_AUDIT_PROGRESS_TIMEOUT`, default 60s, `0` disables) before entering the monitor wait; a silent PTY is reported as a failed launch, disposes only the session it spawned, prints the paste fallback, and soft-fails instead of burning the full `--wait-timeout`; channels without a scrollback API degrade to advisory
+- Audit session cap and dispose policy: the launcher counts detached `agent-kit-audit-*` sessions before spawning, warns at `AGENT_KIT_AUDIT_SESSION_WARN` (default 5) and refuses to spawn at `AGENT_KIT_AUDIT_SESSION_CAP` (default 20); reaping is opt-in (`--reap-audit-sessions` / `AGENT_KIT_AUDIT_REAP`), covers detached kit-owned sessions past `AGENT_KIT_AUDIT_REAP_MIN_AGE` (default 3600s) only, never touches attached sessions, and previews under `--dry-run`
+- ADR `2026-07-30_audits-pty-progress-gate-zombie-policy`: PTY progress gate, zombie session lifecycle, and exit 3 as timeout-only; follow-on to wait-freshness and headless-terminal honesty
+- `docs/capability-inventory.md`: per-capability catalog of every shipped surface (25 slash commands, 25 rules, 13 named subagents, 9 skills, 5 Cursor-native hooks, 3 Git hooks, 17 CLI commands plus 5 subsystems, 12 Mission Control sections, 7 registry packs, 3 personas, root and kit scripts, templates), with counts verified against the filesystem; inventory only, no positioning prose
+- README: demo YouTube link at the top (after H1) for the public storefront and private factory README
+- Docs-contract test pinning staging lint-evidence clause across git-staging / run-plan / gitupdate; ADR for dashboard-CSS `none applicable` + plugin-ux-validation coverage
+- `agent-kit doctor` / hooks-health: soft advisory when versioned `git-hooks/*` differs from or is missing under `.git/hooks/*` (install remains operator `cp`; see `git-hooks/README.md`); does not flip hooks status alone
+- Consumer L0 overlay: managed-content hash ledger (`.cursor/agent-kit.managed-hashes.json`) preserves customized agents/skills/commands on update while unedited kit files still refresh; ADR `2026-07-29_consumer-l0-overlay-agents-optional`
+- Shell-guard R3: documentation and `agent-kit doctor` warning when `ALLOW_MAIN_PUSH=1` is session-exported (disables main-push protection for all agent Shell commands until unset)
+
+### Changed
+
+- README / CLI storefront: five-layer production-agent positioning with explicit non-claims (no autonomous self-improvement, no general graph runtime, no hosted control plane); Mission Control called out as a local workspace cockpit; `packages/cli/README.md` clarifies HITL operating-layer install scope
+- Audits exit-code honesty in L0 and docs: `/run-plan`, `/run-plan-all`, `/plan-external-review`, and `docs/external-plan-review.md` state that exit `3` is timeout-only, that a monitor appearing later (or from a different arm or queue position) never upgrades it to success, and that exit `4` now also covers a silent-PTY early abort and a session-cap refusal
+- `docs/capability-inventory.md`: positioning-surface table recording every identity-bearing string with its real line number, current text (quoted literally where short; elided or paraphrased for long blocks), and publication route (`allowlist-synced`, `public-repo-PR-only`, or `private`), each route citing the deciding `scripts/public-sync.manifest` rule; confirms `_legacy/**` is allowlist-synced, so its stale descriptions ship today, while `registry/**` is excluded and routes through a public-repo PR
+- `docs/capability-inventory.md`: themed delta section narrating what shipped since the 4.4.0 anchor across 11 themes (Mission Control, multi-plan queue orchestration, autonomous external review, backlog CRUD, agent personas, quota hard-stop contract, `/hotfix`, consumer autoupdate check, Path C packaging, repository readiness, consumer overlay protection)
+- CHANGELOG `[4.8.0]`: re-file entries that were Added in substance (Flight Log panel, opt-in LAN broadcast, audit launcher wait/freshness flags, related ADRs) out of `### Fixed` into `### Added`; entries moved verbatim
+- Staging-ready lint gate: `/run-plan` documents dashboard-CSS `none applicable` + plugin-ux-validation clause (parity with `/git-staging`); `autogit/gitupdate.md` no longer lists `dashboard/` as Biome/ESLint scope (`dashboard.html` is outside Biome)
+- Handoff template + plan-handoff rule: Flight Log Gaps-voice writer guidance Live → NOW (matches shipped UI); quiet Flight Log placeholder NOW + `aria-label="No Gaps now"` pinned in plugin-ux-validation; ADR `2026-07-27_mc-flight-log-panel` Earlier `:hover` muted / `:focus-visible` full kind token
+- Docs: `agent-kit-manifest` lists three `.cursor/` kit files (adds `agent-kit.managed-hashes.json` with commit recommendation); `layers-spec` scopes the golden rule to agents/skills/commands overlay trees (rules still clobber); `migrate-consumer` notes committing the ledger
+- Mission Control Healthcenter: agents check `autofix: null` (No Autofix mapped) because `ok` is constant-true; failDetail marked intentionally unreachable
+- Dogfood / local `agent-kit` (PATH link to `packages/cli/dist`): after the guard-shell `ALLOW_MAIN_PUSH` fix, run `pnpm --filter @dadado/agent-kit-cli build` so the resolved binary honors the env gate; `packages/cli/dist` is gitignored, so the rebuilt bin ships to other machines only on the next npm publish / promote
+- Mission Control Doctor Agents check: L0-optional (empty `.cursor/agents/` is not a hard fail; check id `agents` retained)
+- Mission Control Flight Log: current Gaps card label **Live** → **NOW** (Earlier / All clear unchanged; header SSE `#statusLabel` Live unchanged); ADR amend `2026-07-27_mc-flight-log-panel.md`
+- Mission Control Flight Log: Earlier `:hover` stays muted `color-mix`; `:focus-visible` uses full kind token for keyboard contrast; base ring uses `--border-active`
+- Mission Control Flight Log UX pins: NOW hover `border-color` per kind, Earlier hover `color-mix`, whitespace-tolerant `--accent` anti-regression
+- Mission Control Flight Log: behavioural `new Function` tests for quiet-gate helpers (`isFlightLogQuiet` / `resolveFlightLogCurrent` and siblings)
+- Close triage batch residuals: Closed-by appends on flight-log hover, close-audit, and git-prod-promote monitors (R14/R15); plan `close-triage-batch-residuals` exhausted
+- Docs: layers-spec / agent-kit-manifest / migrate-consumer / bootstrap describe overlay protect without blanket `agents/**` globs
+
+### Fixed
+
+- Consumer overlay tests: pack-installed agent (clean-code → `cleancode-refactor`) customize then reinstall asserts `preserved-customized`; L0 user-agent check restated as non-membership evidence
+- Consumer overlay: ledger-absent first `update` no longer clobbers customized kit-owned agents/skills/commands; compare local content to known shipped hashes (Option A) so unedited kit files still refresh and seed the managed-hash ledger
+- Docs-contract staging lint-evidence ADR pin: `existsSync` skip when `.cursor/memory/**` is absent so public mirror CI does not ENOENT after `v*` sync
+- Guard shell tests: `afterEach` uses `delete process.env.ALLOW_MAIN_PUSH` (not `= undefined`); explicit deny asserts for unset and `ALLOW_MAIN_PUSH=0`; thin-adapter ADR amend documents authorized `/git-prod` env exception
+- Guard shell: narrow `ALLOW_MAIN_PUSH=1` to documented `/git-prod` forms (`git push <remote> main` / `HEAD:main`); still deny `--force` / `-f` / `--force-with-lease` / `--no-verify` / `prod` / `master` / `--all` / `--tags` (and force refspecs) even when the env is set; bare push without env stays denied
+- Guard shell: honor `ALLOW_MAIN_PUSH=1` (inline before env strip, or process env) so authorized `/git-prod` `git push origin main` is allowed; bare pushes stay denied (parity with `git-hooks/pre-push`)
+- Guard shell: strip all quote characters in push refspec normalization so prefixed/embedded forms (`+'main'`, `ma'in'`, …) deny like surrounding quotes; non-regression allows for staging/mainline hold
+- Guard shell: strip backslashes in push refspec normalization so shell-collapse forms (`\main`, `ma\in`, `mai\n`) deny like quotes; staging/mainline-like branches still allow
+- `git-hooks/pre-push`: block force-update/delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1` (new tag creates still allowed; aligns with gitupdate §9.5)
+- Close queue-end five-monitor residuals batch: queue-end triage Write residuals closed remaining items from five mid-batch monitors (PRs #519–#529) without emptying Still open tables per R15 hygiene; ready for promote
+- Close queue-end BIGFIX five-layer residuals: nine to-dos shipped as five direct commits on `staging` rather than through PR-per-phase; PR-per-phase remains the intended delivery contract and this deviation is documented for the parent plan
+
 ## [4.8.4] - 2026-07-29
 
 ### Fixed
@@ -115,23 +265,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 - Mission Control Crew Monitor: denser `agent_step` feed for active-plan completed/running to-dos (kinds `run_plan` / `handoff` / `delivery` / `agent_step`; display cap 20); glossary amend (`2026-07-27_crew-monitor-vs-plan-monitor-glossary.md`)
 - README Cockpit + getting-started / external-plan-review: Flight Log Live/Earlier + Warnings; Crew Monitor denser step feed
 
-### Fixed
-
-- Mission Control: delete orphaned Field Report attention-stack render helpers + CSS from `dashboard.html` (Flight Log Gaps-only); retarget pinning tests; rewrite `/field-report-resolve` and getting-started so they no longer describe Resolve all / Review all MC UI
+### Added
 
 - Mission Control **Flight Log** (ex-Field Report card): HANDOFF Gaps only as current (large) + past (smaller) clickable cards; gitignored `.cursor/context/flight-log.json` history ledger (cap 15); ADR `2026-07-27_mc-flight-log-panel.md`
 - Opt-in Mission Control LAN broadcast: `/dashboard-broadcast`, `agent-kit dashboard-broadcast`, `npm run dashboard:broadcast`; non-loopback bind requires `MISSION_CONTROL_TOKEN`; static/snapshot/SSE gated; config writes stay loopback-only (`2026-07-27_mission-control-opt-in-lan-broadcast.md`)
 - ADR: Mission Control opt-in personal LAN broadcast (`/dashboard-broadcast` + token gate); narrowly supersedes personal-local-only for trusted LAN only; `/dashboard` stays loopback-first (`2026-07-27_mission-control-opt-in-lan-broadcast.md`)
 - ADR: `/plan-review-triage` batch HITL when multi-path outcomes are uniform (one Ask; durable heading on every target; sequential fallback when mixed); Field Report **Review all** paste target unchanged (`2026-07-27_plan-review-triage-batch-uniform-hitl.md`)
-- Dogfood memory: wait-monitor false-ready on pre-existing `plan-monitor-*.md` (existence-only poll); freshness gate + mandatory chat `--wait-monitor` (`errors/2026-07-27_audits-wait-monitor-stale-preexisting.md`; ADR `2026-07-27_audits-wait-freshness-enforce.md`)
 - Plan audits launcher: `--wait-monitor` freshness (`mtime >= arm-epoch` or `<!-- audits-wait-fresh: created|updated -->`); dry-run prints arm-epoch and stale/missing; exit `3` on stale timeout
 - ADR: mandatory chat `--wait-monitor` with freshness gate and same-session triage Ask; ban Final HANDOFF "after monitor lands" as happy-path continue (`2026-07-27_audits-wait-freshness-enforce.md`)
-- Dogfood memory: cadence WARNING already-clear claim-check is a no-op close (empty ledger + dismissed window id = `subject_resolved`; cancel triage/product-fix when owed set empty) (`decisions/2026-07-27_cadence-warning-already-clear-claim-check.md`)
-- Dogfood memory: autonomous launch then manual `done` continuation dual-fence (`errors/2026-07-27_audits-autonomous-launch-manual-done-continuation.md`); docs Troubleshooting row for wait-then-triage
 - Plan audits launcher: optional `--wait-monitor` / `--wait-timeout` (default 900s) to poll for `plan-monitor-<slug>.md` after visible arm or standalone; exit `0` created/ok, `3` timeout, `4` soft-fail while waiting; dry-run prints wait path/timeout (ADR `2026-07-27_audits-post-spawn-monitor-watch-continue.md`)
 - ADR: post-spawn monitor watch then continue to `/plan-review-triage` Ask after visible autonomous audit arm (honesty until monitor file exists; triage and `/git-prod` HITL intact) (`2026-07-27_audits-post-spawn-monitor-watch-continue.md`)
 - `externalPlanReview` config keys for autonomous audits: `mode` (`paste` | `autonomous`), `midBatchAudits`, `preflight` (`off` | `warn` | `block`); Mission Control Config allowlist + UI; example + docs + guards tests
 - L0 audits pre-flight on `/continue-plan`, `/run-plan`, `/run-plan-all`, `/hotfix` (`preflight` off/warn/block); exhaustion and `/run-plan-all` mid-batch arming prefer visible autonomous launch when `mode: autonomous`
+
+### Fixed
+
+- Mission Control: delete orphaned Field Report attention-stack render helpers + CSS from `dashboard.html` (Flight Log Gaps-only); retarget pinning tests; rewrite `/field-report-resolve` and getting-started so they no longer describe Resolve all / Review all MC UI
+- Dogfood memory: wait-monitor false-ready on pre-existing `plan-monitor-*.md` (existence-only poll); freshness gate + mandatory chat `--wait-monitor` (`errors/2026-07-27_audits-wait-monitor-stale-preexisting.md`; ADR `2026-07-27_audits-wait-freshness-enforce.md`)
+- Dogfood memory: cadence WARNING already-clear claim-check is a no-op close (empty ledger + dismissed window id = `subject_resolved`; cancel triage/product-fix when owed set empty) (`decisions/2026-07-27_cadence-warning-already-clear-claim-check.md`)
+- Dogfood memory: autonomous launch then manual `done` continuation dual-fence (`errors/2026-07-27_audits-autonomous-launch-manual-done-continuation.md`); docs Troubleshooting row for wait-then-triage
 - Dogfood memory: paste dual-fence, invisible agent-shell `claude -p`, and bare `/plan-review-triage` footguns (`errors/2026-07-27_audits-*`); prefer-autonomous decision note
 - Audits ADR: autonomous plan review contract (visible auto-launch, mid-batch + queue-end audits, audits pre-flight on plan-run commands; paste-only demoted to fallback) (`2026-07-27_audits-autonomous-plan-review-contract.md`)
 - Plan audits launcher: visible auto-launch (`--autonomous` / config `mode: "autonomous"`) via macOS Terminal.app or Linux emulator; `--paste-only` fallback; `--dry-run`; mid-batch `--batch` arms; soft-fail if `claude` missing; headless CLI always passes `--print`
@@ -378,12 +530,12 @@ Follows 4.5.1. Version 4.6.0 was withdrawn after release because it carried an u
 ### Added
 
 - `agent-kit dashboard` / `npm run dashboard` (`dashboard/start.mjs`): terminal counterpart to `/dashboard`; detach-starts Mission Control if needed, waits for HTTP 200, prints the URL, and opens the default browser
-- Decision record: Mission Control actions are copy-only and name a paste destination ([mission-control-copy-only-paste-destinations](.cursor/memory/decisions/2026-07-25_mission-control-copy-only-paste-destinations.md)), superseding the 2026-07-24 protocol-open record
+- Decision record: Mission Control actions are copy-only and name a paste destination (`.cursor/memory/decisions/2026-07-25_mission-control-copy-only-paste-destinations.md`), superseding the 2026-07-24 protocol-open record
 - Mission Control plugin UX validation suite (`packages/cli/src/dashboard/plugin-ux-validation.test.ts`): narrow/mid layout media queries, reduced-motion, keyboard accordion/focus preservation, empty states, copy-only CTAs that name their paste destination, SSE+polling fallback, Cockpit anchors plus the More sections menu with no horizontal tab track, Cockpit order (Current mission → Monitor → Field Report → Checklist), nav/heading label parity, the space icon set, lifecycle visual keys, and hardening regressions (XSS helpers, read-only serve, loopback CORS)
 - Mission Control Field Report renders `missionControl.attention` below Current mission and carries only what waits on a human reply: agent prompts awaiting an answer, external reviews awaiting triage, and the active handoff gate, each with a copy CTA and an empty state
 - Mission Control Field Report source, agent prompts awaiting a reply: a transcript surfaces when its last agent-question tool call has no user entry after it, read from the project transcript store (30-day window, 60 files, 1 MB per file, 8 items rendered, `subagents/` transcripts ignored), with a copy action for the past-chat picker (`packages/cli/src/dashboard/field-report-prompts.test.ts`)
 - Mission Control Field Report source, external reviews awaiting triage: a `.cursor/memory/plan-monitor-<slug>.md` report counts as triaged when it carries a triage heading or when a plan other than the reviewed plan names the report slug or the reviewed plan; untriaged reports copy the triage command with the report path (`packages/cli/src/dashboard/external-reports.test.ts`)
-- Decision record: Mission Control Field Report source contract, covering both detection rules and the weaker signals rejected against real local data ([mission-control-field-report-source-contract](.cursor/memory/decisions/2026-07-25_mission-control-field-report-source-contract.md))
+- Decision record: Mission Control Field Report source contract, covering both detection rules and the weaker signals rejected against real local data (`.cursor/memory/decisions/2026-07-25_mission-control-field-report-source-contract.md`)
 - Shared inline SVG space-theme icon set with accessible names, used by the Cockpit section headings and the navigation, with no icon font, sprite fetch, or frontend dependency
 - Static asset regression test (`packages/cli/src/dashboard/static-assets.test.ts`): every root-absolute `src`/`href` in the panel markup must resolve to a real file under `dashboard/`, so an asset URL cannot 404 silently
 - Mission Control semantic snapshot model (`missionControl.now` / `activity` / `attention` / classified `plans`) in `dashboard/lib/semantic-model.mjs`, wired into `dashboard-data.mjs` (schema 1.2.0) with fixture tests
@@ -396,7 +548,7 @@ Follows 4.5.1. Version 4.6.0 was withdrawn after release because it carried an u
 - Mission Control Processes section: Copy PID CTA per process row (no kill/restart)
 - Mission Control Git section: bounded dirty `files[]` from `git status --short` (paths only), status badges, and copy-to-clipboard staged/unstaged `git diff` commands per file
 - Error memory entry: public sync PR merge-blocked by ruleset and merge-commit method ([public-sync-pr-merge-blocked-ruleset](errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md))
-- Decision record: Mission Control local-only security posture ([mission-control-local-only-security](.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md))
+- Decision record: Mission Control local-only security posture (`.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md`)
 - Repository personalization profile (`.cursor/context/personalization.json`, `.cursor/project-context.md`, `AGENTS.md`) with matching manifest packs and protected paths in `.cursor/agent-kit.json`
 - `docs-repo` core skill and `cursor-skills-node` community skill
 - DevOps scaffolding templates: `templates/CODEOWNERS` and GitLab CI templates for content, Node plus Docker, and frontend plus Firebase repositories

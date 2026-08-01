@@ -54,6 +54,20 @@ function printDoctorSummary(result: DoctorResult): void {
       console.log(`  - ${reason}`);
     }
   }
+  if (result.hooks.advisories.length > 0) {
+    console.log("hooks advisories (soft; install via cp, see git-hooks/README.md):");
+    for (const tip of result.hooks.advisories.slice(0, 5)) {
+      console.log(`  - ${tip}`);
+    }
+  }
+
+  // Check for ALLOW_MAIN_PUSH environment variable
+  if (process.env.ALLOW_MAIN_PUSH === "1") {
+    console.log("⚠️  WARNING: ALLOW_MAIN_PUSH=1 is set in environment");
+    console.log("   This disables main-push protection for agent Shell commands.");
+    console.log("   Consider unsetting it: unset ALLOW_MAIN_PUSH");
+  }
+
   console.log(
     nextAction
       ? `Next: ${nextAction.recommendation}`

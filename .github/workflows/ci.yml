@@ -50,6 +50,28 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Authority graph parity
+        run: pnpm evidence:authority-graph:check
+
+      - name: Public-deny-link guard
+        run: pnpm check:public-deny-links
+
+      - name: Evidence checks
+        run: |
+          pnpm evidence:codebase-findings:check
+          pnpm evidence:risk-hotspots:check
+          pnpm evidence:knowledge-classification:check
+
+      - name: Guard generated CLI dashboard is untracked
+        run: |
+          set -euo pipefail
+          tracked="$(git ls-files packages/cli/dashboard || true)"
+          if [ -n "$tracked" ]; then
+            echo "::error::packages/cli/dashboard must remain gitignored generated output:"
+            echo "$tracked"
+            exit 1
+          fi
+
       - name: Build
         run: pnpm build
 

@@ -118,6 +118,14 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/commands/field-report-resolve.md",
     target: ".cursor/commands/field-report-resolve.md",
   },
+  {
+    source: ".cursor/commands/dogfood.md",
+    target: ".cursor/commands/dogfood.md",
+  },
+  {
+    source: ".cursor/commands/cursor-update-awareness.md",
+    target: ".cursor/commands/cursor-update-awareness.md",
+  },
   // Context (templates + example config; private config.json is not L0)
   {
     source: ".cursor/context/templates/plan-external-review-prompt.md",
