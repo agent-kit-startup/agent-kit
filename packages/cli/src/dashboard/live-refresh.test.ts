@@ -30,6 +30,23 @@ describe("dashboard-data: handoff health", () => {
   });
 });
 
+describe("dashboard-data: agents health L0-optional", () => {
+  it("keeps check id agents but does not hard-fail on empty inventory", () => {
+    expect(dataSource).toMatch(/id:\s*["']agents["'][\s\S]*?ok:\s*true\b/);
+    expect(dataSource).not.toMatch(
+      /id:\s*["']agents["'][\s\S]*?ok:\s*SNAPSHOT\.agents\.length\s*>\s*0/,
+    );
+  });
+
+  it("maps Healthcenter agents autofix to null (ok is constant-true)", () => {
+    const agentsMeta = dashboardHtml.match(/agents:\s*\{[\s\S]*?autofix:\s*null,?\s*\n\s*\},/)?.[0];
+    expect(agentsMeta).toBeTruthy();
+    expect(agentsMeta).toContain("Intentionally unreachable");
+    expect(agentsMeta).toContain("autofix: null");
+    expect(agentsMeta).not.toMatch(/autofix:\s*\{/);
+  });
+});
+
 describe("live-refresh: watch coverage", () => {
   it("covers every in-repo path that dashboard-data reads", () => {
     const root = "/repo";

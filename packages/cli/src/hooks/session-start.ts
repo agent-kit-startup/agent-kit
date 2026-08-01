@@ -2,9 +2,18 @@ import { spawn } from "node:child_process";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
-import { DOGFOOD_INBOX_HINT, HARD_RULES, UPDATE_CHECK_NUDGE } from "./hard-rules.js";
+import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
+import {
+  CURSOR_AWARENESS_NUDGE,
+  DOGFOOD_INBOX_HINT,
+  HARD_RULES,
+  UPDATE_CHECK_NUDGE,
+} from "./hard-rules.js";
 
 const NONE_PLACEHOLDERS = new Set(["none", "n/a", "empty", "nil"]);
+
+/** Must exceed CHANGELOG_FETCH_TIMEOUT_MS so the child can finish before parent kill. */
+export const CURSOR_AWARENESS_SPAWN_TIMEOUT_MS = CHANGELOG_FETCH_TIMEOUT_MS + 3_000;
 
 export interface SessionStartPayload {
   workspace_roots?: string[];
@@ -135,17 +144,20 @@ async function readinessSection(root: string): Promise<string | null> {
 }
 
 async function dogfoodInboxSection(root: string): Promise<string | null> {
-  const dogfoodDir = path.join(root, "dogfood");
-  if (!(await fileExists(dogfoodDir))) return null;
-  const readme = path.join(dogfoodDir, "README.md");
-  if (!(await fileExists(readme))) return null;
-  try {
-    const text = await readFile(readme, "utf8");
-    if (!parseUnprocessedDogfoodItems(text).length) return null;
-    return DOGFOOD_INBOX_HINT;
-  } catch {
-    return null;
+  const candidateReadmes = [
+    path.join(root, "dogfood", "README.md"),
+    path.join(root, ".cursor", "dogfood", "README.md"),
+  ];
+  for (const readme of candidateReadmes) {
+    if (!(await fileExists(readme))) continue;
+    try {
+      const text = await readFile(readme, "utf8");
+      if (parseUnprocessedDogfoodItems(text).length) return DOGFOOD_INBOX_HINT;
+    } catch {
+      // ignore and try next
+    }
   }
+  return null;
 }
 
 async function loadUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
@@ -230,6 +242,126 @@ async function updateCheckSection(root: string): Promise<string | null> {
   return UPDATE_CHECK_NUDGE.replace("{installed}", installed).replace("{latest}", latest);
 }
 
+async function loadCursorUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = JSON.parse(
+      await readFile(path.join(root, ".cursor", "context", "config.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const uc = data.cursorUpdateCheck;
+    if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
+      return null;
+    }
+    return uc as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function runCursorAwarenessJson(root: string): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.execPath,
+      [
+        process.argv[1] ?? "",
+        "cursor-awareness",
+        "--check",
+        "--json",
+        "--respect-prefs",
+        "--stamp",
+        "--cwd",
+        root,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: CURSOR_AWARENESS_SPAWN_TIMEOUT_MS },
+    );
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    child.on("error", () => resolve(null));
+    child.on("close", () => {
+      try {
+        const parsed = JSON.parse(out.trim()) as Record<string, unknown>;
+        resolve(parsed && typeof parsed === "object" ? parsed : null);
+      } catch {
+        resolve(null);
+      }
+    });
+  });
+}
+
+/** True when the check result warrants a sessionStart Cursor-update nudge. */
+export function shouldEmitCursorAwarenessNudge(result: Record<string, unknown> | null): boolean {
+  if (!result || result.status !== "gaps-found") return false;
+  if (result.applyRecommended === true || result.fieldReportRecommended === true) return false;
+  const gaps = Array.isArray(result.gaps) ? result.gaps : [];
+  return gaps.some(
+    (g) => g && typeof g === "object" && (g as { id?: string }).id === "changelog-ahead",
+  );
+}
+
+export type CursorAwarenessSpawn = typeof spawn;
+
+/**
+ * sessionStart Cursor-awareness section. Primary spawn is `agent-kit`; on ENOENT /
+ * empty failure, exactly one fallback via `process.execPath` + argv[1].
+ * Inject `spawnFn` / `runFallback` in tests.
+ */
+export async function cursorAwarenessSection(
+  root: string,
+  deps: {
+    spawnFn?: CursorAwarenessSpawn;
+    runFallback?: (root: string) => Promise<Record<string, unknown> | null>;
+  } = {},
+): Promise<string | null> {
+  if ((await loadCursorUpdateCheckPrefs(root)) === null) return null;
+  const spawnFn = deps.spawnFn ?? spawn;
+  const runFallback = deps.runFallback ?? runCursorAwarenessJson;
+  const result = await new Promise<Record<string, unknown> | null>((resolve) => {
+    let settled = false;
+    let fallbackStarted = false;
+    const finish = (value: Record<string, unknown> | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const startFallback = () => {
+      if (settled || fallbackStarted) return;
+      fallbackStarted = true;
+      void runFallback(root).then(finish);
+    };
+    const child = spawnFn(
+      "agent-kit",
+      ["cursor-awareness", "--check", "--json", "--respect-prefs", "--stamp", "--cwd", root],
+      {
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: CURSOR_AWARENESS_SPAWN_TIMEOUT_MS,
+        shell: false,
+      },
+    );
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    child.on("error", () => {
+      startFallback();
+    });
+    child.on("close", (code) => {
+      if (settled || fallbackStarted) return;
+      if (code !== 0 && !out.trim()) {
+        startFallback();
+        return;
+      }
+      try {
+        finish(JSON.parse(out.trim()) as Record<string, unknown>);
+      } catch {
+        startFallback();
+      }
+    });
+  });
+  if (!shouldEmitCursorAwarenessNudge(result)) return null;
+  return CURSOR_AWARENESS_NUDGE;
+}
+
 export async function buildSessionStartAdditionalContext(
   rootDir: string,
   _payload: SessionStartPayload = {},
@@ -250,6 +382,9 @@ export async function buildSessionStartAdditionalContext(
 
   const updateNudge = await updateCheckSection(root);
   if (updateNudge) parts.push(updateNudge);
+
+  const cursorNudge = await cursorAwarenessSection(root);
+  if (cursorNudge) parts.push(cursorNudge);
 
   const formatWarnings = validateHandoffText(handoffFull);
   if (formatWarnings.length) {

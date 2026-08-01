@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
-import { copyRegistryFile } from "./apply.js";
+import { buildManifest, copyRegistryFile } from "./apply.js";
 import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
 import { installL0 } from "./sync.js";
 
@@ -100,5 +100,31 @@ describe("lifecycle apply L3", () => {
     expect(outcome1).toBe("written");
     const outcome2 = await copyRegistryFile(kitRoot, project, rel, rel, []);
     expect(outcome2).toBe("unchanged");
+  });
+
+  it("buildManifest preserves personalization and optional metadata", () => {
+    const personalization = {
+      contractVersion: 1,
+      generatorVersion: "4.8.4",
+      origin: "repository-profile" as const,
+      resultPath: ".cursor/context/personalization.json",
+    };
+    const manifest = buildManifest({
+      version: "4.8.4",
+      profile: "ops",
+      packs: ["clean-code"],
+      skills: ["json-data-config"],
+      protected: [".cursor/HANDOFF.md"],
+      personalization,
+      registryUrl: "https://github.com/agent-kit-startup/agent-kit",
+      registryRef: "main",
+    });
+    expect(manifest.version).toBe("4.8.4");
+    expect(manifest.personalization).toEqual(personalization);
+    expect(manifest.registry).toEqual({
+      url: "https://github.com/agent-kit-startup/agent-kit",
+      ref: "main",
+    });
+    expect(manifest.protected).toContain(".cursor/HANDOFF.md");
   });
 });

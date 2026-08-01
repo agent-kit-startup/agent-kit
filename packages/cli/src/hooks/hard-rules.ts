@@ -13,12 +13,21 @@ export const HARD_RULES = `# Agent Kit session hard rules (manual mode default)
 10. **Backlog CRUD never activates.** \`/backlog-add\` enqueues (Broad Intake + write Ask + plan file + HANDOFF Backlog) without park, activate, or Gate B. \`/backlog-edit\` / \`/backlog-delete\` / \`/backlog-cancel\` require Ask confirm before mutate; delete archives from Backlog, cancel is soft in place. No Field Report cards for routine backlog CRUD.
 11. **HANDOFF machine fields are bullet fields, not \`##\` headings.** Mission Control parses \`- **Plan:**\`, \`- **Backlog plans:**\`, \`- **Parked plans:**\`, \`- **Run queue:**\` (etc.). Canonical Plan: \`- **Plan:** \\\`name.plan.md\\\`\` or \`none\`. Nested backlog/parked rows: \`- \\\`other.plan.md\\\`\`. Never invent \`## Backlog plans\` / \`## Parked plans\` / \`## Run queue\` headings in place of those fields (Checklist / Current mission go empty or idle).`;
 
+// EXT-202: hint stays unconditional; /dogfood is an L0 artifact (EXT-201), so
+// consumers receive the command file and the inbox copy is accurate without a
+// lane-conditional guard (EXT-212 documents that resolution).
 export const DOGFOOD_INBOX_HINT = `## Dogfood inbox
 
-Unprocessed files are listed under \`dogfood/README.md\` (### Unprocessed Files). Follow the ingest ritual there (detect → analyze → memory WRITE → triage). Do not auto-start analysis unless the user asks.`;
+Unprocessed files are listed under \`dogfood/README.md\` (factory) or \`.cursor/dogfood/README.md\` (consumer). To file a new note, use \`/dogfood <topic> [summary]\`. Follow the ingest ritual (detect → analyze → memory WRITE → triage). Do not auto-start analysis unless the user asks.`;
 
 export const UPDATE_CHECK_NUDGE = `## Agent Kit update available
 
 Installed **v{installed}**; latest public **v{latest}**.
 
 This is an advisory only (no files were changed). To apply, run \`/update\` and confirm via Ask questions. Bare \`agent-kit update\` is an explicit operator invoke, not a background job.`;
+
+export const CURSOR_AWARENESS_NUDGE = `## Cursor product-update awareness
+
+Advisory gaps vs \`docs/cursor-native-audit.md\` (check-only; no apply; no Field Reports).
+
+Run \`/cursor-update-awareness\` (or \`agent-kit cursor-awareness --check\`) and confirm routing via Ask → \`/backlog-add\` or \`/dogfood\`.`;

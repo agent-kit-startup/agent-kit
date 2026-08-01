@@ -163,4 +163,12 @@ describe("canonical L0 inventory", () => {
     expect(JSON.parse(manifest).version).toBe(KIT_VERSION);
     expect(JSON.parse(plugin).version).toBe(KIT_VERSION);
   });
+
+  it("wires citty meta.version to KIT_VERSION for --version", async () => {
+    const indexSrc = await readRepositoryFile("packages/cli/src/index.ts");
+    expect(indexSrc).toMatch(
+      /import\s+\{\s*KIT_VERSION\s*\}\s+from\s+["']\.\/lifecycle\/version\.js["']/,
+    );
+    expect(indexSrc).toMatch(/version:\s*KIT_VERSION/);
+  });
 });

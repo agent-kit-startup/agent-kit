@@ -6,7 +6,7 @@ Start (or reuse) Mission Control for **this Cursor workspace only**, then open t
 
 Local-dev only. Read-only. No HITL gate.
 
-**Terminal counterpart:** `agent-kit dashboard` from the workspace cwd. After a CLI publish that ships Path C, the installed package includes `dashboard/start.mjs`. Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root. Until Path C is on npm, do not assume `@dadado/agent-kit-cli@4.8.0` has the panel assets.
+**Terminal counterpart:** `agent-kit dashboard` from the workspace cwd. The installed package includes `dashboard/start.mjs` from 4.8.2 onward. Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root. On 4.8.0 or an older pin the panel assets are absent.
 
 ## When to Use
 

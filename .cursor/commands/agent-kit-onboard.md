@@ -100,6 +100,6 @@ When complete:
    - `Next: /start-project` when the user wants to plan a deliverable.
    - `Next: finish setup` when no deliverable should start now.
 
-After essentials are ready, Mission Control is **optional** and **not** an essential readiness check. Consumer L0 installs the `/dashboard` command text but not `dashboard/**`. If the operator wants the panel, point them to an agent-kit checkout that includes `dashboard/start.mjs` (loopback `http://127.0.0.1:3333`). Do not block `/start-project` on Mission Control. Do not ask about skins or external review before essentials (Hard Stop 1).
+After essentials are ready, Mission Control is **optional** and **not** an essential readiness check. Consumer L0 installs the `/dashboard` command text but not `dashboard/**`. If the operator wants the panel, `agent-kit dashboard` serves it from the installed CLI (4.8.2 onward); on older pins point them to an agent-kit checkout that includes `dashboard/start.mjs` (loopback `http://127.0.0.1:3333`). Do not block `/start-project` on Mission Control. Do not ask about skins or external review before essentials (Hard Stop 1).
 
 Agent Personas remain available through later personalization or settings. External review is offered only when a plan reaches exhaustion.

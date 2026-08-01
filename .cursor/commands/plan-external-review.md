@@ -47,7 +47,8 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 ### What "operator-visible" means (smoke notes)
 
 - **Autonomous success:** chat arm **must** use `--force --autonomous --wait-monitor`. The launcher prefers a background/inspectable PTY (no OS Terminal focus by default; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` restores activate), then polls until a **fresh** monitor exists (`mtime >= arm epoch` or content sentinel). Exit `0` = fresh ready; `3` = timeout; `4` = soft-fail while waiting. Spawn-only exit 0 without wait is **not** review done. **Chat continuation:** AwaitShell until `0|3|4`; on `0` run `/plan-review-triage` Ask in the same session. Do **not** stop at Final HANDOFF "after monitor lands" or require typing `done`. ADR: `decisions/2026-07-27_audits-wait-freshness-enforce.md`.
-- **Autonomous soft-fail:** missing `claude` → tip + exit `4` when `--wait-monitor` was requested (Field Report owed). Background spawn unavailable → falls back to `--paste-only` UX with an honest "NOT running yet" banner. Soft-fail does **not** invent a monitor or run triage as if review completed.
+- **Autonomous soft-fail:** missing `claude` → tip + exit `4` when `--wait-monitor` was requested (Field Report owed). Background spawn unavailable → falls back to `--paste-only` UX with an honest "NOT running yet" banner. A **silent PTY** (spawn succeeded, no scrollback within the progress-gate grace window) is reported as a failed launch: the launcher disposes the session it just spawned, prints the paste fallback, and soft-fails instead of burning the wait budget. A **session-cap refusal** (detached `agent-kit-audit-*` sessions at the cap) never spawns at all. Soft-fail does **not** invent a monitor or run triage as if review completed.
+- **Exit 3 is timeout-only:** it means the freshness gate was not satisfied inside the budget, never that the review finished. A monitor that appears later, including one written by a different or later arm, does **not** convert a `3` into success. Leave the target Field Report **owed** and re-arm. ADR: `decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 - **Paste-only:** clipboard + printed interactive one-liner; review starts only after the operator pastes into their Cursor Terminal. After paste (Claude running), the session still waits for the monitor file then continues into triage Ask when possible.
 - **`--dry-run`:** resolves mode/plan and prints `background-cmd` / `paste-cmd` / `focus-terminal` without spawning Claude (useful for smoke).
 
@@ -92,6 +93,8 @@ Script behavior (ADR):
 - `mode: "autonomous"` (non-headless) → background/inspectable PTY auto-launch; soft-fallback to paste-only
 - Missing `mode` key → paste-compatible default (`--print` when no flag; chat should pass `--paste-only` or set autonomous)
 - Interactive and headless launches pass Claude CLI `--permission-mode auto`
+- Post-spawn progress gate: samples PTY scrollback before the monitor wait; silent PTY → early abort (`AGENT_KIT_AUDIT_PROGRESS_TIMEOUT`, default 60s, `0` disables); channels without a scrollback API stay advisory
+- Session pressure: warns at `AGENT_KIT_AUDIT_SESSION_WARN` detached `agent-kit-audit-*` sessions, refuses to spawn at `AGENT_KIT_AUDIT_SESSION_CAP`; reap is opt-in (`--reap-audit-sessions`), detached-only, past `AGENT_KIT_AUDIT_REAP_MIN_AGE`
 - `--paste-only` copies the interactive one-liner via `pbcopy` / `xclip` / `xsel` / `clip.exe` when available
 - Never `/git-prod`; never broad `git add`
 - Does **not** register a Cursor native `stop` hook
@@ -120,6 +123,7 @@ After a successful autonomous arm in chat, **do not** hand off with "run `/plan-
 - ADR: `.cursor/memory/decisions/2026-07-20_optional-claude-code-plan-review.md`
 - Audits contract: `.cursor/memory/decisions/2026-07-27_audits-autonomous-plan-review-contract.md`
 - Post-spawn watch + continue: `.cursor/memory/decisions/2026-07-27_audits-post-spawn-monitor-watch-continue.md`
+- PTY progress gate, session cap, exit 3 honesty: `.cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`
 - Related: `.cursor/memory/decisions/2026-07-19_stop-hook-no-hitl-interference.md` (no stop-hook auto agent)
 - Prompt: `.cursor/context/templates/plan-external-review-prompt.md`
 - Monitor template: `.cursor/context/templates/plan-monitor.md`

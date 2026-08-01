@@ -18,6 +18,12 @@ export function logApplyStats(stats: ApplyStats): void {
     logger.warn("Slash collision preserved because the legacy command is customized:");
     for (const p of stats.collisions) logger.info(`  ! ${p}`);
   }
+  if (stats.preservedCustomized.length > 0) {
+    logger.warn(
+      `Preserved customized overlay (agents/skills/commands); run diff / contribute to sync upstream: ${stats.preservedCustomized.length}`,
+    );
+    for (const p of stats.preservedCustomized) logger.info(`  ! ${p}`);
+  }
   if (stats.skippedProtected.length > 0) {
     logger.warn(`Skipped protected (L3): ${stats.skippedProtected.length}`);
     for (const p of stats.skippedProtected) logger.info(`  ~ ${p}`);

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { constants, access, readFile, stat } from "node:fs/promises";
+import { constants, access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -7,9 +7,14 @@ const execFileAsync = promisify(execFile);
 
 export type HooksHealthStatus = "active" | "degraded" | "missing";
 
+/** Canonical kit hook scripts compared against installed `.git/hooks/` copies. */
+export const GIT_HOOK_CANONICAL_NAMES = ["pre-commit", "pre-push", "prepare-commit-msg"] as const;
+
 export interface HooksHealthReport {
   status: HooksHealthStatus;
   reasons: string[];
+  /** Soft advisories (e.g. git-hooks install drift). Do not flip status alone. */
+  advisories: string[];
   hooksJsonPath: string;
   expectedEvents: string[];
   wiredEvents: string[];
@@ -70,9 +75,92 @@ function commandLooksLikeAdapter(command: string): string | null {
 }
 
 /**
+ * Soft advisory: compare versioned `git-hooks/*` to installed `.git/hooks/*`.
+ * Install is operator `cp` (see git-hooks/README.md); drift does not degrade status.
+ * When `core.hooksPath` already points at `git-hooks`, skip (no install copy).
+ */
+export async function assessGitHooksInstallDrift(rootDir: string): Promise<string[]> {
+  const root = path.resolve(rootDir);
+  const canonicalDir = path.join(root, "git-hooks");
+  if (!(await exists(canonicalDir))) return [];
+
+  let hooksPathCfg = "";
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["-C", root, "config", "--get", "core.hooksPath"],
+      { encoding: "utf8" },
+    );
+    hooksPathCfg = stdout.trim();
+  } catch {
+    /* unset or not a git repo */
+  }
+  if (hooksPathCfg) {
+    const resolved = path.isAbsolute(hooksPathCfg)
+      ? path.normalize(hooksPathCfg)
+      : path.normalize(path.join(root, hooksPathCfg));
+    if (resolved === path.normalize(canonicalDir)) {
+      return [];
+    }
+  }
+
+  const gitDir = path.join(root, ".git");
+  if (!(await exists(gitDir))) return [];
+  // Worktree / bare: `.git` may be a file; only compare when hooks live under `.git/hooks`.
+  try {
+    const st = await stat(gitDir);
+    if (!st.isDirectory()) return [];
+  } catch {
+    return [];
+  }
+
+  const installedDir = path.join(gitDir, "hooks");
+  const advisories: string[] = [];
+  const installHint =
+    "Install or refresh with: `cp git-hooks/<name> .git/hooks/<name> && chmod +x .git/hooks/<name>` (see git-hooks/README.md)";
+
+  let names: string[] = [...GIT_HOOK_CANONICAL_NAMES];
+  try {
+    const listed = await readdir(canonicalDir);
+    const fromDisk = listed.filter((n) =>
+      (GIT_HOOK_CANONICAL_NAMES as readonly string[]).includes(n),
+    );
+    if (fromDisk.length > 0) names = fromDisk;
+  } catch {
+    /* use default names */
+  }
+
+  for (const name of names) {
+    const canonical = path.join(canonicalDir, name);
+    const installed = path.join(installedDir, name);
+    if (!(await exists(canonical))) continue;
+    if (!(await exists(installed))) {
+      advisories.push(
+        `git-hooks drift: \`.git/hooks/${name}\` missing (canonical \`git-hooks/${name}\` present). ${installHint}`,
+      );
+      continue;
+    }
+    try {
+      const [a, b] = await Promise.all([readFile(canonical, "utf8"), readFile(installed, "utf8")]);
+      if (a !== b) {
+        advisories.push(
+          `git-hooks drift: \`.git/hooks/${name}\` differs from \`git-hooks/${name}\`. ${installHint}`,
+        );
+      }
+    } catch {
+      advisories.push(
+        `git-hooks drift: could not compare \`git-hooks/${name}\` with \`.git/hooks/${name}\`. ${installHint}`,
+      );
+    }
+  }
+
+  return advisories;
+}
+
+/**
  * Visible fail-open posture: active when hooks.json wires Node adapters that
  * exist, are executable, and the CLI resolves; degraded otherwise; missing
- * when no hooks.json.
+ * when no hooks.json. Git-hooks install drift is advisory only.
  */
 export async function assessHooksHealth(rootDir: string): Promise<HooksHealthReport> {
   const root = path.resolve(rootDir);
@@ -80,11 +168,13 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
   const hooksJsonAbs = path.join(root, hooksJsonPath);
   const reasons: string[] = [];
   const wiredEvents: string[] = [];
+  const advisories = await assessGitHooksInstallDrift(root);
 
   if (!(await exists(hooksJsonAbs))) {
     return {
       status: "missing",
       reasons: ["`.cursor/hooks.json` not found"],
+      advisories,
       hooksJsonPath,
       expectedEvents: [...EXPECTED_EVENTS],
       wiredEvents,
@@ -100,6 +190,7 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
     return {
       status: "degraded",
       reasons: ["`.cursor/hooks.json` is not valid JSON"],
+      advisories,
       hooksJsonPath,
       expectedEvents: [...EXPECTED_EVENTS],
       wiredEvents,
@@ -173,6 +264,7 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
   return {
     status,
     reasons,
+    advisories,
     hooksJsonPath,
     expectedEvents: [...EXPECTED_EVENTS],
     wiredEvents,

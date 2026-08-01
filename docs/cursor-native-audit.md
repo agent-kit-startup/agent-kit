@@ -2,6 +2,8 @@
 
 Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-07-19** (post EN sweep on staging).
 
+**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. Version-prose / Marketplace packaging refresh remains on the parked Marketplace plan. See [cursor-update-awareness.md](cursor-update-awareness.md).
+
 ## Summary
 
 | Area | Status | Notes |
@@ -236,5 +238,6 @@ Acceptable for private SoT until Phase B registry cutover defines minimum dogfoo
 ## References
 
 - [Cursor 3.0 Features](cursor-3-features.md)
+- [Cursor update awareness](cursor-update-awareness.md)
 - [Coherence inventory](coherence-inventory.md)
 - Decision: structural harness vs stack (maintainers' decision log, private repo)

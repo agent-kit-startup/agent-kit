@@ -50,6 +50,8 @@ H1 title = short summary. Compact body:
 ## Format: decisions (`decisions/*.md`)
 
 - **Date:** YYYY-MM-DD
+- **Status:** Proposed | Accepted | Deprecated | Superseded by `<file>` (required for new writes; evidence policy progression)
+- **Evidence:** optional paths to code, tests, runtime matrices, or ledgers when the decision is Accepted
 - **Context:** 1-2 sentences
 - **Decision:** what was chosen
 - **Discarded alternative:** brief

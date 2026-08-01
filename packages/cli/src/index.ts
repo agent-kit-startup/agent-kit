@@ -2,6 +2,7 @@
 import { defineCommand, runMain } from "citty";
 import { addCommand } from "./commands/add.js";
 import { contributeCommand } from "./commands/contribute.js";
+import { cursorAwarenessCommand } from "./commands/cursor-awareness.js";
 import { dashboardBroadcastCommand } from "./commands/dashboard-broadcast.js";
 import { dashboardCommand } from "./commands/dashboard.js";
 import { diffCommand } from "./commands/diff.js";
@@ -17,11 +18,13 @@ import { scanCommand } from "./commands/scan.js";
 import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
 import { validateCommand } from "./commands/validate.js";
+import { KIT_VERSION } from "./lifecycle/version.js";
 
 const main = defineCommand({
   meta: {
     name: "agent-kit",
     description: "HITL framework for AI-assisted IDEs",
+    version: KIT_VERSION,
   },
   subCommands: {
     init: initCommand,
@@ -31,6 +34,7 @@ const main = defineCommand({
     doctor: doctorCommand,
     status: statusCommand,
     update: updateCommand,
+    "cursor-awareness": cursorAwarenessCommand,
     diff: diffCommand,
     contribute: contributeCommand,
     handoff: handoffCommand,
