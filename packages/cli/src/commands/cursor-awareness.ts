@@ -5,8 +5,7 @@ import { logger } from "../utils/logger.js";
 export const cursorAwarenessCommand = defineCommand({
   meta: {
     name: "cursor-awareness",
-    description:
-      "Opt-in advisory: diff Cursor changelog / native-audit inventory for gaps (never apply, never Field Reports)",
+    description: "Opt-in advisory: Cursor changelog vs native-audit gaps (never apply).",
   },
   args: {
     cwd: {

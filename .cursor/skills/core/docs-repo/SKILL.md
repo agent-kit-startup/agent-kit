@@ -1,7 +1,7 @@
 ---
 name: Docs & Repo
 description: Docs & Repo skill.
-version: 0.1.0
+version: 0.1.1
 category: core
 ---
 
@@ -16,6 +16,7 @@ Documentation belongs to the **project**, not the chat or the author. Follow rul
 - Professional, inheritable voice (system behavior, not “today I…”)
 - No transient references: people, unrelated projects, session drama, client-specific workspace IDs
 - Timeless where possible; verify against code
+- Docs/HANDOFF/inventories are **indicative**; delivery truth comes from code, APIs, infra, SHAs, and published artifacts (never docs alone)
 - Inheritance test: a new maintainer can use it in 12 months without the chat
 
 Also follow `agent-output-hygiene` (no agent metalinguage in artifacts).

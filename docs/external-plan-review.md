@@ -86,7 +86,7 @@ Monitors are durable evidence. Beyond Field Report and `/plan-review-triage` (at
 
 | Surface | Role |
 |---------|------|
-| `/start-project`, `/backlog-add`, `/plan-review-triage` Write residuals Broad Intake | Memory bucket + worker `read_scope` include monitors/audits; same triage labels (`ignore` / `error` / `include` / `note`) |
+| `/start-project`, `/backlog-add`, `/plan-review-triage` Write residuals Broad Intake | Memory bucket + **Unprocessed dogfood** (`dogfood/README.md` or `.cursor/dogfood/README.md`, `##` or `### Unprocessed Files`) + worker `read_scope` include monitors/audits and dogfood paths; same triage labels (`ignore` / `error` / `include` / `note`) |
 | `/continue-plan` | Pre-unit advisory skim for the chosen plan slug |
 | `memory-loop` CHECK | Glob monitors/audits before deep re-investigation |
 | `/git-staging` | Dirty untracked monitor warn; add-by-name only |
@@ -98,7 +98,7 @@ ADR: `.cursor/memory/decisions/2026-07-27_plan-monitor-consumer-awareness.md`.
 
 Use `/plan-review-triage` to process the monitor with clickable options:
 
-- **Write residuals plan:** Run the same Broad Intake as `/backlog-add` (buckets + triage labels), propose a residuals plan from Still open plus intake findings, confirm with Ask (`Write plan to backlog` / `Modify` / `Cancel`), write `.cursor/plans/*.plan.md` and append HANDOFF Backlog (no Gate B; `/start-project` is an optional escape hatch only)
+- **Write residuals plan:** Run the same Broad Intake as `/backlog-add` (buckets + triage labels), propose a residuals plan from Still open plus intake findings, confirm with Ask (`Write plan to backlog` / `Modify` / `Cancel`), write `.cursor/plans/*.plan.md` and append HANDOFF Backlog (no Gate B; `/start-project` is an optional escape hatch only). **Termination:** max closeout depth 1 per theme family; prefer **Ack and stop** / **Fix nits only** for nits or process-only Still open; do not mint unbounded `close-*` plans (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`)
 - **Fix nits only:** Address small issues directly (typos, formatting, obvious omissions)
 - **Ack and stop:** Note findings for future reference without immediate action
 
@@ -130,6 +130,19 @@ Mission Control **Flight Log** shows HANDOFF Gaps (**NOW** + **Earlier** history
 | `mode` | Audits arming path: `"paste"` (legacy clipboard/paste into Cursor Terminal) or `"autonomous"` (background/inspectable PTY auto-launch when enabled). Missing key keeps paste-compatible behavior for existing installs. Greenfield example may show `"autonomous"`. |
 | `midBatchAudits` | When true, `/run-plan-all` runs full audits mid-queue (after each plan) and at queue end via the launcher `--batch` path. Prefer true under `mode: "autonomous"`. Missing or false preserves queue-end / owed-ledger behavior for paste installs. |
 | `preflight` | Audits pre-flight on plan-run commands (`/continue-plan`, `/run-plan`, `/run-plan-all`, `/hotfix`, …): `"off"` (default when missing), `"warn"` (surface once), or `"block"` (arm or stop until owed audits are launched or explicitly deferred). Enforced in L0 (`continue-plan`, `run-plan`, `run-plan-all`, `hotfix`, HITL gate table). |
+
+### Throughput vs coverage (operator knobs)
+
+Example defaults in `config.example.json` favor **coverage** under autonomous mode (`midBatchAudits: true`, `offerOnExhausted: true`, `preflight: "warn"`) without silently turning audits off. Reduce conveyor cost without abandoning review:
+
+| Goal | Knob | Effect |
+|------|------|--------|
+| Fewer mid-queue Claude arms | `midBatchAudits: false` | Queue-end / owed ledger only; triage still applies when monitors exist |
+| Less exhaustion nag | `offerOnExhausted: false` | No chat Ask when disabled; manual `/plan-external-review` still works |
+| Soft pre-run pressure | `preflight: "off"` \| `"warn"` \| `"block"` | `off` skips; `warn` surfaces once; `block` arms or stops |
+| Stop residual spawn loops | Triage termination (L0) | Max closeout depth 1; Ack/Fix nits preferred for process-only; never silent-Ack Blocking (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`) |
+
+Do **not** flip `autoRemediate` to `true` as a shortcut for fewer backlog plans; that weakens findings-only HITL. Prefer Ack / Fix nits / depth gate at `/plan-review-triage`.
 
 ## Script options
 
@@ -257,6 +270,7 @@ AGENT_KIT_AUDIT_SESSION_CAP=1 .cursor/scripts/plan-external-review.sh --force --
 
 - Symptom: repeated autonomous arms leave `agent-kit-audit-<ws8>-<pid>` sessions detached (each one a PTY that never produced a monitor), and later arms keep adding to the pile.
 - Policy (preventive, not cleanup of a known pile): the launcher counts detached **workspace-owned** sessions before every autonomous spawn, warns at or above `AGENT_KIT_AUDIT_SESSION_WARN` (default 5), and refuses to spawn at or above `AGENT_KIT_AUDIT_SESSION_CAP` (default 20) instead of adding one more. Attached sessions are operator work in progress and are never counted or disposed. Foreign-workspace and legacy unscoped `agent-kit-audit-<pid>` names are out of scope for cap/reap.
+- Backlog: a liveness probe that checks whether each counted detached session is still alive (multiplexer session present and/or scrollback growing) before refusing at the cap would distinguish healthy concurrent arms from a zombie pile. The current count is by session name only, so a host running many genuine concurrent reviews still triggers the cap and must use `--reap-audit-sessions` or raise the cap to continue.
 - Inspect: `screen -ls` (or `tmux ls`).
 - Dispose (opt-in, detached kit-owned sessions past the age floor only):
 

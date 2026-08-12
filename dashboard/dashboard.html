@@ -19,6 +19,21 @@
   var fav = document.getElementById('favicon');
   if (fav) fav.setAttribute('href', skin === 'cursor' ? '/logo-cursor.svg' : '/logo.svg');
 })();
+/* Restore Crew Monitor row density before first paint; auto-pick by viewport
+   when the operator has no stored preference. Same namespaced-key + blocked-
+   storage tolerance as the skin restore above. */
+(function () {
+  var key = 'agent-kit:monitor-density';
+  var density = null;
+  try {
+    var stored = localStorage.getItem(key);
+    if (stored === 'compact' || stored === 'comfortable') density = stored;
+  } catch (e) { /* private mode / blocked storage */ }
+  if (!density) {
+    density = (window.innerWidth || 0) >= 900 ? 'comfortable' : 'compact';
+  }
+  document.documentElement.setAttribute('data-monitor-density', density);
+})();
 </script>
 <style>
 /* ===== Reset & Base ===== */
@@ -34,7 +49,7 @@ html[data-dashboard-skin="legacy"] {
   --border-active: #2a3a5a;
   --text-primary: #e2e8f0;
   --text-secondary: #8899aa;
-  --text-muted: #6d8094;
+  --text-muted: #6d8094; /* landing uses #7f93a8 (AA over marketing gradient); see docs/design-system.md */
   --green: #22c55e;
   --green-bg: rgba(34,197,94,0.12);
   --yellow: #eab308;
@@ -1026,7 +1041,6 @@ body.mc-fullscreen .top-tabs-row {
 .health-item-sev[data-sev="ok"] { color: var(--green); }
 .health-item-sev[data-sev="warning"] { color: var(--yellow); }
 .health-item-sev[data-sev="degraded"] { color: var(--orange); }
-.health-item-sev[data-sev="error"] { color: var(--red); }
 .health-item-chevron {
   color: var(--text-muted);
   font-size: 10px;
@@ -1700,11 +1714,20 @@ body.mc-fullscreen .top-tabs-row {
   white-space: nowrap;
 }
 
-/* ===== Monitor feed: single flat rows (Phase 1) ===== */
+/* ===== Crew Monitor row (design v2, 2026-08-05) =====
+   Ported from the Claude Design project `Mission Control — Crew Monitor`
+   (verdict: .cursor/context/mission-control-design/remote/v1/ACCEPTANCE.md).
+
+   The layout contract that replaced the equal-shrink segment row: exactly ONE
+   flexible field per row. `.monitor-row-primary` is the only field allowed to
+   ellipsis; every other column is fixed-width or fixed-content, and the ref
+   chips hide WHOLE at a breakpoint rather than truncating. That is what stops
+   `revi…` / `8f…` / `P…` from coming back — a field that cannot show one whole
+   token is removed instead of shrunk. */
 .live-activity-feed .monitor-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
   color: var(--text-secondary);
@@ -1716,89 +1739,194 @@ body.mc-fullscreen .top-tabs-row {
 .live-activity-feed .monitor-row:last-child {
   padding-bottom: 10px;
 }
-.live-activity-feed .monitor-row .monitor-row-chip {
+/* Team badge at row start (design v2 identity pass). Replaces the kind glyph:
+   the glyph's two jobs split, so colour lands here (kind tint + solid semantic
+   initials) and meaning lands on the badge's tooltip gloss. Unlike the avatar
+   box removed in #631/#637-#639, this is not a decorative identity chip — it is
+   the kind cue and the actor cue in one 18px square, which is why `info.bg`
+   renders on a Crew row again. Stays at --mc-radius-sm while the status pills
+   sit at --mc-radius-chrome, so a badge never reads as a status pill. */
+.live-activity-feed .monitor-row .monitor-row-badge {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--mc-radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0;
-  border-radius: 4px;
-  font-size: 10px;
+  font-size: 7.5px;
   font-weight: 700;
-  flex-shrink: 0;
+  letter-spacing: 0.03em;
   line-height: 1;
-  box-sizing: border-box;
-  /* Solid *-bg fill only; no stroke / inset ring / left rail */
-  border: none;
-  box-shadow: none;
+  user-select: none;
 }
-.live-activity-feed .monitor-row .monitor-row-icon {
+/* Actor column: fixed basis, not a min-width floor. The floor let long kit
+   agent ids push the verb and metadata columns off their x; a hard basis keeps
+   the scan column stable across every kind. Sized so the longest mask in the
+   operator lexicon ("Project Manager", "Product Analyst") fits unclipped. */
+.live-activity-feed .monitor-row .monitor-row-actor {
+  flex: 0 0 9.5em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mc-font-mono);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+/* Verb column: state icon + word, both inheriting the verb-state colour. */
+.live-activity-feed .monitor-row .monitor-row-verb {
+  flex: 0 0 6.5em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
   font-size: 11px;
-  line-height: 1;
-  width: 1em;
-  text-align: center;
+  color: var(--text-muted);
 }
-.live-activity-feed .monitor-row .monitor-row-avatar {
+.live-activity-feed .monitor-row .monitor-row-verb em {
+  font-style: normal;
+}
+/* 12px against the chrome set's 16px, so the icon reads as a state mark inside
+   a text column rather than as chrome. The heavier stroke is optical
+   compensation: 1.5 at 12px renders lighter than 1.5 at 16px. */
+.live-activity-feed .monitor-row .monitor-row-verb-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  stroke-width: 1.6;
+}
+.live-activity-feed .monitor-row .v-running { color: var(--green); }
+.live-activity-feed .monitor-row .v-awaiting { color: var(--yellow); }
+.live-activity-feed .monitor-row .v-failed { color: var(--red); }
+.live-activity-feed .monitor-row .v-failed em { font-weight: 600; }
+.live-activity-feed .monitor-row .v-merged { color: var(--cyan); }
+/* The row's only flexible field, and the only one at --text-primary: the to-do
+   id / commit subject / gate is what distinguishes one row from the next. */
+.live-activity-feed .monitor-row .monitor-row-primary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.live-activity-feed .monitor-row .monitor-row-meta {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 18px;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  flex-shrink: 0;
-  background: var(--bg-card-hover);
-  color: var(--text-secondary);
-}
-.live-activity-feed .monitor-row .feed-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 400;
-  display: flex;
-  align-items: baseline;
   gap: 6px;
+  min-width: 0;
 }
-/* Structured label spans: actor + verb never shrink; the plan filename is the
-   low-signal segment and ellipsises first. */
-.live-activity-feed .monitor-row .feed-seg {
-  flex-shrink: 0;
+/* Refs left the flexible text and became fixed-content chips (PR #NNN -> #NNN,
+   7-8 char SHA, subagent worker id). A chip is either whole or hidden. */
+.live-activity-feed .monitor-row .monitor-row-ref {
+  font-family: var(--mc-font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  line-height: 1.3;
   white-space: nowrap;
 }
-.live-activity-feed .monitor-row .feed-sep {
+/* Plan ref: flag + basename. Driven by refs.plan, so it renders even when the
+   label omitted the segment (truncation-safe: never sniffed from the string). */
+.live-activity-feed .monitor-row .monitor-row-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+.live-activity-feed .monitor-row .monitor-row-plan-flag {
+  width: 11px;
+  height: 11px;
   flex-shrink: 0;
-  color: var(--text-muted);
+  stroke-width: 1.6;
 }
-.live-activity-feed .monitor-row .feed-seg-mid {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.live-activity-feed .monitor-row .feed-seg-plan {
-  flex-shrink: 3;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-muted);
-}
-.live-activity-feed .monitor-row .feed-time {
-  color: var(--text-muted);
+/* Fixed content, like every other chip: no max-width, no ellipsis. The design
+   capped this at 16em (24em comfortable) and kept ellipsis on it, which clipped
+   real basenames — `crew-monitor-compact-labels-realtime-activity` needs 271px
+   against a 240px cap, so the plan chip was rendering the same fragment the
+   redesign exists to remove. It drops WHOLE at ≤720px instead; above that it
+   takes the width it needs and the primary field absorbs the difference, which
+   is what the row's one flexible field is for. */
+.live-activity-feed .monitor-row .monitor-row-plan-name {
   font-family: var(--mc-font-mono);
   font-size: 10px;
   white-space: nowrap;
-  min-width: 40px;
-  flex-shrink: 0;
+}
+.live-activity-feed .monitor-row .monitor-row-time {
+  flex: 0 0 44px;
+  text-align: right;
+  font-family: var(--mc-font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ===== Crew Monitor compaction ladder =====
+   Container queries on the feed, not viewport media queries: the Crew Monitor
+   is a panel inside a 2x2 cockpit grid and a narrow plugin shell, so the width
+   that matters is the feed's own, never the window's.
+   Every step hides a field WHOLE. Nothing here narrows a column and leaves it
+   ellipsising — the actor drops out entirely rather than becoming `Project
+   Man…` (delta A in ACCEPTANCE.md; the design's ladder narrowed it instead).
+   Identity survives the drop: the badge keeps the initials, and the actor's own
+   title plus the row tooltip still name the role in full. */
+.monitor-cq {
+  container-type: inline-size;
+}
+@container (max-width: 720px) {
+  .live-activity-feed .monitor-row .monitor-row-plan-name { display: none; }
+}
+@container (max-width: 560px) {
+  .live-activity-feed .monitor-row .monitor-row-ref.ref-sha { display: none; }
+  .live-activity-feed .monitor-row .monitor-row-actor { display: none; }
+}
+@container (max-width: 450px) {
+  .live-activity-feed .monitor-row .monitor-row-verb { flex-basis: 12px; }
+  .live-activity-feed .monitor-row .monitor-row-verb em { display: none; }
+  .live-activity-feed .monitor-row .monitor-row-plan { display: none; }
+}
+@container (max-width: 360px) {
+  .live-activity-feed .monitor-row .monitor-row-meta { display: none; }
+}
+
+/* ===== Crew Monitor row density (compact | comfortable) =====
+   Root data attribute set before first paint; auto-picked from viewport width
+   when the operator has expressed no preference. Compact is the single-line row
+   and stays the default on narrow shells.
+   Comfortable is a second layout, not a taller first one: the meta chips stay
+   on line 1 (pushed right), and the primary field reflows to a full-width
+   second line where it gets two clamped lines at 12.5px instead of an ellipsis.
+   The 26px indent aligns it under the badge. The title tooltip stays required
+   in both modes — display `label` is capped at MAX_SEMANTIC_LABEL upstream, so
+   a second line is never a substitute for it. */
+html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row {
+  flex-wrap: wrap;
+  row-gap: 3px;
+  padding: 9px 12px;
+}
+html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monitor-row-meta {
   margin-left: auto;
+}
+html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monitor-row-primary {
+  order: 10;
+  flex: 1 0 100%;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding-left: 26px;
+}
+.monitor-density-btn {
+  margin-left: var(--mc-space-sm);
 }
 .activity-feed-empty {
   padding: var(--mc-space-2xl);
@@ -1925,17 +2053,6 @@ body.mc-fullscreen .top-tabs-row {
   vertical-align: middle;
 }
 
-/* ===== Health Investigation Message (legacy; Healthcenter uses .health-detail) ===== */
-.health-message {
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 6px 10px;
-  margin-top: 4px;
-  border-radius: 4px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  animation: fadeIn 0.2s ease;
-}
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -2518,14 +2635,8 @@ body.mc-fullscreen .top-tabs-row {
   .skill-grid,
   .agent-grid { grid-template-columns: 1fr; }
   .live-activity-feed { max-height: 180px; }
-  /* Flex feed-label: allow actor/verb to ellipsis so fixed spans do not hard-clip. */
-  .live-activity-feed .monitor-row .feed-seg-actor,
-  .live-activity-feed .monitor-row .feed-seg-verb {
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  /* Crew row narrow-width handling moved to the @container ladder on
+     .monitor-cq (design v2): the feed's own width decides, not the window's. */
 }
 
 .overview-stack {
@@ -2758,7 +2869,10 @@ body.mc-fullscreen .top-tabs-row {
   outline: none;
 }
 /* Shared solid status/lifecycle pill: filled semantic surface, no outline,
-   slash-command chip geometry. */
+   slash-command chip geometry.
+   Radius (design v2, 2026-08-05): capsule -> --mc-radius-chrome. The capsule
+   read as a foreign shape next to the squared chrome it always sits beside;
+   the fill and the mark carry the state, the outline never did. */
 .lifecycle-pill {
   display: inline-flex;
   align-items: center;
@@ -2767,7 +2881,7 @@ body.mc-fullscreen .top-tabs-row {
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 2px 6px;
-  border-radius: var(--mc-radius-pill);
+  border-radius: var(--mc-radius-chrome);
   border: none;
   color: var(--text-muted);
   background: var(--bg-secondary, transparent);
@@ -2951,7 +3065,7 @@ body.mc-fullscreen .top-tabs-row {
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 3px var(--mc-space-md);
-  border-radius: var(--mc-radius-pill);
+  border-radius: var(--mc-radius-chrome);
   border: none;
   color: var(--text-secondary);
   background: var(--bg-card);
@@ -2976,7 +3090,9 @@ body.mc-fullscreen .top-tabs-row {
   color: var(--green);
   background: var(--green-bg);
 }
-/* Idle: pill radius + hollow mark (shape cue vs squared solid chips) */
+/* Idle: hollow mark + unfilled surface. The radius stopped carrying this cue
+   when the pills squared off (design v2); the ○ mark is now the whole non-color
+   signal, which is why it may not be dropped. */
 .now-status-idle {
   color: var(--text-muted);
   background: var(--bg-card);
@@ -2991,7 +3107,7 @@ body.mc-fullscreen .top-tabs-row {
   font-weight: var(--mc-chrome-meta-weight);
   letter-spacing: 0.02em;
   padding: 3px var(--mc-space-md);
-  border-radius: var(--mc-radius-pill);
+  border-radius: var(--mc-radius-chrome);
   color: var(--blue);
   background: var(--blue-bg);
   text-transform: uppercase;
@@ -3922,6 +4038,61 @@ function setDashboardSkin(skin) {
   return false;
 }
 
+// ===== Crew Monitor row density (compact | comfortable; local preference) =====
+const MONITOR_DENSITY_KEY = 'agent-kit:monitor-density';
+const MONITOR_DENSITIES = ['compact', 'comfortable'];
+/** Comfortable needs horizontal room for a two-line label to be worth the height. */
+const MONITOR_DENSITY_COMFORTABLE_MIN_WIDTH = 900;
+
+function normalizeMonitorDensity(density) {
+  return MONITOR_DENSITIES.includes(density) ? density : null;
+}
+
+/** Viewport auto-pick, used only when the operator stored no preference. */
+function autoMonitorDensity() {
+  return (window.innerWidth || 0) >= MONITOR_DENSITY_COMFORTABLE_MIN_WIDTH
+    ? 'comfortable'
+    : 'compact';
+}
+
+function getStoredMonitorDensity() {
+  try {
+    return normalizeMonitorDensity(localStorage.getItem(MONITOR_DENSITY_KEY));
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Current mode from the root attribute (set pre-paint), else the auto-pick. */
+function currentMonitorDensity() {
+  return (
+    normalizeMonitorDensity(document.documentElement.getAttribute('data-monitor-density')) ||
+    getStoredMonitorDensity() ||
+    autoMonitorDensity()
+  );
+}
+
+/** Apply density via root data attribute; an explicit choice persists and wins. */
+function applyMonitorDensity(density, opts) {
+  const next = normalizeMonitorDensity(density) || autoMonitorDensity();
+  document.documentElement.setAttribute('data-monitor-density', next);
+  document.querySelectorAll('[data-monitor-density-toggle]').forEach((el) => {
+    el.setAttribute('aria-pressed', next === 'comfortable' ? 'true' : 'false');
+    el.textContent = next === 'comfortable' ? 'Comfortable' : 'Compact';
+  });
+  if (!opts || opts.persist !== false) {
+    try {
+      localStorage.setItem(MONITOR_DENSITY_KEY, next);
+    } catch (e) { /* private mode / blocked storage */ }
+  }
+  return next;
+}
+
+function toggleMonitorDensity() {
+  applyMonitorDensity(currentMonitorDensity() === 'comfortable' ? 'compact' : 'comfortable');
+  return false;
+}
+
 // ===== More-sections dropdown =====
 function isNavMoreOpen() {
   const menu = document.getElementById('navMoreMenu');
@@ -4190,11 +4361,15 @@ function semanticEventInfo(kind, commitType) {
     // Monitor live kinds: distinct resting color+icon (no kind-tag text, no left rail).
     // run_plan follows .now-status-executing green; delivery uses cyan to avoid green wash.
     // Gloss strings are default software lexicon display masks (kind ids unchanged).
-    run_plan:      { icon: '\u25b6', tag: 'tick',     gloss: 'Tech Lead - live execution',  color: 'var(--green)',  bg: 'var(--green-bg)' },
-    handoff:       { icon: '\u23f8', tag: 'handoff',  gloss: 'Scrum Master - awaiting gate', color: 'var(--yellow)', bg: 'var(--yellow-bg)' },
-    agent_step:    { icon: '\u25c9', tag: 'step',     gloss: 'Full-Stack Developer - task unit',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
+    run_plan:      { icon: '\u25b6', tag: 'tick',     gloss: 'Project Manager - live execution',  color: 'var(--green)',  bg: 'var(--green-bg)' },
+    handoff:       { icon: '\u23f8', tag: 'handoff',  gloss: 'Project Manager - awaiting gate', color: 'var(--yellow)', bg: 'var(--yellow-bg)' },
+    agent_step:    { icon: '\u25c9', tag: 'step',     gloss: 'Developer - task unit',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
     plan_progress: { icon: '\u2691', tag: 'plan',     gloss: 'Product Owner - milestone',        color: 'var(--orange)', bg: 'var(--orange-bg)' },
-    delivery:      { icon: '\u2714', tag: 'delivery', gloss: 'DevOps Engineer - shipped unit', color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
+    delivery:      { icon: '\u2714', tag: 'delivery', gloss: 'DevOps - merged unit', color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
+    // Live Task-worker lifecycle (running / done / failed) and background
+    // mid-batch review pointers. Both added 2026-08-05; kind ids are additive.
+    subagent:      { icon: '\u25cc', tag: 'subagent', gloss: 'Developer - subagent run',   color: 'var(--blue)',   bg: 'var(--blue-bg)' },
+    plan_review:   { icon: '\u2611', tag: 'review',   gloss: 'QA - review evidence', color: 'var(--orange)', bg: 'var(--orange-bg)' },
     commit:        { icon: '\u25cf', tag: 'commit',   gloss: 'commit',  color: 'var(--orange)', bg: 'var(--orange-bg)' },
     agent:         { icon: '\u25c6', tag: 'agent',    gloss: 'agent',   color: 'var(--purple)', bg: 'var(--purple-bg)' },
     skill:         { icon: '\u2726', tag: 'skill',    gloss: 'skill',   color: 'var(--orange)', bg: 'var(--orange-bg)' },
@@ -4206,12 +4381,12 @@ function semanticEventInfo(kind, commitType) {
   // Locked BMP map (hotfix 2026-07-27): feat✦ fix⚙ docs✎ chore⚒ pr⑂ ship✈
   if (kind === 'delivery' && commitType) {
     const subtypes = {
-      feat:  { icon: '\u2726', tag: 'delivery', gloss: 'DevOps Engineer - feat',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
-      fix:   { icon: '\u2699', tag: 'delivery', gloss: 'DevOps Engineer - fix',   color: 'var(--red)',    bg: 'var(--red-bg)' },
-      docs:  { icon: '\u270e', tag: 'delivery', gloss: 'DevOps Engineer - docs',  color: 'var(--blue)',   bg: 'var(--blue-bg)' },
-      chore: { icon: '\u2692', tag: 'delivery', gloss: 'DevOps Engineer - chore', color: 'var(--orange)', bg: 'var(--orange-bg)' },
-      pr:    { icon: '\u2442', tag: 'delivery', gloss: 'DevOps Engineer - PR',    color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
-      ship:  { icon: '\u2708', tag: 'delivery', gloss: 'DevOps Engineer - shipped unit', color: 'var(--cyan)', bg: 'var(--cyan-bg)' },
+      feat:  { icon: '\u2726', tag: 'delivery', gloss: 'DevOps - feat',  color: 'var(--purple)', bg: 'var(--purple-bg)' },
+      fix:   { icon: '\u2699', tag: 'delivery', gloss: 'DevOps - fix',   color: 'var(--red)',    bg: 'var(--red-bg)' },
+      docs:  { icon: '\u270e', tag: 'delivery', gloss: 'DevOps - docs',  color: 'var(--blue)',   bg: 'var(--blue-bg)' },
+      chore: { icon: '\u2692', tag: 'delivery', gloss: 'DevOps - chore', color: 'var(--orange)', bg: 'var(--orange-bg)' },
+      pr:    { icon: '\u2442', tag: 'delivery', gloss: 'DevOps - PR',    color: 'var(--cyan)',   bg: 'var(--cyan-bg)' },
+      ship:  { icon: '\u2708', tag: 'delivery', gloss: 'DevOps - merged unit', color: 'var(--cyan)', bg: 'var(--cyan-bg)' },
     };
     if (subtypes[commitType]) return subtypes[commitType];
   }
@@ -4220,7 +4395,7 @@ function semanticEventInfo(kind, commitType) {
 
 /** Monitor hero allowlist (curated subset). Inventory kinds stay on the full stream. */
 const MONITOR_ACTIVITY_KINDS = new Set([
-  'run_plan', 'handoff', 'delivery', 'agent_step',
+  'run_plan', 'handoff', 'delivery', 'agent_step', 'subagent', 'plan_review',
 ]);
 /**
  * Crew Monitor display cap from missionControl.monitorFeedCap
@@ -4415,15 +4590,165 @@ function crewEventTime(ev, info) {
 }
 
 /**
- * Crew feed actor: kit agent id, else Engineering Manager for delivery, else
- * Squad when a plan is present (never the full plan filename), else Platform
- * Engineer. Default software lexicon masks; mirrors briefActivityActor.
+ * Crew feed actor — WIRE value, not display. Kit agent id, else Eng for
+ * delivery, else SQ when a plan is present (never the full plan filename),
+ * else Eng. Mirrors briefActivityActor() in dashboard/lib/semantic-model.mjs;
+ * the two must not drift, which is why the masks below live in a separate
+ * layer instead of being folded in here.
+ *
+ * `Eng` still collides between the delivery and system fallbacks on the wire.
+ * The row no longer leaves it ambiguous: crewActorRole() splits it by kind.
+ * Used directly only as the aria-label fallback when a row has no label.
  */
 function crewEventActor(ev) {
   if (ev && ev.agent) return String(ev.agent);
-  if (ev && ev.kind === 'delivery') return 'Engineering Manager';
-  if (ev && ev.refs && ev.refs.plan) return 'Squad';
-  return 'Platform Engineer';
+  if (ev && ev.kind === 'delivery') return 'Eng';
+  if (ev && ev.refs && ev.refs.plan) return 'SQ';
+  return 'Eng';
+}
+
+/**
+ * Operator lexicon (design v2, 2026-08-05): wire actor -> display role.
+ * Display only. The wire format is frozen — `labelFull` keeps the raw seg0
+ * (`Eng`, `docs-repo`, …) and the collectors emit exactly what they emitted
+ * before, so nothing here is a backend change.
+ */
+const CREW_ACTOR_MASK = {
+  'docs-repo': 'Tech Writer',
+  explore: 'Product Analyst',
+  generalPurpose: 'Analyst',
+  SQ: 'Scrum Master',
+  Dev: 'Developer',
+  QA: 'QA',
+  PO: 'Product Owner',
+  PM: 'Project Manager',
+};
+
+/**
+ * The `Eng` split. The lexicon maps two different roles onto the same wire
+ * token, and six consecutive `Eng · merged` rows were the single worst thing in
+ * the shipped feed. `kind` already carries the distinction, so no new wire
+ * field is needed (ACCEPTANCE.md delta B): a delivery row's `Eng` is the
+ * Platform Engineer, every other `Eng` is the Engineering Manager.
+ */
+function crewActorEngRole(ev) {
+  return ev && ev.kind === 'delivery' ? 'DevOps' : 'Tech Lead';
+}
+
+/**
+ * Display role for a Crew row. Resolution order (design contract):
+ * per-event `ev.role` -> mask -> raw token. `ev.role` is optional and nothing
+ * renders from it today; it is honoured so a collector can override the split
+ * later without another dashboard change.
+ * @param {object} ev
+ * @param {string} raw seg0 of the row label (falls back to crewEventActor)
+ */
+function crewActorRole(ev, raw) {
+  if (ev && ev.role) return String(ev.role);
+  const token = String(raw || crewEventActor(ev) || '').trim();
+  if (token === 'Eng') return crewActorEngRole(ev);
+  return CREW_ACTOR_MASK[token] || token;
+}
+
+/**
+ * Badge monogram for a display role. First letter of the first two words,
+ * single word -> first two chars. Two explicit overrides: Developer and DevOps
+ * both start `D`+`e`/`DV`-shaped and would otherwise collide on `DE`.
+ * Distinct from agentInitials(), which monograms a kebab-case agent id for the
+ * Agents card; this one monograms a spaced display role.
+ */
+function crewActorInitials(role) {
+  const special = { Developer: 'DV', DevOps: 'DO' };
+  if (special[role]) return special[role];
+  const words = String(role || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/**
+ * Verb state icons. The design specified Feather geometry on a viewBox-24 grid;
+ * these are the same shapes redrawn on the dashboard's own viewBox-16 grid, so
+ * the file keeps ONE icon geometry (spaceIconSvg, nowMetaIconSvg and the header
+ * refresh control are all 16). Importing a second grid for six row marks would
+ * have split the icon system for no legibility gain.
+ *
+ * They are row state marks, not chrome: they render at 12px inside a text
+ * column, so the CSS overrides stroke-width to 1.6 — the 16-grid equivalent of
+ * the design's 2.4-on-24 optical compensation, since 1.5 at 12px renders
+ * lighter than 1.5 at the chrome set's 16px.
+ * Static markup only — the verb is a map key, never concatenated into the SVG.
+ */
+const CREW_VERB_ICON_PATHS = {
+  play: '<polygon points="3.5 2.5 12.5 8 3.5 13.5"/>',
+  pause: '<line x1="6" y1="3.5" x2="6" y2="12.5"/><line x1="10" y1="3.5" x2="10" y2="12.5"/>',
+  check: '<polyline points="13.5 4 6 11.5 2.5 8"/>',
+  x: '<line x1="12" y1="4" x2="4" y2="12"/><line x1="4" y1="4" x2="12" y2="12"/>',
+  'git-merge': '<circle cx="12" cy="12" r="2"/><circle cx="4" cy="4" r="2"/><path d="M4 14V6a6 6 0 0 0 6 6"/>',
+  'circle-slash': '<circle cx="8" cy="8" r="6.5"/><line x1="3.4" y1="3.4" x2="12.6" y2="12.6"/>',
+  info: '<circle cx="8" cy="8" r="6.5"/><line x1="8" y1="11" x2="8" y2="8"/><line x1="8" y1="5" x2="8.01" y2="5"/>',
+  flag: '<path d="M2.7 10s.7-.7 2.7-.7 3.3 1.3 5.3 1.3 2.7-.7 2.7-.7V2s-.7.7-2.7.7-3.3-1.3-5.3-1.3-2.7.7-2.7.7z"/><line x1="2.7" y1="14.7" x2="2.7" y2="10"/>',
+};
+
+/** Verb -> state icon. Replaces the 6px state dot (design v2). */
+const CREW_VERB_ICON = {
+  running: 'play',
+  awaiting: 'pause',
+  done: 'check',
+  failed: 'x',
+  merged: 'git-merge',
+  parked: 'circle-slash',
+};
+
+/** Decorative row icon; unknown verbs fall back to `info` rather than nothing. */
+function crewRowIconSvg(name, className) {
+  const paths = CREW_VERB_ICON_PATHS[name] || CREW_VERB_ICON_PATHS.info;
+  return `<svg class="${className}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
+/**
+ * Split a Crew row label into the v2 column contract.
+ * Refs (PR, SHA, worker id, plan) leave the flexible text so they can render as
+ * fixed-content chips that hide whole instead of ellipsising. Everything left
+ * over joins the primary field — the row's only wide, only ellipsising column.
+ * Plan detection prefers `refs.plan` over sniffing the rendered string, since
+ * the string is capped at MAX_SEMANTIC_LABEL upstream and may not carry it.
+ */
+function parseCrewRow(ev) {
+  const segs = String((ev && ev.label) || '').split(' · ');
+  const planRef = ev && ev.refs && ev.refs.plan ? String(ev.refs.plan) : '';
+  const planBase = planRef.replace(/\.plan\.md$/i, '');
+  const out = {
+    actor: segs[0] || '',
+    verb: segs[1] || '',
+    mids: [],
+    pr: null,
+    sha: null,
+    worker: null,
+    plan: planRef || null,
+  };
+  for (let i = 2; i < segs.length; i++) {
+    const seg = segs[i];
+    if (/\.plan\.md$/i.test(seg) || (planRef && (seg === planRef || seg === planBase))) {
+      out.plan = out.plan || seg;
+      continue;
+    }
+    if (/^PR #\d+/.test(seg)) {
+      out.pr = seg.replace(/^PR /, '');
+      continue;
+    }
+    if (/^[0-9a-f]{7,8}$/.test(seg)) {
+      // A subagent's trailing hex is a worker id, not a commit — same shape,
+      // different meaning, and only the SHA chip is droppable at ≤560px.
+      if (ev && ev.kind === 'subagent') out.worker = seg;
+      else out.sha = seg;
+      continue;
+    }
+    out.mids.push(seg);
+  }
+  // A row with no mid segments still needs something in its wide column.
+  out.primary = out.mids.join(' · ') || planBase || out.verb;
+  return out;
 }
 
 /** Avatar-style monogram: first letters of the first two kebab/space parts, else first two chars. */
@@ -5164,10 +5489,15 @@ const CONFIG_PERSONA_MODES = [
 ];
 
 function personaOptionHtml(selected) {
-  return CONFIG_PERSONA_OPTIONS.map((id) => {
-    const sel = id === selected ? ' selected' : '';
-    return `<option value="${escapeAttr(id)}"${sel}>${escapeHtml(id)}</option>`;
-  }).join('');
+  const inheritSel = selected === '' ? ' selected' : '';
+  const inherit = `<option value=""${inheritSel}>Inherit default</option>`;
+  return (
+    inherit +
+    CONFIG_PERSONA_OPTIONS.map((id) => {
+      const sel = id === selected ? ' selected' : '';
+      return `<option value="${escapeAttr(id)}"${sel}>${escapeHtml(id)}</option>`;
+    }).join('')
+  );
 }
 
 function renderConfigSection(d) {
@@ -5201,7 +5531,7 @@ function renderConfigSection(d) {
       <div class="config-row">
         <label for="config-persona-${escapeAttr(mode.id)}">${escapeHtml(mode.label)} persona</label>
         <select id="config-persona-${escapeAttr(mode.id)}" name="personaMode:${escapeAttr(mode.id)}" data-focus-key="config-persona-${escapeAttr(mode.id)}">
-          ${personaOptionHtml(current || (ap.default || 'autopilot'))}
+          ${personaOptionHtml(current)}
         </select>
       </div>`;
   }).join('');
@@ -5361,7 +5691,9 @@ function collectMissionConfigPayload() {
   };
   for (const mode of CONFIG_PERSONA_MODES) {
     const el = document.getElementById(`config-persona-${mode.id}`);
-    if (el && el.value) payload.agentPersona.modes[mode.id] = el.value;
+    if (!el) continue;
+    // Empty = Inherit default: send null so merge deletes a stored override.
+    payload.agentPersona.modes[mode.id] = el.value ? el.value : null;
   }
   return payload;
 }
@@ -5452,7 +5784,7 @@ const HEALTH_CHECK_META = {
   handoff: {
     okDetail: 'HANDOFF.md is present and parseable (idle Plan is still healthy).',
     failDetail: 'HANDOFF.md is missing or not parseable.',
-    autofix: { text: '/continue-plan', subject: '/continue-plan', destination: 'chatInput', label: 'Autofix' },
+    autofix: { text: '/handoff', subject: '/handoff', destination: 'chatInput', label: 'Autofix' },
   },
   agents: {
     okDetail: 'Agents are optional in L0; empty .cursor/agents/ is healthy. Cataloged agents (if any) are listed in Agents.',
@@ -5468,12 +5800,13 @@ const HEALTH_CHECK_META = {
   memory: {
     okDetail: 'Memory has recorded errors and/or decisions.',
     failDetail: 'Memory index has no errors or decisions yet (optional until first WRITE).',
-    autofix: { text: '/agent-kit-onboard', subject: '/agent-kit-onboard', destination: 'chatInput', label: 'Autofix' },
+    autofix: { text: '.cursor/memory/', subject: 'path .cursor/memory/', destination: 'filePicker', label: 'Copy path' },
   },
   git: {
     okDetail: 'Git branch signal is available.',
     failDetail: 'Git repository signal missing (no branch).',
-    autofix: { text: 'git status', subject: 'git status', destination: 'terminal', label: 'Autofix' },
+    // Covers not-a-repo and git-init-but-zero-commits (rev-parse HEAD fails until first commit).
+    autofix: { text: 'git init && git commit --allow-empty -m "init"', subject: 'git init && git commit --allow-empty -m "init"', destination: 'terminal', label: 'Autofix' },
   },
   config: {
     okDetail: 'Workspace config is loaded.',
@@ -5491,23 +5824,28 @@ const HEALTH_VITAL_GROUPS = [
 ];
 
 function healthCheckSeverity(check, aggregateStatus) {
+  // Per-check levels are ok | warning | degraded only. Aggregate snapshot/serve
+  // `error` is empty-checks (presence + empty state); producers never emit
+  // status:error with checks present, so do not invent a per-check error sev.
   if (check && check.ok) return 'ok';
   if (aggregateStatus === 'degraded') return 'degraded';
-  if (aggregateStatus === 'error') return 'error';
   return 'warning';
 }
 
-/* Single severity chrome mapping (ok | warning | degraded | error): tone drives
-   the dot class, label drives text/aria, token names the [data-sev] CSS color. */
+/* Severity chrome: per-check uses ok | warning | degraded; aggregate `error`
+   remains for snapshot/serve presence only (empty checks). Tone drives the dot
+   class; label drives text/aria. Per-check [data-sev] CSS matches the severity
+   key written on the element, not a chrome field. Aggregate error has no
+   per-check CSS (producers never emit error+checks). */
 const HEALTH_SEVERITY_CHROME = {
-  ok: { tone: 'green', label: 'ok', token: 'green' },
-  warning: { tone: 'yellow', label: 'warn', token: 'yellow' },
-  degraded: { tone: 'orange', label: 'degraded', token: 'orange' },
-  error: { tone: 'red', label: 'error', token: 'red' },
+  ok: { tone: 'green', label: 'ok' },
+  warning: { tone: 'yellow', label: 'warn' },
+  degraded: { tone: 'orange', label: 'degraded' },
+  error: { tone: 'red', label: 'error' },
 };
 
 function healthSeverityChrome(sev) {
-  return HEALTH_SEVERITY_CHROME[sev] || { tone: 'gray', label: sev || 'unknown', token: 'text-muted' };
+  return HEALTH_SEVERITY_CHROME[sev] || { tone: 'gray', label: sev || 'unknown' };
 }
 
 function healthSeverityLabel(sev) {
@@ -5524,13 +5862,6 @@ function toggleHealthCheck(checkId) {
   const open = card.classList.toggle('is-expanded');
   const btn = card.querySelector('.health-item');
   if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function healthCheckKeydown(event, checkId) {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault();
-    toggleHealthCheck(checkId);
-  }
 }
 
 // ===== Memory tab: interactive error rows (expand + copy fix prompt) =====
@@ -5582,19 +5913,6 @@ function renderMemoryErrorRow(entry, idx) {
       </div>
     </div>
   `;
-}
-
-/** @deprecated Prefer toggleHealthCheck; kept for any leftover callers. */
-function showHealthInfo(el, ok) {
-  const parent = el.parentElement;
-  const existing = parent.querySelector('.health-message');
-  if (existing) { existing.remove(); return; }
-  const msg = document.createElement('div');
-  msg.className = 'health-message';
-  msg.textContent = ok
-    ? 'All good: no action needed.'
-    : 'Check may indicate an issue. Review the relevant logs or configuration.';
-  parent.appendChild(msg);
 }
 
 // ===== Get connection uptime (Phase 2) =====
@@ -7438,8 +7756,9 @@ function renderUnsafe() {
           <div class="live-activity-header">
             <span class="card-title">${spaceIconSvg('monitor')}Crew Monitor</span>
             <span class="section-subtitle" style="margin-left:auto">${feedEvents.length} shown</span>
+            <button type="button" class="git-action-btn monitor-density-btn" data-monitor-density-toggle data-focus-key="monitor-density-toggle" aria-pressed="${currentMonitorDensity() === 'comfortable' ? 'true' : 'false'}" title="Toggle Crew Monitor row density (compact single-line rows vs comfortable two-line rows)" onclick="toggleMonitorDensity()">${currentMonitorDensity() === 'comfortable' ? 'Comfortable' : 'Compact'}</button>
           </div>
-          <div class="live-activity-feed">
+          <div class="live-activity-feed monitor-cq">
             ${feedEvents.length === 0
               ? renderEmptyStateCta({
                   headline: 'Listening',
@@ -7453,42 +7772,56 @@ function renderUnsafe() {
                   const info = semanticEventInfo(ev.kind, ev.refs?.commitType);
                   const gloss = info.gloss || info.tag || ev.kind || 'event';
                   const staggerIdx = Math.min(idx, 5);
-                  const actor = crewEventActor(ev);
-                  const initials = agentInitials(actor);
+                  const row = parseCrewRow(ev);
+                  const role = crewActorRole(ev, row.actor);
+                  const rawActor = row.actor || crewEventActor(ev);
                   const actionAttrs = activityTargetAttributes(ev, 'monitor-activity', { kindGloss: gloss });
                   const rowA11y = actionAttrs
                     ? actionAttrs
-                    : ` aria-label="${escapeAttr(`${gloss}: ${ev.label || ''}`)}"`;
-                  // Structured label spans: actor + verb stay fixed; later segments
-                  // shrink, and the low-signal plan filename ellipsises first.
-                  // Prefer refs.plan over sniffing the rendered string (truncation-safe).
-                  const planRef = ev.refs && ev.refs.plan ? String(ev.refs.plan) : '';
-                  const planBase = planRef.replace(/\.plan\.md$/i, '');
-                  const feedSegs = String(ev.label || '').split(' · ');
-                  const feedLabelHtml = feedSegs
-                    .map((seg, i) => {
-                      const isPlanSeg = Boolean(planRef) && (
-                        seg === planRef ||
-                        seg === planBase ||
-                        /\.plan\.md/i.test(seg)
-                      );
-                      const cls = i === 0
-                        ? 'feed-seg feed-seg-actor'
-                        : i === 1
-                          ? 'feed-seg feed-seg-verb'
-                          : isPlanSeg
-                            ? 'feed-seg feed-seg-plan'
-                            : 'feed-seg feed-seg-mid';
-                      return `<span class="${cls}">${escapeHtml(seg)}</span>`;
-                    })
-                    .join('<span class="feed-sep" aria-hidden="true"> · </span>');
-                  const feedTitle = ev.labelFull || ev.label || '';
+                    : ` aria-label="${escapeAttr(`${gloss}: ${ev.label || role}`)}"`;
+                  // Row order (design v2, 2026-08-05): team badge, actor, verb,
+                  // primary, ref chips, time. The kind glyph is gone — its colour
+                  // moved onto the badge and its meaning onto the badge tooltip, so
+                  // nothing composes a glyph into the text and a flat single-segment
+                  // label cannot misplace one. `info.bg` tints the badge; that is the
+                  // only place a Crew row carries it.
+                  const badgeHtml = `<span class="monitor-row-badge" style="background:${info.bg};color:${info.color}" title="${escapeAttr(gloss)}" aria-hidden="true">${escapeHtml(crewActorInitials(role))}</span>`;
+                  // Actor tooltip keeps the wire token next to the mask, so an
+                  // operator reading `Tech Lead` can still see it came from `Eng`.
+                  const actorHtml = `<span class="monitor-row-actor" title="${escapeAttr(`${role} (${rawActor})`)}">${escapeHtml(role)}</span>`;
+                  const verbIcon = crewRowIconSvg(CREW_VERB_ICON[row.verb] || 'info', 'monitor-row-verb-icon');
+                  const verbHtml = row.verb
+                    ? `<span class="monitor-row-verb v-${escapeAttr(row.verb)}" title="${escapeAttr(row.verb)}">${verbIcon}<em>${escapeHtml(row.verb)}</em></span>`
+                    : '';
+                  // Ref chips: fixed content, dropped whole by the @container
+                  // ladder. Never ellipsised — half a SHA is worse than no SHA.
+                  const refsHtml = [
+                    row.pr ? `<span class="monitor-row-ref ref-pr">${escapeHtml(row.pr)}</span>` : '',
+                    row.sha ? `<span class="monitor-row-ref ref-sha">${escapeHtml(row.sha)}</span>` : '',
+                    row.worker ? `<span class="monitor-row-ref ref-worker" title="worker id">${escapeHtml(row.worker)}</span>` : '',
+                    row.plan
+                      ? `<span class="monitor-row-plan" title="${escapeAttr(row.plan)}">${crewRowIconSvg('flag', 'monitor-row-plan-flag')}<span class="monitor-row-plan-name">${escapeHtml(row.plan.replace(/\.plan\.md$/i, ''))}</span></span>`
+                      : '',
+                  ].join('');
+                  // labelFull (+ sourcePath) must be reachable in every layout:
+                  // display `label` is capped at MAX_SEMANTIC_LABEL upstream, so
+                  // no layout is a substitute for it. It rides on .monitor-row-
+                  // primary rather than the row, because an actionable row's own
+                  // title is already spoken for by activityTargetAttributes
+                  // (the copy-path/copy-sha affordance) and a second title
+                  // attribute on the same element is silently dropped. Primary is
+                  // also the only field that ellipsises, so the full text sits on
+                  // exactly the element whose text is cut.
+                  const feedTitle = (ev.labelFull || ev.label || '') + (ev.sourcePath ? `\n${ev.sourcePath}` : '');
+                  const rowTitle = actionAttrs ? '' : ` title="${escapeAttr(feedTitle)}"`;
                   return `
-                    <div class="monitor-row stagger-fade stagger-${staggerIdx}"${rowA11y}>
-                      <span class="monitor-row-avatar" title="${escapeAttr(actor)}" aria-hidden="true">${escapeHtml(initials)}</span>
-                      <span class="monitor-row-chip" style="background:${info.bg};color:${info.color}" title="${escapeAttr(gloss)}" aria-hidden="true"><span class="monitor-row-icon">${info.icon}</span></span>
-                      <span class="feed-label" title="${escapeAttr(feedTitle)}">${feedLabelHtml}</span>
-                      <span class="feed-time">${crewEventTime(ev, info)}</span>
+                    <div class="monitor-row stagger-fade stagger-${staggerIdx}"${rowA11y}${rowTitle}>
+                      ${badgeHtml}
+                      ${actorHtml}
+                      ${verbHtml}
+                      <span class="monitor-row-primary" title="${escapeAttr(feedTitle)}">${escapeHtml(row.primary)}</span>
+                      <span class="monitor-row-meta">${refsHtml}</span>
+                      <span class="monitor-row-time">${crewEventTime(ev, info)}</span>
                     </div>`;
                 }).join('')}
           </div>
@@ -7698,7 +8031,7 @@ function renderUnsafe() {
         : `${fixBtn}${autofixBtn}`;
       return `
       <div class="health-card" role="listitem" id="health-card-${escapeAttr(id)}" data-check-id="${escapeAttr(id)}" data-severity="${escapeAttr(sev)}">
-        <button type="button" class="health-item" aria-expanded="false" aria-controls="health-detail-${escapeAttr(id)}" aria-label="${escapeAttr(c.label)}: ${escapeAttr(healthSeverityLabel(sev))}" onclick="toggleHealthCheck('${escapeJsString(id)}')" onkeydown="healthCheckKeydown(event, '${escapeJsString(id)}')">
+        <button type="button" class="health-item" aria-expanded="false" aria-controls="health-detail-${escapeAttr(id)}" aria-label="${escapeAttr(c.label)}: ${escapeAttr(healthSeverityLabel(sev))}" onclick="toggleHealthCheck('${escapeJsString(id)}')">
           <span class="dot ${healthDotClass(sev)}"></span>
           <span class="health-item-label">${escapeHtml(c.label)}</span>
           <span class="health-item-sev" data-sev="${escapeAttr(sev)}">${escapeHtml(healthSeverityLabel(sev))}</span>

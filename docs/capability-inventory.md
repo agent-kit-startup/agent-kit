@@ -1,14 +1,16 @@
 # Capability inventory
 
-Agent Kit capability catalog grouped by surface family. Lists every shipped capability with one line per item.
+Agent Kit capability catalog grouped by surface family. Lists every shipped capability with one line per item. Storefront positioning uses **Mission Kit** on [missionkit.io](https://missionkit.io); technical identifiers remain Agent Kit (naming ADR `2026-08-06_mission-kit-vs-agent-kit-naming`).
 
-**Status (2026-07-31):** Capability counts verified against the working tree on private `staging` @ `7e5315d` (package floor `4.8.4`). Normative intent lives in commands/rules/CLI; this catalog is **derived documentation** and is not proof of runtime behavior. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md`.
+**Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts: 27 commands, 25 rules, 13 agents, 9 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Positioning table below lists **25 unique paths / 89 literal rows** (see §Positioning surfaces) and is an open enumeration (not a closed surface census); the npm storefront `packages/cli/README.md` is a required surface.
+Real counts (verified against private staging @ 7fdb03c): **28** slash commands under `.cursor/commands/` (**27** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 13 agents, 9 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling.
 
 ---
 
-## Slash commands (.cursor/commands/ - 27)
+## Slash commands (.cursor/commands/ - 28)
+
+Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **27** syncable commands (excluding `/public-issue-triage`). The on-disk factory tree has **28** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`.
 
 - `/start-project` - Plan creation with two-gate HITL (broad intake, write confirm, optional Gate B start unit)
 - `/backlog-add` - Enqueue plan under HANDOFF Backlog without activation
@@ -37,6 +39,7 @@ Real counts: 27 commands, 25 rules, 13 agents, 9 skills, 5 Cursor hooks, 18 CLI 
 - `/archive-plan` - Move parked plan to archive with status update
 - `/context-status` - Context window and memory status report
 - `/dogfood` - File a private dogfood note into the factory or consumer inbox
+- `/public-issue-triage` - Factory-only maintainer triage for the public GitHub issues inbox (HITL; not L0 / not public-sync)
 
 ---
 
@@ -310,79 +313,71 @@ Hash-based content preservation system introduced in [Unreleased]. Managed-conte
 
 Enumerated identity literals and publication routes from `scripts/public-sync.manifest`. This table is a working inventory, not a completeness proof. Do not treat row count as an authority for product positioning; re-validate literals against the files and the published npm/public lanes (`docs/evidence/guidance-claim-matrix.md`).
 
-| Path | Line | Current literal text | Publication route |
-|------|------|---------------------|------------------|
-| `README.md` | 5 | Turn your AI coding agent into one that runs the whole workflow: plan it, build it, ship it, and remember it across long projects. | allowlist-synced (line 20) |
-| `README.md` | 7 | Long AI coding sessions fall apart when the context window fills up. Agent Kit fixes this with a small operating layer that handles planning, handoff between chats, and structured git flow. The agent builds against a checkable plan and writes down where it stopped so any fresh chat picks up exactly where the last one left off. | allowlist-synced (line 20) |
-| `README.md` | 11 | No more lost context. The agent keeps a short state file; new chat, one command, and it's caught up. | allowlist-synced (line 20) |
-| `README.md` | 12 | Work against real plans. To-dos you can watch tick off, not vibes. Confirmations stay human-in-the-loop (Ask questions), not unchecked autonomy. | allowlist-synced (line 20) |
-| `README.md` | 13 | Built-in DevOps discipline. Staging-first git flow prevents history chaos. | allowlist-synced (line 20) |
-| `README.md` | 14 | Production needs confirmation. Agent can push to staging alone; promoting to `main` always asks first. | allowlist-synced (line 20) |
-| `README.md` | 15 | Operational learning, not model training. Memory and optional external review keep findings durable across chats; they do not retrain the model. | allowlist-synced (line 20) |
-| `README.md` | 16 | Clean history everywhere. Commits and docs describe the software, not chat chatter. | allowlist-synced (line 20) |
-| `README.md` | 22 | Plans + HITL gates, `/start-project` Broad Intake, then two gates (write plan, then first unit). Confirmations use Ask questions (clickable options; chat fallback when the tool is unavailable). | allowlist-synced (line 20) |
-| `README.md` | 23 | Phase handoff, `.cursor/HANDOFF.md` plus Context Guardian and native hooks (`sessionStart` / `preCompact`) so a fresh chat resumes without re-briefing. Local workspace state; not a hosted sync plane. | allowlist-synced (line 20) |
-| `README.md` | 24 | Manual or continuous run, `/continue-plan` (one phase per chat) or `/run-plan` … `/run-plan-all` queues multiple plans sequentially. Plan/queue orchestration, not a general graph runtime. | allowlist-synced (line 20) |
-| `README.md` | 25 | Staging → prod git, `/git-staging` for automatic promote to `origin/staging`; `/git-prod` only after explicit confirmation. Direct commits to `main` are blocked. | allowlist-synced (line 20) |
-| `README.md` | 26 | Memory loop, Resolved errors and tradeoff decisions in `.cursor/memory/` so the next chat can reuse them. | allowlist-synced (line 20) |
-| `README.md` | 27 | Repository readiness, Install scans the repo, applies safe local fixes, and writes a readiness snapshot. `/agent-kit-onboard` resolves remaining decisions one at a time before `/start-project`. | allowlist-synced (line 20) |
-| `README.md` | 28 | Agent Personas, Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Configure after readiness or set `agentPersona` in `.cursor/context/config.json`. Never changes commits, HANDOFF, memory, or product docs. | allowlist-synced (line 20) |
-| `README.md` | 29 | Optional external plan review, After a plan is exhausted, arm Claude Code for a gap monitor; triage with `/plan-review-triage`. Opt-in via config. Findings-only by default (no silent product auto-fix). | allowlist-synced (line 20) |
-| `README.md` | 30 | Skills + domain packs, Registry skills and optional L1 packs (clean code, context tools, and more). Install/update via CLI; contribute upstream with `agent-kit contribute`. | allowlist-synced (line 20) |
-| `README.md` | 31 | Output hygiene, Chat can be light; commits, docs, HANDOFF, and memory stay professional and inheritable. | allowlist-synced (line 20) |
-| `README.md` | 33 | Production-agent layers (L0) five-layer table + link to `docs/evidence/five-layer-claim-matrix.md` | allowlist-synced (line 20) |
-| `README.md` | 93 | Mission Control is a local panel over the Agent Kit runtime state. … It is a cockpit for one workspace, not a hosted multi-tenant control plane. Actions stay copy-only (clipboard + paste destination). | allowlist-synced (line 20) |
-| `README.md` | 104 | The Cockpit reads as one page in four sections, each reachable from the primary navigation | allowlist-synced (line 20) |
-| `README.md` | 108 | The plan in flight: status, progress, friendly Mode labels, and previous/current/next todo | allowlist-synced (line 20) |
-| `README.md` | 109 | HANDOFF Gaps log (**NOW** / **Earlier**, wipe on new flight; cap 15 within a flight) plus operator Warnings (Quota pause, Heads up); palette-by-type notification chrome (`ok` / `advice` / `prompt` / `residual` / `warning`); clipboard icon; clickable copy text/path; **All clear** when idle | allowlist-synced (line 20) |
-| `README.md` | 110 | What remains: recent plan cards, parked and incomplete plans, and readiness notes | allowlist-synced (line 20) |
-| `README.md` | 111 | Live agent/crew feed: ticks, handoffs, deliveries, and denser `agent_step` rows for active-plan to-dos (cap 20) | allowlist-synced (line 20) |
-| `README.md` | 119 | Docs | allowlist-synced (line 20) |
-| `README.md` | 123 | Install, commands, day-to-day workflow | allowlist-synced (line 20) |
-| `README.md` | 124 | Install discovery, `/agent-kit-onboard`, and deliverable boundary | allowlist-synced (line 20) |
-| `README.md` | 125 | Exactly what lands in your project, and why there's no nested folder | allowlist-synced (line 20) |
-| `README.md` | 126 | How the base install, optional packs, and your local files layer together | allowlist-synced (line 20) |
-| `README.md` | 127 | Optional bundles: clean code, DevOps, testing, and more | allowlist-synced (line 20) |
-| `README.md` | 128 | Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](docs/creating-personas.md)) | allowlist-synced (line 20) |
-| `README.md` | 129 | Opt-in Claude Code monitor after `/run-plan` exhaustion | allowlist-synced (line 20) |
-| `README.md` | 130 | The `.cursor/agent-kit.json` file | allowlist-synced (line 20) |
-| `README.md` | 131 | Working on the kit itself (includes contributor quickstart) | allowlist-synced (line 20) |
-| `README.md` | 132 | Everything else | allowlist-synced (line 20) |
-| `README.md` | 134 | For maintainers | allowlist-synced (line 20) |
-| `README.md` | 136 | Two GitHub repos, one product | allowlist-synced (line 20) |
-| `README.md` | 140 | Factory: CLI, sync tooling, dogfood. Daily flow: `git staging` → `git prod` → allowlist sync. | allowlist-synced (line 20) |
-| `README.md` | 141 | Storefront and **canonical registry** (`registry/**`). Consumers install from here; registry PRs land here. | allowlist-synced (line 20) |
-| `README.md` | 143 | Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manifest, never the whole monorepo. | allowlist-synced (line 20) |
-| `README.md` | 145 | **Three layers:** local scratch (HANDOFF/plans, gitignored) · private Git (factory) · public (storefront + registry SoT). Full cheat sheet: [docs/repository-boundaries.md](docs/repository-boundaries.md#cheat-sheet-three-layers). | allowlist-synced (line 20) |
-| `package.json` | 4 | HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; project-aware setup for Cursor, VS Code, and Windsurf. | allowlist-synced (line 23) |
-| `packages/cli/package.json` | 4 | Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context). | allowlist-synced (packages/** line 39) |
-| `packages/cli/README.md` | 3 | Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, staging-to-prod, memory). It installs local workspace contracts; it is not a hosted control plane or graph workflow runtime. | allowlist-synced (packages/** line 39); npm pack storefront (`prepublishOnly` → `scripts/verify-cli-dashboard-pack.mjs`) |
-| `packages/cli/src/index.ts` | 24 | HITL framework for AI-assisted IDEs | allowlist-synced (packages/** line 39) |
-| `.cursor-plugin/plugin.json` | 5 | HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add. | allowlist-synced (.cursor-plugin/** line 69) |
-| `.cursor-plugin/plugin.json` | 7-13 | ["agents","hitl","handoff","git-staging","context","multi-ide","anti-slop"] | allowlist-synced (.cursor-plugin/** line 69) |
-| `docs/README.md` | 3 | Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates Cursor-first project setup; VS Code and Windsurf get partial generators (parity Low / Minimal per [cursor-native-audit.md](cursor-native-audit.md)). Mechanizable invariants live in the CLI so non-Cursor paths can run the same checks. | allowlist-synced (docs/** line 54) |
-| `docs/getting-started.md` | 3 | Agent Kit keeps your AI coding agent working against a plan and stops you from losing context when a chat gets too long. This guide covers installing it, the commands you get, and how a normal day looks. | allowlist-synced (docs/** line 54) |
-| `docs/CONTRIBUTING.md` | 3 | Agent Kit is a HITL framework for AI-assisted IDEs. Contributions welcome - from skills to CLI features to docs. | allowlist-synced (docs/** line 54) |
-| `docs/github-about.md` | 8 | Human-in-the-loop harness for AI-assisted IDEs - plans, context handoff, memory loop, and staging→prod git workflow with explicit confirmation before production. | allowlist-synced (docs/** line 54) |
-| `docs/github-about.md` | 14 | HITL framework for AI-assisted IDEs: plan → handoff → staging → prod, with a skill registry and opt-in stack packs. | allowlist-synced (docs/** line 54) |
-| `docs/github-about.md` | 20 | Harness human-in-the-loop para IDEs com IA: planos, handoff de contexto, memory loop e fluxo git staging→prod com confirmação explícita antes de produção. | allowlist-synced (docs/** line 54) |
-| `docs/github-about.md` | 25 | `ai-assisted-development` `cursor` `vscode` `windsurf` `developer-tools` `cli` `monorepo` `agent-kit` `prompt-engineering` `skills` `templates` `handoff` `context-management` `human-in-the-loop` | allowlist-synced (docs/** line 54) |
-| `docs/cursor-native-audit.md` | 30 | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop) | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 12 | Para resolver esse e outros problemas, como a falta de um fluxo de DevOps estruturado, conexão segura com ferramentas e versionamento, ao longo de um ano, fui desenvolvendo o *Agent Kit*! | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 17 | É uma camada operacional leve que transforma seu IDE (Cursor, VS Code, etc.) em um framework que gerencia o planejamento, o handoff entre chats e o fluxo de Git / DevOps estruturado para você focar no que importa. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 10 | Se você usa o Cursor ou outro IDE com IA assistida para codar, já deve ter passado pelo clássico problema de ver a IA se perder e alucinar quando o chat fica muito longo e o contexto enche. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 16 | O que é o Agent Kit? | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 19 | O que ele resolve? | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 20 | Onboarding & Setup Inteligente: Ele analisa o seu projeto, descobre o que está faltando e gera regras, comandos e skills personalizados sob medida para a sua stack e padrões de código. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 21 | Sem perda de contexto: Ele mantém o estado do seu projeto vivo. Abriu um chat novo? Um comando e a IA já sabe exatamente onde parou. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 22 | Planos de verdade: "vibecoding" mas nem tanto. A IA trabalha em cima de to-dos reais que você acompanha passo a passo no loop. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 23 | DevOps integrado: Fluxo de Git seguro com staging automático e commits limpos. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 24 | Segurança em produção: A IA pode subir para staging sozinha, mas promover para `main` sempre exige sua confirmação direta. Hooks nativos protegem a IA de fazer isso alucinando. | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 26 | Como usar? | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 30 | `npx @dadado/agent-kit-cli install` | allowlist-synced (docs/** line 54) |
-| `docs/public-launch-announcement.md` | 35 | Depois de instalado, você ganha comandos como `/agent-kit-onboard`, `/start-project` e `/continue-plan` diretamente no chat do seu editor. | allowlist-synced (docs/** line 54) |
-| `install.md` | 1 | Agent Kit - Installation | allowlist-synced (line 32) |
-| `install.md` | 3 | You are the installer. Set up the kit **in the user's project** without copying the entire Agent Kit monorepo into it. | allowlist-synced (line 32) |
+| Path | Anchor | Current literal text | Publication route |
+|------|--------|---------------------|------------------|
+| `README.md` | L5 | Development operations built into Cursor and VS Code. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L7 | Mission Kit 5 is a free (personal and non-commercial) source-available framework under PolyForm Noncommercial for plan, build, review, and … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L9 | Long AI coding sessions fall apart when the context window fills up. The kit fixes this with a small operating layer that handles planning,… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L13 | No more lost context. The agent keeps a short state file; new chat, one command, and it's caught up. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L14 | Work against real plans. To-dos you can watch tick off, not vibes. Autonomy stays optional and gated. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L15 | Built-in DevOps discipline. Staging-first git flow prevents history chaos. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L16 | Production needs confirmation. Agent can push to staging alone; promoting to `main` always asks first. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L17 | Operational learning, not model training. Memory and optional external review keep findings durable across chats; they do not retrain the … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L18 | Clean history everywhere. Commits and docs describe the software, not chat chatter. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L24 | Plans + HITL gates — `/start-project` Broad Intake, then two gates (write plan, then first unit). Confirmations use Ask questions (clickabl… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L25 | Phase handoff — `.cursor/HANDOFF.md` plus Context Guardian and native hooks (`sessionStart` / `preCompact`) so a fresh chat resumes without… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L26 | Manual or continuous run — `/continue-plan` (one phase per chat) or `/run-plan` (runs to the end; picks worker orchestration or in-session … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L27 | Staging → prod git — `/git-staging` for automatic promote to `origin/staging`; `/git-prod` only after explicit confirmation. Direct commits… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L28 | Memory loop — Resolved errors and tradeoff decisions in `.cursor/memory/` so the next chat can reuse them. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L29 | Repository readiness — Install scans the repo, applies safe local fixes, and writes a readiness snapshot. `/agent-kit-onboard` resolves rem… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L30 | Agent Personas — Mode-aware chat/CLI chrome only: Autopilot (`/continue-plan`), Night Shift (`/run-plan`), Ghost Runner (CLI). Configure af… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L31 | Optional external plan review — After a plan is exhausted, arm Claude Code for a gap monitor; triage with `/plan-review-triage`. Opt-in via… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L32 | Skills + domain packs — Registry skills and optional L1 packs (clean code, context tools, and more). Install/update via CLI; contribute ups… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L33 | Output hygiene — Chat can be light; commits, docs, HANDOFF, and memory stay professional and inheritable. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L35 | ### Production-agent layers (L0) | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L95 | Mission Control is a local panel over Agent Kit runtime state. It binds to loopback by default and serves only its own static files. It is … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L109 | Primary sections: Current mission, Flight Log, Checklist, Crew Monitor. More menu: Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, Config… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L119 | [Repository readiness](docs/repository-readiness-onboarding.md) — Install discovery, `/agent-kit-onboard`, and deliverable boundary | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L120 | [Bootstrap](docs/bootstrap.md) — Exactly what lands in your project, and why there's no nested folder | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L121 | [Layers](docs/layers-spec.md) — How the base install, optional packs, and your local files layer together | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L122 | [Domain packs](docs/domain-packs.md) — Optional bundles: clean code, DevOps, testing, and more | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L123 | [Agent Personas](docs/personas-contract.md) — Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](docs/creating-p… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L125 | [Manifest](docs/agent-kit-manifest.md) — The `.cursor/agent-kit.json` file | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L126 | [Contributing](docs/CONTRIBUTING.md) — Working on the kit itself (includes contributor quickstart) | allowlist-synced (`README.md`) |
+| `README.md` | L127 | [Development](docs/DEVELOPMENT.md) — Factory topology, local CLI, and maintainer workflows | allowlist-synced (`README.md`) |
+| `README.md` | L140 | Want to improve skills, docs, or the CLI? Start at docs/CONTRIBUTING.md… | allowlist-synced (`README.md`) |
+| `docs/DEVELOPMENT.md` | (H1/body) | Factory topology, local CLI loops, public-sync awareness | allowlist-synced (`docs/**`) |
+| `package.json` | 4 | HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; project-aware setup for Cursor, VS Code, and Windsurf. | allowlist-synced (manifest path pattern) |
+| `packages/cli/package.json` | 4 | Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context). | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`) |
+| `packages/cli/README.md` | 3 | Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, staging-to-prod, memory). It installs local workspace contracts; it is not a hosted control plane or graph workflow runtime. | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`); npm pack storefront (`prepublishOnly` → `scripts/verify-cli-dashboard-pack.mjs`) |
+| `packages/cli/src/index.ts` | 24 | HITL framework for AI-assisted IDEs | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`) |
+| `.cursor-plugin/plugin.json` | 5 | HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add. | allowlist-synced (`.cursor-plugin/**` in `scripts/public-sync.manifest`) |
+| `.cursor-plugin/plugin.json` | 7-13 | ["agents","hitl","handoff","git-staging","context","multi-ide","anti-slop"] | allowlist-synced (`.cursor-plugin/**` in `scripts/public-sync.manifest`) |
+| `docs/README.md` | 3 | **Mission Kit** is the product-family name on missionkit.io. **Agent Kit** is the technical install surface … HITL framework for AI-assisted IDEs … | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/getting-started.md` | 3 | **Mission Kit** (marketing / missionkit.io) ships as **Agent Kit** on install … keeps your AI coding agent working against a plan … | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/CONTRIBUTING.md` | 3 | **Mission Kit** is the storefront name; contributions land in the **Agent Kit** repository … HITL framework for AI-assisted IDEs. | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/github-about.md` | 8 | Mission Kit 5: development operations for Cursor and VS Code. HITL plans, handoff, memory, and staging→prod git … (Installs as Agent Kit.) | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/github-about.md` | 14 | HITL development operations for AI-assisted IDEs: plan → handoff → staging → prod (Agent Kit install / CLI). | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/github-about.md` | 20 | Harness human-in-the-loop para IDEs com IA: planos, handoff de contexto, memory loop e fluxo git staging→prod com confirmação explícita antes de produção. | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/github-about.md` | 25 | `ai-assisted-development` `cursor` `vscode` `windsurf` `developer-tools` `cli` `monorepo` `agent-kit` `prompt-engineering` `skills` `templates` `handoff` `context-management` `human-in-the-loop` | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/cursor-native-audit.md` | 30 | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop) | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 12 | Para resolver isso (e a falta de DevOps estruturado no fluxo do agente), existe o *Mission Kit 5*: development operations dentro do Cursor e do VS Code. Site: https://missionkit.io | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 14 | No GitHub, npm e CLI o projeto ainda se chama *Agent Kit* (pacote `@dadado/agent-kit-cli`, comando `agent-kit`, `/agent-kit-onboard`). Mesmo produto, dois nomes de propósito. 🛠️ | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 17 | Uma camada operacional leve que transforma seu IDE em um framework HITL: planejamento, handoff entre chats, revisão externa opcional e fluxo Git staging→prod com confirmação antes de produção. Não é marketing de "autonomia sem freio". | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 10 | Se você usa o Cursor ou outro IDE com IA assistida para codar, já deve ter passado pelo clássico problema de ver a IA se perder e alucinar quando o chat fica muito longo e o contexto enche. 🤯 | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 16 | *🤔 O que é?* | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 19 | *✨ O que ele resolve?* | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 20 | • *Onboarding & Setup Inteligente:* analisa o projeto e prepara regras, comandos e skills sob medida (`/agent-kit-onboard`). 🧠✨ | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 21 | • *Sem perda de contexto:* estado vivo entre chats; um comando e a IA sabe onde parou. 🔄 | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 22 | • *Planos de verdade:* to-dos reais, com humano no loop (Ask questions). 📋 | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 23 | • *DevOps integrado:* staging automático, Conventional Commits, hooks. 🛡️ | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 24 | • *Produção com confirmação:* staging pode ir sozinho; `main` só depois de você confirmar. 🛑 | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 25 | • *Mission Control:* cockpit local (`/dashboard` / `agent-kit dashboard`) sobre o que está no disco. | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 27 | *🚀 Como usar?* | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 30 | `npx @dadado/agent-kit-cli install` | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `docs/public-launch-announcement.md` | 34 | Depois: `/agent-kit-onboard`, `/start-project`, `/continue-plan` ou `/run-plan`. | allowlist-synced (`docs/**` in `scripts/public-sync.manifest`) |
+| `install.md` | 1 | Mission Kit / Agent Kit - Installation | allowlist-synced (`install.md` in `scripts/public-sync.manifest`) |
+| `install.md` | 3 | You are the installer for Mission Kit 5. Marketing name: Mission Kit; technical surfaces: Agent Kit … | allowlist-synced (`install.md` in `scripts/public-sync.manifest`) |
 | `registry/registry.json` | 8-342 | 34 skill/pack descriptions across line range (e.g., "Remove AI code slop", "HITL framework install and tooling", "Create and update ClickUp tasks via MCP") | public-repo-PR-only (excluded line 89) |
 | `registry/packs/clean-code/pack.json` | 5 | Deslop, simplicity, and surgical refactors for AI-assisted codebases. | public-repo-PR-only (excluded line 89) |
 | `registry/packs/context-management/pack.json` | 5 | Advanced context packs, librarian/extractor agents, and window-budget helpers beyond L0 guardian, memory-loop, and native phase/context hooks. | public-repo-PR-only (excluded line 89) |
@@ -400,4 +395,4 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 | `_legacy/v2/skills-registry.json` | 9 | Escreve e revisa SQL para Postgres (DDL, DML, índices, constraints). Use ao editar .sql, schemas para n8n ou quando o usuário mencionar tabelas, migrations, Postgres. | allowlist-synced (_legacy/** line 85) |
 | `_legacy/v2/skills-registry.json` | 10 | Boas práticas para fluxos conversacionais em agentes de chat (mensagens curtas, tom, confirmações, handoff). Use ao criar prompts de chat, WhatsApp, Telegram ou revisar fluxos de atendimento. | allowlist-synced (_legacy/** line 85) |
 | `_legacy/v2/skills-registry.json` | 11 | Remove AI-generated code slop (redundant comments, unnecessary try/catch, any casts, deep nesting). Use after AI-assisted coding sessions or before code review to clean up machine-generated patterns. | allowlist-synced (_legacy/** line 85) |
-| `skills-registry.json` | 5-10 | Create and update ClickUp tasks via MCP..., Validate, format, and manipulate JSON..., Create, edit and document n8n workflows..., Create and edit agent prompts in Markdown..., Write and review SQL for Postgres..., Best practices for conversational flows... | allowlist-synced (no exclusion matches) |
+| `skills-registry.json` | 5-10 | Create and update ClickUp tasks via MCP..., Validate, format, and manipulate JSON..., Create, edit and document n8n workflows..., Create and edit agent prompts in Markdown..., Write and review SQL for Postgres..., Best practices for conversational flows.. | allowlist-synced (no exclusion matches) |

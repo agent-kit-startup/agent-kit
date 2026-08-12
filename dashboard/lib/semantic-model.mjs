@@ -24,10 +24,16 @@ export const MONITOR_FEED_CAP = 20;
 /** Cap agent_step rows emitted per active plan for the denser Crew feed. */
 export const MONITOR_AGENT_STEP_EMIT_CAP = 12;
 
+/** Cap subagent-run rows emitted per snapshot (fs scan bounds live in dashboard-data.mjs). */
+export const MONITOR_SUBAGENT_EMIT_CAP = 8;
+/** Cap plan_review pointer rows emitted per snapshot. */
+export const MONITOR_PLAN_REVIEW_EMIT_CAP = 4;
+
 /**
  * Monitor hero curated subset over the semantic activity stream.
  * Live agent steps: run_plan / handoff / delivery plus agent_step (Task/orchestrator
- * to-do steps). plan_progress milestones stay on Activity / Checklist.
+ * to-do steps), subagent (Task worker lifecycle) and plan_review (background
+ * mid-batch review pointers). plan_progress milestones stay on Activity / Checklist.
  * Activity (Phase 2) is the superset; inventory kinds are excluded here.
  */
 export const MONITOR_ACTIVITY_KINDS = Object.freeze([
@@ -35,6 +41,8 @@ export const MONITOR_ACTIVITY_KINDS = Object.freeze([
   "handoff",
   "delivery",
   "agent_step",
+  "subagent",
+  "plan_review",
 ]);
 
 /**
@@ -2152,9 +2160,12 @@ export function formatDeliveryActivity(logLines, { plans = [], limit = MAX_GIT_A
     const kitAgent = normalizeKitAgentId(agent);
     const actor = briefActivityActor(kitAgent, { kind: "delivery", plan: planName });
     const prBit = `PR #${entry.pr}`;
+    // Verb `merged` (not `shipped`, retired 2026-08-05): the row is derived from
+    // a merge/squash entry, and `shipped` implied a prod promote /git-staging
+    // never performed.
     const label = brief
-      ? `${actor} \u00b7 shipped \u00b7 ${brief} \u00b7 ${prBit} \u00b7 ${entry.sha}`
-      : `${actor} \u00b7 shipped \u00b7 ${prBit} \u00b7 ${entry.sha}`;
+      ? `${actor} \u00b7 merged \u00b7 ${brief} \u00b7 ${prBit} \u00b7 ${entry.sha}`
+      : `${actor} \u00b7 merged \u00b7 ${prBit} \u00b7 ${entry.sha}`;
     const commitType = parseDeliveryCommitType(brief, { hasPr: entry.pr != null });
     events.push({
       id: activityId("delivery", ["merge", String(entry.pr)]),
@@ -2173,18 +2184,23 @@ export function formatDeliveryActivity(logLines, { plans = [], limit = MAX_GIT_A
 
 /**
  * Actor segment for Monitor return-brief labels.
- * Kit agent id, else Engineering Manager for delivery, else Squad when a plan
- * is present (never the full plan filename), else Platform Engineer.
- * Default software lexicon display masks (resolution kinds unchanged).
+ * Kit agent id, else `Eng` for delivery, else `SQ` when a plan is present
+ * (never the full plan filename), else `Eng`.
+ *
+ * Short display masks from the operator lexicon (2026-08-05): Engineering
+ * Manager -> Eng, Squad -> SQ, Platform Engineer -> Eng. `Eng` is a documented
+ * collision between the delivery and system fallbacks; the resolution keys
+ * (`orchestrator` / `crew` / `system`) and the row's kind glyph stay distinct.
+ * ADR: decisions/2026-07-27_crew-monitor-vs-plan-monitor-glossary.md.
  * @param {string|null|undefined} agent
  * @param {{ kind?: string, plan?: string|null }} [opts]
  */
 export function briefActivityActor(agent, { kind, plan } = {}) {
   const kit = normalizeKitAgentId(agent);
   if (kit) return kit;
-  if (kind === "delivery") return "Engineering Manager";
-  if (plan) return "Squad";
-  return "Platform Engineer";
+  if (kind === "delivery") return "Eng";
+  if (plan) return "SQ";
+  return "Eng";
 }
 
 /**
@@ -2313,6 +2329,191 @@ export function formatPlanHandoffActivity({ now, handoff, plans }) {
     });
   }
 
+  return events;
+}
+
+/**
+ * Task subagent transcripts are `<uuid>.jsonl` inside a parent chat's
+ * `subagents/` directory.
+ */
+export const SUBAGENT_TRANSCRIPT_FILE_RE = /^([0-9a-fA-F][0-9a-fA-F-]{7,})\.jsonl$/;
+
+/**
+ * Worker-prompt fields the kit's own dispatch template declares (see
+ * `.cursor/commands/run-plan.md`). Both forms occur in real dispatches: the
+ * bare `To-do id: x` of the plain template and the `- **worker_type:** x` of a
+ * bulleted orchestrator prompt, so the leading list marker and the markdown
+ * emphasis on either side of the colon are optional. The captured value
+ * excludes `*` and a backtick so `**explore**` and `` `explore` `` yield
+ * `explore` rather than the decoration.
+ */
+const SUBAGENT_TODO_ID_RE =
+  /^[ \t]*(?:[-*][ \t]*)?\**To-?do id\**[ \t]*[:=][ \t]*\**[ \t]*([^\s*`]+)/im;
+const SUBAGENT_WORKER_TYPE_RE =
+  /^[ \t]*(?:[-*][ \t]*)?\**(?:worker_type(?:[ \t]*\/[ \t]*subagent_type)?|subagent_type)\**[ \t]*[:=][ \t]*\**[ \t]*([^\s*`]+)/im;
+
+/** Plain-text content of a transcript entry (user prompt or assistant reply). */
+function subagentEntryText(entry) {
+  const content = entry?.message?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  const parts = [];
+  for (const c of content) {
+    if (c && c.type === "text" && typeof c.text === "string") parts.push(c.text);
+  }
+  return parts.join("\n");
+}
+
+/**
+ * Lifecycle of one Task subagent run, from the two records that carry it: the
+ * dispatch prompt (first entry) and the terminal record (last entry).
+ *
+ * Phase contract: a transcript whose last record is not `turn_ended` is still
+ * `running`; `turn_ended` with `status: "success"` is `done`; any other status
+ * (including `error`) is `failed`. A transcript that is empty or entirely
+ * unparsable yields `null` rather than a phantom running row.
+ *
+ * The fs half (directory layout, recency window, file/byte caps) lives in
+ * `dashboard-data.mjs` next to the agent-prompt scan contract. Transcript paths
+ * live under `$HOME`, never in the repo, so no `sourcePath` is emitted.
+ *
+ * @param {{ id?: string, parentId?: string|null, firstLine?: string, lastLine?: string, modifiedAt?: string|null }} input
+ * @returns {{ id: string, parentId: string|null, phase: 'running'|'done'|'failed', todoId: string|null, workerType: string|null, modifiedAt: string|null }|null}
+ */
+export function parseSubagentRun({
+  id,
+  parentId = null,
+  firstLine = "",
+  lastLine = "",
+  modifiedAt = null,
+} = {}) {
+  const runId = String(id || "").trim();
+  if (!runId) return null;
+
+  let first = null;
+  let last = null;
+  try {
+    first = firstLine ? JSON.parse(firstLine) : null;
+  } catch {
+    first = null;
+  }
+  try {
+    last = lastLine ? JSON.parse(lastLine) : null;
+  } catch {
+    last = null;
+  }
+  if (!first && !last) return null;
+
+  let phase = "running";
+  if (last && last.type === "turn_ended") {
+    phase = last.status === "success" ? "done" : "failed";
+  }
+
+  const promptText = first && first.role === "user" ? subagentEntryText(first) : "";
+  const todoMatch = promptText ? SUBAGENT_TODO_ID_RE.exec(promptText) : null;
+  const typeMatch = promptText ? SUBAGENT_WORKER_TYPE_RE.exec(promptText) : null;
+  const rawTodo = todoMatch ? todoMatch[1] : null;
+  const rawType = typeMatch ? typeMatch[1] : null;
+  // The template writes literal placeholders when a field is unset; those are
+  // not identities and must not reach a row.
+  const placeholder = /^(?:<.*>|none|n\/a|-{1,2})$/i;
+  return {
+    id: runId,
+    parentId: parentId ? String(parentId) : null,
+    phase,
+    todoId: rawTodo && !placeholder.test(rawTodo) ? rawTodo : null,
+    workerType: rawType && !placeholder.test(rawType) ? rawType : null,
+    modifiedAt: modifiedAt || null,
+  };
+}
+
+/**
+ * Live Crew Monitor rows for Task subagent runs (start / still running /
+ * complete / failed). Newest first; the caller passes an already-bounded list.
+ *
+ * Deliberately a distinct kind from `agent_step`: `agent_step` is derived from
+ * plan to-do status, so a subagent that runs without flipping a to-do would be
+ * invisible there and a to-do flipped by hand would be misattributed to a
+ * worker. ADR: decisions/2026-07-27_crew-monitor-vs-plan-monitor-glossary.md.
+ *
+ * @param {object[]} runs - `parseSubagentRun` output
+ * @param {{ limit?: number }} [opts]
+ */
+export function formatSubagentActivity(runs, { limit = MONITOR_SUBAGENT_EMIT_CAP } = {}) {
+  const events = [];
+  for (const run of runs || []) {
+    if (events.length >= limit) break;
+    if (!run || !run.id) continue;
+    const kitAgent = normalizeKitAgentId(run.workerType);
+    // Display actor is the dispatched worker type whenever the prompt declared
+    // one: a built-in type such as `explore` is a real worker identity even
+    // though it is not a `.cursor/agents/` id. `agent` stays kit-id-only so
+    // downstream attribution is unchanged. `Dev` is the operator-lexicon mask
+    // for Developer / Full-Stack Developer, used when no type was declared.
+    const actor = run.workerType ? truncateStr(String(run.workerType), 24) : "Dev";
+    const shortId = String(run.id).slice(0, 8);
+    const subject = run.todoId || "task";
+    const visible = `${actor} · ${run.phase} · ${subject} · ${shortId}`;
+    events.push({
+      id: activityId("subagent", [run.id, run.phase]),
+      kind: "subagent",
+      at: run.modifiedAt || null,
+      agent: kitAgent,
+      label: truncateStr(visible, MAX_SEMANTIC_LABEL),
+      labelFull: visible,
+      // Transcripts live outside the repo (under $HOME); no repo path to copy.
+      sourcePath: null,
+      refs: { subagent: run.id, parent: run.parentId || null, phase: run.phase, todo: run.todoId },
+    });
+  }
+  return events;
+}
+
+/**
+ * Crew Monitor pointer rows for background mid-batch plan reviews.
+ *
+ * The operator cannot otherwise see that a review ran: `plan-monitor-*.md` lands
+ * silently in `.cursor/memory/` and only surfaces once Flight Log / attention
+ * picks it up. These rows say a review exists and whether it is still owed
+ * triage. They are pointers only — Flight Log and the attention inbox keep sole
+ * ownership of triage state and actions, and a row never marks anything
+ * reviewed. Boundary amend recorded in the glossary ADR (2026-08-05).
+ *
+ * @param {object[]} reports - `parseExternalReport` output
+ * @param {object[]} plans - plan records from the snapshot
+ * @param {{ limit?: number }} [opts]
+ */
+export function formatPlanReviewActivity(
+  reports,
+  plans,
+  { limit = MONITOR_PLAN_REVIEW_EMIT_CAP } = {},
+) {
+  const sorted = (reports || [])
+    .filter((r) => r?.file)
+    .slice()
+    .sort((a, b) => String(b.modifiedAt || "").localeCompare(String(a.modifiedAt || "")));
+
+  const events = [];
+  for (const report of sorted) {
+    if (events.length >= limit) break;
+    const triaged = isReportTriaged(report, plans);
+    // `awaiting` reuses the existing gate verb: the review itself has landed,
+    // what is outstanding is the operator's triage.
+    const verb = triaged ? "done" : "awaiting";
+    // `QA` is the operator-lexicon mask for QA Engineer.
+    const planRef = report.reviewedPlanFile || `${report.slug}.plan.md`;
+    const visible = `QA · ${verb} · review · ${planRef}`;
+    events.push({
+      id: activityId("plan_review", [report.file, triaged ? "triaged" : "open"]),
+      kind: "plan_review",
+      at: report.modifiedAt || null,
+      agent: null,
+      label: truncateStr(visible, MAX_SEMANTIC_LABEL),
+      labelFull: visible,
+      sourcePath: report.path || null,
+      refs: { plan: report.reviewedPlanFile || null, report: report.file, triaged },
+    });
+  }
   return events;
 }
 
@@ -3562,6 +3763,7 @@ export function buildMissionControlView({
   deferredCheckIds = [],
   agentPrompts = [],
   externalReports = [],
+  subagentRuns = [],
   dismissedIds = [],
   archivedPlanFiles = [],
   agents = [],
@@ -3615,7 +3817,11 @@ export function buildMissionControlView({
   const activity = mergeActivity([
     planEvents.filter((e) => e.kind === "run_plan" || e.kind === "handoff"),
     planEvents.filter((e) => e.kind === "agent_step"),
+    // Live Task-worker lifecycle before delivery: a running subagent is the
+    // freshest thing on the board and must not be starved by MAX_ACTIVITY.
+    formatSubagentActivity(subagentRuns),
     deliveryEvents,
+    formatPlanReviewActivity(externalReports, plans),
     planEvents.filter((e) => e.kind === "plan_progress"),
     formatGitActivity(gitLogLines, { excludeShas: supersededShas }),
     formatTerminalRunEvidence(terminals),

@@ -1,6 +1,6 @@
-# Agent Kit Docs
+# Mission Kit Docs
 
-Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates Cursor-first project setup; VS Code and Windsurf get partial generators (parity Low / Minimal per [cursor-native-audit.md](cursor-native-audit.md)). Mechanizable invariants live in the CLI so non-Cursor paths can run the same checks.
+**Mission Kit** is the product-family name on [missionkit.io](https://missionkit.io). **Agent Kit** is the technical install surface (CLI, npm, slash commands, `.cursor/agent-kit.json`). The kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod git flow, and memory across long projects. Install generates Cursor-first project setup; VS Code and Windsurf get partial generators (parity Low / Minimal per [cursor-native-audit.md](cursor-native-audit.md)). Mechanizable invariants live in the CLI so non-Cursor paths can run the same checks.
 
 ## Guides
 
@@ -11,7 +11,7 @@ Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-pr
 - [Contribute upstream](contribute-upstream.md) - `agent-kit contribute` return channel + gate
 - [Public launch](public-launch.md) - go/no-go + append-only sync
 - [Public launch announcement](public-launch-announcement.md) - copy-paste launch text (chat / social)
-- [Agent Kit landing](agentkit-landing.md) - public marketing page at startupkit.com.br/agentkit
+- [Mission Kit Landing](agentkit-landing.md) - public marketing page at [missionkit.io](https://missionkit.io) (filename kept for link stability; previous `agent.startupkit.com.br` is deprecated and 301-redirects)
 - [Topology private × public](topology-private-public.md) - Fase 7 registry-canonical public
 - [Marketplace catalog](marketplace.md) - versioning, CLI add, Cursor plugin, quality gate
 - [Review layers](review-camadas.md) - final HITL / go-no-go pass
@@ -31,4 +31,11 @@ Agent Kit is a HITL framework for AI-assisted IDEs: plan, handoff, staging-to-pr
 - [Agent Kit manifest](agent-kit-manifest.md) - `.cursor/agent-kit.json` schema (version, packs, protected L3)
 - [Repository Boundaries](repository-boundaries.md) - three-layer cheat sheet (local / private / public), npm, sync
 - [Contributing](CONTRIBUTING.md) - setup, standards, registry contributions
+- [Development](DEVELOPMENT.md) - factory topology, local CLI, maintainer workflows (root README stays consumer storefront)
 - [GitHub About](github-about.md) - description and topics for the GitHub repo
+
+## Community
+
+- [Code of Conduct](../.github/CODE_OF_CONDUCT.md) - Contributor Covenant 2.1 and how to report a concern
+- [Security policy](../.github/SECURITY.md) - private disclosure channel, supported versions, documented posture (never open a public issue for a vulnerability)
+- [Support](../.github/SUPPORT.md) - where to ask what, and what makes a question answerable

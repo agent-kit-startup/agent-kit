@@ -1,14 +1,57 @@
 import { execFileSync, spawn } from "node:child_process";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineCommand } from "citty";
+import { resolveContextConfigPath } from "../../../../dashboard/lib/guards.mjs";
+import {
+  normalizePreferredBrowser,
+  readPreferredBrowserFromConfig,
+} from "../../../../dashboard/lib/open-browser.mjs";
 import { logger } from "../utils/logger.js";
 
 /** Optional hooks for hermetic tests (inject moduleUrl; never required in production). */
 export type FindDashboardOptions = {
   moduleUrl?: string;
 };
+
+/**
+ * Resolve preferred browser from workspace context config (if present).
+ * Returns null when unset / invalid / unsafe. Env override is applied by the starter.
+ * Validation SoT: `normalizePreferredBrowser` in dashboard/lib/open-browser.mjs.
+ * Path SoT: `resolveContextConfigPath` in dashboard/lib/guards.mjs.
+ */
+export function readPreferredBrowserFromWorkspace(
+  cwd: string,
+  readFile: typeof readFileSync = readFileSync,
+): string | null {
+  const resolved = resolveContextConfigPath(path.resolve(cwd), {
+    existsSync,
+    realpathSync,
+  });
+  if (!resolved.ok) return null;
+  const value = readPreferredBrowserFromConfig(resolved.path, { readFileSync: readFile });
+  return normalizePreferredBrowser(value);
+}
+
+/** Apply --no-open / --browser / config preferred browser onto env for the starter. */
+export function applyDashboardOpenEnv(
+  env: NodeJS.ProcessEnv,
+  opts: { noOpen?: boolean; browser?: string; cwd?: string },
+): NodeJS.ProcessEnv {
+  const next = { ...env };
+  if (opts.noOpen) next.MISSION_CONTROL_NO_OPEN = "1";
+  const flag = opts.browser?.trim();
+  if (flag) {
+    const safe = normalizePreferredBrowser(flag);
+    if (safe) next.MISSION_CONTROL_PREFERRED_BROWSER = safe;
+  } else if (!next.MISSION_CONTROL_PREFERRED_BROWSER && opts.cwd) {
+    const fromConfig = readPreferredBrowserFromWorkspace(opts.cwd);
+    if (fromConfig) next.MISSION_CONTROL_PREFERRED_BROWSER = fromConfig;
+  }
+  return next;
+}
 
 /** Candidates for dashboard assets shipped beside the CLI package (Path C). */
 export function bundledDashboardCandidates(
@@ -87,9 +130,23 @@ export async function findDashboardStart(
   );
 }
 
-/** Prefer git toplevel when available so snapshots match the workspace root. */
+/**
+ * Resolve the Mission Control snapshot root.
+ * Prefer the nearest Agent Kit install (`.cursor/agent-kit.json`) walking up from
+ * cwd so nested monorepo packages are not overwritten by the git toplevel.
+ * Fall back to git toplevel when no install marker is found, then cwd.
+ */
 export function resolveDashboardSnapshotRoot(cwd: string): string {
   const abs = path.resolve(cwd);
+  let dir = abs;
+  for (;;) {
+    if (existsSync(path.join(dir, ".cursor", "agent-kit.json"))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
   try {
     const top = execFileSync("git", ["-C", abs, "rev-parse", "--show-toplevel"], {
       encoding: "utf8",
@@ -117,36 +174,58 @@ function runStartScript(startPath: string, env: NodeJS.ProcessEnv): Promise<numb
 export const dashboardCommand = defineCommand({
   meta: {
     name: "dashboard",
-    description:
-      "Start Mission Control for this workspace (stable per-root port) and open the panel URL.",
+    description: "Start Mission Control for this workspace (loopback; opens panel URL).",
   },
   args: {
     cwd: {
       type: "string",
       default: process.cwd(),
       description:
-        "Workspace to snapshot (git root preferred); also searched upward for dashboard/start.mjs",
+        "Workspace to snapshot (nearest .cursor/agent-kit.json, else git root); also searched upward for dashboard/start.mjs",
     },
     "no-open": {
       type: "boolean",
       default: false,
       description: "Do not open a browser; only ensure the server is up and print the URL",
     },
+    browser: {
+      type: "string",
+      description:
+        "Preferred browser app/binary for this launch (overrides config missionControl.preferredBrowser)",
+    },
   },
   async run({ args }) {
     const snapshotRoot = resolveDashboardSnapshotRoot(args.cwd);
     const startPath = await findDashboardStart(args.cwd);
     if (!startPath) {
-      logger.error(
-        "No dashboard/start.mjs found. After a CLI publish that ships dashboard/ (Path C), reinstall @dadado/agent-kit-cli. Or set MISSION_CONTROL_KIT_ROOT / AGENT_KIT_HOME to an agent-kit checkout, place a sibling ../agent-kit tree, or run from that kit tree.",
+      logger.error("No dashboard/start.mjs found.");
+      console.error(
+        [
+          "",
+          "The dashboard runtime is not available in this workspace.",
+          "L0 install provides the /dashboard command text but not the panel itself.",
+          "",
+          "Recovery (pick one):",
+          "  1. Upgrade the CLI: npx @dadado/agent-kit-cli@latest dashboard",
+          "     (Path C ships dashboard/ from 4.8.2 onward)",
+          "  2. Set an env var pointing to an agent-kit checkout:",
+          "     export MISSION_CONTROL_KIT_ROOT=/path/to/agent-kit",
+          "     agent-kit dashboard",
+          "  3. Place an agent-kit sibling: ../agent-kit/dashboard/start.mjs",
+          "  4. Run directly from a kit tree: node dashboard/start.mjs",
+          "",
+          "Works in Cursor, VS Code, and any Node.js terminal.",
+          "",
+        ].join("\n"),
       );
       process.exitCode = 1;
       return;
     }
 
-    const env = { ...process.env };
-    env.MISSION_CONTROL_REPO_ROOT = snapshotRoot;
-    if (args["no-open"]) env.MISSION_CONTROL_NO_OPEN = "1";
+    const env = applyDashboardOpenEnv(
+      { ...process.env, MISSION_CONTROL_REPO_ROOT: snapshotRoot },
+      { noOpen: Boolean(args["no-open"]), browser: args.browser, cwd: snapshotRoot },
+    );
 
     const code = await runStartScript(startPath, env);
     if (code !== 0) process.exitCode = code;

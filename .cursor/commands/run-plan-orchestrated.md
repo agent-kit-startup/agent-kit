@@ -1,3 +1,8 @@
+---
+name: run-plan-orchestrated
+description: Deprecated alias for /run-plan forcing the orchestrated strategy.
+---
+
 # Command: /run-plan-orchestrated (deprecated)
 
 **Deprecated alias.** Use **`/run-plan`**: one continuous command that picks the execution strategy itself (orchestrated is already the default when Task / subagents are available).

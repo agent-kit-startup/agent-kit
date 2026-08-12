@@ -11,6 +11,9 @@ import {
   MONITOR_ACTIVITY_KINDS,
   MONITOR_AGENT_STEP_EMIT_CAP,
   MONITOR_FEED_CAP,
+  MONITOR_PLAN_REVIEW_EMIT_CAP,
+  MONITOR_SUBAGENT_EMIT_CAP,
+  SUBAGENT_TRANSCRIPT_FILE_RE,
   allowlistReadinessPending,
   briefActivityActor,
   buildAttentionItems,
@@ -42,6 +45,8 @@ import {
   formatGitActivity,
   formatInventoryActivity,
   formatPlanHandoffActivity,
+  formatPlanReviewActivity,
+  formatSubagentActivity,
   isFieldReportAttentionId,
   listFlightLogQuietOpenTriages,
   listUnreviewedReviewTargets,
@@ -61,6 +66,7 @@ import {
   parseQueueCursor,
   parseQueueOutcomes,
   parseRunQueue,
+  parseSubagentRun,
   planQueueRole,
   recordCadenceBatchComplete,
   recordCadenceTickClose,
@@ -1139,7 +1145,7 @@ describe("formatDeliveryActivity", () => {
         commitType: "feat",
       },
     });
-    expect(events[0].label).toContain("docs-repo · shipped ·");
+    expect(events[0].label).toContain("docs-repo · merged ·");
     expect(events[0].label).toContain("feat(x): implement the thing");
     expect(events[0].label).toContain("PR #42");
     expect(events[0].label).toContain("bbb2222");
@@ -1161,7 +1167,9 @@ describe("formatDeliveryActivity", () => {
     expect(events[0].refs.commits).toHaveLength(1);
     expect(events[0].refs.plan).toBe("y.plan.md");
     expect(events[0].refs.commitType).toBe("pr");
-    expect(events[0].label).toMatch(/shipped · PR #10 · abc1234/);
+    expect(events[0].label).toMatch(/merged · PR #10 · abc1234/);
+    // `shipped` retired 2026-08-05: the row is a merge, not a prod promote.
+    expect(events[0].label).not.toContain("shipped");
     expect(events[0].label).not.toContain("Merged PR");
     expect(events[0].label).not.toContain("→");
   });
@@ -1204,7 +1212,7 @@ describe("formatDeliveryActivity", () => {
       plan: "monitor-agent-activity-focus.plan.md",
       commitType: "feat",
     });
-    expect(events[0].label).toContain("docs-repo · shipped ·");
+    expect(events[0].label).toContain("docs-repo · merged ·");
     expect(events[0].label).toContain("feat(dashboard): refocus Monitor hero on agent activity");
     expect(events[0].label).toContain("PR #321 · 528901c");
     expect(events[1].refs).toMatchObject({
@@ -1214,7 +1222,7 @@ describe("formatDeliveryActivity", () => {
       plan: null,
       commitType: "docs",
     });
-    expect(events[1].label).toContain("Engineering Manager · shipped ·");
+    expect(events[1].label).toContain("Eng · merged ·");
     expect(events[1].label).toContain("docs: update plan-review-triage for multi-path walk");
     expect(events[1].label).toContain("PR #320 · 74954c7");
     expect(events[1].label).not.toMatch(/\(#320\)/);
@@ -1278,9 +1286,9 @@ describe("formatDeliveryActivity", () => {
     ]);
     expect(events[1].refs.commits).toEqual(["528901c", "6051036"]);
     expect(events[0].label).not.toContain("field-report-owed-external-review");
-    // Plan attribution stays on refs; label actor is Engineering Manager when agent is not a kit id.
+    // Plan attribution stays on refs; label actor is the Eng mask when agent is not a kit id.
     expect(events[1].refs.plan).toBe("monitor-agent-activity-focus.plan.md");
-    expect(events[1].label).toContain("Engineering Manager · shipped ·");
+    expect(events[1].label).toContain("Eng · merged ·");
   });
 
   it("honors a limit option like other activity producers", () => {
@@ -1378,9 +1386,9 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
     expect(steps.map((e) => e.refs?.todo)).toEqual(["step-a", "step-b", "step-c"]);
     expect(steps.map((e) => e.refs?.phase)).toEqual(["done", "done", "running"]);
     // Natural voice: phase word first, then the todo id; no robotic "step" separator.
-    // "generalPurpose" is not a kit agent id, so the actor falls back to Squad.
-    expect(steps[0].label).toMatch(/^Squad · done · step-a/);
-    expect(steps[2].label).toMatch(/^Squad · running · step-c/);
+    // "generalPurpose" is not a kit agent id, so the actor falls back to the SQ mask.
+    expect(steps[0].label).toMatch(/^SQ · done · step-a/);
+    expect(steps[2].label).toMatch(/^SQ · running · step-c/);
     expect(steps.every((e) => MONITOR_ACTIVITY_KINDS.includes(e.kind))).toBe(true);
     expect(planEvents.some((e) => e.kind === "run_plan")).toBe(true);
   });
@@ -1411,7 +1419,7 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
       plans: samplePlans,
     });
     const gate = planEvents.find((e) => e.kind === "handoff");
-    expect(gate.label).toMatch(/^Squad · awaiting · next \S+/);
+    expect(gate.label).toMatch(/^SQ · awaiting · next \S+/);
     expect(gate.label).not.toContain("mission-control-plugin-ux.plan.md");
     expect(gate.labelFull).toContain("mission-control-plugin-ux.plan.md");
     expect(gate.labelFull.startsWith(gate.label)).toBe(true);
@@ -1443,7 +1451,14 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
     expect(progress[0].label).toMatch(/^tech-lead · done ·/);
     expect(progress[0].label).toContain("2/2");
     // Monitor hero: live actions + denser agent_step; milestones stay on Activity
-    expect(MONITOR_ACTIVITY_KINDS).toEqual(["run_plan", "handoff", "delivery", "agent_step"]);
+    expect(MONITOR_ACTIVITY_KINDS).toEqual([
+      "run_plan",
+      "handoff",
+      "delivery",
+      "agent_step",
+      "subagent",
+      "plan_review",
+    ]);
     expect(MONITOR_ACTIVITY_KINDS).not.toContain("plan_progress");
     expect(MONITOR_FEED_CAP).toBe(20);
     expect(MONITOR_AGENT_STEP_EMIT_CAP).toBe(12);
@@ -1472,17 +1487,21 @@ describe("formatPlanHandoffActivity + mergeActivity", () => {
 });
 
 describe("briefActivityActor", () => {
-  it("prefers kit agent, then delivery Engineering Manager, then Squad, then Platform Engineer", () => {
+  it("prefers kit agent, then the Eng delivery mask, then SQ, then Eng", () => {
     expect(briefActivityActor("docs-repo", { kind: "run_plan" })).toBe("docs-repo");
-    expect(briefActivityActor(null, { kind: "delivery", plan: "x.plan.md" })).toBe(
-      "Engineering Manager",
-    );
+    expect(briefActivityActor(null, { kind: "delivery", plan: "x.plan.md" })).toBe("Eng");
     // Lexicon fallback: never the full plan filename in the actor slot.
-    expect(briefActivityActor(null, { kind: "run_plan", plan: "x.plan.md" })).toBe("Squad");
-    expect(briefActivityActor(null, { kind: "agent_step", plan: "x.plan.md" })).toBe("Squad");
-    expect(briefActivityActor(null, { kind: "handoff", plan: "x.plan.md" })).toBe("Squad");
-    expect(briefActivityActor(null, { kind: "plan_progress", plan: "x.plan.md" })).toBe("Squad");
-    expect(briefActivityActor(null, { kind: "handoff" })).toBe("Platform Engineer");
+    expect(briefActivityActor(null, { kind: "run_plan", plan: "x.plan.md" })).toBe("SQ");
+    expect(briefActivityActor(null, { kind: "agent_step", plan: "x.plan.md" })).toBe("SQ");
+    expect(briefActivityActor(null, { kind: "handoff", plan: "x.plan.md" })).toBe("SQ");
+    expect(briefActivityActor(null, { kind: "plan_progress", plan: "x.plan.md" })).toBe("SQ");
+    expect(briefActivityActor(null, { kind: "handoff" })).toBe("Eng");
+    // Short operator-lexicon masks only; the 2026-08-01 long forms are retired.
+    for (const kind of ["delivery", "run_plan", "handoff"]) {
+      const actor = briefActivityActor(null, { kind, plan: "x.plan.md" });
+      expect(actor.length).toBeLessThanOrEqual(9);
+      expect(["Engineering Manager", "Platform Engineer", "Squad"]).not.toContain(actor);
+    }
   });
 });
 
@@ -2988,5 +3007,264 @@ describe("describeProcess", () => {
     });
     expect(long.endsWith("\u2026")).toBe(true);
     expect(long.length).toBeLessThanOrEqual(161);
+  });
+});
+
+describe("parseSubagentRun", () => {
+  const dispatchPrompt = (extra = "") =>
+    JSON.stringify({
+      role: "user",
+      message: {
+        content: [
+          {
+            type: "text",
+            text: [
+              "You are an Agent Kit worker. Execute ONLY the to-do below and stop.",
+              "",
+              "Repo: /tmp/repo",
+              "To-do id: phase2-subagent-realtime-rows",
+              "worker_type / subagent_type: docs-repo",
+              extra,
+            ].join("\n"),
+          },
+        ],
+      },
+    });
+
+  it("reads the phase from the terminal record, not from the body", () => {
+    const running = parseSubagentRun({
+      id: "abcd1234-0000",
+      firstLine: dispatchPrompt(),
+      lastLine: JSON.stringify({ role: "assistant", message: { content: [] } }),
+    });
+    expect(running?.phase).toBe("running");
+
+    const done = parseSubagentRun({
+      id: "abcd1234-0000",
+      firstLine: dispatchPrompt(),
+      lastLine: JSON.stringify({ type: "turn_ended", status: "success" }),
+    });
+    expect(done?.phase).toBe("done");
+
+    const failed = parseSubagentRun({
+      id: "abcd1234-0000",
+      firstLine: dispatchPrompt(),
+      lastLine: JSON.stringify({ type: "turn_ended", status: "error" }),
+    });
+    expect(failed?.phase).toBe("failed");
+  });
+
+  it("lifts the to-do id and subagent_type out of the dispatch prompt", () => {
+    const run = parseSubagentRun({
+      id: "abcd1234-5678",
+      parentId: "parent-chat",
+      firstLine: dispatchPrompt(),
+      lastLine: JSON.stringify({ type: "turn_ended", status: "success" }),
+      modifiedAt: "2026-08-05T06:00:00.000Z",
+    });
+    expect(run).toMatchObject({
+      id: "abcd1234-5678",
+      parentId: "parent-chat",
+      phase: "done",
+      todoId: "phase2-subagent-realtime-rows",
+      workerType: "docs-repo",
+      modifiedAt: "2026-08-05T06:00:00.000Z",
+    });
+  });
+
+  it("rejects unfilled template placeholders instead of rendering them", () => {
+    const raw = JSON.stringify({
+      role: "user",
+      message: {
+        content: [{ type: "text", text: "To-do id: <id>\nsubagent_type: none\n" }],
+      },
+    });
+    const run = parseSubagentRun({ id: "x1", firstLine: raw, lastLine: raw });
+    expect(run?.todoId).toBeNull();
+    expect(run?.workerType).toBeNull();
+  });
+
+  it("strips markdown emphasis around bulleted prompt fields", () => {
+    // Real orchestrator prompts bullet the fields: `- **worker_type:** explore`.
+    const raw = JSON.stringify({
+      role: "user",
+      message: {
+        content: [
+          {
+            type: "text",
+            text: "- **To-do id:** phase4-validate-redirects\n- **worker_type:** explore\n",
+          },
+        ],
+      },
+    });
+    const run = parseSubagentRun({ id: "x1", firstLine: raw, lastLine: raw });
+    expect(run?.todoId).toBe("phase4-validate-redirects");
+    expect(run?.workerType).toBe("explore");
+  });
+
+  it("accepts worker_type alone, subagent_type alone, and the combined template form", () => {
+    const promptWith = (line: string) =>
+      JSON.stringify({ role: "user", message: { content: [{ type: "text", text: line }] } });
+    for (const line of [
+      "worker_type: docs-repo",
+      "subagent_type: docs-repo",
+      "worker_type / subagent_type: docs-repo",
+    ]) {
+      const parsed = parseSubagentRun({ id: "x1", firstLine: promptWith(line), lastLine: "{}" });
+      expect(parsed?.workerType).toBe("docs-repo");
+    }
+  });
+
+  it("returns null for an unusable transcript rather than a phantom running row", () => {
+    expect(parseSubagentRun({ id: "", firstLine: "{}", lastLine: "{}" })).toBeNull();
+    expect(
+      parseSubagentRun({ id: "x1", firstLine: "not json", lastLine: "also not json" }),
+    ).toBeNull();
+  });
+
+  it("matches only uuid-shaped transcript filenames", () => {
+    expect(SUBAGENT_TRANSCRIPT_FILE_RE.test("14d193b2-4327-48b0-8fc6-78062730ecad.jsonl")).toBe(
+      true,
+    );
+    expect(SUBAGENT_TRANSCRIPT_FILE_RE.test("notes.md")).toBe(false);
+    expect(SUBAGENT_TRANSCRIPT_FILE_RE.test("summary.jsonl")).toBe(false);
+  });
+});
+
+describe("formatSubagentActivity", () => {
+  const run = (over = {}) => ({
+    id: "14d193b2-4327-48b0-8fc6-78062730ecad",
+    parentId: "parent-1",
+    phase: "running",
+    todoId: "phase1-remove-avatar-box",
+    workerType: "docs-repo",
+    modifiedAt: "2026-08-05T06:00:00.000Z",
+    ...over,
+  });
+
+  it("emits a live row per run with the phase as the verb", () => {
+    const [ev] = formatSubagentActivity([run()]);
+    expect(ev.kind).toBe("subagent");
+    expect(ev.label).toBe("docs-repo · running · phase1-remove-avatar-box · 14d193b2");
+    expect(ev.agent).toBe("docs-repo");
+    expect(ev.at).toBe("2026-08-05T06:00:00.000Z");
+    expect(ev.refs).toMatchObject({ phase: "running", parent: "parent-1" });
+    // Transcripts live under $HOME; no repo-relative path may leak into the payload.
+    expect(ev.sourcePath).toBeNull();
+    expect(MONITOR_ACTIVITY_KINDS).toContain(ev.kind);
+  });
+
+  it("falls back to the Dev mask and a generic subject when the prompt named neither", () => {
+    const [ev] = formatSubagentActivity([run({ workerType: null, todoId: null, phase: "failed" })]);
+    expect(ev.label).toBe("Dev · failed · task · 14d193b2");
+    expect(ev.agent).toBeNull();
+  });
+
+  it("shows a non-kit worker type as the actor but never as the attribution agent", () => {
+    // `explore` is a real dispatched worker identity; it is not a
+    // `.cursor/agents/` id, so it must not leak into `agent`.
+    const [ev] = formatSubagentActivity([run({ workerType: "explore" })]);
+    expect(ev.label).toBe("explore · running · phase1-remove-avatar-box · 14d193b2");
+    expect(ev.agent).toBeNull();
+  });
+
+  it("keeps distinct ids per phase so a run does not collapse with its own start", () => {
+    const [start] = formatSubagentActivity([run({ phase: "running" })]);
+    const [end] = formatSubagentActivity([run({ phase: "done" })]);
+    expect(start.id).not.toBe(end.id);
+  });
+
+  it("honors the emit cap and skips unusable rows", () => {
+    const many = Array.from({ length: 20 }, (_, i) => run({ id: `id-${i}` }));
+    expect(formatSubagentActivity(many)).toHaveLength(MONITOR_SUBAGENT_EMIT_CAP);
+    expect(formatSubagentActivity([null, { phase: "done" }])).toEqual([]);
+    expect(formatSubagentActivity(undefined)).toEqual([]);
+  });
+});
+
+describe("formatPlanReviewActivity", () => {
+  const report = (over = {}) => ({
+    file: "plan-monitor-some-plan.md",
+    path: ".cursor/memory/plan-monitor-some-plan.md",
+    slug: "some-plan",
+    reviewedPlanFile: "some-plan.plan.md",
+    triageNoteInReport: false,
+    findingsSummary: null,
+    hasOpenReviewGaps: true,
+    modifiedAt: "2026-08-05T05:00:00.000Z",
+    ...over,
+  });
+
+  it("surfaces an untriaged monitor as awaiting, with a copyable repo path", () => {
+    const [ev] = formatPlanReviewActivity([report()], []);
+    expect(ev.kind).toBe("plan_review");
+    expect(ev.label).toBe("QA · awaiting · review · some-plan.plan.md");
+    expect(ev.sourcePath).toBe(".cursor/memory/plan-monitor-some-plan.md");
+    expect(ev.refs).toMatchObject({ report: "plan-monitor-some-plan.md", triaged: false });
+    expect(MONITOR_ACTIVITY_KINDS).toContain(ev.kind);
+  });
+
+  it("flips to done once the report carries a triage heading", () => {
+    const [ev] = formatPlanReviewActivity([report({ triageNoteInReport: true })], []);
+    expect(ev.label).toBe("QA · done · review · some-plan.plan.md");
+    expect(ev.refs.triaged).toBe(true);
+    expect(ev.id).toContain("triaged");
+  });
+
+  it("falls back to the report slug when the report names no reviewed plan", () => {
+    const [ev] = formatPlanReviewActivity([report({ reviewedPlanFile: null })], []);
+    expect(ev.label).toContain("some-plan.plan.md");
+  });
+
+  it("orders newest first and honors the emit cap", () => {
+    const reports = [
+      report({ file: "plan-monitor-a.md", slug: "a", modifiedAt: "2026-08-01T00:00:00.000Z" }),
+      report({ file: "plan-monitor-b.md", slug: "b", modifiedAt: "2026-08-04T00:00:00.000Z" }),
+    ];
+    const events = formatPlanReviewActivity(reports, []);
+    expect(events[0].refs.report).toBe("plan-monitor-b.md");
+    const many = Array.from({ length: 12 }, (_, i) =>
+      report({ file: `plan-monitor-${i}.md`, slug: String(i) }),
+    );
+    expect(formatPlanReviewActivity(many, [])).toHaveLength(MONITOR_PLAN_REVIEW_EMIT_CAP);
+    expect(formatPlanReviewActivity([], [])).toEqual([]);
+  });
+});
+
+describe("buildMissionControlView: real-time subagent + review rows", () => {
+  it("merges both new kinds into the activity stream", () => {
+    const view = buildMissionControlView({
+      plans: [],
+      handoff: null,
+      subagentRuns: [
+        {
+          id: "aaaa1111-2222",
+          parentId: "p1",
+          phase: "running",
+          todoId: "some-todo",
+          workerType: null,
+          modifiedAt: "2026-08-05T06:00:00.000Z",
+        },
+      ],
+      externalReports: [
+        {
+          file: "plan-monitor-x.md",
+          path: ".cursor/memory/plan-monitor-x.md",
+          slug: "x",
+          reviewedPlanFile: "x.plan.md",
+          triageNoteInReport: false,
+          modifiedAt: "2026-08-05T05:00:00.000Z",
+        },
+      ],
+    });
+    const kinds = view.activity.map((e) => e.kind);
+    expect(kinds).toContain("subagent");
+    expect(kinds).toContain("plan_review");
+  });
+
+  it("stays empty (never throws) when neither source is present", () => {
+    const view = buildMissionControlView({ plans: [], handoff: null });
+    expect(view.activity.some((e) => e.kind === "subagent")).toBe(false);
+    expect(view.activity.some((e) => e.kind === "plan_review")).toBe(false);
   });
 });

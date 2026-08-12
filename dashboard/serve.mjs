@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, watch, writeFileSync
 import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { shareShellTokenRequired } from "./lib/broadcast-share.mjs";
 import {
   DEFAULT_HOST,
   REPO_ROOT_ENV,
@@ -423,8 +424,10 @@ const server = createServer((req, res) => {
     return;
   }
 
+  // Cosmetic share resolver shell (fragment holds LAN+token client-side).
+  // ADR: 2026-08-11_mission-control-broadcast-url-mask.md
   const auth = authorizeMissionControlRequest(req, url, {
-    tokenRequired: TOKEN_REQUIRED,
+    tokenRequired: shareShellTokenRequired(TOKEN_REQUIRED, req.method || "GET", path),
     expectedToken: AUTH_TOKEN,
   });
   if (!auth.ok) {
@@ -496,7 +499,8 @@ const server = createServer((req, res) => {
     return;
   }
 
-  const staticPath = resolveStaticPath(path);
+  const staticLookup = path === "/open" ? "/open.html" : path;
+  const staticPath = resolveStaticPath(staticLookup);
   if (!staticPath) {
     res.writeHead(404);
     res.end("Not found");

@@ -9,13 +9,17 @@ import {
   packMemberTargets,
 } from "../registry/install.js";
 import type { RegistryIndex } from "../registry/types.js";
+import { detectIde } from "../scanner/detect-ide.js";
 import type {
   DetectionEvidence,
+  GitDetection,
+  ProjectProfile,
   ReadinessReport,
   RepositoryProfile,
   RepositoryPurpose,
 } from "../types.js";
 import { ensureDir, fileExists, writeJson } from "../utils/fs.js";
+import { generateVSCodeArtifacts } from "./vscode.js";
 
 export const PERSONALIZATION_CONTRACT_VERSION = 1 as const;
 
@@ -212,6 +216,16 @@ function renderProjectContext(profile: RepositoryProfile): string {
   if (profile.infra.ci !== "none" && profile.infra.ciFiles.length > 0) {
     sections.push(`- CI: ${profile.infra.ci}.`);
   }
+  sections.push(
+    "",
+    "## Relevant skills",
+    "",
+    "Installed and project-owned skills for this repository. Prefer `.cursor/agent-kit.json` `skills[]` as the install index; project-only domain skills may live under `.cursor/skills/domain/`.",
+    "",
+    "| Skill / path | Role | Evidence |",
+    "|--------------|------|----------|",
+    "| (none yet) | Add rows when `/agent-kit-onboard` scaffolds domain skills or personalization installs packs | — |",
+  );
   if (profile.context.sources.length > 0) {
     sections.push("", "## Sources", ...profile.context.sources.map((item) => `- ${item.value}`));
   }
@@ -341,6 +355,50 @@ export async function applyPersonalization(input: {
   ]);
   protectedPaths.add(CONTEXT_PATH);
   protectedPaths.add(AGENTS_PATH);
+
+  const ideDetection = await detectIde(input.rootDir);
+  if (ideDetection.ide === "vscode" || ideDetection.ide === "other") {
+    const git: GitDetection = {
+      providerKind: input.profile.git.providerKind ?? "unknown",
+      providerConfidence: input.profile.git.providerConfidence ?? "low",
+      providerEvidence: input.profile.git.providerEvidence ?? [],
+      remotes: input.profile.git.remotes ?? [],
+      mode: input.profile.git.mode ?? "none",
+      workflow: input.profile.git.workflow ?? "unknown",
+      isDirty: input.profile.git.isDirty ?? false,
+      hasLocalStaging: input.profile.git.hasLocalStaging ?? false,
+      hasRemoteStaging: input.profile.git.hasRemoteStaging ?? false,
+      provider: input.profile.git.provider,
+      remoteUrl: input.profile.git.remoteUrl,
+      remoteName: input.profile.git.remoteName,
+      currentBranch: input.profile.git.currentBranch,
+      defaultBranch: input.profile.git.defaultBranch,
+    };
+    const projectProfile: ProjectProfile = {
+      rootDir: input.rootDir,
+      stack: input.profile.stack,
+      git,
+      ide: ideDetection,
+      infra: input.profile.infra,
+      services: input.profile.services,
+      installHooks: false,
+      selectedCoreComponents: [],
+    };
+    const vscodeResults = await generateVSCodeArtifacts(projectProfile);
+    const ideEvidence: DetectionEvidence[] = [
+      { source: "derived", value: `ide:${ideDetection.ide}` },
+    ];
+    for (const artifact of vscodeResults) {
+      protectedPaths.add(artifact.relativePath);
+      componentResults.push({
+        kind: "file",
+        id: artifact.relativePath,
+        path: artifact.relativePath,
+        status: artifact.status,
+        evidence: ideEvidence,
+      });
+    }
+  }
 
   const result: PersonalizationResult = {
     contractVersion: PERSONALIZATION_CONTRACT_VERSION,

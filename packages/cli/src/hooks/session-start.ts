@@ -45,24 +45,67 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+/** Match factory (`###`) and consumer (`##`) Unprocessed headings. */
 export function parseUnprocessedDogfoodItems(readmeText: string): string[] {
   const items: string[] = [];
   let inSection = false;
+  let sectionLevel = 0;
   for (const line of readmeText.split(/\r?\n/)) {
-    if (line.startsWith("### Unprocessed Files")) {
+    const unprocessedMatch = /^(#{2,3})\s+Unprocessed Files\b/.exec(line);
+    if (unprocessedMatch) {
+      const hashes = unprocessedMatch[1];
+      if (!hashes) continue;
       inSection = true;
+      sectionLevel = hashes.length;
       continue;
     }
     if (!inSection) continue;
-    if (line.startsWith("### ")) break;
-    const stripped = line.trim();
-    if (!stripped.startsWith("- ")) continue;
-    const body = stripped.slice(2).trim();
-    const normalized = body.toLowerCase().replace(/[*_]/g, "").trim();
-    if (!normalized || NONE_PLACEHOLDERS.has(normalized)) continue;
+    const headingMatch = /^(#{1,6})\s+/.exec(line);
+    if (headingMatch) {
+      // Any Processed Files heading ends the section (mixed H2/H3 must not leak).
+      if (/\bProcessed Files\b/.test(line)) break;
+      const hashes = headingMatch[1];
+      if (hashes && hashes.length <= sectionLevel) break;
+      continue;
+    }
+    const body = extractUnprocessedDogfoodLine(line);
+    if (!body) continue;
     items.push(body);
   }
   return items;
+}
+
+/** Bullets, numbered lists, and markdown table rows (first cell). */
+function extractUnprocessedDogfoodLine(line: string): string | null {
+  const stripped = line.trim();
+  if (!stripped) return null;
+
+  let raw: string | null = null;
+  if (stripped.startsWith("- ")) {
+    raw = stripped.slice(2).trim();
+  } else {
+    const numbered = /^(\d+)[.)]\s+(.+)$/.exec(stripped);
+    if (numbered?.[2]) {
+      raw = numbered[2].trim();
+    } else if (stripped.startsWith("|")) {
+      const parts = stripped
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map((cell) => cell.trim());
+      if (parts.length === 0) return null;
+      if (parts.every((cell) => /^:?-+:?$/.test(cell))) return null;
+      const first = parts[0] ?? "";
+      const headerish = first.toLowerCase().replace(/[*_`]/g, "").trim();
+      if (/^(note|file|entrada|title|name|item|path)$/.test(headerish)) return null;
+      raw = first.trim();
+    }
+  }
+
+  if (!raw) return null;
+  const normalized = raw.toLowerCase().replace(/[*_]/g, "").trim();
+  if (!normalized || NONE_PLACEHOLDERS.has(normalized)) return null;
+  return raw;
 }
 
 async function l0Present(root: string): Promise<boolean> {

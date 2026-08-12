@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { defineCommand, runMain } from "citty";
+import { defineCommand, runMain, showUsage } from "citty";
 import { addCommand } from "./commands/add.js";
 import { contributeCommand } from "./commands/contribute.js";
 import { cursorAwarenessCommand } from "./commands/cursor-awareness.js";
@@ -19,11 +19,13 @@ import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
 import { validateCommand } from "./commands/validate.js";
 import { KIT_VERSION } from "./lifecycle/version.js";
+import { renderGroupedRootHelp } from "./welcome/help-groups.js";
+import { hasCliSubcommand, printWelcomeScreen } from "./welcome/screen.js";
 
 const main = defineCommand({
   meta: {
     name: "agent-kit",
-    description: "HITL framework for AI-assisted IDEs",
+    description: "HITL framework for AI-assisted IDEs (Mission Kit family)",
     version: KIT_VERSION,
   },
   subCommands: {
@@ -46,6 +48,19 @@ const main = defineCommand({
     monitors: monitorsCommand,
     validate: validateCommand,
   },
+  async run({ rawArgs }) {
+    // citty also invokes parent `run` after a subcommand; skip when one was selected.
+    if (hasCliSubcommand(rawArgs)) return;
+    printWelcomeScreen();
+  },
 });
 
-runMain(main);
+runMain(main, {
+  showUsage: async (cmd, parent) => {
+    if (!parent) {
+      process.stdout.write(`${await renderGroupedRootHelp(cmd)}\n`);
+      return;
+    }
+    await showUsage(cmd, parent);
+  },
+});

@@ -1,6 +1,6 @@
-# Agent Kit - Installation
+# Mission Kit / Agent Kit - Installation
 
-> **You are the installer.** Set up the kit **in the user's project** without copying the entire Agent Kit monorepo into it.
+> **You are the installer for Mission Kit 5.** Marketing name: **Mission Kit** ([missionkit.io](https://missionkit.io)). Technical surfaces: **Agent Kit** CLI, npm package, slash commands, and `.cursor/agent-kit.json`. Set up the kit **in the user's project** without copying the entire Agent Kit monorepo into it.
 
 ## Contract (mandatory)
 
@@ -35,6 +35,8 @@ If CLI runs successfully, skip to **Onboarding** below.
 ## Port B: install via chat (no CLI)
 
 Entry path: either the user drags `install.md` into chat, or they paste the agent brief from [install-prompt.md](install-prompt.md) which points to this contract. Before any file writes, confirm the absolute workspace root path using **Ask questions** tool (fallback to chat if unavailable). Prefer running `npx @dadado/agent-kit-cli install` when Node.js/npx are available; use the file sync below only when CLI is not available.
+
+> **Multi-workspace safety:** the Port B chat install performs the same root-confirm duty as the CLI's `confirmProjectRoot`. The Ask above is the Port B equivalent of that guard: confirm the workspace root before any L0 write. The shared registry cache is locked during CLI installs/updates, and each workspace keeps its own `.cursor/` tree plus its own Mission Control listen port.
 
 ### 1. Create minimal structure (L0 + session)
 
@@ -152,7 +154,7 @@ Create if it doesn't exist (adjust `version` / `registry` to current SoT):
 ```json
 {
   "schemaVersion": 1,
-  "version": "4.4.7",
+  "version": "5.0.0",
   "profile": "default",
   "packs": [],
   "skills": [],

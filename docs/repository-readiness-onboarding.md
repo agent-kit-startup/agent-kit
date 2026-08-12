@@ -23,7 +23,7 @@ A completed onboarding provides:
 4. secrets and hook safeguards;
 5. a documented branch and promotion strategy;
 6. enough project context for agents to act without inventing facts;
-7. relevant rules, skills, and agents selected from evidence;
+7. relevant rules, skills, and agents selected from evidence, plus an optional chat-time domain-skills scaffold before `/start-project`;
 8. a readiness report with no unresolved essential blocker;
 9. one clear next action: `/start-project` or finish setup.
 
@@ -81,6 +81,12 @@ An acknowledgment alone is not completion.
 ### Stage 5: Optional Personalization
 
 Agent Personas belong in a later settings or personalization step. External plan review belongs at plan exhaustion, where its purpose is visible. Neither feature blocks repository readiness.
+
+A **domain-skills scaffold** is offered after essentials are ready and before the final `/start-project` CTA. It reuses the install-time personalization/doctor evidence to propose relevant L2 skills, L1 packs, or project-owned skills under `.cursor/skills/domain/`. The operator chooses **scaffold**, **defer**, or **skip**; the choice is recorded in `.cursor/context/config.json`. Deferring or skipping does not block `/start-project`.
+
+**Instruction-only (intentional):** the scaffold gate lives in the L0 `/agent-kit-onboard` command prose and is executed by the chat agent. There is no separate CLI subcommand that writes domain skills. Prefer keeping it instruction-only unless a clear CLI integration path appears later.
+
+**`.cursor/skills/domain/` category:** project-only skills that sit outside the registry `core` / `community` trees. `guessRegistryPath` does not map `domain/`, so these skills cannot be contributed upstream (one-way). Update does not wipe them (overlay leaves project-owned paths alone). When scaffolding applies, update the **Relevant skills** section of `.cursor/project-context.md` and keep `.cursor/agent-kit.json` `skills[]` aligned as the install index.
 
 ### Stage 6: Start a Deliverable
 
@@ -310,6 +316,40 @@ Existing installs may still have `.cursor/commands/onboard.md` or `onboarded: tr
 3. Run `agent-kit doctor --json` (or refresh readiness during `/agent-kit-onboard`) so `.cursor/context/readiness.json` reflects the current repository.
 4. Treat `onboarded: true` without readiness evidence as incomplete; resume essential checks until they pass or an allowed non-essential item is deferred with a recovery action.
 5. Keep skins and external plan review as optional settings after essentials, not as the first-session path.
+
+## IDE-Agnostic / Slash-Less Onboarding
+
+Operators in VS Code, Windsurf, or other IDEs that lack Cursor's slash commands and Ask questions tool can complete readiness via the CLI and markdown checklists.
+
+### CLI equivalents
+
+| Cursor slash command | CLI / terminal equivalent |
+|---|---|
+| `/agent-kit-onboard` | `agent-kit doctor --json` then `agent-kit doctor --fix-safe` |
+| `/start-project` | Create a plan file in `.cursor/plans/` with to-dos, then resume from HANDOFF |
+| `/dashboard` | `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` |
+
+### Readiness without slash
+
+1. Run `agent-kit doctor --json` to see the readiness report.
+2. Fix essential blockers: `agent-kit doctor --fix-safe` applies safe local preparation.
+3. Review `.cursor/context/readiness.json` for remaining `needs_choice` and `manual` items.
+4. Resolve decisions by editing config files directly (`.cursor/context/config.json`, `.cursor/agent-kit.config.json`).
+5. Re-run `agent-kit doctor --json` until all essentials pass.
+
+### VS Code Copilot integration
+
+When the IDE profile is `vscode` or `other`, the install/personalization flow generates:
+
+- `.vscode/settings.json` with editor defaults
+- `.github/copilot-instructions.md` with project conventions
+- `.vscode/security-review.agent.md` (VS Code Pro only)
+
+These are standard VS Code / Copilot artifacts that work without Cursor.
+
+### Chat fallback
+
+Cursor's Ask questions tool provides clickable option buttons. When unavailable (VS Code, CLI-only), the same gates present options as a numbered list in chat. The user replies with a number or types a custom answer. This fallback covers all HITL gates.
 
 ## UX Rules
 

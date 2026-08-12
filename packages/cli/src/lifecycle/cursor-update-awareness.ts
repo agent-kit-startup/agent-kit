@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { readJson, writeJson } from "../utils/fs.js";
 
@@ -16,6 +16,30 @@ export const CURSOR_VERSION_MAJOR_MAX = 20;
 
 const INVENTORY_REL = path.join("docs", "cursor-native-audit.md");
 const FEATURES_REL = path.join("docs", "cursor-3-features.md");
+
+/**
+ * Walk up from cwd until docs/cursor-native-audit.md exists.
+ * Returns the directory that contains docs/, or null when none is found.
+ */
+export async function resolveInventoryRoot(cwd: string): Promise<string | null> {
+  let dir = path.resolve(cwd);
+  for (;;) {
+    try {
+      await access(path.join(dir, INVENTORY_REL));
+      return dir;
+    } catch {
+      // keep walking
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function missingInventoryMessage(): string {
+  return `Missing inventory at ${INVENTORY_REL}. Run from the kit/repo root that contains that file, or pass --cwd <path>.`;
+}
 
 export type CursorAwarenessStatus =
   | "current"
@@ -301,8 +325,6 @@ export async function checkCursorUpdateAwareness(
   cwd: string,
   options: CursorAwarenessOptions = {},
 ): Promise<CursorAwarenessResult> {
-  const inventoryPath = path.join(cwd, INVENTORY_REL);
-  const featuresPath = path.join(cwd, FEATURES_REL);
   const prefs = readCursorUpdateCheckPrefs(await loadContextConfig(cwd));
   const changelogUrl = options.changelogUrl ?? prefs.changelogUrl;
 
@@ -338,6 +360,25 @@ export async function checkCursorUpdateAwareness(
     }
   }
 
+  const inventoryRoot = await resolveInventoryRoot(cwd);
+  if (!inventoryRoot) {
+    return baseResult({
+      status: "error",
+      inventoryPath: INVENTORY_REL,
+      featuresPath: FEATURES_REL,
+      changelogUrl,
+      latestCursorVersion: null,
+      lastSeenCursorVersion: prefs.lastSeenCursorVersion,
+      inventoryRefreshed: null,
+      openActionIds: [],
+      gaps: [],
+      message: missingInventoryMessage(),
+    });
+  }
+
+  const inventoryPath = path.join(inventoryRoot, INVENTORY_REL);
+  const featuresPath = path.join(inventoryRoot, FEATURES_REL);
+
   let inventoryMd: string;
   try {
     inventoryMd = await readFile(inventoryPath, "utf8");
@@ -352,7 +393,7 @@ export async function checkCursorUpdateAwareness(
       inventoryRefreshed: null,
       openActionIds: [],
       gaps: [],
-      message: `Missing inventory at ${INVENTORY_REL}.`,
+      message: missingInventoryMessage(),
     });
   }
 

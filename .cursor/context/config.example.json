@@ -47,5 +47,8 @@
       "run-plan": "night-shift",
       "cli-run-plan": "ghost-runner"
     }
+  },
+  "missionControl": {
+    "preferredBrowser": null
   }
 }

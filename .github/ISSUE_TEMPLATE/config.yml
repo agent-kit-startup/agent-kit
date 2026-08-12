@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the docs first
+    url: https://github.com/agent-kit-startup/agent-kit/blob/main/docs/README.md
+    about: Install, configuration, skills, layers, and packs are documented. Most questions already have a written answer.
+  - name: Support and question routing
+    url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SUPPORT.md
+    about: Where to file what, and what makes a question answerable. Questions are welcome as issues - this page tells you which template to pick.
+  - name: Report a security vulnerability
+    url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SECURITY.md
+    about: Never report a vulnerability in a public issue. Use the private channel described here.
+  - name: Code of Conduct
+    url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/CODE_OF_CONDUCT.md
+    about: Contributor Covenant 2.1, and how to raise a conduct concern.

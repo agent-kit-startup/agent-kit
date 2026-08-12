@@ -1,12 +1,17 @@
+---
+name: dashboard
+description: Start or reuse Mission Control for this workspace and open the printed URL.
+---
+
 # Command: /dashboard
 
 ## Goal
 
-Start (or reuse) Mission Control for **this Cursor workspace only**, then open the printed URL in the IDE browser.
+Start (or reuse) Mission Control for **this workspace only**, then open the printed URL in **one** browser target: the IDE browser MCP (required path below). Do not open Chrome, Safari, Firefox, or other external browsers in addition. Preferred OS browser applies only when the operator runs `agent-kit dashboard` / `npm run dashboard` without `--no-open`.
 
-Local-dev only. Read-only. No HITL gate.
+Local-dev only. Read-only. No HITL gate unless `missionControl.preferredBrowser` is unset/`ask` and the operator wants to persist a preference (optional Ask; see step 4).
 
-**Terminal counterpart:** `agent-kit dashboard` from the workspace cwd. The installed package includes `dashboard/start.mjs` from 4.8.2 onward. Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root. On 4.8.0 or an older pin the panel assets are absent.
+**Terminal / IDE-agnostic invoke:** `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` from the workspace cwd. The installed package includes `dashboard/start.mjs` from 4.8.2 onward. Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root. On 4.8.0 or an older pin the panel assets are absent.
 
 ## When to Use
 
@@ -19,7 +24,19 @@ Local-dev only. Read-only. No HITL gate.
 ### 1. Resolve roots
 
 ```bash
-SNAPSHOT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# Prefer nearest Agent Kit install over git toplevel (nested monorepo packages).
+SNAPSHOT_ROOT="$(pwd)"
+d="$(pwd)"
+while [ "$d" != "/" ]; do
+  if [ -f "$d/.cursor/agent-kit.json" ]; then
+    SNAPSHOT_ROOT="$d"
+    break
+  fi
+  d="$(dirname "$d")"
+done
+if [ ! -f "$SNAPSHOT_ROOT/.cursor/agent-kit.json" ]; then
+  SNAPSHOT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
 ```
 
 Find `KIT_ROOT` (directory that contains `dashboard/start.mjs`):
@@ -58,11 +75,14 @@ curl -sf "${MC_URL}dashboard-data.json" | node -e 'let d="";process.stdin.on("da
 
 `system.repoRoot` must equal `SNAPSHOT_ROOT`. If it does not, do not open that URL; re-run step 2 and use the new printed URL.
 
-### 4. Open the panel
+### 4. Open the panel (single path)
 
-1. `cursor-ide-browser` → `browser_navigate` with `newTab: true` and the **printed** `MC_URL`
-2. If result is `chrome-error://chromewebdata/`: connection refused; fix step 2/3, then navigate once more
-3. Copy the URL for the operator (`pbcopy` on macOS) and mention Simple Browser as a fallback
+**Invariant:** open **at most one** browser surface. Never launch multiple external browsers.
+
+1. Optional Ask (only when `.cursor/context/config.json` → `missionControl.preferredBrowser` is missing, null, or `"ask"`, and the operator may want a saved OS preference for CLI opens): labels `Keep IDE browser only` / `Remember preferred browser for CLI` / `Skip open`. If they pick remember, set `missionControl.preferredBrowser` to an app name (e.g. `Google Chrome`) or leave null for OS default on future CLI opens. Slash `/dashboard` itself still uses the IDE MCP path below (not a second OS open).
+2. `cursor-ide-browser` → `browser_navigate` with `newTab: true` and the **printed** `MC_URL` (**only** this navigate; do not also run `open` / `xdg-open` / MCP + OS).
+3. If result is `chrome-error://chromewebdata/`: connection refused; fix step 2/3, then navigate **once** more (still a single surface).
+4. Copy the URL for the operator (`pbcopy` on macOS). Mention Simple Browser as a **manual** fallback for the human, not as a second agent-driven open.
 
 ### 5. Verify
 
@@ -72,13 +92,14 @@ Wait for the `Live` badge (~3–5s) or curl the JSON again. Header should show t
 
 | Do | Do not |
 |----|--------|
-| Set `MISSION_CONTROL_REPO_ROOT` to this git toplevel | Assume `http://localhost:3333` |
+| Set `MISSION_CONTROL_REPO_ROOT` to the nearest Agent Kit install (or git toplevel when none) | Assume `http://localhost:3333` |
 | Use `node "$KIT_ROOT/dashboard/start.mjs"` | `kill` a listener to "free" 3333 for another project |
-| Open the **printed** URL | Reuse HTTP 200 on any port without checking `system.repoRoot` |
+| Open the **printed** URL once (IDE MCP) | Reuse HTTP 200 on any port without checking `system.repoRoot`; open every installed browser |
 | Leave other workspaces' Mission Control running | Start `serve.mjs` from a kit tree without `MISSION_CONTROL_REPO_ROOT` |
 
 ## Notes
 
+- Preferred browser for CLI/OS opens: `missionControl.preferredBrowser` in `.cursor/context/config.json`, env `MISSION_CONTROL_PREFERRED_BROWSER`, or `agent-kit dashboard --browser "App Name"`. ADR `2026-08-11_mission-control-preferred-browser.md`.
 - Snapshot (plans, HANDOFF, git, memory) = `MISSION_CONTROL_REPO_ROOT`. Static UI = kit tree that hosts `dashboard/`.
 - Explicit `PORT` overrides hashing; if that port belongs to another root, start refuses (no kill).
 - Loopback only by default. LAN: `/dashboard-broadcast` (token-gated).
@@ -94,5 +115,6 @@ Wait for the `Live` badge (~3–5s) or curl the JSON again. Header should show t
 | Expected `:3333` | Per-workspace port allocation | Use printed URL / `system.port` |
 | `chrome-error://chromewebdata/` | Server not listening on that URL | Re-run starter; navigate again |
 | `PORT … will not kill another workspace` | Explicit `PORT` held by another root | `unset PORT` and re-run starter |
-| `No dashboard/start.mjs found` | Consumer-only tree | Set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` or sibling `../agent-kit` |
+| `No dashboard/start.mjs found` | Consumer-only tree | Set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `npx @dadado/agent-kit-cli@latest dashboard` |
+| `403 Forbidden` on CLI package fetch | Registry auth policy or private scope | `npm login`, check `.npmrc`, or use env/sibling fallback |
 | Empty skeletons | Cold snapshot | Wait for `Live` |

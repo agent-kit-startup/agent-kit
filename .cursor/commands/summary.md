@@ -1,3 +1,8 @@
+---
+name: summary
+description: Give a quick summary of the current state for a user who lost track of progress.
+---
+
 # Command: /summary
 
 ## Goal

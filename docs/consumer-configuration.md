@@ -44,6 +44,9 @@ Writable via tab = the Mission Control Config tab (More menu) can save the key t
 | `onboarded`, `onboarding.status`, `onboarding.contractVersion` | onboarding flows | readiness, Mission Control | Yes | No (display-only in the Read-only fieldset) | written by `/agent-kit-onboard` |
 | `onboarding.checks` | readiness scanner | readiness | Yes | Never | not editable |
 | `dogfood.factoryRoot` (absolute path or null) | `config.example.json`, `.cursor/commands/dogfood.md` | `/dogfood` bridge step | Yes | No | `{ "dogfood": { "factoryRoot": "/absolute/path/to/agent-kit-dev" } }` |
+| `missionControl.preferredBrowser` (string or null) | `config.example.json` | `dashboard/lib/open-browser.mjs`, `agent-kit dashboard` / `dashboard-broadcast` starters | Yes | No (edit config.json; not on Config-tab allowlist) | Platform-specific **name** only (not a path or shell expression): macOS app display name (`"Google Chrome"`), Linux binary on `PATH` (`"firefox"`), Windows program (`"msedge"` / `"chrome"`). null / omit / `"default"` / `"os"` → OS default; `"ask"` → slash Ask only, CLI still uses OS default. **Trust boundary:** values with `/`, `\`, `:`, or shell metacharacters are rejected and treated as OS default (ADR Evidence). |
+
+Audits knobs trade **coverage vs throughput**: keep `config.example.json` coverage defaults (`midBatchAudits: true` under `mode: "autonomous"`, `offerOnExhausted: true`, `preflight: "warn"`) unless you need fewer arms. Lower cost with `midBatchAudits: false` and/or `offerOnExhausted: false`; stop residual conveyors at triage (depth/Ack), not by flipping `autoRemediate`. See [external-plan-review.md](external-plan-review.md#throughput-vs-coverage-operator-knobs) and ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`.
 
 ## Dashboard skin (localStorage-only)
 
@@ -77,7 +80,7 @@ Invocation-time inputs; not persisted configuration. The table lists consumer-fa
 | Surface | Flags / env vars | Notes |
 |---------|------------------|-------|
 | `agent-kit run-plan` | `--max-ticks N`, `--model M`, `--sleep S`, `--backend cursor-agent\|claude`, `--dry-run` | `--backend claude` is **reserved, not implemented** (`packages/cli/src/plan-loop/backends.ts` throws); use `cursor-agent`. Distinct from `externalPlanReview.backend: claude`, which is the working Audits launcher backend. |
-| Mission Control server | `PORT` (default 3333), `HOST`, `MISSION_CONTROL_REPO_ROOT`, `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` (Path C kit-root fallback), `MISSION_CONTROL_TOKEN` (LAN broadcast), `MISSION_CONTROL_NO_OPEN`, `AGENT_KIT_DASHBOARD_DATA_TIMEOUT_MS`, `AGENT_KIT_DASHBOARD_DATA_BUDGET_MS` | Kit-root fallback is documented in README Path C and `/dashboard`. |
+| Mission Control server | `PORT` (default 3333), `HOST`, `MISSION_CONTROL_REPO_ROOT`, `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` (Path C kit-root fallback), `MISSION_CONTROL_TOKEN` (LAN broadcast), `MISSION_CONTROL_SHARE_BASE` / `MISSION_CONTROL_SHARE_TTL_SEC` / `MISSION_CONTROL_SHARE_SHOW_LAN` (cosmetic Share URL mask), `MISSION_CONTROL_NO_OPEN`, `MISSION_CONTROL_PREFERRED_BROWSER`, `agent-kit dashboard --browser`, `agent-kit dashboard-broadcast --browser`, `AGENT_KIT_DASHBOARD_DATA_TIMEOUT_MS`, `AGENT_KIT_DASHBOARD_DATA_BUDGET_MS` | Kit-root fallback is documented in README Path C and `/dashboard`. Preferred browser: one OS open (app/binary) or OS default; never multi-open. ADR `2026-08-11_mission-control-preferred-browser.md`. Share mask: ADR `2026-08-11_mission-control-broadcast-url-mask.md`. |
 | Registry / hooks | `AGENT_KIT_REGISTRY`, `ALLOW_MAIN_PUSH` | `ALLOW_MAIN_PUSH=1` disables main-push protection for the session (doctor warns). |
 
 ## How the Config tab saves

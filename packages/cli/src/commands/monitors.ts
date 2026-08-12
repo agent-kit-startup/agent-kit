@@ -5,7 +5,7 @@ import { selectUntriagedMonitors } from "../invariants/monitors-untriaged.js";
 export const monitorsCommand = defineCommand({
   meta: {
     name: "monitors",
-    description: "Plan-monitor selection helpers (untriaged SoT for /plan-review-triage)",
+    description: "Select untriaged plan monitors (--untriaged; SoT for chat triage).",
   },
   args: {
     cwd: {

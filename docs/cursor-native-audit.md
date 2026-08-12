@@ -1,22 +1,22 @@
 # Cursor-native audit - Agent Kit harness
 
-Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-07-19** (post EN sweep on staging).
+Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-08-12** (inventory cwd harden + Action A4/A5/A7 refresh).
 
-**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. Version-prose / Marketplace packaging refresh remains on the parked Marketplace plan. See [cursor-update-awareness.md](cursor-update-awareness.md).
+**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. Version-prose and Marketplace packaging were refreshed on 2026-08-05; only the live submission stays on the Marketplace plan (publisher HITL). See [cursor-update-awareness.md](cursor-update-awareness.md).
 
 ## Summary
 
 | Area | Status | Notes |
 |------|--------|-------|
-| `.cursor/rules/` | Present (23 files) | 8 core rules `alwaysApply: true`; stack rules use globs |
-| `.cursor/skills/` | Present (7 skills) | Install output from registry (`core/` + `community/`) |
+| `.cursor/rules/` | Present (25 files) | 10 core rules `alwaysApply: true`; stack rules use globs |
+| `.cursor/skills/` | Present (9 skills) | Install output from registry (`core/` 2 + `community/` 7) |
 | `.cursor/agents/` | Present (13 agents) | Mix of core and stack subagents; EN pack ids |
-| `.cursor/commands/` | Present (10 commands) | DevOps spine + handoff + orchestration |
+| `.cursor/commands/` | Present (27 commands) | DevOps spine + handoff + orchestration + backlog/dashboard |
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
-| `.cursor/hooks.json` | **Present (L0)** | `sessionStart` + `preCompact`; no `stop` hook |
-| `.cursor-plugin/plugin.json` | Present | Metadata only; version `3.0.0` (drift vs product **4.2.1**) |
+| `.cursor/hooks.json` | **Present (L0)** | 5 events (`sessionStart`, `preCompact`, `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`); no `stop` hook |
+| `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.0.0**, aligned with product; declares explicit component paths |
 | `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
-| `AGENTS.md` (dogfood) | **Absent** | CLI generates it for target projects; this repo does not use its own cross-IDE file |
+| `AGENTS.md` (dogfood) | **Present** | Root cross-IDE contract; points at `.cursor/project-context.md` |
 | `mcp.json` | Absent | No project-level MCP config in core |
 
 ---
@@ -28,22 +28,24 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | Field | Value |
 |-------|-------|
 | name | `agent-kit` |
-| version | `3.0.0` |
-| description | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop) |
+| version | `5.0.0` (pinned to `KIT_VERSION` by `packages/cli/src/lifecycle/l0.test.ts`) |
+| description | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop, anti-slop) |
+| components | `rules`, `skills`, `agents`, `commands`, `hooks` declared explicitly |
 
 **Findings:**
 
 - Plugin manifest exists for Marketplace distribution path (install port A).
-- Manifest is metadata-only: no `rules`, `skills`, or `hooks` entries in the plugin schema used here.
-- CLI `init` also writes `plugin.json` into target projects with equivalent fields.
+- Manifest is no longer metadata-only. The plugin root is the parent of `.cursor-plugin/`, and Cursor's default discovery reads `rules/`, `skills/`, `agents/`, `commands/`, `hooks/hooks.json` at that root - paths this repo does not use. Without explicit entries the plugin would list with **zero** components. Packaging contract: [marketplace.md](marketplace.md).
+- `skills` points at `.cursor/skills/core`, not `.cursor/skills`: discovery matches direct children holding a `SKILL.md`, and `core/`/`community/` are one level too shallow. This also keeps stack skills on `agent-kit add`.
+- CLI `init` does **not** write `.cursor-plugin/plugin.json` into target projects; no generator under `packages/cli/src/generator/` references it. (Corrected 2026-08-05; the earlier claim was stale.)
 
-**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan.
+**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan. Live submission stays publisher HITL and is gated on the public mirror carrying the 5.0.0 manifest.
 
 ---
 
 ## Rules - modes and coverage
 
-**Location:** `.cursor/rules/*.mdc` (23 files)
+**Location:** `.cursor/rules/*.mdc` (25 files)
 
 ### alwaysApply: true (core - structural)
 
@@ -142,18 +144,22 @@ Separate from `.cursor/hooks/`; optional hygiene for teams that reject bot co-au
 
 Cursor subagent definitions. Consumed via Task tool / Agents Window. Full classification in [coherence-inventory.md](coherence-inventory.md).
 
-### Commands (`.cursor/commands/` - 10)
+### Commands (`.cursor/commands/` - 27)
 
-Slash commands in Cursor:
+Slash commands in Cursor. Every file carries `name` + `description` frontmatter (required by the Marketplace submission checklist; `name` matches the filename slug, so nothing was renamed).
 
 | Command | Spine |
 |---------|-------|
 | `/continue-plan` | Handoff resume |
 | `/handoff` | Save HANDOFF |
-| `/run-plan-loop`, `/run-plan-orchestrated` | Continuous loop / worker delegation (no `/git-prod`) |
+| `/run-plan`, `/run-plan-all` | Continuous run / multi-plan queue (no `/git-prod`) |
+| `/run-plan-loop`, `/run-plan-orchestrated` | Deprecated aliases forcing one strategy |
 | `/git-staging`, `/git-prod` | DevOps spine |
-| `/start-project` | Bootstrap (two HITL gates) |
-| `/context-status` | Context pack status |
+| `/start-project`, `/agent-kit-onboard`, `/hotfix` | Bootstrap and narrow-change entry |
+| `/backlog-add`, `/backlog-edit`, `/backlog-cancel`, `/backlog-delete`, `/archive-plan` | Plan queue management |
+| `/plan-external-review`, `/plan-review-triage`, `/field-report-resolve` | Audits and residual triage |
+| `/dashboard`, `/dashboard-broadcast` | Mission Control |
+| `/context-status`, `/update`, `/cursor-update-awareness`, `/dogfood` | Lifecycle and awareness |
 | `/summary`, `/tips` | UX helpers |
 
 Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command files; parity relies on `AGENTS.md` and IDE-specific instruction files.
@@ -213,7 +219,7 @@ The Agent Kit repo uses the full Cursor workspace and **does**:
 
 Still open dogfood gaps:
 
-2. Include root `AGENTS.md` (cross-IDE contract)
+2. ~~Include root `AGENTS.md` (cross-IDE contract)~~ **Done** (root `AGENTS.md` present)
 3. Auto-install git hooks on clone (documented manual copy)
 4. Ship `mcp.json` for optional MCP servers
 
@@ -228,10 +234,10 @@ Acceptable for private SoT until Phase B registry cutover defines minimum dogfoo
 | A1 | ✅ Done | Fix `ux-tone.mdc` frontmatter |
 | A2 | ✅ Done | Refresh [coherence-inventory.md](coherence-inventory.md) + [drift-inventory.md](drift-inventory.md) (2026-07-19) |
 | A3 | ✅ Done | `.cursor/hooks.json` + agent scripts (`sessionStart` / `preCompact`) |
-| A4 | Open | Align CLI git-hooks with `.cursor/hooks/pre-commit/` chain |
-| A5 | Open | Add root `AGENTS.md` to agent-kit repo (dogfood) |
-| A6 | Open | Document Marketplace plugin path + VS Code/Windsurf install |
-| A7 | Open | Expand generators or template files for multi-IDE parity |
+| A4 | Partial | Dual hook lanes remain: `git-hooks/` (main/push guards + co-author strip) vs `.cursor/hooks/pre-commit/` (secrets + JSON). Next step: document install matrix and decide whether CLI `git-hooks` generator should mirror the Cursor pre-commit chain (no silent merge). |
+| A5 | ✅ Done | Root `AGENTS.md` present (dogfood cross-IDE contract) |
+| A6 | Partial | Marketplace plugin path documented ([marketplace.md](marketplace.md) packaging contract, 2026-08-05); VS Code/Windsurf install still open |
+| A7 | Open | Expand generators or template files for multi-IDE parity (scoped: Windsurf `.windsurfrules` handoff/git bullets + VS Code instruction parity with [cursor-3-features.md](cursor-3-features.md); not Marketplace submit) |
 
 ---
 

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Mission Control share</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #0f1419;
+        --fg: #e7ecf1;
+        --muted: #8b9aab;
+        --accent: #3b82f6;
+        --err: #f87171;
+        --card: #1a222c;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f6f8;
+          --fg: #12202e;
+          --muted: #5b6b7c;
+          --card: #ffffff;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+      }
+      main {
+        width: min(28rem, 100%);
+        background: var(--card);
+        border-radius: 12px;
+        padding: 1.5rem 1.35rem;
+        box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
+      }
+      h1 {
+        font-size: 1.15rem;
+        margin: 0 0 0.5rem;
+        font-weight: 650;
+      }
+      p {
+        margin: 0 0 1rem;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.45;
+      }
+      .err {
+        color: var(--err);
+      }
+      a.btn,
+      button.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font: inherit;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        background: var(--accent);
+        color: #fff;
+      }
+      a.btn[hidden],
+      button.btn[hidden] {
+        display: none;
+      }
+      .note {
+        margin-top: 1rem;
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Mission Control</h1>
+      <p id="status">Opening your local Mission Control…</p>
+      <a id="open" class="btn" hidden href="#">Open Mission Control</a>
+      <p class="note">
+        Cosmetic share link only. You must be on the same trusted LAN (or VPN) as the host.
+        Treat the full Share URL as a secret (it embeds the session token in the fragment).
+        Only private/loopback LAN targets are accepted.
+      </p>
+    </main>
+    <script>
+      (function () {
+        var statusEl = document.getElementById("status");
+        var openEl = document.getElementById("open");
+
+        function fail(msg) {
+          statusEl.textContent = msg;
+          statusEl.className = "err";
+          openEl.hidden = true;
+        }
+
+        function isPrivateOrLoopbackHostname(hostname) {
+          var host = String(hostname || "")
+            .trim()
+            .toLowerCase()
+            .replace(/^\[|\]$/g, "");
+          if (!host) return false;
+          if (host === "localhost" || host.slice(-10) === ".localhost" || host.slice(-6) === ".local") {
+            return true;
+          }
+          if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
+          var m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+          if (m) {
+            var a = +m[1];
+            var b = +m[2];
+            var c = +m[3];
+            var d = +m[4];
+            if ([a, b, c, d].some(function (n) {
+              return !Number.isInteger(n) || n < 0 || n > 255;
+            })) {
+              return false;
+            }
+            if (a === 127) return true;
+            if (a === 10) return true;
+            if (a === 192 && b === 168) return true;
+            if (a === 172 && b >= 16 && b <= 31) return true;
+            if (a === 169 && b === 254) return true;
+            return false;
+          }
+          if (host.indexOf(":") !== -1) {
+            if (host.slice(0, 2) === "fc" || host.slice(0, 2) === "fd") return true;
+            if (/^fe[89ab]/.test(host)) return true;
+          }
+          return false;
+        }
+
+        function validateTarget(url) {
+          var raw = typeof url === "string" ? url.trim() : "";
+          if (!raw) return { ok: false, error: "invalid-target" };
+          var parsed;
+          try {
+            parsed = new URL(raw);
+          } catch (_) {
+            return { ok: false, error: "invalid-target" };
+          }
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            return { ok: false, error: "invalid-target" };
+          }
+          if (!isPrivateOrLoopbackHostname(parsed.hostname)) {
+            return { ok: false, error: "non-private-target" };
+          }
+          return { ok: true, url: raw };
+        }
+
+        function decodeFragment(fragment) {
+          var raw = String(fragment || "").replace(/^#/, "").trim();
+          if (!raw) return { ok: false, error: "missing-fragment" };
+          var m = /^v1\.([A-Za-z0-9_-]+)$/.exec(raw);
+          if (!m) return { ok: false, error: "unsupported-version" };
+          try {
+            var b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+            while (b64.length % 4) b64 += "=";
+            var json = atob(b64);
+            var parsed = JSON.parse(json);
+            if (!parsed || parsed.v !== 1 || typeof parsed.u !== "string") {
+              return { ok: false, error: "invalid-payload" };
+            }
+            var target = validateTarget(parsed.u.trim());
+            if (!target.ok) return target;
+            if (parsed.e != null) {
+              var e = Number(parsed.e);
+              if (!isFinite(e)) return { ok: false, error: "invalid-expiry" };
+              if (Math.floor(Date.now() / 1000) > e) return { ok: false, error: "expired" };
+            }
+            return { ok: true, url: target.url };
+          } catch (err) {
+            return { ok: false, error: "invalid-payload" };
+          }
+        }
+
+        var decoded = decodeFragment(location.hash);
+        if (!decoded.ok) {
+          var map = {
+            "missing-fragment": "This share link is incomplete. Ask the operator to re-run dashboard-broadcast.",
+            "unsupported-version": "This share link uses an unsupported format.",
+            "invalid-payload": "This share link could not be decoded.",
+            "invalid-target": "This share link has an invalid Mission Control URL.",
+            "non-private-target": "This share link targets a non-private host and was blocked.",
+            expired: "This share link expired. Ask the operator for a fresh link.",
+          };
+          fail(map[decoded.error] || "Could not open Mission Control.");
+          return;
+        }
+
+        openEl.href = decoded.url;
+        openEl.hidden = false;
+        statusEl.textContent = "Ready. Continue to Mission Control on your LAN.";
+        // Auto-navigate only for validated private/loopback targets; button remains if blocked.
+        try {
+          location.replace(decoded.url);
+        } catch (_) {
+          /* keep button */
+        }
+      })();
+    </script>
+  </body>
+</html>

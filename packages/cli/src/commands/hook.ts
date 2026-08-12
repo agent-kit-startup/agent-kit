@@ -11,8 +11,7 @@ import {
 export const hookCommand = defineCommand({
   meta: {
     name: "hook",
-    description:
-      "Cursor hook adapters (session-start, pre-compact). CLI is SoT; thin hooks shell out here.",
+    description: "Cursor hook adapters (session-start, pre-compact). CLI is SoT.",
   },
   subCommands: {
     "session-start": defineCommand({

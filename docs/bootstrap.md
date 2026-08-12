@@ -70,9 +70,11 @@ The kit can update itself against the same source without ever touching your pla
 | `agent-kit status` | Version, installed packs, readiness summary |
 | `agent-kit doctor` | Refresh or repair repository readiness |
 
+**Multi-workspace safety:** each project keeps its own `.cursor/agent-kit.json` manifest and `.cursor/agent-kit.managed-hashes.json` overlay ledger. The CLI confirms the absolute root before writing (interactive prompt; `--yes` skips). The shared registry cache (`~/.cache/agent-kit/registry/`) is directory-locked so parallel installs cannot race.
+
 **Check ≠ apply.** Opt-in session nudges use `updateCheck.enabled` in `.cursor/context/config.json` (default `false`). When enabled, `sessionStart` may advise that a newer public release exists; it never rewrites `.cursor/`. Applying still requires `/update` with Ask confirmation (or an explicit terminal `agent-kit update`). `updateApply.auto` defaults to `false` and is not a silent background path.
 
-**Cursor product updates (separate):** opt-in `cursorUpdateCheck.enabled` (default `false`) plus `agent-kit cursor-awareness --check` / `/cursor-update-awareness` report advisory gaps vs `docs/cursor-native-audit.md`. Confirmed work routes through Ask → `/backlog-add` or `/dogfood`. Never auto Field Reports. See [cursor-update-awareness.md](cursor-update-awareness.md).
+**Cursor product updates (separate):** opt-in `cursorUpdateCheck.enabled` (default `false`) plus `agent-kit cursor-awareness --check` / `/cursor-update-awareness` report advisory gaps vs `docs/cursor-native-audit.md` (walk-up from cwd; use `--cwd` when the inventory is not under the shell directory). Confirmed work routes through Ask → `/backlog-add` or `/dogfood`. Never auto Field Reports. See [cursor-update-awareness.md](cursor-update-awareness.md).
 
 Factory/dogfood installs (manifest registry URL `agent-kit-dev` or pre-prod refs such as `staging`) skip the public check with a warning so the factory is not treated as a consumer.
 
