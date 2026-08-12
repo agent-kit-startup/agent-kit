@@ -1,7 +1,9 @@
 {
   "name": "agent-kit",
   "displayName": "Agent Kit",
-  "author": "agent-kit-startup",
+  "author": {
+    "name": "agent-kit-startup"
+  },
   "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
   "keywords": [
     "agents",
@@ -12,7 +14,14 @@
     "multi-ide",
     "anti-slop"
   ],
-  "license": "MIT",
-  "version": "4.8.9",
-  "repository": "https://github.com/agent-kit-startup/agent-kit"
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "version": "5.0.0",
+  "homepage": "https://github.com/agent-kit-startup/agent-kit",
+  "repository": "https://github.com/agent-kit-startup/agent-kit",
+  "logo": "dashboard/logo.svg",
+  "rules": ".cursor/rules",
+  "skills": ".cursor/skills/core",
+  "agents": ".cursor/agents",
+  "commands": ".cursor/commands",
+  "hooks": ".cursor/hooks.json"
 }

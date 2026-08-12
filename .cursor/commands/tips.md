@@ -1,3 +1,8 @@
+---
+name: tips
+description: Reference for Cursor native commands (worktree, best-of-n) and how Agent Kit relates to them.
+---
+
 # Tips: Cursor native commands (3.0+)
 
 ## `/worktree`

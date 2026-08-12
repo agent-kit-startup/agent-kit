@@ -25,9 +25,16 @@ ADR: `.cursor/memory/decisions/2026-08-01_cursor-update-detection-source.md`
 ## CLI
 
 ```bash
-agent-kit cursor-awareness --check [--json] [--respect-prefs] [--stamp] [--offline]
+agent-kit cursor-awareness --check [--cwd <path>] [--json] [--respect-prefs] [--stamp] [--offline]
 ```
 
+### Inventory path / cwd
+
+The check resolves `docs/cursor-native-audit.md` by walking up from `--cwd` (default: `process.cwd()`) until the file exists. Nested monorepo directories (for example `packages/cli`) therefore reuse the kit-root inventory. Prefs and `--stamp` still read/write `.cursor/context/config.json` under the caller `--cwd`.
+
+If no inventory is found in any ancestor (typical consumer checkout without the factory docs tree), the result is `status: error` with an actionable hint to pass `--cwd` at the kit/repo root that contains the inventory. There is no silent success without an inventory file.
+
+Secondary map `docs/cursor-3-features.md` is read from the same resolved inventory root.
 ## Slash command
 
 `/cursor-update-awareness` runs the check, summarizes gaps, then Ask-routes to `/backlog-add` or `/dogfood`.

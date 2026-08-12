@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -87,6 +88,16 @@ describe("resolveDashboardSnapshotRoot", () => {
   it("returns the absolute cwd when git is unavailable", () => {
     const root = mkdtempSync(join(tmpdir(), "ak-snap-"));
     expect(resolveDashboardSnapshotRoot(root)).toBe(root);
+  });
+
+  it("prefers the nearest Agent Kit install over a parent git toplevel", () => {
+    const mono = mkdtempSync(join(tmpdir(), "ak-mono-"));
+    // Create a parent git tree so rev-parse would climb above the package.
+    execFileSync("git", ["init"], { cwd: mono });
+    const pkg = join(mono, "pkg");
+    mkdirSync(join(pkg, ".cursor"), { recursive: true });
+    writeFileSync(join(pkg, ".cursor", "agent-kit.json"), "{}\n");
+    expect(resolveDashboardSnapshotRoot(pkg)).toBe(pkg);
   });
 });
 

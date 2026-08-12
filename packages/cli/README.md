@@ -38,6 +38,23 @@ The panel binds to loopback by default, serves its own static files, and snapsho
 
 Older tags before 4.8.2 do not include those assets. Prefer a current pin, or point `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` at an agent-kit checkout that contains `dashboard/`.
 
+## Bare invoke (welcome)
+
+With no subcommand, `agent-kit` prints a branded Mission Kit welcome (ASCII helmet, version, and short utility hints) then exits. Technical identifiers stay `agent-kit` / `@dadado/agent-kit-cli`.
+
+```bash
+agent-kit
+# → welcome + hints (doctor, status, dashboard, init, --help)
+
+agent-kit --help
+# → grouped command list (SETUP / MISSION / DASHBOARD / INTEGRITY)
+
+NO_COLOR=1 agent-kit
+# → plain text (no ANSI); also plain when stdout is not a TTY or CI=1
+```
+
+Subcommands and `agent-kit --version` are unchanged. Chat-only HITL flows (`/start-project`, `/git-staging`, `/git-prod`, `/run-plan-all`, backlog CRUD) are not CLI commands.
+
 ## Common commands
 
 | Command | Purpose |

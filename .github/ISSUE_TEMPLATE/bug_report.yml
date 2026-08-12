@@ -1,0 +1,110 @@
+name: Bug report
+description: Something in the CLI, the installed files, Mission Control, or the docs is broken.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do **not** use this form for a security vulnerability. Follow the
+        [security policy](https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SECURITY.md)
+        instead - a public issue exposes the problem before a fix exists.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      description: Where does it go wrong?
+      options:
+        - CLI (install / update / add / doctor / contribute)
+        - Installed L0 files (commands, rules, hooks, templates)
+        - Registry skill or Agent Persona
+        - Mission Control dashboard
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, what happened, and what you expected instead.
+      placeholder: |
+        I ran `npx @dadado/agent-kit-cli install` in an existing Next.js repo.
+        It failed with ... I expected ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: doctor output
+      description: Output of `npx @dadado/agent-kit-cli doctor --json`. This is the single most useful thing you can paste.
+      render: json
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal output
+      description: Relevant output as text, not a screenshot. Redact any tokens or paths you do not want public.
+      render: shell
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: CLI version
+      description: Output of `npx @dadado/agent-kit-cli --version`.
+      placeholder: "5.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: installed-version
+    attributes:
+      label: Installed kit version
+      description: The `version` field in your project's `.cursor/agent-kit.json`, if the issue involves installed files.
+      placeholder: "5.0.0"
+
+  - type: dropdown
+    id: ide
+    attributes:
+      label: IDE
+      description: Cursor is the first-class target; VS Code and Windsurf generators are partial by design.
+      options:
+        - Cursor
+        - VS Code
+        - Windsurf
+        - None / CLI only
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Node version
+      placeholder: "macOS 15.4, Node 20.11.1"
+    validations:
+      required: true

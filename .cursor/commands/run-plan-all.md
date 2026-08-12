@@ -1,3 +1,8 @@
+---
+name: run-plan-all
+description: Orchestrate multiple plans as an ordered, deduplicated execution queue, one Task per plan.
+---
+
 # Command: /run-plan-all
 
 ## Goal
@@ -77,7 +82,7 @@ This step is delegated to a **Task(explore) subagent** using the reusable worker
    - **Repo:** `[absolute repo path]`
    - **Command:** `/run-plan-all`
    - **Task description:** "Scan recent merges (git log --first-parent --merges -20), recent commits (git log --first-parent --no-merges -10; git diff staging...HEAD --stat), CHANGELOG.md [Unreleased] + latest release, HANDOFF, and every eligible candidate plan (frontmatter + body) under .cursor/plans/. Return a structured PO synthesis report: logical execution order, overlap/dependency map, consolidation proposals, and coherence notes. See the Inputs table in the command for the full specification."
-   - **read_scope:** `[".cursor/plans/*.plan.md", ".cursor/HANDOFF.md", "CHANGELOG.md", ".cursor/memory/decisions/"]` (plus workspace-level git log/diff)
+   - **read_scope:** `[".cursor/plans/*.plan.md", ".cursor/HANDOFF.md", "CHANGELOG.md", ".cursor/memory/decisions/"]` (plus workspace-level git log/diff). Unprocessed dogfood is owned by the Confirm Queue preflight below; do not put dogfood paths on this explore worker.
    - **worker_contract:** "structured PO synthesis report: ordered plan list, overlap/dependency annotations, consolidation proposals, coherence notes, plus staging-ready (lint)"
    - **max_ticks:** 2
    - **worker_type:** explore
@@ -91,6 +96,8 @@ This step is delegated to a **Task(explore) subagent** using the reusable worker
 **References:** Reusable worker prompt template at `.cursor/context/templates/command-worker-prompt.md`. Delegation routing table at `autogit/plan-routine.md` section 9 (Commands refactored).
 
 ## Confirm Queue (Ask questions)
+
+**Unprocessed dogfood preflight (advisory):** before the confirm Ask, skim `##` or `### Unprocessed Files` in factory `dogfood/README.md` or consumer `.cursor/dogfood/README.md`. Non-empty: mention count and top titles once in the Ask body (standard triage labels). Empty or missing: silent OK. Never auto-analyze, never invent Field Reports, never refuse the queue solely because the inbox is non-empty. Orchestrator owns this skim for the batch: per-plan `/run-plan` workers must not re-recite the same inbox. sessionStart tip remains complementary (ADR `2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`).
 
 After synthesis, present the proposal using **Ask questions** tool. Include the ordered list, key overlaps/consolidations, and coherence notes in the question body. Fallback to chat numbered list if the tool is unavailable.
 
@@ -177,9 +184,9 @@ Read `externalPlanReview` before the queue confirm Ask and at each advance:
 | Config | Behavior |
 |--------|----------|
 | Audits **pre-flight** (`preflight`: `off` \| `warn` \| `block`) | Before the confirm Ask and before each mid-queue advance: same owed/untriaged check as `/run-plan`. `block` arms or stops; never steals `/git-prod`. |
-| `midBatchAudits: true` and audits enabled | After each plan Task returns `outcome: completed`, the **orchestrator** arms **one** full audit for that plan with `--force --autonomous --wait-monitor` (or one `--batch` + wait_all when batching is intentional) **before** advancing the cursor. No paste Ask between plans. Soft-fail → Field Report owed; still advance. AwaitShell until exit `0|3|4`; wait success requires a **fresh** monitor after arm start. Do **not** fan out N background sessions without wait. Do **not** insert a mid-queue triage Ask (operator non-stop preserved; record ready path for queue-end). |
+| `midBatchAudits: true` and audits enabled | After each plan Task returns `outcome: completed`, the **orchestrator** arms **one** full audit for that plan with `--force --autonomous --wait-monitor` (or one `--batch` + wait_all when batching is intentional) **before** advancing the cursor. No paste Ask between plans. Soft-fail → Field Report owed; still advance. AwaitShell until exit `0|3|4`; wait success requires a **fresh** monitor after arm start. Do **not** fan out N background sessions without wait. Do **not** insert a mid-queue triage Ask (operator non-stop preserved; record ready path for queue-end). Mid-batch stays findings-only: **never** auto-Write residuals or rewrite the Run queue between plans. |
 | `midBatchAudits` false/missing | **Non-stop** mid-queue: do **not** pause for audit Ask/paste between plans. Mid-queue completed plans stay Field Report **owed** until reviewed. |
-| Queue exhausted | Final HANDOFF; cadence `batch-complete`; then queue-end audit arm covering remaining owed/unreviewed targets (enabled → `--force --autonomous --wait-monitor` or paste per `mode`; else `offerOnExhausted` Ask). Prefer one launcher `--batch` + wait_all when multiple basenames. After wait exit `0`: run `/plan-review-triage` Ask with an **explicit path list** of fresh monitors (batch uniform Ask when outcomes match; sequential fallback when mixed; durable heading per file). Then suggest `/git-prod` if staging is ahead of `main` (separate HITL). |
+| Queue exhausted | Final HANDOFF; cadence `batch-complete`; then queue-end audit arm covering remaining owed/unreviewed targets (enabled → `--force --autonomous --wait-monitor` or paste per `mode`; else `offerOnExhausted` Ask). Prefer one launcher `--batch` + wait_all when multiple basenames. After wait exit `0`: run `/plan-review-triage` Ask with an **explicit path list** of fresh monitors (batch uniform Ask when outcomes match; sequential fallback when mixed; durable heading per file). **Batch exhaust without conveyor:** when remaining monitors are process-only / depth-capped, prefer uniform **Ack and stop** or **Fix nits only**; do not spawn unbounded `close-*` backlog from Write residuals (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Then suggest `/git-prod` if staging is ahead of `main` (separate HITL). |
 
 Never steal `/git-prod` confirmation. Chat never runs silent headless `--force` / `claude -p` in the agent shell. Spawn-only exit 0 without `--wait-monitor` is **not** review done. Never stop at Final HANDOFF "when monitors exist, run triage" after arming: wait (freshness) then continue (mid-batch waits for file only; queue-end waits then triage Ask with explicit paths). ADR: `2026-07-27_audits-autonomous-plan-review-contract.md` (supersedes queue-end-only); wait freshness: `2026-07-27_audits-wait-freshness-enforce.md`.
 
@@ -210,6 +217,7 @@ Rules:
 - Read `.cursor/HANDOFF.md` and the plan file first. Resume from the next pending/in_progress to-do.
 - Follow `/run-plan` (`.cursor/commands/run-plan.md`): tick contract, risk gates, staging-on-diff when there is a diff.
 - Findings-only: review workers (`review-*` / findings contracts) return structured findings (severity, path, evidence) and must not auto-fix product code. After findings, the in-plan `/run-plan` orchestrator applies `externalPlanReview.autoRemediate` (default false): fix-agent Task (small) or residuals backlog plan (large). Do not silent-apply.
+- Unprocessed dogfood already skimmed by the orchestrator at queue-confirm — do not re-recite.
 - When this plan is exhausted (`outcome: completed`), **skip** chat exhaustion Ask/paste in the worker (parent orchestrator owns mid-batch + queue-end audits). Return the structured summary and stop.
 - Never `/git-prod`. Never ask the user for `/continue-plan` as the default path.
 - Do not start the next queued plan; this Task owns only this plan.

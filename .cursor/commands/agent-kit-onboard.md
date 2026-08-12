@@ -1,3 +1,8 @@
+---
+name: agent-kit-onboard
+description: Prepare and validate repository readiness before /start-project.
+---
+
 # Command: /agent-kit-onboard
 
 ## Goal
@@ -96,10 +101,25 @@ When complete:
 3. Verify each remaining non-essential check is ready or explicitly deferred with both a reason and recovery action. Reject deferral for any check with `status: "blocked"`.
 4. If verification fails, leave `onboarding.status: "in_progress"` and `onboarded` unchanged, then resume the first unresolved essential check derived from `pillars[].checks[]`.
 5. Only after verification passes, merge `onboarding.status: "completed"` and `onboarded: true` into `.cursor/context/config.json` without removing other keys.
-6. End with exactly one call to action:
+6. **Domain-skills scaffold (optional HITL).** Before showing the final finish-setup CTA, run the scaffold gate:
+   - Read `.cursor/context/personalization.json` and `.cursor/agent-kit.config.json` to reuse install-time evidence. Do not invent a second detector.
+   - Build a short proposal from the already-applied L2 skills and L1 packs in personalization, plus any project-owned domain skills implied by the profile but not yet installed.
+   - Ask one question using **Ask questions** with concrete options:
+
+     > "Essentials are ready. Before finish setup, scaffold domain skills from the detected profile?"
+
+     Options: `Scaffold domain skills` / `Defer (record reason)` / `Skip`
+
+   - **Fallback when Ask questions is unavailable:** present the same options as a numbered list, ask the user to reply with the number or the label, and note they can always **type their own answer** if none of the options fit (equivalent of the built-in "Other" choice).
+   - **Scaffold domain skills:** show the proposal list, then write any accepted project-owned skills under `.cursor/skills/domain/<skill-id>/SKILL.md` only when the path does not already exist. Update the **Relevant skills** section of `.cursor/project-context.md` (create the heading if missing) with installed and newly accepted skill ids plus evidence; also ensure those ids appear under `.cursor/agent-kit.json` `skills[]` when that manifest is the project's install index. Record `onboarding.domainSkills` in `.cursor/context/config.json` with `status: "applied"`, the list of accepted items, and `appliedAt`.
+   - **Defer:** ask for a short reason, then record `onboarding.domainSkills` with `status: "deferred"`, `reason`, and `recoveryCommand: "/agent-kit-onboard"`.
+   - **Skip:** record `onboarding.domainSkills` with `status: "skipped"`.
+   - Never overwrite an existing project-owned skill or file without a separate HITL confirmation. This closes the gap reported in public issue https://github.com/agent-kit-startup/agent-kit/issues/36 and the dogfood note `dogfood/cursor_onboard_should_scaffold_domain_skills_2026_08_01.md`.
+   - **Instruction-only surface:** this gate is chat/`/agent-kit-onboard` prose executed by the agent session. There is no separate CLI subcommand that scaffolds domain skills; intentionally document defer/skip when the operator declines. Project-owned skills under `.cursor/skills/domain/` are one-way (not contributeable via `guessRegistryPath` / registry paths `core` and `community` only).
+7. End with exactly one call to action:
    - `Next: /start-project` when the user wants to plan a deliverable.
    - `Next: finish setup` when no deliverable should start now.
 
-After essentials are ready, Mission Control is **optional** and **not** an essential readiness check. Consumer L0 installs the `/dashboard` command text but not `dashboard/**`. If the operator wants the panel, `agent-kit dashboard` serves it from the installed CLI (4.8.2 onward); on older pins point them to an agent-kit checkout that includes `dashboard/start.mjs` (loopback `http://127.0.0.1:3333`). Do not block `/start-project` on Mission Control. Do not ask about skins or external review before essentials (Hard Stop 1).
+After essentials are ready, `/agent-kit-onboard` offers one optional HITL gate: a **domain-skills scaffold** derived from the install-time personalization/doctor evidence. This gate is not a readiness blocker; deferring or skipping it must still allow `/start-project` to proceed. Mission Control is also **optional** and **not** an essential readiness check. Consumer L0 installs the `/dashboard` command text but not `dashboard/**`. If the operator wants the panel, `agent-kit dashboard` serves it from the installed CLI (4.8.2 onward); on older pins point them to an agent-kit checkout that includes `dashboard/start.mjs` (loopback `http://127.0.0.1:3333`). Do not block `/start-project` on Mission Control or on the domain-skills scaffold. Do not ask about skins or external review before essentials (Hard Stop 1).
 
 Agent Personas remain available through later personalization or settings. External review is offered only when a plan reaches exhaustion.

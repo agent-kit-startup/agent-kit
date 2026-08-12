@@ -1,0 +1,76 @@
+name: Feature request
+description: Propose a capability, a skill, or a change to how the kit behaves.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agent Kit is a human-in-the-loop harness: plans, handoff, memory, and a
+        staging to prod git flow with explicit confirmation before production.
+        Proposals that remove a human gate, or that add a parallel agent gateway
+        outside Cursor-native tooling, are usually declined - see
+        [CONTRIBUTING](https://github.com/agent-kit-startup/agent-kit/blob/main/docs/CONTRIBUTING.md)
+        and the
+        [five-layer claim matrix](https://github.com/agent-kit-startup/agent-kit/blob/main/docs/five-layer-claim-matrix.md).
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched existing issues and the docs index, and this is not already covered or requested.
+          required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change is this?
+      options:
+        - New registry skill
+        - New Agent Persona
+        - CLI command or flag
+        - Installed L0 behavior (command, rule, hook, template)
+        - Mission Control
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do today, and where does the kit get in the way? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should happen instead. Include the command, file, or screen it would touch.
+    validations:
+      required: true
+
+  - type: textarea
+    id: overlap
+    attributes:
+      label: Overlap with what exists
+      description: |
+        For a new skill or persona this is required: name the closest existing entries in the registry
+        and say why this is not the same scope. Improving an existing skill is a valid contribution and
+        is often the better path.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, and why they are not enough.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a PR for this.

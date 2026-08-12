@@ -1,10 +1,15 @@
+---
+name: plan-review-triage
+description: Triage residuals from an external plan review monitor and guide next steps.
+---
+
 # Command: /plan-review-triage
 
 ## Goal
 
 Triage residuals from a **Claude external plan review** monitor. Select the right monitor(s) (untriaged / explicit paths, **not** raw mtime), summarize open residuals, and guide next steps with **Ask questions**.
 
-Supports **multi-path walk**: iterate multiple monitors in blocking-first then debt order when given several report paths (for example from Field Report **Review all**, or the path list printed by `/plan-external-review` after a batch). When remaining monitors share a **uniform** outcome class, use **one** batch Ask (still write a durable triage heading on every target). Mixed outcomes fall back to sequential Asks.
+Supports **multi-path walk**: iterate multiple monitors in blocking-first then debt order when given several report paths (for example from Field Report **Review all**, or the path list printed by `/plan-external-review` after a batch). When remaining monitors share a **uniform** outcome class, use **one** batch Ask (still write a durable triage heading on every target). Mixed outcomes fall back to sequential Asks. Operator may expand Write residuals to the whole remaining set in one reply (`1 and write all the other`); enqueue via paced per-monitor Tasks (wave size 2) or one combined plan (see Step 6).
 
 ## When to Use
 
@@ -106,6 +111,17 @@ Present a concise summary:
 > 
 > **Still open:** [numbered list of residuals with IDs from monitor]
 
+### Step 2b: Classify preferred outcome (termination policy)
+
+Before Ask, classify open residuals for **closeout depth** and severity (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`):
+
+1. **Theme family / closeout_depth:** strip leading `close-`, trailing `-residuals` / `-still-open`, and revision suffixes (`-rN`, `-rN-rM`, `-n2-n3`, `-a-f`, …). Depth includes prior Write-residuals/`close-*` hops for that family; a plan basename that already starts with `close-` is depth ≥ 1.
+2. **Preferred class:**
+   - All open items are nits / docs-cite / process hygiene (Gaps voice, R14/R15, ledger, inherited CI dirt) with **no Blocking product defect** → prefer **Ack and stop** or **Fix nits only**.
+   - Monitor is already depth ≥ 1 and no Blocking product finding → prefer **Ack and stop** / **Fix nits only**; do **not** treat Write residuals as the happy path.
+   - Blocking product work remains and depth still allows a first residual (depth 0 → first `close-*`) → Write residuals remains eligible.
+3. State the preferred class in the Step 2 summary. **Ask still shows all three labels** (HITL preserved). Operator may force Write residuals via Ask **Other** / explicit override when Blocking work remains past depth; record the override in the triage heading.
+
 ### Step 3: Ask for triage decision
 
 Use **Ask questions** tool with these exact options:
@@ -142,11 +158,13 @@ Rules:
 
 Enqueue residuals in-session via the `/backlog-add` contract (ADR `decisions/2026-07-28_triage-write-residuals-via-backlog.md`). Do **not** end on a clipboard `/start-project` paste as the happy path.
 
+0. **Termination gate (before Broad Intake):** refuse another `close-*` enqueue when (a) closeout_depth ≥ 1 and no Blocking product finding, (b) Still open is only process/monitor hygiene owned by existing ADRs, or (c) the proposal would only restate acceptance / regenerate evidence for already-merged work. Redirect to **Ack and stop** or **Fix nits only** unless the operator explicitly overrides. Default **max closeout depth = 1** (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`).
+
 1. Persist the triage heading (Step 4) with Choice `Write residuals plan`. After the plan file exists, prefer upgrading or appending `## Residuals plan` / `## Follow-up plan` with the plan basename (durable heading on the monitor still required).
 
-2. **Broad Intake Review** (required before propose): same buckets and triage labels as `/backlog-add` / `/start-project`. Reuse the Task(explore) worker contract from `.cursor/commands/backlog-add.md` (template: `.cursor/context/templates/command-worker-prompt.md`; Command may read `/plan-review-triage` Write residuals). Seed the goal from this monitor's Still open (and include-worthy Standing findings). Fallback: run Broad Intake inline when Task is unavailable. Do not invent a fifth triage label.
+2. **Broad Intake Review** (required before propose): same Broad Intake buckets and triage labels as `/backlog-add` / `/start-project`, including **Unprocessed dogfood** (`dogfood/README.md` or `.cursor/dogfood/README.md` `##` or `### Unprocessed Files`; never auto-analyze). Reuse the Task(explore) worker contract from `.cursor/commands/backlog-add.md` (template: `.cursor/context/templates/command-worker-prompt.md`; Command may read `/plan-review-triage` Write residuals; include dogfood README paths in `read_scope`). Seed the goal from this monitor's Still open (and include-worthy Standing findings). Fallback: run Broad Intake inline when Task is unavailable. Do not invent a fifth triage label.
 
-3. **Propose** a residuals plan from Still open + Broad Intake `include` / `error` findings (respect `ignore` / `note`).
+3. **Propose** a residuals plan from Still open + Broad Intake `include` / `error` findings (respect `ignore` / `note`). Prefer a single combined residuals plan; do not invent a basename that continues an unbounded `close-*-still-open` chain when depth is already capped.
 
 4. **Ask write confirm** with Ask questions (chat numbered-list fallback). Exact options:
    - `Write plan to backlog`
@@ -197,22 +215,33 @@ Enqueue residuals in-session via the `/backlog-add` contract (ADR `decisions/202
 
 When multiple report paths are in scope (explicit args **or** bare-command selection), the agent applies Steps 2-5 after gap-aware skip. Rules:
 
-1. **Uniform batch HITL** - after skip, if **two or more** monitors still need a triage decision and their open residuals share the **same outcome class** (all Ack-and-stop, or all write-one-residuals / fix-nits for the shared set), present **one** Ask questions gate for the whole set. Do **not** require N identical replies. ADR: `decisions/2026-07-27_plan-review-triage-batch-uniform-hitl.md`.
+1. **Uniform batch HITL** - after skip, if **two or more** monitors still need a triage decision and their open residuals share the **same outcome class** (all Ack-and-stop, or all write-one-residuals / fix-nits for the shared set), present **one** Ask questions gate for the whole set. Do **not** require N identical replies. ADR: `decisions/2026-07-27_plan-review-triage-batch-uniform-hitl.md`. When the uniform class is process-only or depth-capped, prefer batch **Ack and stop** / **Fix nits only** (still Ask; never silent-Ack).
 2. **Mixed → sequential fallback** - if outcome classes differ, or the operator chooses a per-file path, Ask **per** monitor (legacy walk).
-3. **No silent Ack** - every triage decision (batch or per-file) requires Ask questions (or chat numbered-list fallback). Never invent Ack without HITL.
+3. **No silent Ack** - every triage decision (batch or per-file) requires Ask questions (or chat numbered-list fallback). Never invent Ack without HITL. Never silent-Ack **Blocking** findings that still need real product work when depth allows a first residual (or the operator overrides).
 4. **Durable heading on every target** - after the chosen outcome, write `## Triage note` (or Follow-up / Residuals) on **each** monitor in the decided set before finishing. Batch Ack that updates only the first file is invalid.
-5. **Batch Write residuals** - when the uniform choice is Write residuals plan, run **one** Broad Intake for the set, propose **one** combined residuals plan from the set's Still open items (plus intake `include` / `error`), then one backlog write-confirm Ask (`Write plan to backlog` / `Modify` / `Cancel`). On write, enqueue once and reference that plan path from each monitor's Residuals / Triage heading. Sequential/mixed walks may enqueue per monitor (each with its own Broad Intake). Never require a second `/start-project` paste after the backlog write.
-6. **Stopping contract** - if the human stops mid-walk (disagrees, changes mind, or says stop), the walk stops at that point. Completed monitors keep their triage headings; remaining monitors stay untriaged.
-7. **Path skipping** - non-existent or non-monitor paths are skipped with a one-line note. The walk continues to the next valid path.
+5. **Batch Write residuals** - when the uniform (or operator-expanded) choice is Write residuals plan:
+   - **Default (shared theme):** one Broad Intake for the set → one combined residuals plan → one backlog write-confirm Ask. On write, enqueue once; each monitor's Residuals / Triage heading references that path.
+   - **Per-monitor (operator asks for one plan per monitor, or residuals do not share a coherent theme):** one Broad Intake seed per monitor (may share a skim pass), then **one residuals plan file per monitor**. Prefer this when the operator says e.g. `Write residuals for all` / `1 and write all the other` / `one plan per monitor`.
+   - **Write-confirm collapse:** after the first Write residuals choice in a multi-path walk, if the operator also authorizes the remaining untriaged targets in the same reply (e.g. `1 and write all the other`), treat that as write-confirm for the whole remaining set. Do **not** re-Ask write-confirm per monitor. Still write a durable triage heading on every target before enqueue.
+   - Never require a second `/start-project` paste after backlog write. Never park, activate, Gate B, or rewrite Run queue.
+6. **Paced Task dispatch (API/usage hygiene)** - when writing **more than one** residuals plan via Task subagents:
+   - Dispatch **at most 2** plan-author Tasks in parallel (wave size 2). Do **not** fan out one Task per monitor in a single turn when N ≥ 3.
+   - After each wave returns, the parent consolidates (plan paths, HANDOFF Backlog bullets, `## Residuals plan` headings), then starts the next wave. Optional short pause between waves when the session is on Auto (same spirit as `interTickCooldownMs` ≥ 15000 after quota risk; see context-guardian).
+   - Each Task writes **only** its `.cursor/plans/<name>.plan.md` (unique path). The **parent** appends all HANDOFF `- **Backlog plans:**` rows and monitor Residuals headings (avoids HANDOFF merge races).
+   - Shared cross-monitor debt (e.g. one stale ledger) must be **owned once**: first plan that includes it, or an explicit companion plan; later plans label that item `note` with a pointer. Do not enqueue N identical ledger-regen to-dos.
+   - Fallback: if Task dispatch is unavailable or quota-blocked, author plans inline one at a time (same pacing: finish one file before the next). Hard-stop on API/usage limit per context-guardian; do not keep dispatching.
+7. **Stopping contract** - if the human stops mid-walk (disagrees, changes mind, or says stop), the walk stops at that point. Completed monitors keep their triage headings; remaining monitors stay untriaged.
+8. **Path skipping** - non-existent or non-monitor paths are skipped with a one-line note. The walk continues to the next valid path.
 
 ## Hard stops
 
 1. **Never treat Claude monitor as execute permission** - all paths require human confirmation
 2. **Never `/git-prod`** from this command - residual fixes go through `/git-staging` only  
 3. **Never auto-implement** without the triage choice above
-4. **Never skip Broad Intake or the backlog write-confirm Ask** on Write residuals plan; never park, activate, Gate B, or rewrite Run queue from this path. Clipboard `/start-project` is **not** the happy path (optional operator escape hatch only when they want activate + Gate B)
+4. **Never skip Broad Intake or the backlog write-confirm Ask** on Write residuals plan (write-confirm may collapse for a remaining multi-path set when the operator authorizes it in the same reply as Write residuals). Never park, activate, Gate B, or rewrite Run queue from this path. Clipboard `/start-project` is **not** the happy path (optional operator escape hatch only when they want activate + Gate B). Do not fan out ≥3 plan-author Tasks in one turn (Step 6 pacing).
 5. **No broad scope creep** in "Fix nits only" - redirect to Write residuals plan (backlog enqueue) for substantial work
 6. **Never skip the triage heading** - including Ack and stop
+7. **Never unbounded close-* conveyor** - enforce max closeout depth and nits/process-only defaults (Step 2b / Step 5A gate 0; ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Depth-capped process-only Still open → Ack or Fix nits, not another `close-*`.
 
 ## Ask questions requirement
 
@@ -259,6 +288,19 @@ Agent: One Broad Intake for the set → one combined residuals proposal →
 User: [clicks Write plan to backlog]
 Agent: Writes one plan file + Backlog row; ## Residuals plan (or Triage note) on each monitor
        referencing that path. No `/start-project` paste. Mixed outcomes stay sequential.
+```
+
+## Example flow - Per-monitor Write residuals (paced Tasks)
+
+```
+User: /plan-review-triage
+Agent: Six git-fresh untriaged monitors; mixed classes → sequential Ask starting at 1/6.
+User: 1 and write all the other with a subagent for each
+Agent: Treats as Write residuals + write-confirm for remaining set.
+       Appends ## Triage note on each target.
+       Dispatches plan-author Tasks in waves of 2 (not 5 at once).
+       Each Task writes one .cursor/plans/*.plan.md; parent updates HANDOFF
+       Backlog + ## Residuals plan on every monitor. Shared ledger owned once.
 ```
 
 ## References

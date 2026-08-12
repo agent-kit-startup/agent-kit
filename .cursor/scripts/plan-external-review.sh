@@ -1172,6 +1172,8 @@ autoRemediate (from config): $auto_remediate
 
 Contract reminders:
 - Evidence-based monitor only under .cursor/memory/plan-monitor-<slug>.md
+- Delivery truth first: was each completed to-do actually done? Cite path/SHA/command/artifact; docs and HANDOFF are indicative only
+- Finding priority: (1) delivery truth (2) security (3) logic gaps (4) bad code/practices; no filler "looks good" without evidence
 - Findings-only: never auto-fix product source; write the monitor and flag residuals for triage
 - No product commits unless a human explicitly requests them after /plan-review-triage
 - When autoRemediate is false (default): do not apply or suggest starting product edits in this session
@@ -1200,6 +1202,8 @@ $plan_list
 
 Contract reminders:
 - Evidence-based monitor only under .cursor/memory/plan-monitor-<slug>.md
+- Delivery truth first: was each completed to-do actually done? Cite path/SHA/command/artifact; docs and HANDOFF are indicative only
+- Finding priority: (1) delivery truth (2) security (3) logic gaps (4) bad code/practices; no filler "looks good" without evidence
 - Findings-only: never auto-fix product source; write the monitor and flag residuals for triage
 - No product commits unless a human explicitly requests them after /plan-review-triage
 - When autoRemediate is false (default): do not apply or suggest starting product edits in this session

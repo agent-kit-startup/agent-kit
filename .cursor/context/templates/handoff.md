@@ -2,6 +2,8 @@
 
 Machine fields below must stay as `- **Field:**` bullets (Mission Control parses those). Do not replace Backlog / Parked / Run queue with `##` section headings alone.
 
+**Mid-batch monitor pointers are not durable here.** `.cursor/HANDOFF.md` is gitignored session state. Pointers to sibling monitors must live in the tracked `.cursor/memory/_index.md` Audits row for the watched monitor (R14-paired in the same commit). Cite that row in the plan or monitor notes; do not rely on a HANDOFF line as delivery evidence.
+
 - **Plan:** `file.plan.md`
 - **Last updated:** [YYYY-MM-DD HH:MM]
 - **Mode:** [manual | run-plan (orchestrated) | run-plan (in-session loop) | run-plan-all]
@@ -23,6 +25,9 @@ Machine fields below must stay as `- **Field:**` bullets (Mission Control parses
 | Exact `none` when audits/queue plumbing is the only noise | `/git-prod` suggestion boilerplate as Gaps body |
 | | Review all / Resolve all / Copy review chatter |
 | | `none. Residuals…` / `none. Mid-batch…` (OK + pointer in Gaps body) |
+| | `- **Gaps:** none` while `build` / Evidence checks are red or in-flight at merge HEAD |
+
+**Evidence-checks closeout:** before normalizing Gaps to exact `none` after a staging PR merge (or closeout that claims staging-ready), confirm green via `gh pr checks <N>` or local `pnpm evidence:knowledge-classification:check`. Name red/pending Evidence checks under Gaps until fixed or waived. ADR: `decisions/2026-08-01_evidence-checks-merge-gate.md`.
 
 **Before / after:** queue exhausted or mid-batch → prefer exact `none` (audits are not Gaps; put pointers in Instruction). Residuals after triage → short enqueue note, not a full Still-open table. See ADR `2026-07-27_mc-flight-log-panel.md`.
 

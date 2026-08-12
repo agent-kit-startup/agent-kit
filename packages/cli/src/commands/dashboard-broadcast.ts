@@ -5,8 +5,10 @@ import { defineCommand } from "citty";
 import { logger } from "../utils/logger.js";
 import {
   type FindDashboardOptions,
+  applyDashboardOpenEnv,
   bundledDashboardCandidates,
   findDashboardStart,
+  resolveDashboardSnapshotRoot,
 } from "./dashboard.js";
 
 /**
@@ -99,7 +101,13 @@ export const dashboardBroadcastCommand = defineCommand({
     "no-open": {
       type: "boolean",
       default: false,
-      description: "Do not open a browser; only ensure the server is up and print LAN URL + token",
+      description:
+        "Do not open a browser; only ensure the server is up and print Share URL (when masking is on) plus token / LAN lines",
+    },
+    browser: {
+      type: "string",
+      description:
+        "Preferred browser app/binary for this launch (overrides config missionControl.preferredBrowser)",
     },
   },
   async run({ args }) {
@@ -115,8 +123,11 @@ export const dashboardBroadcastCommand = defineCommand({
       return;
     }
 
-    const env = { ...process.env };
-    if (args["no-open"]) env.MISSION_CONTROL_NO_OPEN = "1";
+    const snapshotRoot = resolveDashboardSnapshotRoot(args.cwd);
+    const env = applyDashboardOpenEnv(
+      { ...process.env },
+      { noOpen: Boolean(args["no-open"]), browser: args.browser, cwd: snapshotRoot },
+    );
 
     const code = await runStartScript(startPath, env);
     if (code !== 0) process.exitCode = code;

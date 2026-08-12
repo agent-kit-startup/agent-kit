@@ -97,6 +97,11 @@ export function shouldPreserveCustomizedOverlay(
  * Use this in factory/dogfood checkouts on first update so the local files
  * become the baseline for subsequent refresh-vs-preserve decisions.
  * Does not overwrite existing ledger entries.
+ *
+ * Note: this walks every file under the overlay prefixes, including user-added
+ * non-kit basenames. That is harmless today because those basenames are never in
+ * the L0/pack/skill apply set; it only widens what the ledger claims to describe
+ * if the ledger later gains semantics beyond refresh-vs-preserve.
  */
 export async function seedManagedHashLedger(projectRoot: string): Promise<ManagedHashLedger> {
   const ledger = await loadManagedHashLedger(projectRoot);

@@ -4,7 +4,8 @@
  *
  * Allocates a stable per-workspace listen port (hash of snapshot root in the
  * 3333–3588 range unless PORT is set), detach-starts `serve.mjs` when needed,
- * waits until HTTP 200, prints the URL, and opens the default browser.
+ * waits until HTTP 200, prints the URL, and opens one preferred browser
+ * (or OS default). Never opens more than one browser process.
  *
  * Never kills a listener whose system.repoRoot belongs to another workspace.
  *
@@ -17,17 +18,18 @@
 
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, openSync } from "node:fs";
-import { platform } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   REPO_ROOT_ENV,
   escapePerlDoubleQuoted,
   repoRootLogId,
+  resolveContextConfigPath,
   resolveMissionControlPort,
   resolveSnapshotRepoRoot,
   sameRepoRoot,
 } from "./lib/guards.mjs";
+import { openBrowser, readPreferredBrowserFromConfig } from "./lib/open-browser.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = join(__dirname, "..");
@@ -188,24 +190,6 @@ async function waitReady() {
   return false;
 }
 
-function openBrowser(url) {
-  const os = platform();
-  try {
-    if (os === "darwin") {
-      spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
-      return true;
-    }
-    if (os === "win32") {
-      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-      return true;
-    }
-    spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function ensureServer() {
   const allocation = resolveMissionControlPort({
     repoRoot: ROOT,
@@ -271,11 +255,23 @@ async function main() {
   if (process.env.MISSION_CONTROL_NO_OPEN === "1") {
     return;
   }
-  if (openBrowser(URL)) {
-    console.log(
-      "Opened in the default browser. In Cursor, Simple Browser or /dashboard also works.",
-    );
-  } else {
+  let configValue = null;
+  const cfg = resolveContextConfigPath(ROOT, { existsSync });
+  if (cfg.ok) {
+    configValue = readPreferredBrowserFromConfig(cfg.path);
+  }
+  const result = openBrowser(URL, { configValue });
+  if (result.opened) {
+    if (result.reason === "preferred-fallback") {
+      console.log(
+        "Preferred browser failed; opened with the OS default. In Cursor, Simple Browser or /dashboard also works.",
+      );
+    } else {
+      console.log(
+        "Opened in the preferred browser (or OS default). In Cursor, Simple Browser or /dashboard also works.",
+      );
+    }
+  } else if (result.reason !== "no-open") {
     console.log("Open that URL in a browser (Cursor: Simple Browser, or run /dashboard in chat).");
   }
 }

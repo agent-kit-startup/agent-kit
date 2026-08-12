@@ -295,6 +295,7 @@ This section contains the detailed prompts that should be followed when commands
 #### 9. **Open and merge Merge Request / Pull Request**  
    - **GitLab:** Create the MR with `glab mr create --title "<title>" --description "<description>" --target-branch staging`. Then run `glab mr merge <number>` to merge. If it fails due to authentication, provide the manual creation link and await instructions.
    - **GitHub:** Create the PR with `gh pr create --title "<title>" --body "<description>" --base staging`. **Always pass `--base staging`** (default base is often `main`; never merge staging work straight to `main`). Then run `gh pr merge <number>` (or the returned number). If it fails due to authentication, provide the manual creation link and await instructions.
+   - **Evidence-checks merge gate (before merge / Gaps-none):** run `gh pr checks <N>` and confirm `build` (including the **Evidence checks** step) is green. Do **not** merge while required checks are pending or failing. If Evidence checks fail (`knowledge-classification.json` stale or missing `_index` targets), regenerate/fix and re-push before merge; do not write HANDOFF `- **Gaps:** none` over red. Optional operator follow-up: require `build` as a branch-protection check on `staging` (not a silent workflow edit). ADR: `.cursor/memory/decisions/2026-08-01_evidence-checks-merge-gate.md`.
 
 #### 10. **Cleanup and final update**  
    - Run `git checkout staging` to return to staging branch (needed before deleting working branch).
@@ -424,7 +425,7 @@ This section contains the detailed prompts that should be followed when commands
    | Check | How |
    |-------|-----|
    | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, and `sync-public` all green |
-   | Public storefront tag CI (advisory) | On `agent-kit-startup/agent-kit`, tag/Release runs should show `build` green with `sync-public` / `publish-npm` **skipped** (not failed). Do not treat a skipped public sync job as a private sync failure. |
+   | Public storefront tag CI (advisory) | On `agent-kit-startup/agent-kit`, tag/Release runs should show `build` green with `sync-public` / `publish-npm` **skipped** (not failed; allowlist is `github.repository == 'agent-kit-startup/agent-kit-dev'`). The guard lands on the mirror only after Path C syncs the updated `ci.yml` (one-release lag). Do not treat a skipped public sync job as a private sync failure. |
    | npm | `npm view @dadado/agent-kit-cli version` matches the release |
    | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
    | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` on the public default branch **after** that merge |

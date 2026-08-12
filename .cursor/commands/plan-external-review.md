@@ -1,3 +1,8 @@
+---
+name: plan-external-review
+description: Arm an optional external plan audit after /run-plan exhausts its implementable to-dos.
+---
+
 # Command: /plan-external-review
 
 ## Goal
@@ -46,7 +51,7 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 
 ### What "operator-visible" means (smoke notes)
 
-- **Autonomous success:** chat arm **must** use `--force --autonomous --wait-monitor`. The launcher prefers a background/inspectable PTY (no OS Terminal focus by default; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` restores activate), then polls until a **fresh** monitor exists (`mtime >= arm epoch` or content sentinel). Exit `0` = fresh ready; `3` = timeout; `4` = soft-fail while waiting. Spawn-only exit 0 without wait is **not** review done. **Chat continuation:** AwaitShell until `0|3|4`; on `0` run `/plan-review-triage` Ask in the same session. Do **not** stop at Final HANDOFF "after monitor lands" or require typing `done`. ADR: `decisions/2026-07-27_audits-wait-freshness-enforce.md`.
+- **Autonomous success:** chat arm **must** use `--force --autonomous --wait-monitor`. The launcher prefers a background/inspectable PTY (no OS Terminal focus by default; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` restores activate), then polls until a **fresh** monitor exists (`mtime >= arm epoch` or the HTML comment sentinel `<!-- audits-wait-fresh: created|updated -->` written into the monitor). Exit `0` = fresh ready; `3` = timeout; `4` = soft-fail while waiting. Spawn-only exit 0 without wait is **not** review done. **Chat continuation:** AwaitShell until `0|3|4`; on `0` run `/plan-review-triage` Ask in the same session. Do **not** stop at Final HANDOFF "after monitor lands" or require typing `done`. ADR: `decisions/2026-07-27_audits-wait-freshness-enforce.md`.
 - **Autonomous soft-fail:** missing `claude` → tip + exit `4` when `--wait-monitor` was requested (Field Report owed). Background spawn unavailable → falls back to `--paste-only` UX with an honest "NOT running yet" banner. A **silent PTY** (spawn succeeded, no scrollback within the progress-gate grace window) is reported as a failed launch: the launcher disposes the session it just spawned, prints the paste fallback, and soft-fails instead of burning the wait budget. A **session-cap refusal** (detached `agent-kit-audit-*` sessions at the cap) never spawns at all. Soft-fail does **not** invent a monitor or run triage as if review completed.
 - **Exit 3 is timeout-only:** it means the freshness gate was not satisfied inside the budget, never that the review finished. A monitor that appears later, including one written by a different or later arm, does **not** convert a `3` into success. Leave the target Field Report **owed** and re-arm. ADR: `decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 - **Paste-only:** clipboard + printed interactive one-liner; review starts only after the operator pastes into their Cursor Terminal. After paste (Claude running), the session still waits for the monitor file then continues into triage Ask when possible.
@@ -108,8 +113,14 @@ Script behavior (ADR):
 
 ## What Claude should produce
 
+Same contract as `.cursor/context/templates/plan-external-review-prompt.md` (Claude's working prompt). Command prose must not lag the template.
+
 - Monitor file: `.cursor/memory/plan-monitor-<plan-slug>.md` (template: `plan-monitor.md`)
-- Index row in `.cursor/memory/_index.md` when creating a new monitor
+- Index row in `.cursor/memory/_index.md` when creating a new monitor (target must be git-tracked; add monitor by name)
+- **Delivery truth first:** for each `completed` to-do, was the claimed work actually done? Verify against code, tests, APIs, infra, Git SHAs, and published artifacts. Docs, HANDOFF, and inventories are indicative only (`docs-professional-standard`; ADR `2026-08-01_docs-indicative-delivery-truth`)
+- **Finding priority** (highest first): (1) delivery truth, (2) security, (3) logic gaps, (4) bad code/practices with path-level evidence. Rank Still open / residuals by this order
+- **Evidence mandate:** every `PASS` / `GAP` / `FAIL` cites at least one path, SHA, command, or artifact check
+- **Forbidden filler:** do not ship restated plan text with no verification; ceremony checklists marked Met without path/SHA/command evidence; "looks good" / empty praise with no findings; decorative prose that finds nothing because nothing was checked
 - No product commits unless a human asks after triage
 
 ## Cursor triage (next step)

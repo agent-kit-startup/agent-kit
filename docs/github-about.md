@@ -2,16 +2,16 @@
 
 Use **Settings → General** (repo root on GitHub): fill **Description**, **Website** (if any), **Topics**.
 
-## Description (English - aligned with README)
+## Description (English - aligned with README / Mission Kit 5)
 
 ```
-Human-in-the-loop harness for AI-assisted IDEs - plans, context handoff, memory loop, and staging→prod git workflow with explicit confirmation before production.
+Mission Kit 5: development operations for Cursor and VS Code. HITL plans, handoff, memory, and staging→prod git with explicit confirmation before production. (Installs as Agent Kit.)
 ```
 
 **Shorter** (if the layout fits better):
 
 ```
-HITL framework for AI-assisted IDEs: plan → handoff → staging → prod, with a skill registry and opt-in stack packs.
+HITL development operations for AI-assisted IDEs: plan → handoff → staging → prod (Agent Kit install / CLI).
 ```
 
 ## Description (Português - optional)
@@ -26,8 +26,11 @@ Harness human-in-the-loop para IDEs com IA: planos, handoff de contexto, memory 
 
 ## Website
 
-- Public repo: leave blank or use the docs/deploy URL when it exists.
-- If a project site is published: `https://…`
+```
+https://missionkit.io
+```
+
+Legacy `agent.startupkit.com.br` redirects here; do not set it as the GitHub Website.
 
 ## Social preview
 

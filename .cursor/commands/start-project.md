@@ -1,3 +1,8 @@
+---
+name: start-project
+description: Bootstrap a plan with to-dos from any user payload, with two HITL gates.
+---
+
 # Command: /start-project
 
 ## Goal
@@ -52,6 +57,7 @@ Before proposing or writing a new plan, **scan** these sources (read/skim; do no
 | **Archived context** | Prior packs for same theme | `.cursor/context/archive/**` (if present; glob by topic) |
 | **Decisions** | ADRs that constrain the goal | `.cursor/memory/decisions/`, `_index.md` Decisions table |
 | **Memory** | Errors, audits, consolidations, review logs, plan-monitors, findings audits | `.cursor/memory/errors/`, `.cursor/memory/plan-monitor-*.md`, theme-matched `plan-review-*.md`, `_index.md` (Audits + Decisions) |
+| **Unprocessed dogfood** | Factory/consumer inbox notes awaiting triage (not sessionStart-only) | `dogfood/README.md` or `.cursor/dogfood/README.md` under `##` or `### Unprocessed Files`; skim titles/summaries only. Missing/empty inbox → no findings. Labels: ignore (owned by open plan), error/include (kit gap), note (inbox evidence only). Never auto-analyze or memory WRITE (ADR `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`) |
 | **Local docs** | SoT / inventories / getting-started that the goal touches | `docs/**`, especially files named in the payload or related SoT |
 | **Working tree** | Uncommitted local work that would collide | `git status`, `git diff` (staged + unstaged); do not commit |
 | **Recent commits** | What already shipped for this theme | `git log` (short, recent), related PR titles if available |
@@ -75,8 +81,8 @@ The actual scanning and triage is delegated to a **Task(explore) subagent** usin
 1. **Fill the template** — set these parameters:
    - **Repo:** `[absolute repo path]`
    - **Command:** `/start-project`
-   - **Task description:** "Scan the 9 Broad Intake buckets (prepared repository, active session, plans, archived context, decisions, memory, local docs, working tree, recent commits, product version) and return a structured triage report with findings per bucket, each labeled ignore/error/include/note."
-   - **read_scope:** `[".cursor/agent-kit.config.json", ".cursor/context/readiness.json", ".cursor/HANDOFF.md", ".cursor/context/current/", ".cursor/plans/*.plan.md", ".cursor/context/archive/**", ".cursor/memory/decisions/", ".cursor/memory/errors/", ".cursor/memory/plan-monitor-*.md", ".cursor/memory/plan-review-*.md", ".cursor/memory/_index.md", "docs/**", "package.json", "CHANGELOG.md"]`
+   - **Task description:** "Scan the Broad Intake buckets listed in this command (prepared repository, active session, plans, archived context, decisions, memory, Unprocessed dogfood, local docs, working tree, recent commits, product version) and return a structured triage report with findings per bucket, each labeled ignore/error/include/note. For Unprocessed dogfood: skim `dogfood/README.md` or `.cursor/dogfood/README.md` `##` or `### Unprocessed Files` only; never auto-analyze."
+   - **read_scope:** `[".cursor/agent-kit.config.json", ".cursor/context/readiness.json", ".cursor/HANDOFF.md", ".cursor/context/current/", ".cursor/plans/*.plan.md", ".cursor/context/archive/**", ".cursor/memory/decisions/", ".cursor/memory/errors/", ".cursor/memory/plan-monitor-*.md", ".cursor/memory/plan-review-*.md", ".cursor/memory/_index.md", "dogfood/README.md", ".cursor/dogfood/README.md", "docs/**", "package.json", "CHANGELOG.md"]`
    - **worker_contract:** "structured triage report: list of findings per bucket with triage labels (ignore/error/include/note)"
    - **max_ticks:** 2
 

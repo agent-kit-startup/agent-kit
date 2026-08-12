@@ -675,11 +675,16 @@ export function validateConfigWriteBody(body) {
       if (!modes || typeof modes !== "object" || Array.isArray(modes)) {
         return { ok: false, error: "agentPersona.modes must be an object" };
       }
-      /** @type {Record<string, string>} */
+      /** @type {Record<string, string | null>} */
       const modesPatch = {};
       for (const [mode, persona] of Object.entries(modes)) {
         if (!CONFIG_PERSONA_MODES.includes(mode)) {
           return { ok: false, error: `unknown agentPersona.modes key: ${mode}` };
+        }
+        // null clears an existing mode override (Inherit default).
+        if (persona === null) {
+          modesPatch[mode] = null;
+          continue;
         }
         if (typeof persona !== "string" || !CONFIG_PERSONA_IDS.includes(persona)) {
           return { ok: false, error: `agentPersona.modes.${mode} must be a builtin persona id` };
@@ -767,7 +772,15 @@ export function mergeConfigAllowlist(existing, patch) {
         prev.modes && typeof prev.modes === "object" && !Array.isArray(prev.modes)
           ? { ...prev.modes }
           : {};
-      next.modes = { ...prevModes, ...patch.agentPersona.modes };
+      const nextModes = { ...prevModes };
+      for (const [mode, persona] of Object.entries(patch.agentPersona.modes)) {
+        if (persona === null) {
+          delete nextModes[mode];
+        } else {
+          nextModes[mode] = persona;
+        }
+      }
+      next.modes = nextModes;
     }
     base.agentPersona = next;
   }

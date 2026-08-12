@@ -1,3 +1,8 @@
+---
+name: backlog-edit
+description: Edit an existing plan body or frontmatter to-dos without activating it.
+---
+
 # Command: /backlog-edit
 
 ## Goal

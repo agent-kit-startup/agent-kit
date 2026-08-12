@@ -47,7 +47,7 @@ If yes, rewrite it.
 
 ## Relation to other rules
 
-- **docs-professional-standard** - the project's inheritable documentation standard.
+- **docs-professional-standard** - the project's inheritable documentation standard (write-time voice + read-time delivery truth: docs are indicative).
 - **code-deslop / clean-code** - code slop.
 - **ux-tone** - light tone, chat only.
 - **security-review** - secrets.

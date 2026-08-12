@@ -1,7 +1,8 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "4.8.9",
+  "version": "5.0.0",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "bin": {
     "agent-kit": "./dist/index.js"
@@ -10,7 +11,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "dashboard"
+    "dashboard",
+    "LICENSE"
   ],
   "scripts": {
     "sync-dashboard": "node ../../scripts/sync-cli-dashboard.mjs",

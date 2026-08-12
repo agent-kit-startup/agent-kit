@@ -225,6 +225,27 @@ describe("config write allowlist", () => {
     expect(merged.customKeep).toEqual({ nested: true });
   });
 
+  it("clears an existing persona mode override when patch sends null (Inherit)", () => {
+    const merged = mergeConfigAllowlist(
+      {
+        agentPersona: {
+          default: "autopilot",
+          modes: { "run-plan": "night-shift", "continue-plan": "autopilot" },
+        },
+      },
+      {
+        agentPersona: { modes: { "run-plan": null } },
+      },
+    );
+    expect(merged.agentPersona).toEqual({
+      default: "autopilot",
+      modes: { "continue-plan": "autopilot" },
+    });
+    expect(validateConfigWriteBody({ agentPersona: { modes: { "run-plan": null } } }).ok).toBe(
+      true,
+    );
+  });
+
   it("locks config path under repo and recognizes loopback addresses", () => {
     const locked = resolveContextConfigPath(repoRoot, { existsSync, realpathSync });
     expect(locked.ok).toBe(true);
@@ -435,6 +456,89 @@ describe("broadcast auth gate", () => {
   });
 });
 
+describe("broadcast share URL mask", () => {
+  it("encodes and decodes fragment payloads with TTL", async () => {
+    const {
+      buildBroadcastShareUrl,
+      decodeBroadcastShareFragment,
+      encodeBroadcastSharePayload,
+      resolveShareBase,
+      resolveShareShowLan,
+      DEFAULT_SHARE_BASE,
+      validateBroadcastShareTarget,
+      normalizeShareBase,
+      isPublicBroadcastShareShell,
+      shareShellTokenRequired,
+    } = await import("../../../../dashboard/lib/broadcast-share.mjs");
+
+    expect(DEFAULT_SHARE_BASE).toBe("https://missionkit.io/mc/open.html");
+    expect(resolveShareBase({})).toBe(DEFAULT_SHARE_BASE);
+    expect(resolveShareBase({ MISSION_CONTROL_SHARE_BASE: "off" })).toBeNull();
+    expect(resolveShareBase({ MISSION_CONTROL_SHARE_BASE: " https://share.example/open/ " })).toBe(
+      "https://share.example/open",
+    );
+    expect(resolveShareBase({ MISSION_CONTROL_SHARE_BASE: "http://evil.example/open" })).toBeNull();
+    expect(normalizeShareBase("http://127.0.0.1:4173/open.html").ok).toBe(true);
+    expect(resolveShareShowLan({})).toBe(true);
+    expect(resolveShareShowLan({ MISSION_CONTROL_SHARE_SHOW_LAN: "0" })).toBe(false);
+
+    expect(validateBroadcastShareTarget("https://attacker.example/login").ok).toBe(false);
+    expect(validateBroadcastShareTarget("http://192.168.1.20:3340/?token=x").ok).toBe(true);
+    expect(validateBroadcastShareTarget("http://127.0.0.1:3333/?token=x").ok).toBe(true);
+
+    expect(isPublicBroadcastShareShell("GET", "/open.html")).toBe(true);
+    expect(isPublicBroadcastShareShell("GET", "/open")).toBe(true);
+    expect(isPublicBroadcastShareShell("POST", "/open.html")).toBe(false);
+    expect(isPublicBroadcastShareShell("GET", "/dashboard-data.json")).toBe(false);
+    expect(shareShellTokenRequired(true, "GET", "/open.html")).toBe(false);
+    expect(shareShellTokenRequired(true, "GET", "/open")).toBe(false);
+    expect(shareShellTokenRequired(true, "GET", "/api/data")).toBe(true);
+    expect(shareShellTokenRequired(true, "POST", "/open")).toBe(true);
+    expect(shareShellTokenRequired(false, "GET", "/api/data")).toBe(false);
+
+    const lan = "http://192.168.1.20:3340/?token=tokentrain123456";
+    const frag = encodeBroadcastSharePayload(lan, { ttlSec: 60, nowSec: 1_700_000_000 });
+    expect(frag.startsWith("v1.")).toBe(true);
+    const decoded = decodeBroadcastShareFragment(frag, { nowSec: 1_700_000_010 });
+    expect(decoded).toEqual({ ok: true, url: lan, expiresAt: 1_700_000_060 });
+    expect(decodeBroadcastShareFragment(frag, { nowSec: 1_700_000_061 })).toEqual({
+      ok: false,
+      error: "expired",
+    });
+
+    expect(() => encodeBroadcastSharePayload("https://attacker.example/login")).toThrow(
+      /non-private-target/,
+    );
+    expect(() =>
+      encodeBroadcastSharePayload("http://100.64.1.2:3340/?token=tokentrain123456"),
+    ).toThrow(/non-private-target/);
+    expect(
+      decodeBroadcastShareFragment(
+        // crafted public-host payload (same shape as pre-harden attacker fragment)
+        `v1.${Buffer.from(
+          JSON.stringify({ v: 1, u: "https://attacker.example/login" }),
+          "utf8",
+        ).toString("base64url")}`,
+      ),
+    ).toEqual({ ok: false, error: "non-private-target" });
+
+    const share = buildBroadcastShareUrl(lan, {
+      base: "https://missionkit.io/mc/open.html/",
+      ttlSec: 0,
+    });
+    expect(share).toBeTruthy();
+    if (!share) throw new Error("expected share URL");
+    expect(share.startsWith("https://missionkit.io/mc/open.html#v1.")).toBe(true);
+    const hash = share.slice(share.indexOf("#") + 1);
+    expect(decodeBroadcastShareFragment(hash)).toEqual({
+      ok: true,
+      url: lan,
+      expiresAt: null,
+    });
+    expect(buildBroadcastShareUrl(lan, { base: null })).toBeNull();
+  });
+});
+
 describe("isAllowedOrigin", () => {
   const port = 3333;
 
@@ -535,4 +639,65 @@ describe("isSafeRepoRelativePath", () => {
     expect(isSafeRepoRelativePath("https://example.com/x")).toBe(false);
     expect(isSafeRepoRelativePath("")).toBe(false);
   });
+});
+
+describe("serve.mjs HTTP auth exemption for share shell", () => {
+  it("GET /open and /open.html succeed without token while data stays 401", async () => {
+    const { spawn } = await import("node:child_process");
+    const { createServer } = await import("node:net");
+    const { once } = await import("node:events");
+    const servePath = resolve(repoRoot, "dashboard/serve.mjs");
+
+    const port = await new Promise<number>((resolvePort, reject) => {
+      const s = createServer();
+      s.listen(0, "127.0.0.1", () => {
+        const addr = s.address();
+        const p = typeof addr === "object" && addr ? addr.port : 0;
+        s.close(() => resolvePort(p));
+      });
+      s.on("error", reject);
+    });
+
+    const token = "a".repeat(16);
+    const child = spawn(process.execPath, [servePath], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        HOST: "0.0.0.0",
+        PORT: String(port),
+        MISSION_CONTROL_TOKEN: token,
+        MISSION_CONTROL_NO_OPEN: "1",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const deadline = Date.now() + 15_000;
+    let ready = false;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/open.html`);
+        if (res.status === 200 || res.status === 401) {
+          ready = true;
+          break;
+        }
+      } catch {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+    expect(ready).toBe(true);
+
+    try {
+      const openHtml = await fetch(`http://127.0.0.1:${port}/open.html`);
+      expect(openHtml.status).toBe(200);
+      const openAlias = await fetch(`http://127.0.0.1:${port}/open`);
+      expect(openAlias.status).toBe(200);
+      const data = await fetch(`http://127.0.0.1:${port}/dashboard-data.json`);
+      expect(data.status).toBe(401);
+      const dataOk = await fetch(`http://127.0.0.1:${port}/dashboard-data.json?token=${token}`);
+      expect(dataOk.status).toBe(200);
+    } finally {
+      child.kill("SIGTERM");
+      await once(child, "exit").catch(() => undefined);
+    }
+  }, 30_000);
 });

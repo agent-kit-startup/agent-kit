@@ -1,3 +1,8 @@
+---
+name: run-plan
+description: Run the active plan continuously until it is done or blocked, picking the execution strategy automatically.
+---
+
 # Command: /run-plan
 
 ## Goal
@@ -52,6 +57,7 @@ While `/run-plan` is active, it **overrides** the "1 phase = 1 chat / ask for a 
 - Memory CHECK if the phase touches a known error/decision
 - **Pre-flight (API-limit stop):** if HANDOFF Gaps / Instruction / stop reason indicates an API/usage limit hard stop from a prior tick, **do not** mark a to-do `in_progress` or dispatch a Task until the operator confirms recovery (named model switch and/or wait for reset). Pre-flight is this HANDOFF check plus operator model choice only; the kit has **no** remaining-quota API. Align with `context-guardian` quota-blocked sessions.
 - **Audits pre-flight:** read `externalPlanReview.preflight` (`off` | `warn` | `block`; missing = `off`). When not `off`, check owed / untriaged audits for the active plan slug (Field Report owed, untriaged monitors, cadence WARNING). `warn`: surface once then continue. `block`: arm the launcher (prefer `--autonomous` when `mode: autonomous`, else `--paste-only`) or stop until deferred; never steal `/git-prod`. Stronger than advisory monitor skim (ADR `2026-07-27_audits-autonomous-plan-review-contract.md`).
+- **Unprocessed dogfood preflight (advisory):** before marking the first to-do `in_progress` (or on resume of a continuous run after HANDOFF reload), skim `##` or `### Unprocessed Files` in factory `dogfood/README.md` or consumer `.cursor/dogfood/README.md`. Non-empty: mention count and top titles once with standard triage labels. Empty or missing: silent OK. Never auto-analyze, never invent Field Reports, never block the tick solely because the inbox is non-empty. When this tick runs inside a `/run-plan-all` per-plan Task and the orchestrator already skimmed Unprocessed at queue-confirm, skip re-reciting (orchestrator owns the skim). sessionStart tip remains complementary (ADR `2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`).
 
 ### 2. Choose the next to-do
 
@@ -105,7 +111,7 @@ After Final HANDOFF when the run stopped because all implementable to-dos are do
    - `Not now`: merge `offerOnExhausted: false` (no nag on later exhaustion). Manual `/plan-external-review` still works.
 6. **Post-arm monitor watch + continue (chat required):** after arming, **do not** stop at Final HANDOFF "when the monitor lands, run `/plan-review-triage`" or wait for the operator to type `done`. Chat autonomous arm **always** includes `--wait-monitor`. In the **same session**:
    1. AwaitShell / block on the launcher until exit `0` (fresh monitor ready), `3` (timeout), or `4` (soft-fail while waiting). Wait success requires a **fresh** monitor after arm start (mtime/arm-epoch or content sentinel); pre-existing files are not ready.
-   2. On **exit 0:** run `/plan-review-triage` Ask for that monitor path (findings-only; no silent-Ack / auto-fix).
+   2. On **exit 0:** run `/plan-review-triage` Ask for that monitor path (findings-only; no silent-Ack / auto-fix). Apply termination policy (max closeout depth 1; nits/process-only prefer Ack / Fix nits; do not spawn unbounded `close-*` Write residuals) per ADR `decisions/2026-08-11_plan-audit-residuals-termination.md` and `/plan-review-triage` Step 2b.
    3. On **timeout / soft-fail (3|4):** honest tip + Field Report owed; do **not** invent a finished review or run triage as if the monitor is ready. Exit `3` is **timeout only**: it never means review done, and a monitor that appears afterwards (later writer, separate arm, another queue position) does **not** convert it into success. Exit `4` now also covers a **silent PTY** early abort (spawn succeeded, no scrollback in the grace window) and a **session-cap refusal** (detached `agent-kit-audit-*` pile at the cap, nothing spawned): both mean no audit is running.
    4. Never claim the audit finished on spawn-only exit 0 or on a stale pre-arm monitor path.
    ADR: `decisions/2026-07-27_audits-wait-freshness-enforce.md` (follow-on to `decisions/2026-07-27_audits-post-spawn-monitor-watch-continue.md`); silent PTY and session pile: `decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
@@ -132,7 +138,7 @@ After a findings-contract (or `review-*`) tick returns findings, read `.cursor/c
 
 | `autoRemediate` | Orchestrator action |
 |-----------------|---------------------|
-| `false` (default) | **Do not** auto-fix product code. Do not treat `improvement-*` as an automatic apply. Choose: (1) **small/contained** → dispatch a separate **fix-agent** Task (implement to-do or explicit improvement unit), or (2) **large/multi-touch** → write or enqueue a **residuals backlog plan** (Ask when HITL is required). Record the choice in HANDOFF Gaps or Instruction. |
+| `false` (default) | **Do not** auto-fix product code. Do not treat `improvement-*` as an automatic apply. Choose: (1) **small/contained** → dispatch a separate **fix-agent** Task (implement to-do or explicit improvement unit), or (2) **large/multi-touch** → write or enqueue a **residuals backlog plan** (Ask when HITL is required) **only when closeout depth and Blocking severity allow** (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Prefer Ack / Fix-nits path when findings are process-only. Record the choice in HANDOFF Gaps or Instruction. |
 | `true` | Review workers stay findings-only. Orchestrator **may** dispatch a fix-agent Task for small nits without an extra Ask; large/multi-touch still becomes a residuals plan. External-monitor path still requires `/plan-review-triage` before product edits. |
 
 **Invariant:** the review worker never edits product source, configs, or tests unless the to-do text explicitly authorizes product edits. `autoRemediate` only gates what the **orchestrator** does after findings exist.

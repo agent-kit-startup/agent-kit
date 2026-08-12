@@ -37,21 +37,25 @@ export const diffCommand = defineCommand({
       manifest,
     });
 
-    logger.info(`Registry: ${registry.root} (${registry.source})`);
-    const entries = await diffAgainstRegistry(registry.root, args.cwd, manifest);
-    const summary = summarizeDiff(entries);
+    try {
+      logger.info(`Registry: ${registry.root} (${registry.source})`);
+      const entries = await diffAgainstRegistry(registry.root, args.cwd, manifest);
+      const summary = summarizeDiff(entries);
 
-    console.log(
-      `Summary: match=${summary.match} drift=${summary.drift} missing-local=${summary["missing-local"]} missing-registry=${summary["missing-registry"]} protected=${summary.protected}`,
-    );
+      console.log(
+        `Summary: match=${summary.match} drift=${summary.drift} missing-local=${summary["missing-local"]} missing-registry=${summary["missing-registry"]} protected=${summary.protected}`,
+      );
 
-    const rows = args.all ? entries : entries.filter((e) => e.status !== "match");
-    if (rows.length === 0) {
-      logger.success("No drift (matches only).");
-      return;
-    }
-    for (const e of rows) {
-      console.log(`${e.status.padEnd(18)} ${e.path}`);
+      const rows = args.all ? entries : entries.filter((e) => e.status !== "match");
+      if (rows.length === 0) {
+        logger.success("No drift (matches only).");
+        return;
+      }
+      for (const e of rows) {
+        console.log(`${e.status.padEnd(18)} ${e.path}`);
+      }
+    } finally {
+      await registry.unlock?.();
     }
   },
 });

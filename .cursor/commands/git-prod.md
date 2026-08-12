@@ -1,3 +1,8 @@
+---
+name: git-prod
+description: Promote origin/staging to origin/main following the git prod routine (HITL confirmation required).
+---
+
 # Git prod
 
 Follow the **git prod** routine to promote `origin/staging` to `origin/main` (production):
