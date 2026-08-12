@@ -31,7 +31,7 @@ function profileStatus(profile: RepositoryProfile | Record<string, unknown> | nu
 export const statusCommand = defineCommand({
   meta: {
     name: "status",
-    description: "Show Agent Kit distribution status (manifest + optional wizard profile).",
+    description: "Show installed kit version, manifest, and optional profile.",
   },
   args: {
     cwd: {

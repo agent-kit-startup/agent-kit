@@ -159,8 +159,7 @@ function runCursorHandoff(scriptPath: string, cwd: string): Promise<number> {
 export const handoffCommand = defineCommand({
   meta: {
     name: "handoff",
-    description:
-      "Write .cursor/HANDOFF.md from the active Cursor plan, or run ./cursor-handoff handoff when no plan exists.",
+    description: "Write .cursor/HANDOFF.md from the active plan (or cursor-handoff fallback).",
   },
   args: {
     cwd: {

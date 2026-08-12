@@ -1,6 +1,6 @@
 # Five-layer claim matrix (public)
 
-Public storefront summary of how Agent Kit maps to a five-layer production-agent lens. Documentation alone is not proof of behavior. The private factory keeps a fuller evidence ledger under `docs/evidence/` (sync-denied); this page cites only paths that ship on the public lane.
+Public storefront summary of how **Mission Kit** / **Agent Kit** maps to a five-layer production-agent lens (marketing name vs technical install identifiers; see naming ADR `2026-08-06_mission-kit-vs-agent-kit-naming`). Documentation alone is not proof of behavior. The private factory keeps a fuller evidence ledger under `docs/evidence/` (sync-denied); this page cites only paths that ship on the public lane.
 
 Classification: **shipped core** (L0), **optional pack** (L1/L2), **planned**, **unsupported**.
 

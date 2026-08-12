@@ -1,3 +1,8 @@
+---
+name: cursor-update-awareness
+description: Run an opt-in advisory check for Cursor product updates against the native audit inventory.
+---
+
 # Command: /cursor-update-awareness
 
 ## Goal
@@ -23,11 +28,12 @@ Run an **opt-in advisory** check for Cursor product updates (changelog + `docs/c
 ## Check-only (CLI)
 
 ```bash
-agent-kit cursor-awareness --check [--json] [--respect-prefs] [--stamp] [--offline]
+agent-kit cursor-awareness --check [--cwd <path>] [--json] [--respect-prefs] [--stamp] [--offline]
 ```
 
 - Fetches `https://cursor.com/changelog` (override via `cursorUpdateCheck.changelogUrl`) unless `--offline`.
-- Diffs against `docs/cursor-native-audit.md` (open Action items, refresh staleness) and validates `docs/cursor-3-features.md` presence.
+- Resolves `docs/cursor-native-audit.md` by walking up from `--cwd` (default `process.cwd()`); errors with a `--cwd` hint when no ancestor has the inventory.
+- Diffs against that inventory (open Action items, refresh staleness) and validates `docs/cursor-3-features.md` under the same root.
 - Prefs in `.cursor/context/config.json` under `cursorUpdateCheck` (`enabled` default `false`, `intervalDays`, `lastSeenCursorVersion`). Distinct from kit `updateCheck`.
 - `applyRecommended` and `fieldReportRecommended` are always `false`.
 

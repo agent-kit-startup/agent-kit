@@ -48,7 +48,7 @@ function isPlanPath(filePath: string): boolean {
 export const validateCommand = defineCommand({
   meta: {
     name: "validate",
-    description: "Advisory validators for HANDOFF / plan frontmatter (afterFileEdit adapter)",
+    description: "Advisory validators for HANDOFF / plan frontmatter (hook adapter).",
   },
   subCommands: {
     handoff: defineCommand({

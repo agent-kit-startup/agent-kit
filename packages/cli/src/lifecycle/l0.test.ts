@@ -59,6 +59,8 @@ describe("canonical L0 inventory", () => {
       ]),
     );
     expect(targets).not.toContain(".cursor/commands/onboard.md");
+    // Factory-only maintainer triage; never install/update to consumers.
+    expect(targets).not.toContain(".cursor/commands/public-issue-triage.md");
   });
 
   it("keeps the onboarding command on the repository-readiness contract", async () => {
@@ -85,6 +87,25 @@ describe("canonical L0 inventory", () => {
     expect(command).toContain("Next: /start-project");
     expect(command).not.toContain("Pick a workspace skin");
     expect(command).not.toContain("Enable Claude external review");
+  });
+
+  it("onboard command offers a domain-skills HITL gate before finish-setup", async () => {
+    const command = await readRepositoryFile(".cursor/commands/agent-kit-onboard.md");
+
+    expect(command).toContain("Domain-skills scaffold");
+    expect(command).toContain("Scaffold domain skills");
+    expect(command).toContain("Defer (record reason)");
+    expect(command).toMatch(/Options:.*Scaffold domain skills.*Defer \(record reason\).*Skip/);
+    expect(command).toContain("type their own answer");
+    expect(command).toContain("Instruction-only surface");
+    expect(command).toContain(".cursor/skills/domain/");
+    expect(command).toContain("Relevant skills");
+    expect(command).toContain(".cursor/agent-kit.json");
+    expect(command).toContain(".cursor/context/personalization.json");
+    expect(command).toContain("onboarding.domainSkills");
+    expect(command).toContain("https://github.com/agent-kit-startup/agent-kit/issues/36");
+    expect(command).toContain("Next: /start-project");
+    expect(command).toContain("Next: finish setup");
   });
 
   it("keeps registry and Port B install sources aligned with the canonical inventory", async () => {

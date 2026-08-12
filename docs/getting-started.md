@@ -1,6 +1,6 @@
 # Getting Started
 
-Agent Kit keeps your AI coding agent working against a plan and stops you from losing context when a chat gets too long. This guide covers installing it, the commands you get, and how a normal day looks.
+**Mission Kit** (marketing / [missionkit.io](https://missionkit.io)) ships as **Agent Kit** on install: CLI, npm, and slash commands. The kit keeps your AI coding agent working against a plan and stops you from losing context when a chat gets too long. This guide covers installing it, the commands you get, and how a normal day looks.
 
 ## Install
 
@@ -14,7 +14,26 @@ npx @dadado/agent-kit-cli install
 
 Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
+**IDE-agnostic:** works in Cursor, VS Code, and any terminal with Node.js. For non-interactive terminals (CI, piped stdin, VS Code output panels without TTY), suppress both `npx`'s own confirmation and the CLI's root prompt:
+
+```bash
+npx -y @dadado/agent-kit-cli install --yes
+```
+
+- `npx -y` answers `npx`'s "Ok to proceed?" prompt when the package is not cached.
+- `--yes` (or `AGENT_KIT_YES=1`) skips the CLI's project-root confirmation prompt.
+
+**Troubleshooting npm failures:**
+
+| Symptom | Cause | Recovery |
+|---------|-------|----------|
+| `EPERM` / `EACCES` on npm cache | User-level cache ownership drift | `npx --cache .npm-cache @dadado/agent-kit-cli install` or `npm cache clean --force` |
+| Exit 255 (no output) | `npx` prompted for confirmation in a non-TTY environment | Use `npx -y @dadado/agent-kit-cli install` for the `npx` prompt; add `--yes` or set `AGENT_KIT_YES=1` for the CLI root prompt |
+| `403 Forbidden` from registry | Auth policy or private scope | `npm login`, check `.npmrc`, or use Port B fallback |
+
 That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (4.8.2 onward) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+
+**Multi-workspace safety:** the CLI confirms the absolute project root before writing any files (interactive prompt; `--yes` skips the prompt). Each project gets its own `.cursor/` tree and overlay ledger. The shared registry cache (`~/.cache/agent-kit/registry/`) uses a directory lock so parallel installs on the same machine cannot corrupt it.
 
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
@@ -48,7 +67,7 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `/dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `agent-kit dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
@@ -76,9 +95,9 @@ The idea is simple: work against a plan, save your place before a conversation g
 Operator sequence when you drive each unit (command SoT: [`.cursor/commands/continue-plan.md`](../.cursor/commands/continue-plan.md); Gate A/B SoT: [`.cursor/commands/start-project.md`](../.cursor/commands/start-project.md)):
 
 0. **`/agent-kit-onboard`** *(first time / incomplete readiness)* - Repository preparation only: show detected facts, safe fixes, and one pending decision at a time via **Ask questions**. Completes when essential readiness checks pass (or allowed non-essential items are deferred with a recovery action). Skins and external review stay optional after essentials. Path after CLI install: open the folder in Cursor → `/agent-kit-onboard` → `/start-project`. Contract: [repository-readiness-onboarding.md](repository-readiness-onboarding.md).
-1. **`/start-project`** - After the repository is prepared, Broad Intake Review and two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Broad Intake's Memory bucket consults `.cursor/memory/plan-monitor-*.md` and theme-matched `plan-review-*` audits (duplicates / open residuals / outdated reviews) without changing Field Report detection. Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
-1b. **Backlog without activation** - `/backlog-add` runs the same Broad Intake (including plan-monitor consult), writes a plan, and appends it under HANDOFF Backlog plans (no Gate B, never parks or activates the new plan). Manage rows with `/backlog-edit`, `/backlog-delete` (move to `.cursor/plans/archive/`), and `/backlog-cancel` (soft-cancel open to-dos, keep the file). All mutates use **Ask questions** (chat numbered-list fallback). Distinct from `/archive-plan` (parked list only). Routine backlog CRUD does not create Field Report cards.
-2. **Confirm the unit, then work one phase.** On `/continue-plan` (and after Gate B on a new plan), the agent uses **Ask questions** before editing (`Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`). After you pick Start, it implements **only** that phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and **stops**. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs `/run-plan` or `/run-plan-all` below.
+1. **`/start-project`** - After the repository is prepared, Broad Intake Review (buckets listed in the command, including **Unprocessed dogfood** from `dogfood/README.md` or `.cursor/dogfood/README.md` under `##` or `### Unprocessed Files`) and two gates using **Ask questions**: (A) the agent proposes and writes a plan with checkable to-dos (no coding yet); (B) only after you confirm, it runs the **first** unit. Broad Intake's Memory bucket consults `.cursor/memory/plan-monitor-*.md` and theme-matched `plan-review-*` audits (duplicates / open residuals / outdated reviews) without changing Field Report detection. Unprocessed dogfood uses the same triage labels and never auto-analyzes (ADR `2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`). Uses clickable options with chat fallback when tool unavailable. Goal text in the same message is not execute permission.
+1b. **Backlog without activation** - `/backlog-add` runs the same Broad Intake (including plan-monitor consult and Unprocessed dogfood), writes a plan, and appends it under HANDOFF Backlog plans (no Gate B, never parks or activates the new plan). Manage rows with `/backlog-edit`, `/backlog-delete` (move to `.cursor/plans/archive/`), and `/backlog-cancel` (soft-cancel open to-dos, keep the file). All mutates use **Ask questions** (chat numbered-list fallback). Distinct from `/archive-plan` (parked list only). Routine backlog CRUD does not create Field Report cards.
+2. **Confirm the unit, then work one phase.** On `/continue-plan` (and after Gate B on a new plan), the agent uses **Ask questions** before editing (`Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`). Before that Ask it also runs advisory Unprocessed dogfood preflight (mention non-empty inbox; never block solely for inbox). After you pick Start, it implements **only** that phase (or one heavy to-do), checks it off, updates `.cursor/HANDOFF.md`, and **stops**. Context Guardian plus **native Cursor hooks** (`sessionStart` / `preCompact`) enforce that boundary; multi-phase in one window needs `/run-plan` or `/run-plan-all` below. `/run-plan` and `/run-plan-all` apply the same advisory dogfood preflight on first tick / queue confirm.
 3. **Suggest staging when there is a diff.** After the unit, the agent should suggest `/git-staging` (you run it when ready). Do not expect automatic promote to production; `/git-prod` is always a separate HITL step.
 4. **Handoff if the window fills.** `/handoff` (or guardian auto-handoff when configured) writes where things stand before context is lost.
 5. **New chat → paste `/continue-plan`.** Open a **fresh** conversation for the next phase. The agent reads HANDOFF, confirms the next unit again, and continues without you re-explaining the project. Chat tone follows the Autopilot persona by default (see [personas contract](personas-contract.md)). Mission Control Checklist Actions can copy `/continue-plan <plan>`; Current mission shows operator-friendly Mode labels (auto mode / run all / human-in-the-loop; HANDOFF keeps raw Mode tokens) and offers copy-only `/git-staging` (and mode-aware `/continue-plan` when Mode is manual).
@@ -152,8 +171,8 @@ When `/run-plan` finishes all implementable to-dos, you can get a second-agent c
 3. **Headless / CI:** `agent-kit run-plan` may arm the launcher with `--force` (`claude -p`) in the runner shell
 4. **Exhaustion Ask:** if not enabled and `offerOnExhausted` is not `false`, chat must Ask `Run review now` / `Always enable automatic` / `Not now`. `Not now` is per-session only (no persist)
 5. **Manual:** `/plan-external-review` anytime after a plan is done
-6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage` with explicit path(s). **Write residuals plan** runs the same Broad Intake as `/backlog-add`, then write-confirm Ask, and enqueues on HANDOFF Backlog (no clipboard `/start-project` happy path). Mission Control **Flight Log** is Gaps + operator Warnings with palette-by-type notification chrome (natural Gaps voice; wipe Earlier on new flight; exact `none` for OK, not `none.…` as a yellow debit). When Gaps and Warnings are empty, it may show bounded untriaged review rows (per-row Copy triage / path); it does not host **Review all** / **Resolve all**. Chat `/plan-review-triage` remains HITL SoT
-7. **`/run-plan-all`:** mid-batch audits when enabled; queue-end review Ask/arm for remaining owed targets (cadence / Field Report **owed** ledger covers soft-fail skips; Flight Log UI stays Gaps + Warnings, with quiet open-triage only when those lanes are empty; keep HANDOFF Gaps short / exact `none` when only audit plumbing changed)
+6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage` with explicit path(s). Prefer **Ack and stop** or **Fix nits only** when residuals are nits/process-only or closeout depth is already capped; **Write residuals plan** runs Broad Intake (including Unprocessed dogfood) then backlog write-confirm and must not spawn unbounded `close-*` chains (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Unprocessed dogfood Broad Intake bucket membership is SoT in ADR `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md` (not the termination policy). Mission Control **Flight Log** is Gaps + operator Warnings with palette-by-type notification chrome (natural Gaps voice; wipe Earlier on new flight; exact `none` for OK, not `none.…` as a yellow debit). When Gaps and Warnings are empty, it may show bounded untriaged review rows (per-row Copy triage / path); it does not host **Review all** / **Resolve all**. Chat `/plan-review-triage` remains HITL SoT
+7. **`/run-plan-all`:** mid-batch audits when enabled (findings-only mid-queue; no auto Write residuals); queue-end triage Ask with explicit paths prefers uniform Ack/Fix nits when depth-capped. Throughput knobs: [external plan review](external-plan-review.md#throughput-vs-coverage-operator-knobs)
 
 Claude Code on PATH is optional. If disabled or `claude` is missing, the kit continues with a tip and exit 0 (no CI failure). Details: [external plan review](external-plan-review.md).
 
@@ -170,10 +189,12 @@ Mission Control is a **local, single-developer** observability panel. Treat it a
 | Bind | Default host is `127.0.0.1` for `/dashboard`. Never silently bind `0.0.0.0` from that path. Opt-in LAN: `/dashboard-broadcast` (CLI counterpart) binds a non-loopback interface only with explicit intent and a required token gate. |
 | Network surface | HTTP static files under `dashboard/`, JSON snapshot (`/dashboard-data.json` / `/api/data`), SSE (`/api/events`), and loopback-only allowlisted `PUT`/`PATCH /api/config`. In broadcast mode, static/snapshot/SSE require the session token. No product WebSockets or inbound webhooks. |
 | Mutations | UI CTAs are copy-only (clipboard + paste destination). Config write is the only mutation API and stays loopback + allowlist (including when broadcast is active). No git stage, process kill, server restart, or `/git-prod` from the panel. |
-| Remote / shared hosting | Multi-user internet / WAN hosting remains rejected. Personal local-only (loopback-first) is the **default**. Opt-in personal LAN broadcast (`/dashboard-broadcast` + token) is supported for a single operator on a trusted LAN; see ADR below. |
+| Remote / shared hosting | Multi-user internet / WAN hosting remains rejected. Personal local-only (loopback-first) is the **default**. Opt-in personal LAN broadcast (`/dashboard-broadcast` + token) is supported for a single operator on a trusted LAN; printed Share URLs are cosmetic fragment masks (ADR below), not relays. |
 | Resources | Cold snapshot and periodic refresh use local CPU/IO (`git`, `ps`, filesystem). Do not throttle SSE/poll to "save" Cursor Agent quota; quota levers are named model + `interTickCooldownMs` (see tip under `/run-plan` above). |
 
-Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
+**Copy-only actions:** The panel copies text and names where to paste it: repository-relative paths go to the editor's file picker, slash commands go to the chat input, and past-chat references go to the past-chat picker. The panel cannot open a file or a chat, so no label claims that it can.
+
+Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), `.cursor/memory/decisions/2026-08-11_mission-control-broadcast-url-mask.md` (cosmetic Share URL), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
 
 **Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
 
@@ -183,17 +204,6 @@ The exact git steps behind staging and production live in `autogit/gitupdate.md`
 
 ## Working on Agent Kit itself
 
-If you're developing the kit (not just using it):
-
-1. Install dependencies: `pnpm install`
-2. Build the CLI: `pnpm build`
-3. Try the scanner: `pnpm --filter @dadado/agent-kit-cli start scan`
-4. Install into a test project: `pnpm --filter @dadado/agent-kit-cli start install --cwd /path/to/project`
-5. Check this repo's own install: `pnpm --filter @dadado/agent-kit-cli start status`
-6. Refresh this repo's own L0 from local source (factory self-consumer):
-   - First time: `pnpm --filter @dadado/agent-kit-cli start -- update --cwd . --seed-overlay`
-   - Later: `pnpm --filter @dadado/agent-kit-cli start -- update --cwd .`
-
-   This is a local maintainer loop, not a public consumer update. See [CONTRIBUTING](CONTRIBUTING.md) for the three-way distinction (public consumer / factory self-consumer / public sync).
+Maintainer setup, local CLI workflows, factory self-consumer refreshes, and Mission Control from a kit tree are documented in [DEVELOPMENT](DEVELOPMENT.md). This guide covers the consumer workflow after installation.
 
 See the root [README](../README.md) for the big picture and [CONTRIBUTING](CONTRIBUTING.md) for how changes flow.

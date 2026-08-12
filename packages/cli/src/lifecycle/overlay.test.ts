@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import { installPack } from "../registry/install.js";
 import { copyRegistryFile, emptyStats, recordOutcome } from "./apply.js";
+import { L0_ARTIFACTS } from "./l0.js";
 import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import {
   MANAGED_HASHES_REL,
@@ -18,6 +19,43 @@ import {
 import { installL0 } from "./sync.js";
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+
+describe("KNOWN_SHIPPED_OVERLAY_HASHES coverage", () => {
+  it("includes every current L0 overlay artifact body", async () => {
+    const overlay = L0_ARTIFACTS.filter((a) => isConsumerOverlayPath(a.target));
+    expect(overlay.length).toBeGreaterThan(0);
+    const missing: string[] = [];
+    for (const artifact of overlay) {
+      const body = await readFile(path.join(kitRoot, artifact.source), "utf8");
+      if (!KNOWN_SHIPPED_OVERLAY_HASHES.has(contentHash(body))) {
+        missing.push(artifact.source);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("includes every registry skill SKILL.md body (core + community)", async () => {
+    const reg = JSON.parse(
+      await readFile(path.join(kitRoot, "registry/registry.json"), "utf8"),
+    ) as {
+      skills?: {
+        core?: Array<{ path: string; id: string }>;
+        community?: Array<{ path: string; id: string }>;
+      };
+    };
+    const entries = [...(reg.skills?.core || []), ...(reg.skills?.community || [])];
+    expect(entries.length).toBeGreaterThan(0);
+    const missing: string[] = [];
+    for (const skill of entries) {
+      const source = path.join(skill.path, "SKILL.md");
+      const body = await readFile(path.join(kitRoot, source), "utf8");
+      if (!KNOWN_SHIPPED_OVERLAY_HASHES.has(contentHash(body))) {
+        missing.push(source);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+});
 
 describe("consumer overlay path detection", () => {
   it("matches agents, skills, and commands only", () => {
@@ -115,6 +153,42 @@ describe("consumer overlay apply policy", () => {
     expect(await readFile(path.join(project, cmdRel), "utf8")).toBe(newer);
     const ledger = await loadManagedHashLedger(project);
     expect(ledger.hashes[cmdRel]).toBe(contentHash(newer));
+  });
+
+  it("end-to-end: ledger-absent update refreshes known shipped and preserves customized peers", async () => {
+    const project = await mkdtemp(path.join(tmpdir(), "agent-kit-overlay-e2e-update-"));
+    const registry = await mkdtemp(path.join(tmpdir(), "agent-kit-overlay-registry-e2e-"));
+    const uneditedRel = ".cursor/commands/summary.md";
+    const customRel = ".cursor/commands/tips.md";
+    await mkdir(path.join(project, ".cursor/commands"), { recursive: true });
+    await mkdir(path.join(registry, ".cursor/commands"), { recursive: true });
+
+    const shippedSummary = await readFile(path.join(kitRoot, uneditedRel), "utf8");
+    const shippedTips = await readFile(path.join(kitRoot, customRel), "utf8");
+    expect(KNOWN_SHIPPED_OVERLAY_HASHES.has(contentHash(shippedSummary))).toBe(true);
+
+    const bumpedSummary = `${shippedSummary}\n<!-- bump summary -->\n`;
+    const bumpedTips = `${shippedTips}\n<!-- bump tips -->\n`;
+    const customTips = `${shippedTips}\n<!-- consumer edit -->\n`;
+
+    await writeFile(path.join(project, uneditedRel), shippedSummary, "utf8");
+    await writeFile(path.join(project, customRel), customTips, "utf8");
+    await writeFile(path.join(registry, uneditedRel), bumpedSummary, "utf8");
+    await writeFile(path.join(registry, customRel), bumpedTips, "utf8");
+
+    const outcomes = {
+      unedited: await copyRegistryFile(registry, project, uneditedRel, uneditedRel, [
+        ...DEFAULT_PROTECTED_PATHS,
+      ]),
+      custom: await copyRegistryFile(registry, project, customRel, customRel, [
+        ...DEFAULT_PROTECTED_PATHS,
+      ]),
+    };
+
+    expect(outcomes.unedited).toBe("written");
+    expect(outcomes.custom).toBe("preserved-customized");
+    expect(await readFile(path.join(project, uneditedRel), "utf8")).toBe(bumpedSummary);
+    expect(await readFile(path.join(project, customRel), "utf8")).toBe(customTips);
   });
 
   it("refreshes unedited kit command when local hash matches ledger", async () => {

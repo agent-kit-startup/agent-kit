@@ -1,3 +1,8 @@
+---
+name: run-plan-loop
+description: Deprecated alias for /run-plan forcing the in-session loop strategy.
+---
+
 # Command: /run-plan-loop (deprecated)
 
 **Deprecated alias.** Use **`/run-plan`**: one continuous command that picks the execution strategy itself.

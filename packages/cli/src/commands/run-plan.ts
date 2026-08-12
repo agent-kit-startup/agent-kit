@@ -8,8 +8,7 @@ import { logger } from "../utils/logger.js";
 export const runPlanCommand = defineCommand({
   meta: {
     name: "run-plan",
-    description:
-      "Headless continuous plan runner: one fresh agent per tick (LOOP_TICK_RESULT contract). Never git-prod.",
+    description: "Headless continuous plan runner (one fresh agent per tick). Never git-prod.",
   },
   args: {
     cwd: {

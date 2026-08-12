@@ -13,6 +13,7 @@ import {
   parseInventoryRefreshed,
   parseOpenActionIds,
   readCursorUpdateCheckPrefs,
+  resolveInventoryRoot,
   stampCursorUpdateCheck,
 } from "./cursor-update-awareness.js";
 
@@ -182,5 +183,29 @@ describe("checkCursorUpdateAwareness", () => {
     writeInventory(cwd, "last refreshed **2026-07-19**\n");
     const result = await checkCursorUpdateAwareness(cwd, { respectPrefs: true, offline: true });
     expect(result.status).toBe("skipped-disabled");
+  });
+
+  it("walks up from nested cwd to find inventory", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "cursor-awareness-walk-"));
+    writeInventory(
+      root,
+      "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n",
+    );
+    const nested = path.join(root, "packages", "cli");
+    mkdirSync(nested, { recursive: true });
+
+    expect(await resolveInventoryRoot(nested)).toBe(path.resolve(root));
+    const result = await checkCursorUpdateAwareness(nested, { offline: true });
+    expect(result.status).toBe("current");
+    expect(result.message).not.toMatch(/Missing inventory/);
+  });
+
+  it("errors with --cwd hint when no inventory in ancestors", async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "cursor-awareness-nodocs-"));
+    expect(await resolveInventoryRoot(cwd)).toBeNull();
+    const result = await checkCursorUpdateAwareness(cwd, { offline: true });
+    expect(result.status).toBe("error");
+    expect(result.message).toMatch(/Missing inventory/);
+    expect(result.message).toMatch(/--cwd/);
   });
 });

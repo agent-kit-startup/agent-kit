@@ -78,7 +78,7 @@ function printDoctorSummary(result: DoctorResult): void {
 export const doctorCommand = defineCommand({
   meta: {
     name: "doctor",
-    description: "Diagnose repository readiness and optionally apply safe local fixes.",
+    description: "Diagnose repository readiness; optional --fix-safe local repairs.",
   },
   args: {
     cwd: {

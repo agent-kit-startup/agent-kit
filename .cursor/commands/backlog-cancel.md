@@ -1,3 +1,8 @@
+---
+name: backlog-cancel
+description: Soft-cancel a backlog plan: mark open to-dos cancelled and drop it from the Backlog, keeping the file.
+---
+
 # Command: /backlog-cancel
 
 ## Goal

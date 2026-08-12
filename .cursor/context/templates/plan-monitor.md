@@ -8,6 +8,9 @@
 
 - A "tick" = one `/run-plan` or `/continue-plan` cycle that closes with a plan-frontmatter status change + `.cursor/HANDOFF.md` update (per `run-plan.md` §"Tick contract").
 - Each entry below: **Plan asked** (to-do content + `worker_contract`) vs **Agent did** (commit/PR diff, HANDOFF) vs **Verdict**.
+- **Delivery truth first:** primary question per completed to-do is "was the work done?" Verify against code, tests, APIs, infra, SHAs, published artifacts. Docs/HANDOFF/inventories are indicative only (`docs-professional-standard`; ADR `2026-08-01_docs-indicative-delivery-truth`).
+- **Evidence required:** every `PASS` / `GAP` / `FAIL` cites a path, SHA, command, or artifact check. No "looks good" without that evidence. No restated plan text as a finding. No checklist Met without an artifact check.
+- **Finding priority:** (1) delivery truth, (2) security, (3) logic gaps, (4) bad code/practices. Order Still open by this rank.
 - **WIP is expected and not an alarm.** A to-do mid-`max_ticks` with a partial diff and no HANDOFF/plan-status change yet is logged as `WIP - no verdict`, not a failure. A verdict (`PASS` / `GAP` / `FAIL`) is only assigned once the to-do's status flips to `completed` (or the agent explicitly stops on it).
 - `GAP` = shipped and directionally correct, but a named requirement (usually in `worker_contract`) has no visible evidence either way — noted so it isn't silently lost, not treated as a defect.
 - `FAIL` = plan requirement contradicted or missing from the shipped diff.
@@ -54,10 +57,12 @@
 
 ### Acceptance checklist vs actual shipped state
 
+Evidence column must cite path, SHA, command, or artifact check (not docs alone).
+
 | Acceptance item | Status | Evidence |
 |---|---|---|
-| {requirement-1} | **Met/Partial/Not met** | {evidence} |
-| {requirement-2} | **Met/Partial/Not met** | {evidence} |
+| {requirement-1} | **Met/Partial/Not met** | {path / SHA / command} |
+| {requirement-2} | **Met/Partial/Not met** | {path / SHA / command} |
 
 ### Residual items for human attention (none are severe; none block using the shipped behavior)
 

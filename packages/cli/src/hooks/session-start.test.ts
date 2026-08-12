@@ -23,6 +23,44 @@ describe("parseUnprocessedDogfoodItems", () => {
     const text = "### Unprocessed Files\n\n- `a.md`\n- `b.md`\n\n### Processed Files\n";
     expect(parseUnprocessedDogfoodItems(text)).toEqual(["`a.md`", "`b.md`"]);
   });
+
+  it("accepts consumer ## Unprocessed Files and stops at ## Processed", () => {
+    const text =
+      "# Dogfood Inbox\n\n## Unprocessed Files\n- `note.md` — pending\n\n## Processed Files\n- `done.md`\n";
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`note.md` — pending"]);
+  });
+
+  it("stops ### Unprocessed at a higher ## Processed heading", () => {
+    const text = "### Unprocessed Files\n- `a.md`\n\n## Processed Files\n- `b.md`\n";
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`a.md`"]);
+  });
+
+  it("stops ## Unprocessed at a deeper ### Processed heading (no leak)", () => {
+    const text = "## Unprocessed Files\n- `a.md`\n\n### Processed Files\n- `done.md`\n";
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`a.md`"]);
+  });
+
+  it("collects markdown table rows (first cell)", () => {
+    const text = [
+      "## Unprocessed Files",
+      "",
+      "| Note | Status |",
+      "|------|--------|",
+      "| `issue-37.md` | pending |",
+      "| `other.md` | pending |",
+      "",
+      "## Processed Files",
+      "| `done.md` | done |",
+      "",
+    ].join("\n");
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`issue-37.md`", "`other.md`"]);
+  });
+
+  it("collects numbered list items", () => {
+    const text =
+      "### Unprocessed Files\n1. `first.md`\n2) `second.md`\n\n### Processed Files\n3. `done.md`\n";
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`first.md`", "`second.md`"]);
+  });
 });
 
 describe("buildPreCompactUserMessage", () => {

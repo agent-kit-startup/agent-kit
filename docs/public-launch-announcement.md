@@ -1,47 +1,46 @@
 # Public launch announcement
 
-Copy-paste text for announcing the public repository (chat, social, communities). Portuguese body is the shippable launch copy; keep product claims aligned with [getting-started.md](getting-started.md) and the root `README.md`.
+Copy-paste text for announcing the public repository (chat, social, communities). Portuguese body is the shippable launch copy; keep product claims aligned with [getting-started.md](getting-started.md), the root `README.md`, and the dual-name contract (Mission Kit marketing / Agent Kit install).
 
-Related: [Public launch go/no-go](public-launch.md).
+Related: [Public launch go/no-go](public-launch.md). Naming: `2026-08-06_mission-kit-vs-agent-kit-naming`.
 
 ```text
 Fala, devs! 🚀
 
 Se você usa o Cursor ou outro IDE com IA assistida para codar, já deve ter passado pelo clássico problema de ver a IA se perder e alucinar quando o chat fica muito longo e o contexto enche. 🤯
 
-Para resolver esse e outros problemas, como a falta de um fluxo de DevOps estruturado, conexão segura com ferramentas e versionamento, ao longo de um ano, fui desenvolvendo o *Agent Kit*! 🛠️
+Para resolver isso (e a falta de DevOps estruturado no fluxo do agente), existe o *Mission Kit 5*: development operations dentro do Cursor e do VS Code. Site: https://missionkit.io
 
-Diga-se de passagem, meu primeiro repositório público. 🥶
+No GitHub, npm e CLI o projeto ainda se chama *Agent Kit* (pacote `@dadado/agent-kit-cli`, comando `agent-kit`, `/agent-kit-onboard`). Mesmo produto, dois nomes de propósito. 🛠️
 
-*🤔 O que é o Agent Kit?*
-É uma camada operacional leve que transforma seu IDE (Cursor, VS Code, etc.) em um framework que gerencia o planejamento, o handoff entre chats e o fluxo de Git / DevOps estruturado para você focar no que importa.
+*🤔 O que é?*
+Uma camada operacional leve que transforma seu IDE em um framework HITL: planejamento, handoff entre chats, revisão externa opcional e fluxo Git staging→prod com confirmação antes de produção. Não é marketing de "autonomia sem freio".
 
 *✨ O que ele resolve?*
-• *Onboarding & Setup Inteligente:* Ele analisa o seu projeto, descobre o que está faltando e gera regras, comandos e skills personalizados sob medida para a sua stack e padrões de código. 🧠✨
-• *Sem perda de contexto:* Ele mantém o estado do seu projeto vivo. Abriu um chat novo? Um comando e a IA já sabe exatamente onde parou. 🔄
-• *Planos de verdade:* "vibecoding" mas nem tanto. A IA trabalha em cima de to-dos reais que você acompanha passo a passo no loop. 📋
-• *DevOps integrado:* Fluxo de Git seguro com staging automático e commits limpos. 🛡️
-• *Segurança em produção:* A IA pode subir para staging sozinha, mas promover para `main` sempre exige sua confirmação direta. Hooks nativos protegem a IA de fazer isso alucinando. 🛑
+• *Onboarding & Setup Inteligente:* analisa o projeto e prepara regras, comandos e skills sob medida (`/agent-kit-onboard`). 🧠✨
+• *Sem perda de contexto:* estado vivo entre chats; um comando e a IA sabe onde parou. 🔄
+• *Planos de verdade:* to-dos reais, com humano no loop (Ask questions). 📋
+• *DevOps integrado:* staging automático, Conventional Commits, hooks. 🛡️
+• *Produção com confirmação:* staging pode ir sozinho; `main` só depois de você confirmar. 🛑
+• *Mission Control:* cockpit local (`/dashboard` / `agent-kit dashboard`) sobre o que está no disco.
 
 *🚀 Como usar?*
-É simples e rápido de instalar o projeto:
 
-1️⃣ *No terminal do seu projeto, rode:*
+1️⃣ *No terminal do projeto:*
 `npx @dadado/agent-kit-cli install`
 
-2️⃣ *Ou no chat do Cursor, cole o prompt de instalação rápida:*
-(Se for preguiçoso feito eu, encontre o prompt completo no README e LEIA antes de executar, mané!)
+2️⃣ *Ou no chat do Cursor:* cole o prompt de instalação do README (leia antes de executar).
 
-Depois de instalado, você ganha comandos como `/agent-kit-onboard`, `/start-project` e `/continue-plan` diretamente no chat do seu editor.
+Depois: `/agent-kit-onboard`, `/start-project`, `/continue-plan` ou `/run-plan`.
 
 ---
 
 💡 *Quer contribuir?*
-O projeto é 100% open-source! Achou um bug, tem ideias de novos comandos ou quer criar regras/skills personalizadas para a sua stack? Abre uma Issue ou manda uma PR lá no GitHub. Toda contribuição é muito bem-vinda! 🤝
+Source-available sob PolyForm Noncommercial (uso pessoal/não comercial gratuito; comercial: sales@missionkit.io). Issue ou PR no GitHub. 🤝
 
-👉 *Bora testar e dar aquela estrela no GitHub?*
-Acesse o repositório oficial, veja a documentação completa e comece a usar agora:
+👉 *Site + repo:*
+https://missionkit.io
 https://github.com/agent-kit-startup/agent-kit
 
-Show? Se testar, me conta o que achou! 👊🔥
+Show? Se testar, conta o que achou! 👊🔥
 ```

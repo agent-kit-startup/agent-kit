@@ -96,16 +96,17 @@ After `git prod` on the private repo, the pipeline automatically:
 
 Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
 
-**Public storefront tag CI:** Path C mirrors `.github/workflows/ci.yml` to `agent-kit-startup/agent-kit`. When a Release or tag push runs on that public slug, `sync-public` and `publish-npm` are **skipped** (`github.repository != 'agent-kit-startup/agent-kit'`). Only the `build` job should run. Do **not** add `PUBLIC_REPO_TOKEN` or `NPM_TOKEN` to the public repo; those secrets stay on private. Private tag/manual sync still fails loud when `PUBLIC_REPO_TOKEN` is unset.
+**Public storefront tag CI:** Path C mirrors `.github/workflows/ci.yml` to `agent-kit-startup/agent-kit`. Private-origin jobs (`sync-public`, `publish-npm`) and private-only build steps run only when `github.repository == 'agent-kit-startup/agent-kit-dev'` (allowlist). On the public slug (and any other repo), those jobs/steps are **skipped**. Only the shared `build` work should run on the storefront. Do **not** add `PUBLIC_REPO_TOKEN` or `NPM_TOKEN` to the public repo; those secrets stay on private. Private tag/manual sync still fails loud when `PUBLIC_REPO_TOKEN` is unset. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from that URL in `scripts/sync-public.mjs`). When `PUBLIC_REPO_URL` is unset, `PUBLIC_REPO_SLUG` may set `owner/repo` for `gh` calls; when both are set, the URL-derived slug wins and the script warns on stderr. The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither variable overrides the job-level allowlist `if`.
 
 ### Verify next public `v*` tag
 
 After the next storefront tag (from private sync + public Release):
 
 1. Public Actions for that tag: `build` green.
-2. `sync-public` and `publish-npm` do **not** run (skipped by repository slug guard).
+2. `sync-public` and `publish-npm` do **not** run (skipped unless `github.repository == 'agent-kit-startup/agent-kit-dev'`).
 3. No `PUBLIC_REPO_TOKEN` / `NPM_TOKEN` on the public repo.
 4. Do **not** force-move an already-pushed `v*` tag; use a new patch tag if retry is needed.
+5. **Path C lag:** the allowlist guard protects the public mirror only after a private sync has shipped the updated `ci.yml`. A red storefront tag before that sync is expected lag, not a broken private sync.
 
 Manual fallback:
 ```bash

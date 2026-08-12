@@ -5,8 +5,8 @@ Human-in-the-loop gate before the first npm publish or any publish that changes 
 ## Preconditions
 
 - [ ] Release content is on `origin/main` (promote via `git prod` from `origin/staging` when the release is not already on `main`).
-- [ ] Root `package.json` `version`, `packages/cli/package.json` `version`, and the dated section in `CHANGELOG.md` match the intended release (currently aligned at **4.2.1**).
-- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` succeed on the commit you intend to tag.
+- [ ] Root `package.json` `version`, `packages/cli/package.json` `version`, and the dated section in `CHANGELOG.md` match the intended release. **Tree today:** root + CLI + `CHANGELOG` `[5.0.0]` are aligned at **5.0.0**. **Registry today:** `npm view @dadado/agent-kit-cli version` is still **4.8.9** until `v5.0.0` publishes. Do not treat tree SemVer as live npm `latest`.
+- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` succeed on the **exact commit you intend to tag** (CI-green-at-tagged-SHA; see `.cursor/memory/decisions/2026-08-02_npm-5.0-go-no-go.md`). A later green SHA does not repair a red tagged commit.
 - [ ] Public sync and other post-`git prod` steps are done or explicitly deferred per [repository-boundaries.md](repository-boundaries.md).
 
 ## Registry state (before first publish)
@@ -25,7 +25,7 @@ Human-in-the-loop gate before the first npm publish or any publish that changes 
 
 | Source | Field | Must match |
 |--------|--------|------------|
-| Repository root | `package.json` → `version` | Target release (e.g. `4.2.1`) |
+| Repository root | `package.json` → `version` | Target release (e.g. `5.0.0`) |
 | CLI package | `packages/cli/package.json` → `version` | Same as root |
 | Changelog | Latest dated `[x.y.z]` section | Same version and date |
 
@@ -42,8 +42,8 @@ The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. 
 
 ## Tag strategy and CI
 
-- [ ] Tags use the form **`vMAJOR.MINOR.PATCH`** (e.g. `v4.2.1`).
-- [ ] **Existing tags on `origin`:** `v4.0.0`, `v4.0.1`, `v4.1.0`, `v4.2.0`, `v4.2.1`. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
+- [ ] Tags use the form **`vMAJOR.MINOR.PATCH`** (e.g. `v4.8.9`).
+- [ ] **Existing tags on `origin`:** `v3.0.0` through `v4.8.9` (35 tags; full series: v3.0.0, v3.5.0, v3.5.1, v4.0.0, v4.0.1, v4.1.0, v4.2.0–v4.2.4, v4.3.0, v4.4.0–v4.4.7, v4.5.0–v4.5.1, v4.6.0, v4.7.0–v4.7.2, v4.8.0–v4.8.9). Next: `v5.0.0`. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
 - [ ] Tag the commit on `main` that matches the release version; do not tag staging-only commits unless that is an explicit exception documented in the release notes.
 - [ ] **Integrated with `/git-prod`**: Annotated tags are created automatically when absent during `/git-prod` workflow (step 9.5 in `autogit/gitupdate.md`). Manual tag creation via `git push origin vX.Y.Z` or GitHub Releases UI is fallback only.
 
@@ -78,8 +78,12 @@ If the answer is not an explicit **yes**, stop. No tag push, no token change for
 
 ## After publish (verification)
 
-- [ ] `npm view @dadado/agent-kit-cli version` matches the release.
+These rows are **post-publish** only. Do not mark them Met from pre-tag mechanism review while registry `latest` is still behind the tree.
+
+- [ ] `npm view @dadado/agent-kit-cli version` matches the release (for 5.0: expect `5.0.0`, not residual `4.8.9`).
 - [ ] Smoke install: `npx @dadado/agent-kit-cli@<version> --help` (or `pnpm dlx`).
+- [ ] Blank-folder dogfood: `npx @dadado/agent-kit-cli@5.0 install` (or `@5.0.0`) plus five assertions (`--version`, manifest pin, `hooks.json`, dashboard invoke, no nested `agent-kit/` folder). Owned after publish; blocked while `latest` is 4.8.9.
+- [ ] Public GitHub Release Latest and public storefront label resolve to 5.0 (after tag + sync-public), not pre-tag mechanism-only checks.
 - [ ] Scoped Path C smoke (blank folder): install the published package under `node_modules/@dadado/agent-kit-cli` and confirm `agent-kit dashboard` returns HTTP 200 on loopback (required after Path C / detach-start changes; also a `/git-prod` §12.5 row).
 - [ ] GitHub Actions `publish-npm` job for the tag shows publish success (not skip), when using CI.
 

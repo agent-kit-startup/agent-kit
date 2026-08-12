@@ -1,3 +1,8 @@
+---
+name: archive-plan
+description: Archive a parked plan: drop it from the HANDOFF parked list and move the file into .cursor/plans/archive/.
+---
+
 # Command: /archive-plan
 
 ## Goal

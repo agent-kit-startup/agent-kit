@@ -5,7 +5,7 @@ import { logger } from "../utils/logger.js";
 export const scanCommand = defineCommand({
   meta: {
     name: "scan",
-    description: "Scan the current repository and print detected profile.",
+    description: "Scan the repository and print the detected profile.",
   },
   args: {
     cwd: {

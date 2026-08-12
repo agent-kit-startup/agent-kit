@@ -19,4 +19,4 @@ if (!existsSync(src)) {
 
 rmSync(dest, { recursive: true, force: true });
 cpSync(src, dest, { recursive: true });
-console.log(`Synced ${src} -> ${dest}`);
+console.error(`Synced ${src} -> ${dest}`);

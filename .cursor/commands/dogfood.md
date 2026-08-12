@@ -1,3 +1,8 @@
+---
+name: dogfood
+description: File a private dogfood note from the current chat into the local inbox.
+---
+
 # Command: /dogfood
 
 ## Goal
@@ -85,7 +90,7 @@ Check in order:
 **Consumer lane:**
 - Ensure `.cursor/dogfood/` exists (create if missing).
 - Write `.cursor/dogfood/cursor_<topic>_<date>.md`.
-- Write or append to `.cursor/dogfood/README.md` with the same Unprocessed/Processed structure as the factory README.
+- Write or append to `.cursor/dogfood/README.md` using the same Unprocessed/Processed structure as the factory README, with headings pinned to `### Unprocessed Files` and `### Processed Files` (H3). Existing consumer indexes that already use `## Unprocessed Files` remain valid on read (sessionStart + Broad Intake accept `##` or `###`); do not rewrite them unless the operator asks.
 - The folder is local-only; do not `git add` it.
 
 ### Step 4: Cross-repo bridge (optional, operator-initiated only)
@@ -136,3 +141,4 @@ If the operator chooses `Keep local only`, stop. The local file is the record.
 - `.cursor/memory/decisions/2026-07-31_dogfood-ingest-contract.md` — ingest contract
 - `.cursor/memory/decisions/2026-07-17_session-origin-not-product-usecase.md` — hygiene
 - Cursor product-update gaps may route here via `/cursor-update-awareness` (Ask → `/dogfood`)
+- Incoming **public** issue triage (factory-only) is `/public-issue-triage`, not this command

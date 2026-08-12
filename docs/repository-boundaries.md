@@ -38,7 +38,7 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 
 1. **`git staging`** - PR to `staging` on the **private** repo (`agent-kit-dev`). Everything committed goes to private.
 2. **`git prod`** - `staging` → `main` on **private**; push `origin main`; create/push annotated vX.Y.Z tag when absent.
-3. **Automatic triggers** - Annotated `v*` tags on the **private** repo trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs. The same workflow file is mirrored to the public storefront; on `agent-kit-startup/agent-kit`, those two jobs are **skipped** by repository slug so public tag CI does not fail on missing private-only secrets.
+3. **Automatic triggers** - Annotated `v*` tags on the **private** repo (`agent-kit-startup/agent-kit-dev`) trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs. The same workflow file is mirrored to the public storefront; those two jobs run only on the private-origin allowlist (`github.repository == 'agent-kit-startup/agent-kit-dev'`), so public tag CI does not fail on missing private-only secrets. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from the URL). When that URL var is unset, `PUBLIC_REPO_SLUG` may override the `gh --repo` slug; when both are set, URL wins (stderr warning). The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither overrides that job-level `if`.
 4. **Public sync PR** - Creates semantic PR body (Summary + CHANGELOG release notes + source SHA) against public `main`.
 5. **Auto-merge** - PRs auto-merge after required checks pass (`gh pr merge --auto`). Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
 6. **Public GitHub Release** - After the sync PR merges, sync creates/updates a public GitHub Release `vX.Y.Z` (CHANGELOG notes; Latest badge). Opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`. Git tags alone do not move the Releases sidebar.
@@ -84,7 +84,7 @@ Before the first publish or any new registry version, follow [npm-publish-checkl
 | `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, and `Workflows: write` (required when the sync tree includes `.github/workflows/`). **Private repo only**; never set on the public storefront. |
 | `NPM_TOKEN` | Token to publish to the npm registry (**private** tag CI only) |
 
-Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git URL without embedding credentials.
+Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git URL (and the derived `owner/repo` slug for `gh` PR/Release calls) without embedding credentials. Optional `PUBLIC_REPO_SLUG` sets `owner/repo` when `PUBLIC_REPO_URL` is unset (and remains the parse-failure fallback); when both are set, the URL-derived slug wins. A stderr warning is emitted whenever `PUBLIC_REPO_SLUG` diverges from a derivable URL slug.
 
 ### External contributions
 

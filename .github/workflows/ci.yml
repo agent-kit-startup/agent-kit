@@ -18,6 +18,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Full history is required for git-range evidence checks (e.g. delivery
+          # reconciliation SHAs) and the private-origin allowlist pin work. Mirrors
+          # sync-public at line 98. The shallow-checkout default caused R1/R2 in
+          # close-bigfix-pty-monitor-residuals; see plan-monitor-close-public-ci-skip
+          # for the allowlist pin work it unblocks.
+          fetch-depth: 0
 
       - name: Guard public tree (no tracked local-only Cursor paths)
         run: |
@@ -44,26 +51,42 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Registry catalog parity
+        if: github.repository == 'agent-kit-startup/agent-kit-dev'
+        run: node scripts/build-registry.mjs && git diff --exit-code registry/registry.json
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test
         run: pnpm test
 
+      # Private-origin allowlist (SoT: agent-kit-startup/agent-kit-dev).
+      # Fail-safe: forks / renames / second mirrors skip private-only steps.
+      # Adding another allowlisted step requires updating the exact-count pin in
+      # packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
+      # Job-level `if` cannot read vars.PUBLIC_REPO_URL; that var redirects the
+      # sync target (push + gh --repo) below, never this guard. See ADR 2026-07-29.
       - name: Authority graph parity
-        if: github.repository != 'agent-kit-startup/agent-kit'
+        if: github.repository == 'agent-kit-startup/agent-kit-dev'
         run: pnpm evidence:authority-graph:check
 
       - name: Public-deny-link guard
-        if: github.repository != 'agent-kit-startup/agent-kit'
-        run: pnpm check:public-deny-links
+        if: github.repository == 'agent-kit-startup/agent-kit-dev'
+        run: |
+          pnpm check:public-deny-links
+          # Content denylist + allowlist dry-run (same guards as tag-gated sync-public).
+          # Catches inline denylist terms in synced docs before a v* tag.
+          node scripts/sync-public.mjs --dry-run
 
       - name: Evidence checks
-        if: github.repository != 'agent-kit-startup/agent-kit'
+        if: github.repository == 'agent-kit-startup/agent-kit-dev'
         run: |
           pnpm evidence:codebase-findings:check
           pnpm evidence:risk-hotspots:check
           pnpm evidence:knowledge-classification:check
+          pnpm landing:build
+          pnpm landing:build:check
 
       - name: Guard generated CLI dashboard is untracked
         run: |
@@ -82,14 +105,17 @@ jobs:
   # Secret PUBLIC_REPO_TOKEN: fine-grained token with public repo Contents,
   # Pull requests, and merge (or auto-merge) permission. Repo must Allow auto-merge
   # when required checks exist. Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
-  # Private-origin only: skip when this workflow runs on the public storefront
-  # slug (Path C mirrors ci.yml; public has no PUBLIC_REPO_TOKEN by design).
+  # Private-origin allowlist only (SoT: agent-kit-startup/agent-kit-dev).
+  # Path C mirrors ci.yml; public / forks have no PUBLIC_REPO_TOKEN by design.
+  # Adding another allowlisted site (this job `if` counts) requires updating the
+  # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # The secrets context is not allowed in job-level `if`; the guard step
   # below fails loudly when the secret is unset on private tag/manual sync paths.
+  # vars.PUBLIC_REPO_URL redirects push + gh --repo (slug derived from URL); it cannot override this `if`.
   sync-public:
     needs: build
     if: >-
-      github.repository != 'agent-kit-startup/agent-kit'
+      github.repository == 'agent-kit-startup/agent-kit-dev'
       && (startsWith(github.ref, 'refs/tags/v')
           || (github.event_name == 'workflow_dispatch'
               && github.event.inputs.sync_public == 'true'))
@@ -122,8 +148,8 @@ jobs:
           node scripts/sync-public.mjs
         env:
           GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          # Slug for gh --repo is derived from this URL in sync-public.mjs (no hardcoded PUBLIC_REPO_SLUG).
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}
-          PUBLIC_REPO_SLUG: agent-kit-startup/agent-kit
           PUBLIC_BRANCH: main
           # Default: auto-merge after create/update. Set repo/org var to "false" to opt out.
           PUBLIC_SYNC_AUTO_MERGE: ${{ vars.PUBLIC_SYNC_AUTO_MERGE || 'true' }}
@@ -133,14 +159,15 @@ jobs:
           GIT_AUTHOR_EMAIL: sync@agent-kit.dev
 
   # ── Publish @dadado/agent-kit-cli to npm (tag only) ──
-  # Private-origin only: skip on the public storefront slug (same Path C
-  # mirror as sync-public; npm publish belongs on agent-kit-dev).
+  # Private-origin allowlist only (same SoT as sync-public; Path C mirror).
+  # Adding another allowlisted site (this job `if` counts) requires updating the
+  # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # Secret NPM_TOKEN: the publish step skips gracefully if not configured
   # (secrets context is not allowed in job-level `if`).
   publish-npm:
     needs: build
     if: >-
-      github.repository != 'agent-kit-startup/agent-kit'
+      github.repository == 'agent-kit-startup/agent-kit-dev'
       && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

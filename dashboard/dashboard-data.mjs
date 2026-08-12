@@ -21,6 +21,7 @@ import {
   MAX_AGENT_PROMPTS,
   MAX_GIT_ACTIVITY,
   MISSION_TIMING_LEDGER_REL,
+  SUBAGENT_TRANSCRIPT_FILE_RE,
   buildMissionControlView,
   collectDeferredCheckIds,
   collectReadinessPendingFromReport,
@@ -35,6 +36,7 @@ import {
   parseFlightLogLedger,
   parseHandoffMarkdown,
   parseMissionTimingLedger,
+  parseSubagentRun,
   serializeFlightLogLedger,
   serializeMissionTimingLedger,
 } from "./lib/semantic-model.mjs";
@@ -68,6 +70,12 @@ const TRANSCRIPT_RECENCY_MS = 30 * 24 * 60 * 60 * 1000; // 30-day recency window
 const MAX_REPORT_FILES = 20; // cap memory reads per snapshot
 const MAX_REPORT_BYTES = 512 * 1024; // skip oversized reports, degrade quietly
 const REPORT_RECENCY_MS = 90 * 24 * 60 * 60 * 1000; // 90-day recency window
+
+// Task subagent run scan bounds (fs half of the lifecycle contract).
+const MAX_SUBAGENT_PARENTS = 12; // cap parent chat directories walked per snapshot
+const MAX_SUBAGENT_FILES = 24; // cap worker transcripts read per snapshot
+const MAX_SUBAGENT_BYTES = 512 * 1024; // skip oversized transcripts, degrade quietly
+const SUBAGENT_RECENCY_MS = 6 * 60 * 60 * 1000; // 6-hour window: live feed, not an archive
 
 /** Redact likely secrets in terminal output (paths-only git payload uses separate rules). */
 const SECRET_OUTPUT_PATTERNS = [
@@ -794,6 +802,100 @@ function collectExternalReports() {
   return reports;
 }
 
+/**
+ * Task subagent run scan (fs half of the lifecycle contract).
+ *
+ * Worker transcripts live beside the main chat transcript, at
+ * `~/.cursor/projects/<project-slug>/agent-transcripts/<parent>/subagents/<id>.jsonl`
+ * — the same store `collectAgentPrompts` walks, whose nested `subagents/`
+ * directories it deliberately skips so a worker question never masquerades as a
+ * user prompt. This scan reads only those nested files.
+ *
+ * Read-only and bounded: parents outside a 6-hour recency window are skipped
+ * (the Crew Monitor is a live feed, not an archive), at most
+ * MAX_SUBAGENT_PARENTS parent directories and MAX_SUBAGENT_FILES transcripts are
+ * read, oversized transcripts are skipped, and only the first and last records
+ * of each file are parsed — the phase decision needs the dispatch prompt and the
+ * terminal record, nothing between. A missing or unreadable store yields an
+ * empty list, never an error state. The phase/actor decision itself lives in
+ * `parseSubagentRun`.
+ */
+function collectSubagentRuns() {
+  if (!withinSnapshotBudget(700)) return [];
+  const projectsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
+  const slug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+  const transcriptsDir = join(projectsDir, slug, "agent-transcripts");
+  if (!existsSync(transcriptsDir)) return [];
+
+  const runs = [];
+  try {
+    const now = Date.now();
+    const candidates = [];
+    for (const dirent of readdirSync(transcriptsDir, { withFileTypes: true })) {
+      if (!dirent.isDirectory()) continue;
+      const subDir = join(transcriptsDir, dirent.name, "subagents");
+      if (!existsSync(subDir)) continue;
+      let dirStat;
+      try {
+        dirStat = statSync(subDir);
+      } catch {
+        continue;
+      }
+      if (now - dirStat.mtimeMs > SUBAGENT_RECENCY_MS) continue;
+      candidates.push({ parentId: dirent.name, dir: subDir, mtime: dirStat.mtimeMs });
+    }
+    candidates.sort((a, b) => b.mtime - a.mtime);
+
+    const files = [];
+    for (const parent of candidates.slice(0, MAX_SUBAGENT_PARENTS)) {
+      let names;
+      try {
+        names = readdirSync(parent.dir);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        const match = SUBAGENT_TRANSCRIPT_FILE_RE.exec(name);
+        if (!match) continue;
+        const file = join(parent.dir, name);
+        let stat;
+        try {
+          stat = statSync(file);
+        } catch {
+          continue;
+        }
+        if (!stat.isFile()) continue;
+        if (now - stat.mtimeMs > SUBAGENT_RECENCY_MS) continue;
+        if (stat.size > MAX_SUBAGENT_BYTES) continue;
+        files.push({ id: match[1], parentId: parent.parentId, file, mtime: stat.mtime });
+      }
+    }
+    files.sort((a, b) => b.mtime - a.mtime);
+
+    for (const candidate of files.slice(0, MAX_SUBAGENT_FILES)) {
+      let raw;
+      try {
+        raw = readFileSync(candidate.file, "utf-8");
+      } catch {
+        continue;
+      }
+      const lines = raw.split("\n").filter((l) => l.trim().length > 0);
+      if (lines.length === 0) continue;
+      const run = parseSubagentRun({
+        id: candidate.id,
+        parentId: candidate.parentId,
+        firstLine: lines[0],
+        lastLine: lines[lines.length - 1],
+        modifiedAt: candidate.mtime.toISOString(),
+      });
+      if (run) runs.push(run);
+    }
+  } catch {
+    return [];
+  }
+  return runs;
+}
+
 // 14. Mission Control semantic view model (now / activity / attention)
 let readinessPending = [];
 const readinessPath = join(ROOT, ".cursor", "context", "readiness.json");
@@ -944,6 +1046,7 @@ function readPreviousInventory() {
     deferredCheckIds: collectOnboardingDeferredCheckIds(),
     agentPrompts: collectAgentPrompts(),
     externalReports: collectExternalReports(),
+    subagentRuns: collectSubagentRuns(),
     dismissedIds: collectFieldReportDismissedIds(),
     archivedPlanFiles,
     agents: SNAPSHOT.agents,

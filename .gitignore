@@ -63,9 +63,23 @@ coverage/
 *credentials*.json
 *service-account*.json
 
+# Local design sources (PSD/AI); production PNGs under assets/production/ are versioned
+assets/design/
+
+# Video masters and intermediate encodes. The three videos the landing actually
+# ships are versioned inside the design mirror (landing-missionkit/remote/assets/,
+# byte-identical); nothing in the repo references these copies. Keeping both would
+# double ~11 MB of binaries. Decision: 2026-08-05_landing-external-design-source-of-record.md
+assets/production/*.mp4
+assets/production/*.webm
+
 # CLI publish copy of Mission Control (SoT: repo-root dashboard/; sync via scripts/sync-cli-dashboard.mjs)
 packages/cli/dashboard/
 
 # Python bytecode (hooks)
 __pycache__/
 *.pyc
+
+# Landing build output — derived from the Claude Design export by
+# `pnpm landing:build`; never edit by hand. See docs/agentkit-landing.md.
+.cursor/context/landing-missionkit/dist/

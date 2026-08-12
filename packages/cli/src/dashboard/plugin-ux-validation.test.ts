@@ -10,6 +10,7 @@ import {
   resolveBindHost,
 } from "../../../../dashboard/lib/guards.mjs";
 import {
+  MONITOR_ACTIVITY_KINDS,
   MONITOR_FEED_CAP,
   buildMissionControlView,
   classifyPlan,
@@ -19,6 +20,75 @@ import {
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
 const dashboardHtml = readFileSync(resolve(repoRoot, "dashboard/dashboard.html"), "utf8");
 const serveSource = readFileSync(resolve(repoRoot, "dashboard/serve.mjs"), "utf8");
+
+/**
+ * The Crew Monitor render block only (`#hero-activity` through the Plans
+ * section), so a pin about the Crew row cannot be satisfied — or broken — by
+ * the Activity tab, which renders a different row from the same helpers.
+ */
+function crewMonitorFeedBlock(html: string): string {
+  const start = html.indexOf('<div class="section-hero" id="hero-activity">');
+  if (start < 0) return "";
+  const end = html.indexOf('id="section-plans"', start);
+  if (end < 0) return "";
+  return html.slice(start, end);
+}
+
+/** Crew Monitor row return-template only (not CSS / whole-file proximity). */
+function crewMonitorRowRenderTemplate(html: string): string {
+  const marker = '<div class="monitor-row stagger-fade stagger-${staggerIdx}"';
+  const start = html.indexOf(marker);
+  if (start < 0) return "";
+  const end = html.indexOf("</div>`;", start);
+  if (end < 0) return "";
+  return html.slice(start, end);
+}
+
+/**
+ * Structural pin for the design-v2 row order: the team badge is a row sibling at
+ * row start, then actor → verb → primary → meta → time. Inverts the previous
+ * `expectChipIsRowSiblingBeforeFeedLabel` / `expectChipInsideFeedLabelNotRowSibling`
+ * pins at the same strictness.
+ *
+ * Finding E (close-crew … r1-r3 residuals) showed the old chip helper only locked
+ * the avatar→feed-label gap, so `${chipHtml}` after feed-label still passed. The
+ * whole-template counts below close that half-locked slot for the badge-era row:
+ * `${chipHtml}` / `monitor-row-chip` must be zero anywhere in the row template,
+ * and `${badgeHtml}` must appear exactly once.
+ *
+ * That segment row is the layout the design was commissioned to replace: equal
+ * shrink across every segment is what produced `revi…` / `P…` / `8f…`, so a
+ * regression back to it must fail here rather than pass quietly. The badge is
+ * also NOT the `#631` avatar box returning — it carries the kind colour and the
+ * kind gloss, which the avatar never did.
+ * Verdict: .cursor/context/mission-control-design/remote/v1/ACCEPTANCE.md
+ * ADR: .cursor/memory/decisions/2026-07-27_crew-monitor-vs-plan-monitor-glossary.md
+ */
+function expectBadgeIsRowSiblingBeforeActor(html: string) {
+  const rowTpl = crewMonitorRowRenderTemplate(html);
+  expect(
+    rowTpl.length,
+    "crew row render template not found — update the marker in crewMonitorRowRenderTemplate",
+  ).toBeGreaterThan(0);
+  // Row order: badge → actor → verb → primary → meta → time, each a direct child.
+  expect(rowTpl).toMatch(
+    /\$\{badgeHtml\}[\s\S]*?\$\{actorHtml\}[\s\S]*?\$\{verbHtml\}[\s\S]*?<span class="monitor-row-primary"[\s\S]*?<span class="monitor-row-meta"[\s\S]*?<span class="monitor-row-time"/,
+  );
+  // Nothing renders before the badge inside the row.
+  const beforeBadge = rowTpl.slice(0, rowTpl.indexOf("${badgeHtml}"));
+  expect(beforeBadge).not.toMatch(/<span/);
+  // The v1 segment row must not come back in any form.
+  expect(rowTpl).not.toMatch(/feed-label|feed-seg|feed-sep|feedSegSpans|feedLabelHtml/);
+  // Whole-template chip lock (finding E): no half-locked sibling slot after feed-label.
+  expect(rowTpl.match(/\$\{chipHtml\}/g)?.length ?? 0).toBe(0);
+  expect(rowTpl.match(/monitor-row-chip/g)?.length ?? 0).toBe(0);
+  expect(rowTpl.match(/monitor-row-icon/g)?.length ?? 0).toBe(0);
+  expect(rowTpl).not.toMatch(/info\.icon/);
+  // Exactly one badge interpolation owns the kind tint.
+  expect(rowTpl.match(/\$\{badgeHtml\}/g)?.length ?? 0).toBe(1);
+  // The avatar box stays gone (it is not what the badge is).
+  expect(rowTpl).not.toMatch(/monitor-row-avatar|agentInitials/);
+}
 
 const lifecycleStates = [
   "executing",
@@ -274,8 +344,14 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(cursorBlock?.[1]).not.toMatch(/--mc-radius/);
     expect(cursorBlock?.[1]).not.toMatch(/--mc-card-padding/);
     expect(cursorBlock?.[1]).not.toMatch(/--mc-chrome-meta-size/);
-    // Capsule token feeds slash-command pill geometry (not --mc-radius-sm chrome).
+    // Status/lifecycle pills squared off to the chrome radius (design v2): the
+    // capsule read as a foreign shape next to the chrome it always sits beside.
+    // The capsule token stays alive for the queue-role pill below, which is the
+    // one pill that must NOT read as a status chip.
     expect(dashboardHtml).toMatch(
+      /\.lifecycle-pill\s*\{[^}]*border-radius:\s*var\(--mc-radius-chrome\)/,
+    );
+    expect(dashboardHtml).not.toMatch(
       /\.lifecycle-pill\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/,
     );
     expect(dashboardHtml).toMatch(
@@ -672,64 +748,224 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dataSource).toMatch(/a\.kitManaged\s*=\s*kitAgentPaths\.has/);
   });
 
-  it("renders Crew Monitor rows as a timestamped feed with agent initials monograms", () => {
-    // Per entry: avatar monogram (agent initials) + kind chip + action label + timestamp.
-    expect(dashboardHtml).toContain("monitor-row-avatar");
+  it("renders Crew Monitor rows as badge-first timestamped rows with no kind glyph", () => {
+    // Per entry: team badge at row start + actor + verb + primary + refs + time.
+    expect(dashboardHtml).not.toContain("monitor-row-avatar");
+    // agentInitials survives for the Agents card monogram; the Crew row monograms
+    // a spaced display role instead, so the two must stay separate functions.
     expect(dashboardHtml).toContain("function agentInitials(id)");
+    expect(dashboardHtml).toContain("function crewActorInitials(role)");
     expect(dashboardHtml).toContain("function crewEventActor(ev)");
     expect(dashboardHtml).toContain("function crewEventTime(ev, info)");
-    // Actor resolution mirrors briefActivityActor: kit agent, else Engineering
-    // Manager (delivery), else Squad when a plan is present, else Platform Engineer.
+    expect(dashboardHtml).toContain("function parseCrewRow(ev)");
+    // WIRE resolution is unchanged and still mirrors briefActivityActor():
+    // kit agent, else Eng (delivery), else SQ when a plan is present, else Eng.
+    // The lexicon is a display layer on top; it must not be folded in here.
     expect(dashboardHtml).toContain("if (ev && ev.agent) return String(ev.agent);");
-    expect(dashboardHtml).toContain(
-      "if (ev && ev.kind === 'delivery') return 'Engineering Manager';",
-    );
-    expect(dashboardHtml).toContain("if (ev && ev.refs && ev.refs.plan) return 'Squad';");
-    expect(dashboardHtml).toContain("return 'Platform Engineer';");
-    // Structured label spans: actor + verb fixed, plan filename ellipsises first;
-    // full context stays on the title tooltip.
-    expect(dashboardHtml).toContain("feed-seg-actor");
-    expect(dashboardHtml).toContain("feed-seg-verb");
-    expect(dashboardHtml).toContain("feed-seg-plan");
+    expect(dashboardHtml).toContain("if (ev && ev.kind === 'delivery') return 'Eng';");
+    expect(dashboardHtml).toContain("if (ev && ev.refs && ev.refs.plan) return 'SQ';");
+    expect(dashboardHtml).toContain("return 'Eng';");
+    // Display masks live in a map, never as returns out of crewEventActor.
+    expect(dashboardHtml).not.toContain("return 'Engineering Manager';");
+    expect(dashboardHtml).not.toContain("return 'Platform Engineer';");
+    expect(dashboardHtml).not.toContain("return 'Squad';");
+    // The v1 segment row is gone: no equal-shrink spans, no separator spans.
+    expect(dashboardHtml).not.toContain("feed-seg-actor");
+    expect(dashboardHtml).not.toContain("feed-seg-verb");
+    expect(dashboardHtml).not.toContain("feed-seg-plan");
+    expect(dashboardHtml).not.toContain("feed-seg-mid");
+    expect(dashboardHtml).not.toContain('<span class="feed-sep" aria-hidden="true"> · </span>');
+    // Label parsing and the truncation-safe plan ref survive the rewrite.
     expect(dashboardHtml).toContain(".split(' · ')");
     expect(dashboardHtml).toContain("ev.labelFull || ev.label || ''");
-    expect(dashboardHtml).toContain(
-      '<span class="feed-label" title="${escapeAttr(feedTitle)}">${feedLabelHtml}</span>',
-    );
-    expect(dashboardHtml).toContain('<span class="feed-sep" aria-hidden="true"> · </span>');
     expect(dashboardHtml).toContain("ev.refs && ev.refs.plan");
-    expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.feed-seg-plan\s*\{[^}]*flex-shrink:\s*3/,
-    );
-    expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.feed-seg\s*\{[^}]*flex-shrink:\s*0/,
-    );
-    // Row order: avatar, chip, label, time.
-    expect(dashboardHtml).toMatch(
-      /monitor-row-avatar[\s\S]*?monitor-row-chip[\s\S]*?feed-label[\s\S]*?feed-time/,
-    );
+    // Row order + structural pin: badge is a row sibling at row start.
+    expectBadgeIsRowSiblingBeforeActor(dashboardHtml);
     // Timestamp fallback: first-seen stamp when the emitter omits `at`.
     expect(dashboardHtml).toContain("semanticSeenAt.get(ev.id)");
     expect(dashboardHtml).toContain("${crewEventTime(ev, info)}");
-    // Avatar styling: neutral square chip, not a state dot.
+    // Inside the Crew Monitor block, info.bg is interpolated exactly once: the
+    // team badge tint. It must not spread to a row background or a second chip.
+    // (The Activity tab's .activity-icon has its own, deliberate, tint.)
+    expect(crewMonitorFeedBlock(dashboardHtml).match(/\$\{info\.bg\}/g)?.length ?? 0).toBe(1);
+  });
+
+  it("splits the Eng collision into distinct display roles without a wire change", () => {
+    // Six consecutive `Eng · merged` rows were the worst case in the shipped
+    // feed. `kind` carries the split; no new emitted field is required, and the
+    // frozen label contract keeps the raw token in labelFull.
+    expect(dashboardHtml).toContain("function crewActorEngRole(ev)");
+    expect(dashboardHtml).toContain(
+      "return ev && ev.kind === 'delivery' ? 'DevOps' : 'Tech Lead';",
+    );
+    expect(dashboardHtml).toContain("function crewActorRole(ev, raw)");
+    // Resolution order: per-event role -> Eng split -> mask -> raw token.
     expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-avatar\s*\{[^}]*width:\s*18px/,
+      /function crewActorRole\(ev, raw\) \{[\s\S]*?if \(ev && ev\.role\) return String\(ev\.role\);[\s\S]*?if \(token === 'Eng'\) return crewActorEngRole\(ev\);[\s\S]*?return CREW_ACTOR_MASK\[token\] \|\| token;/,
+    );
+    // Closed-set and open-set masks, per the operator lexicon.
+    for (const [wire, role] of [
+      ["'docs-repo'", "Tech Writer"],
+      ["explore", "Product Analyst"],
+      ["generalPurpose", "Analyst"],
+      ["SQ", "Scrum Master"],
+      ["Dev", "Developer"],
+      ["PO", "Product Owner"],
+      ["PM", "Project Manager"],
+    ] as const) {
+      expect(dashboardHtml).toMatch(new RegExp(`${wire}:\\s*'${role}'`));
+    }
+    // Initials overrides: Developer and DevOps would otherwise collide on DE.
+    expect(dashboardHtml).toContain("{ Developer: 'DV', DevOps: 'DO' }");
+    // Kind glosses follow the same lexicon (badge tooltip is the kind cue now).
+    expect(dashboardHtml).toMatch(/run_plan:.*gloss: 'Project Manager - live execution'/);
+    expect(dashboardHtml).toMatch(/handoff:.*gloss: 'Project Manager - awaiting gate'/);
+    expect(dashboardHtml).toMatch(/agent_step:.*gloss: 'Developer - task unit'/);
+    expect(dashboardHtml).toMatch(/plan_progress:.*gloss: 'Product Owner - milestone'/);
+    expect(dashboardHtml).toMatch(/subagent:.*gloss: 'Developer - subagent run'/);
+    // The short masks must not leak back into a rendered role.
+    expect(dashboardHtml).not.toMatch(/gloss: 'PM - /);
+    expect(dashboardHtml).not.toMatch(/gloss: 'Dev - /);
+    expect(dashboardHtml).not.toMatch(/gloss: 'PO - /);
+  });
+
+  it("holds Crew Monitor columns steady with one flexible field per row", () => {
+    // The layout contract that replaced the equal-shrink segment row: exactly
+    // one field may ellipsis. A second one reintroduces the fragment bug.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*flex:\s*1 1 auto/,
     );
     expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-avatar\s*\{[^}]*background:\s*var\(--bg-card-hover\)/,
+      /\.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*text-overflow:\s*ellipsis/,
+    );
+    // Column stability: fixed bases, not min-width floors a long id can push past.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-badge\s*\{[^}]*flex:\s*0 0 18px/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-actor\s*\{[^}]*flex:\s*0 0 9\.5em/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-verb\s*\{[^}]*flex:\s*0 0 6\.5em/,
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-time\s*\{[^}]*text-align:\s*right/,
+    );
+    // Ref chips are fixed content: they may never ellipsis (half a SHA is worse
+    // than no SHA), so nowrap is the pin and text-overflow must stay off them.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-ref\s*\{[^}]*white-space:\s*nowrap/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-ref\s*\{[^}]*text-overflow/,
     );
   });
 
-  it("keeps the Activity tab on the plain activity-label (no Crew feed spans)", () => {
-    // Contract: Crew Monitor structured spans stay scoped; Activity tab is plain.
+  it("compacts the Crew row by container width, dropping whole fields only", () => {
+    // Container queries, not viewport media queries: the Crew Monitor sits in a
+    // 2x2 cockpit grid and a narrow plugin shell, so the feed's own width is the
+    // one that matters.
+    expect(dashboardHtml).toMatch(/\.monitor-cq\s*\{[^}]*container-type:\s*inline-size/);
+    expect(dashboardHtml).toContain('class="live-activity-feed monitor-cq"');
+    // The ladder, in order. Every step hides a field whole.
+    expect(dashboardHtml).toMatch(
+      /@container \(max-width: 720px\) \{[^}]*\.monitor-row-plan-name \{ display: none/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@container \(max-width: 560px\) \{[\s\S]*?\.monitor-row-ref\.ref-sha \{ display: none/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@container \(max-width: 450px\) \{[\s\S]*?\.monitor-row-verb em \{ display: none/,
+    );
+    expect(dashboardHtml).toMatch(
+      /@container \(max-width: 360px\) \{[\s\S]*?\.monitor-row-meta \{ display: none/,
+    );
+    // Delta A: the actor drops WHOLE at ≤560px. Narrowing its basis while it
+    // still ellipsises would render `Project Man…` — the exact fragment failure
+    // the redesign exists to remove, reintroduced by the compaction ladder.
+    expect(dashboardHtml).toMatch(
+      /@container \(max-width: 560px\) \{[\s\S]*?\.monitor-row-actor \{ display: none/,
+    );
+    expect(dashboardHtml).not.toMatch(/\.monitor-row-actor \{ flex-basis: 6\.5em/);
+    expect(dashboardHtml).not.toMatch(/\.monitor-row-actor \{ flex-basis: 5\.5em/);
+    // Delta C: the plan chip is fixed content. A width cap plus ellipsis on it
+    // clipped real basenames at FULL width (271px of name against a 240px cap),
+    // which is the fragment bug reappearing on the widest layout.
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-plan-name\s*\{[^}]*max-width/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-plan-name\s*\{[^}]*text-overflow/,
+    );
+    // The superseded viewport rule must not come back alongside the ladder.
+    expect(dashboardHtml).not.toMatch(/@media[\s\S]{0,400}\.monitor-row \.feed-seg-actor/);
+  });
+
+  it("offers compact and comfortable Crew Monitor density with a viewport auto-pick", () => {
+    // Root data attribute restored before first paint, like the skin preference.
+    expect(dashboardHtml).toContain("agent-kit:monitor-density");
+    expect(dashboardHtml).toContain("data-monitor-density");
+    expect(dashboardHtml).toContain("const MONITOR_DENSITIES = ['compact', 'comfortable']");
+    expect(dashboardHtml).toContain("function autoMonitorDensity()");
+    expect(dashboardHtml).toContain("function applyMonitorDensity(density, opts)");
+    expect(dashboardHtml).toContain("function toggleMonitorDensity()");
+    // Auto-pick threshold lives in one named constant, not a bare literal.
+    expect(dashboardHtml).toContain("const MONITOR_DENSITY_COMFORTABLE_MIN_WIDTH = 900");
+    expect(dashboardHtml).toMatch(
+      /\(window\.innerWidth \|\| 0\) >= MONITOR_DENSITY_COMFORTABLE_MIN_WIDTH/,
+    );
+    // Blocked storage must degrade, never throw (private mode).
+    expect(dashboardHtml).toMatch(
+      /function getStoredMonitorDensity\(\) \{[\s\S]*?catch \(e\) \{[\s\S]*?return null;/,
+    );
+    // Operator control in the Crew Monitor header, with pressed state.
+    expect(dashboardHtml).toContain("data-monitor-density-toggle");
+    expect(dashboardHtml).toContain('onclick="toggleMonitorDensity()"');
+    expect(dashboardHtml).toMatch(/aria-pressed="\$\{currentMonitorDensity\(\)/);
+    // Comfortable is a second layout, not a taller first one: the row wraps and
+    // the primary field reflows to a clamped full-width second line.
+    expect(dashboardHtml).toMatch(
+      /html\[data-monitor-density="comfortable"\] \.live-activity-feed \.monitor-row\s*\{[^}]*flex-wrap:\s*wrap/,
+    );
+    expect(dashboardHtml).toMatch(
+      /html\[data-monitor-density="comfortable"\] \.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*flex:\s*1 0 100%/,
+    );
+    expect(dashboardHtml).toMatch(
+      /html\[data-monitor-density="comfortable"\] \.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*-webkit-line-clamp:\s*2/,
+    );
+    expect(dashboardHtml).toMatch(
+      /html\[data-monitor-density="comfortable"\] \.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*white-space:\s*normal/,
+    );
+    // Compact keeps the single-line ellipsis contract on the same field.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-primary\s*\{[^}]*white-space:\s*nowrap/,
+    );
+    // The title tooltip is required in BOTH modes: display label is still capped
+    // at MAX_SEMANTIC_LABEL upstream, so a second line is not a substitute for
+    // it. It rides on the primary span, because an actionable row's own title is
+    // already taken by the copy-path/copy-sha affordance and a duplicate title
+    // attribute on one element is silently dropped.
+    expect(dashboardHtml).toContain(
+      '<span class="monitor-row-primary" title="${escapeAttr(feedTitle)}">${escapeHtml(row.primary)}</span>',
+    );
+    expect(dashboardHtml).toContain("const rowTitle = actionAttrs ? '' :");
+    expect(dashboardHtml).toContain("ev.sourcePath ? `\\n${ev.sourcePath}` : ''");
+  });
+
+  it("keeps the Activity tab on the plain activity-label (no Crew row columns)", () => {
+    // Contract: Crew Monitor row columns stay scoped; Activity tab is plain.
     expect(dashboardHtml).toContain('id="section-activity"');
     expect(dashboardHtml).toContain('<span class="activity-label">${escapeHtml(ev.label)}</span>');
     expect(dashboardHtml).not.toMatch(
-      /id="section-activity"[\s\S]*feed-seg-actor[\s\S]*<\/div>\s*<\/div>\s*`/,
+      /id="section-activity"[\s\S]*monitor-row-primary[\s\S]*<\/div>\s*<\/div>\s*`/,
     );
-    // New Crew CSS must stay under .live-activity-feed .monitor-row, not .activity-label.
-    expect(dashboardHtml).toMatch(/\.live-activity-feed \.monitor-row \.feed-seg-plan/);
-    expect(dashboardHtml).not.toMatch(/\.activity-label[\s\S]{0,80}feed-seg/);
+    // Crew CSS must stay under .live-activity-feed .monitor-row, not .activity-label.
+    expect(dashboardHtml).toMatch(/\.live-activity-feed \.monitor-row \.monitor-row-plan/);
+    expect(dashboardHtml).not.toMatch(/\.activity-label[\s\S]{0,80}monitor-row-/);
+    // The Activity tab keeps the kind glyph the Crew row dropped, so semanticEventInfo
+    // must keep emitting icons even though no Crew row renders one.
+    expect(dashboardHtml).toMatch(/function activityEventInfo\(ev\)/);
+    expect(dashboardHtml).toMatch(/run_plan:\s+\{ icon: '\\u25b6'/);
   });
 
   it("renders Flight Log Gaps stack (live + earlier) without Field Report review CTAs", () => {
@@ -1011,8 +1247,13 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("mark: '\\u2713'");
     expect(dashboardHtml).toContain("mark: '\\u25CB'");
     expect(dashboardHtml).toMatch(/\.now-status-completed\s*\{[^}]*var\(--green\)/);
-    // border-radius inherited from .now-status (--mc-radius-pill); no explicit idle override.
-    expect(dashboardHtml).toMatch(/\.now-status\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/);
+    // border-radius inherited from .now-status (--mc-radius-chrome, design v2);
+    // no explicit idle override. Idle's non-color cue is the ○ mark alone now
+    // that the radius no longer separates it from the solid chips.
+    expect(dashboardHtml).toMatch(
+      /\.now-status\s*\{[^}]*border-radius:\s*var\(--mc-radius-chrome\)/,
+    );
+    expect(dashboardHtml).not.toMatch(/\.now-status-idle\s*\{[^}]*border-radius/);
   });
 
   it("shimmers the current stepbar segment under prefers-reduced-motion no-preference", () => {
@@ -1084,7 +1325,7 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toMatch(/\.mc-busy-chip\s*\{[^}]*color:\s*var\(--blue\)/);
     expect(dashboardHtml).toMatch(/\.mc-busy-chip\s*\{[^}]*background:\s*var\(--blue-bg\)/);
     expect(dashboardHtml).toMatch(
-      /\.mc-busy-chip\s*\{[^}]*border-radius:\s*var\(--mc-radius-pill\)/,
+      /\.mc-busy-chip\s*\{[^}]*border-radius:\s*var\(--mc-radius-chrome\)/,
     );
     expect(dashboardHtml).toMatch(
       /\.mc-busy-chip\s*\{[^}]*font-size:\s*var\(--mc-chrome-meta-size\)/,
@@ -1291,10 +1532,20 @@ describe("plugin-ux-validation: unified Activity feed", () => {
   });
 
   it("keeps Monitor curated while Activity renders all event kinds", () => {
-    // Live-actions allowlist: tick/handoff/delivery + agent_step denser feed
+    // Live-actions allowlist: tick/handoff/delivery + agent_step denser feed,
+    // plus the 2026-08-05 real-time kinds (Task workers, background reviews).
     expect(dashboardHtml).toMatch(
-      /const MONITOR_ACTIVITY_KINDS = new Set\(\[\s*'run_plan', 'handoff', 'delivery', 'agent_step',\s*\]\)/,
+      /const MONITOR_ACTIVITY_KINDS = new Set\(\[\s*'run_plan', 'handoff', 'delivery', 'agent_step', 'subagent', 'plan_review',\s*\]\)/,
     );
+    // HTML allowlist mirrors the semantic-model SoT exactly (order included).
+    expect(MONITOR_ACTIVITY_KINDS).toEqual([
+      "run_plan",
+      "handoff",
+      "delivery",
+      "agent_step",
+      "subagent",
+      "plan_review",
+    ]);
     // Cap SoT is MONITOR_FEED_CAP via missionControl.monitorFeedCap (no HTML literal).
     expect(dashboardHtml).not.toMatch(/const MONITOR_FEED_CAP\s*=/);
     expect(dashboardHtml).toContain("function monitorFeedCap(d)");
@@ -1313,10 +1564,13 @@ describe("plugin-ux-validation: unified Activity feed", () => {
     expect(dashboardHtml).toContain("${filteredActivityEvents.map((ev, idx) => {");
   });
 
-  it("renders flat single-roll Monitor rows with distinct resting kind chips", () => {
+  it("renders flat single-roll Monitor rows with distinct resting kind colors", () => {
     expect(dashboardHtml).toContain("monitor-row");
-    expect(dashboardHtml).toContain("monitor-row-chip");
-    expect(dashboardHtml).toContain("monitor-row-icon");
+    // The kind glyph and its chip wrapper are gone from the Crew row entirely
+    // (design v2): kind is carried by the badge tint + the badge tooltip gloss.
+    expect(dashboardHtml).not.toContain("monitor-row-chip");
+    expect(dashboardHtml).not.toContain("monitor-row-icon");
+    expect(dashboardHtml).toContain("monitor-row-badge");
     expect(dashboardHtml).toContain("function semanticEventTime(ev, _info)");
     expect(dashboardHtml).toMatch(
       /function semanticEventTime\(ev, _info\) \{[\s\S]*?if \(ev\.at\) return escapeHtml\(ev\.at\);\s*return '';/,
@@ -1330,26 +1584,47 @@ describe("plugin-ux-validation: unified Activity feed", () => {
     expect(dashboardHtml).not.toContain("monitor-row-tag");
     expect(dashboardHtml).not.toContain("monitor-row-identity");
     expect(dashboardHtml).not.toContain("const showIdentity = !prevRaw || rawIdentity !== prevRaw");
-    // Icon-only chip: fixed square, solid status tokens, no hover width expand
-    expect(dashboardHtml).not.toMatch(
-      /\.live-activity-feed \.monitor-row:hover \.monitor-row-chip/,
-    );
-    expect(dashboardHtml).not.toMatch(
-      /\.live-activity-feed \.monitor-row:focus-within \.monitor-row-chip/,
+    // Team badge: fixed 18px square, --mc-radius-sm so it never reads as a status
+    // pill (those squared off to --mc-radius-chrome in the same pass), tinted
+    // *-bg fill with the solid semantic color on the initials.
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-badge\s*\{[^}]*width:\s*18px/,
     );
     expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*min-width:\s*18px/,
+      /\.live-activity-feed \.monitor-row \.monitor-row-badge\s*\{[^}]*height:\s*18px/,
     );
     expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*width:\s*18px/,
+      /\.live-activity-feed \.monitor-row \.monitor-row-badge\s*\{[^}]*border-radius:\s*var\(--mc-radius-sm\)/,
     );
-    // Resting cue: solid *-bg fill only (no inset ring, no left rail, no kind-tag text)
-    expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*box-shadow:\s*none/,
+    expect(dashboardHtml).toContain('style="background:${info.bg};color:${info.color}"');
+    // No resting hover/focus width expand on the badge (the #631 avatar behaviour).
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row:hover \.monitor-row-badge/,
     );
     expect(dashboardHtml).not.toMatch(
-      /\.live-activity-feed \.monitor-row \.monitor-row-chip\s*\{[^}]*box-shadow:\s*inset 0 0 0 1px currentColor/,
+      /\.live-activity-feed \.monitor-row:focus-within \.monitor-row-badge/,
     );
+    // Verb state icon replaced the 6px dot; stroke weight is optically
+    // compensated for the 12px render, on the dashboard's own 16 grid (the
+    // design's 24-grid Feather shapes were redrawn, not imported — the file
+    // keeps one icon geometry, pinned by the viewBox check on the refresh test).
+    expect(dashboardHtml).toContain("const CREW_VERB_ICON = {");
+    expect(dashboardHtml).toContain(
+      'viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"',
+    );
+    expect(dashboardHtml).toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-verb-icon\s*\{[^}]*stroke-width:\s*1\.6/,
+    );
+    for (const [verb, icon] of [
+      ["running", "play"],
+      ["awaiting", "pause"],
+      ["done", "check"],
+      ["failed", "x"],
+      ["merged", "git-merge"],
+      ["parked", "circle-slash"],
+    ] as const) {
+      expect(dashboardHtml).toMatch(new RegExp(`${verb}:\\s*'${icon}'`));
+    }
     expect(dashboardHtml).toMatch(
       /run_plan:\s+\{[^}]*color:\s*'var\(--green\)'[^}]*bg:\s*'var\(--green-bg\)'/,
     );
@@ -1385,18 +1660,28 @@ describe("plugin-ux-validation: unified Activity feed", () => {
     expect(dashboardHtml).toMatch(/chore:\s+\{\s*icon:\s*'\\u2692'/);
     expect(dashboardHtml).toMatch(/pr:\s+\{\s*icon:\s*'\\u2442'/);
     expect(dashboardHtml).toMatch(/ship:\s+\{\s*icon:\s*'\\u2708'/);
-    expect(dashboardHtml).toContain("gloss: 'DevOps Engineer - feat'");
-    expect(dashboardHtml).toContain("gloss: 'Tech Lead - live execution'");
-    expect(dashboardHtml).toContain("gloss: 'Scrum Master - awaiting gate'");
-    expect(dashboardHtml).toContain("gloss: 'Full-Stack Developer - task unit'");
+    // Glosses follow the operator lexicon (design v2): full roles, no short masks.
+    expect(dashboardHtml).toContain("gloss: 'DevOps - feat'");
+    expect(dashboardHtml).toContain("gloss: 'Project Manager - live execution'");
+    expect(dashboardHtml).toContain("gloss: 'Project Manager - awaiting gate'");
+    expect(dashboardHtml).toContain("gloss: 'Developer - task unit'");
     expect(dashboardHtml).toContain("gloss: 'Product Owner - milestone'");
-    expect(dashboardHtml).toContain("gloss: 'DevOps Engineer - shipped unit'");
+    expect(dashboardHtml).toContain("gloss: 'DevOps - merged unit'");
+    // `shipped` is retired from the verb list and the gloss pack (2026-08-05).
+    expect(dashboardHtml).not.toContain("shipped unit");
+    // New live kinds carry their own lexicon gloss.
+    expect(dashboardHtml).toContain("gloss: 'Developer - subagent run'");
+    expect(dashboardHtml).toContain("gloss: 'QA - review evidence'");
     expect(dashboardHtml).toContain("kindGloss: gloss");
-    expect(dashboardHtml).toMatch(
-      /\.live-activity-feed \.monitor-row \.feed-time\s*\{[^}]*margin-left:\s*auto/,
+    // The time column is pushed right by the primary field's flex, not by an
+    // auto margin: with a wrapping comfortable row, margin-left:auto on the
+    // time would drag it onto the second line.
+    expect(dashboardHtml).not.toMatch(
+      /\.live-activity-feed \.monitor-row \.monitor-row-time\s*\{[^}]*margin-left:\s*auto/,
     );
-    // Column order in markup: chip, then label, then trailing time
-    expect(dashboardHtml).toMatch(/monitor-row-chip[\s\S]*?feed-label[\s\S]*?feed-time/);
+    // Column order + structural pin (render block; not whole-file CSS proximity).
+    expectBadgeIsRowSiblingBeforeActor(dashboardHtml);
+    expect(dashboardHtml).toContain("const badgeHtml =");
     // Hover affordance on flat rows (skin tokens only)
     expect(dashboardHtml).toMatch(
       /\.live-activity-feed \.monitor-row\[role="button"\]:hover\s*\{[^}]*background:\s*var\(--bg-card-hover\)/,
@@ -3356,9 +3641,30 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).toContain("HEALTH_CHECK_META");
     expect(dashboardHtml).toContain("function toggleHealthCheck(checkId)");
     expect(dashboardHtml).toContain("function healthCheckSeverity(check, aggregateStatus)");
+    // Scope identity to the HEALTH_CHECK_META literal (whole-file `plans:` etc. is vacuous).
+    const metaBlock = dashboardHtml.match(/const HEALTH_CHECK_META = \{[\s\S]*?\n\};/)?.[0];
+    expect(metaBlock).toBeTruthy();
     for (const id of ["plans", "handoff", "agents", "commands", "memory", "git", "config"]) {
-      expect(dashboardHtml).toContain(`${id}:`);
+      expect(metaBlock).toMatch(new RegExp(`^\\s*${id}:\\s*\\{`, "m"));
     }
+    // Residual E/E1/E2: handoff/git remedy the fail; path-copy CTAs share Copy path;
+    // git Autofix covers zero-commit repos (init + empty commit).
+    expect(metaBlock).toMatch(
+      /handoff:\s*\{[\s\S]*?autofix:\s*\{\s*text:\s*'\/handoff'[\s\S]*?destination:\s*'chatInput'/,
+    );
+    expect(metaBlock).toMatch(
+      /git:\s*\{[\s\S]*?autofix:\s*\{\s*text:\s*'git init && git commit --allow-empty -m "init"'[\s\S]*?destination:\s*'terminal'[\s\S]*?label:\s*'Autofix'/,
+    );
+    expect(metaBlock).toMatch(
+      /memory:\s*\{[\s\S]*?autofix:\s*\{\s*text:\s*'\.cursor\/memory\/'[\s\S]*?label:\s*'Copy path'/,
+    );
+    expect(metaBlock).toMatch(
+      /commands:\s*\{[\s\S]*?autofix:\s*\{\s*text:\s*'\.cursor\/commands\/'[\s\S]*?label:\s*'Copy path'/,
+    );
+    // Hygiene F/G: native button needs no keydown shim; dead legacy helpers gone.
+    expect(dashboardHtml).not.toContain("healthCheckKeydown");
+    expect(dashboardHtml).not.toContain("showHealthInfo");
+    expect(dashboardHtml).not.toContain(".health-message");
   });
 
   it("renders a vitals diagnosis dashboard grouped by vital system", () => {
@@ -3392,8 +3698,15 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).toMatch(
       /\.health-item-sev\[data-sev="degraded"\]\s*\{[^}]*var\(--orange/,
     );
-    expect(dashboardHtml).toMatch(/\.health-item-sev\[data-sev="error"\]\s*\{[^}]*var\(--red/);
+    // Per-check error chrome pruned (residual C): producers never emit error+checks.
+    expect(dashboardHtml).not.toMatch(/\.health-item-sev\[data-sev="error"\]/);
     expect(dashboardHtml).toContain('class="health-item-sev" data-sev=');
+    expect(dashboardHtml).toMatch(
+      /function healthCheckSeverity\(check, aggregateStatus\) \{[\s\S]*?if \(aggregateStatus === 'degraded'\) return 'degraded';\s*return 'warning';/,
+    );
+    expect(dashboardHtml).not.toMatch(
+      /function healthCheckSeverity\(check, aggregateStatus\) \{[\s\S]*?aggregateStatus === 'error'[\s\S]*?return 'error'/,
+    );
     // Token hygiene: no misleading fallback hexes on severity/radius rules.
     expect(dashboardHtml).not.toContain("var(--mc-radius-sm, 6px)");
     expect(dashboardHtml).not.toContain("var(--green, #3fb950)");
@@ -3401,10 +3714,19 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).not.toContain("var(--red, #f85149)");
   });
 
-  it("unifies severity chrome on one {tone, label, token} mapping across all call sites", () => {
+  it("unifies severity chrome on one {tone, label} mapping across all call sites", () => {
     expect(dashboardHtml).toContain("HEALTH_SEVERITY_CHROME");
-    expect(dashboardHtml).toContain(
-      "degraded: { tone: 'orange', label: 'degraded', token: 'orange' }",
+    // Positive shape anchor: literal-scoped token pin must match this = { … }; form.
+    expect(dashboardHtml).toMatch(/const HEALTH_SEVERITY_CHROME = \{[\s\S]*?\};/);
+    expect(dashboardHtml).toContain("degraded: { tone: 'orange', label: 'degraded' }");
+    // Aggregate error keeps tone+label for transport; no unread token field.
+    expect(dashboardHtml).toMatch(/error:\s*\{\s*tone:\s*'red',\s*label:\s*'error'\s*\}/);
+    expect(dashboardHtml).not.toMatch(
+      /HEALTH_SEVERITY_CHROME\s*=\s*\{(?:(?!\};)[\s\S])*\btoken\s*:(?:(?!\};)[\s\S])*\};/,
+    );
+    // Fallback || { … }: reject token within that object only (not unbounded to EOF).
+    expect(dashboardHtml).not.toMatch(
+      /return HEALTH_SEVERITY_CHROME\[sev\] \|\| \{(?:(?!\})[\s\S])*\btoken\s*:/,
     );
     // Presence dot, card dot, and severity label all read the same mapping.
     expect(dashboardHtml).toContain(

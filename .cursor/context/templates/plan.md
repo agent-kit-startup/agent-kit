@@ -55,6 +55,24 @@ For a tick whose **only** deliverable is ADR / memory / CHANGELOG / L0 markdown:
 - Set `inline_first: true` **only** when those checks will pass
 - Do **not** pair `inline_first: true` with `security-reviewer`, `tech-lead`, `explore`, or product paths unless the intent is Task (`force_task: true`)
 
+### Mission Control dashboard SoT path
+
+When a to-do touches Mission Control HTML/CSS/JS in the dashboard shell, put **`dashboard/dashboard.html`** (repo-root) in `read_scope` and edit that file. Do **not** list `packages/cli/dashboard/dashboard.html`: that path is a gitignored prepack mirror (`scripts/sync-cli-dashboard.mjs`), not the source of truth. Pins in `plugin-ux-validation.test.ts` already resolve the repo-root SoT.
+
+### Durable mid-batch monitor pointers
+
+When a plan watches another monitor mid-batch (e.g. a residual closeout references a sibling monitor), record the pointer in a **tracked** surface, not in `.cursor/HANDOFF.md`. The canonical durable pointer is the Audits row in `.cursor/memory/_index.md` for the watched monitor. Keep HANDOFF as session state only.
+
+**Pattern:**
+
+- Add the watched monitor file by name in the same commit as its `_index.md` Audits row (R14 pairing).
+- In the plan body or monitor notes, cite the `_index.md` row rather than a HANDOFF line.
+- Do not write acceptance criteria that depend on a gitignored HANDOFF line as evidence.
+
+### Ledger regeneration boundary
+
+Do not confuse "a companion plan owns the stale-ledger residual" with "ledger regeneration is forbidden here." The knowledge-classification evidence gate resolves Audits targets against git-tracked files, so any change that introduces or reclassifies a tracked `.cursor/memory/**` file must regenerate `docs/evidence/knowledge-classification.json` in the same commit. Regeneration is required for the technical necessity of tracking new files; it is only forbidden as a duplicate residual-cleanup to-do when another plan has already committed to that specific stale-ledger residual. ADR: `decisions/2026-08-08_ledger-regen-policy.md`.
+
 ### Split docs-only vs product ticks
 
 When a phase would mix markdown close-out with product evidence, **author two to-dos** so Auto can inline-first the docs tick and Task-isolate the product tick. Do not put `packages/**`, `dashboard/**`, or other product paths on a docs close-out `read_scope` "for context." ADR: `decisions/2026-07-27_auto-run-no-regression-invariants.md`.

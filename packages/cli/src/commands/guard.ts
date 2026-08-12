@@ -21,7 +21,7 @@ async function detectCurrentBranch(): Promise<string | undefined> {
 export const guardCommand = defineCommand({
   meta: {
     name: "guard",
-    description: "Mechanizable deny/annotate guards (shell, prompt). Hooks are thin adapters.",
+    description: "Deny/annotate guards (shell, prompt). Hooks are thin adapters.",
   },
   subCommands: {
     shell: defineCommand({
