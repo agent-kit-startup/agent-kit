@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
+import { withCliProgress } from "../welcome/visual-kit.js";
 import type { AgentBackend } from "./backends.js";
 import {
   armExternalPlanReview,
@@ -126,12 +127,14 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
 
       let agentExit = 0;
       try {
-        const result = await opts.backend.run({
-          workspace: opts.root,
-          prompt: TICK_PROMPT,
-          model: opts.model,
-          logPath,
-        });
+        const result = await withCliProgress(`tick ${tick}`, () =>
+          opts.backend.run({
+            workspace: opts.root,
+            prompt: TICK_PROMPT,
+            model: opts.model,
+            logPath,
+          }),
+        );
         agentExit = result.exitCode;
       } catch (err) {
         logger.error(String(err));
@@ -197,7 +200,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
 
       if (opts.sleepSeconds > 0) {
         if (banners) banners.sleep(opts.sleepSeconds);
-        await sleep(opts.sleepSeconds * 1000);
+        await withCliProgress(`sleep ${opts.sleepSeconds}s`, () => sleep(opts.sleepSeconds * 1000));
       }
     }
 

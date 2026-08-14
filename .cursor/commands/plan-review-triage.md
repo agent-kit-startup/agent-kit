@@ -115,7 +115,7 @@ Present a concise summary:
 
 Before Ask, classify open residuals for **closeout depth** and severity (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`):
 
-1. **Theme family / closeout_depth:** strip leading `close-`, trailing `-residuals` / `-still-open`, and revision suffixes (`-rN`, `-rN-rM`, `-n2-n3`, `-a-f`, …). Depth includes prior Write-residuals/`close-*` hops for that family; a plan basename that already starts with `close-` is depth ≥ 1.
+1. **Theme family / closeout_depth:** strip leading `close-`, trailing `-residuals` / `-still-open`, and revision suffixes (`-rN`, `-rN-rM`, `-n2-n3`, `-a-f`, …). Depth includes prior Write-residuals/`close-*` hops for that family; a plan basename that already starts with `close-` is depth ≥ 1. Count those hops from `.cursor/plans/`, `.cursor/plans/archive/`, and HANDOFF `- **Backlog plans:**` (plan files are gitignored; completed `close-*` plans live in archive).
 2. **Preferred class:**
    - All open items are nits / docs-cite / process hygiene (Gaps voice, R14/R15, ledger, inherited CI dirt) with **no Blocking product defect** → prefer **Ack and stop** or **Fix nits only**.
    - Monitor is already depth ≥ 1 and no Blocking product finding → prefer **Ack and stop** / **Fix nits only**; do **not** treat Write residuals as the happy path.
@@ -239,7 +239,7 @@ When multiple report paths are in scope (explicit args **or** bare-command selec
 2. **Never `/git-prod`** from this command - residual fixes go through `/git-staging` only  
 3. **Never auto-implement** without the triage choice above
 4. **Never skip Broad Intake or the backlog write-confirm Ask** on Write residuals plan (write-confirm may collapse for a remaining multi-path set when the operator authorizes it in the same reply as Write residuals). Never park, activate, Gate B, or rewrite Run queue from this path. Clipboard `/start-project` is **not** the happy path (optional operator escape hatch only when they want activate + Gate B). Do not fan out ≥3 plan-author Tasks in one turn (Step 6 pacing).
-5. **No broad scope creep** in "Fix nits only" - redirect to Write residuals plan (backlog enqueue) for substantial work
+5. **No broad scope creep** in "Fix nits only" - redirect to Write residuals plan (backlog enqueue) for substantial work. At closeout_depth ≥ 1 with no Blocking product finding, Step 5A gate 0 refuses that enqueue; use Ask **Other** / an explicit operator override instead (ADR decision 6) and record it in the triage heading.
 6. **Never skip the triage heading** - including Ack and stop
 7. **Never unbounded close-* conveyor** - enforce max closeout depth and nits/process-only defaults (Step 2b / Step 5A gate 0; ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Depth-capped process-only Still open → Ack or Fix nits, not another `close-*`.
 

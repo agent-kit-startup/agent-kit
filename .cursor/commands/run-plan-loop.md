@@ -11,4 +11,4 @@ When invoked, follow [`run-plan.md`](run-plan.md) forcing the **in-session loop*
 
 > "Heads up: `/run-plan-loop` is now `/run-plan`. Running with the in-session strategy."
 
-The full tick contract (plan status per tick, HANDOFF, automatic `/git-staging` on diff, **never** `/git-prod`, stop conditions) lives in `run-plan.md`, including the headless runner (`scripts/plan-loop.sh`) section.
+The full tick contract (plan status per tick, HANDOFF, automatic `/git-staging` on diff including HANDOFF/memory kit buckets, **never** skip those as trivial, **never** `/git-prod`, stop conditions) lives in `run-plan.md`, including the headless runner (`scripts/plan-loop.sh`) section.

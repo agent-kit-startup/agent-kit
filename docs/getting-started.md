@@ -14,7 +14,7 @@ npx @dadado/agent-kit-cli install
 
 Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
-**IDE-agnostic:** works in Cursor, VS Code, and any terminal with Node.js. For non-interactive terminals (CI, piped stdin, VS Code output panels without TTY), suppress both `npx`'s own confirmation and the CLI's root prompt:
+**IDE-agnostic:** works in Cursor, VS Code, and any terminal with Node.js. Claude Code CLI session kit-load (`CLAUDE.md` / `/agent-kit`) is documented under [Claude Code CLI (session kit-load)](#claude-code-cli-session-kit-load). For non-interactive terminals (CI, piped stdin, VS Code output panels without TTY), suppress both `npx`'s own confirmation and the CLI's root prompt:
 
 ```bash
 npx -y @dadado/agent-kit-cli install --yes
@@ -60,7 +60,7 @@ npx @dadado/agent-kit-cli doctor --fix-safe
 
 ### After install checklist (personal path)
 
-Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`, `citty`, `kolorist` only).
+Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`, `citty`, `kolorist` only). TTY chrome (spinners, tips) is ANSI in the CLI package; do not add `ora`, `figlet`, `chalk`, or `ink`.
 
 1. **Node.js 20+** - required for `npx` / `agent-kit` CLI (`engines` in package manifests).
 2. **Git** - recommended so readiness pillars and `/git-staging` → `/git-prod` work; local-only Git is valid.
@@ -85,6 +85,8 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 | `agent-kit contribute` | Send an improvement you made locally back upstream |
 | `agent-kit handoff` | Save your progress to `.cursor/HANDOFF.md` |
 | `agent-kit scan` | Just scan the project, don't install |
+
+Optional: `agent-kit add mission-kit-comms` drafts recap/release/contributor copy. It does **not** post. Ask before any public network. Guide: [comms.md](comms.md).
 
 ## A normal day
 
@@ -118,7 +120,7 @@ Operator sequence when you drive each unit (command SoT: [`.cursor/commands/cont
 
 Do not re-author Gate A/B or continuous tick contracts here; link L0 commands when you need the full contract.
 
-### Keeping Agent Kit current (consumers)
+### Keeping Mission Kit current (consumers)
 
 - **Opt-in check:** set `updateCheck.enabled: true` in `.cursor/context/config.json` (Mission Control Config can toggle it). SessionStart may then nudge when a newer public release exists; interval is `updateCheck.intervalDays` (default 7).
 - **Manual check:** `agent-kit update --check --json`.
@@ -162,9 +164,21 @@ For the full list of consumer-configurable knobs (session config, dashboard skin
 
   **Mission Control shortcut:** the Checklist **Run all** header button copies `/run-plan-all` into chat input (copy-only; it does not write HANDOFF or start the queue). While a queue is live, Checklist cards sort by role-priority (executing, then next up, then queued / completed), not by Run queue index. Plan card Actions also offer **Run (manual)** (`/continue-plan`) and **Run (auto)** (`/run-plan`) as copy-only pastes.
 
+### Claude Code CLI (session kit-load)
+
+Install writes a thin root `CLAUDE.md` and `.claude/commands/agent-kit.md` so Claude Code (including a session started in the Cursor terminal) can load Agent Kit context without rediscovering the repository. Cursor agents already get that context from `sessionStart` and always-apply rules.
+
+1. Start Claude Code in the project root.
+2. `CLAUDE.md` loads automatically. Mid-session refresh: type `/agent-kit`.
+3. Claude should read `.cursor/HANDOFF.md`, `.cursor/project-context.md`, and `.cursor/commands/` instead of a full archaeology pass.
+
+HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not available). Never `/git-prod` from kit-load.
+
+Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** `agent-kit run-plan --backend claude`, and **not** Action A7 (Windsurf / VS Code generators).
+
 ### Optional external plan review
 
-When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default).
+When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default). Session kit-load (`CLAUDE.md` / `/agent-kit`) is a different surface; see [Claude Code CLI (session kit-load)](#claude-code-cli-session-kit-load).
 
 1. **Enable it:** set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`), or accept the exhaustion Ask when a single `/run-plan` finishes (or once when a `/run-plan-all` queue exhausts)
 2. **Chat path:** when enabled or you pick `Run review now`, the agent prepares a paste command (`--paste-only` / `--force --paste-only`); you run it in **your** Cursor Terminal (not a silent agent-shell `claude -p`)

@@ -169,27 +169,34 @@ describe("buildOpenBrowserCommand", () => {
 });
 
 describe("openBrowser spawn", () => {
-  it("spawns exactly one process with resolved args", () => {
+  it("detaches exactly once after linux which-probe succeeds", () => {
     const child = { unref: vi.fn(), on: vi.fn() };
     const spawnFn = vi.fn(() => child);
+    const spawnSyncFn = vi.fn(() => ({ status: 0, error: null }));
     const result = openBrowser("http://127.0.0.1:3511/", {
       env: {},
-      preferred: "Google Chrome",
-      platform: "darwin",
+      preferred: "firefox",
+      platform: "linux",
       spawnFn,
+      spawnSyncFn,
     });
     expect(result.opened).toBe(true);
-    expect(spawnFn).toHaveBeenCalledTimes(1);
-    expect(spawnFn).toHaveBeenCalledWith(
-      "open",
-      ["-a", "Google Chrome", "http://127.0.0.1:3511/"],
-      { detached: true, stdio: "ignore" },
+    expect(spawnSyncFn).toHaveBeenCalledTimes(1);
+    expect(spawnSyncFn).toHaveBeenCalledWith(
+      "which",
+      ["firefox"],
+      expect.objectContaining({ encoding: "utf8" }),
     );
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+    expect(spawnFn).toHaveBeenCalledWith("firefox", ["http://127.0.0.1:3511/"], {
+      detached: true,
+      stdio: "ignore",
+    });
     expect(child.unref).toHaveBeenCalled();
     expect(child.on).toHaveBeenCalledWith("error", expect.any(Function));
   });
 
-  it("falls back to OS default when preferred spawn throws", () => {
+  it("falls back to OS default when preferred detach throws after which succeeds", () => {
     const child = { unref: vi.fn(), on: vi.fn() };
     const spawnFn = vi
       .fn()
@@ -197,14 +204,28 @@ describe("openBrowser spawn", () => {
         throw Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
       })
       .mockImplementationOnce(() => child);
+    const spawnSyncFn = vi.fn(() => ({ status: 0, error: null }));
     const result = openBrowser("http://127.0.0.1:3511/", {
       env: {},
       preferred: "NoSuchBrowser",
       platform: "linux",
       spawnFn,
+      spawnSyncFn,
     });
     expect(result.opened).toBe(true);
     expect(result.reason).toBe("preferred-fallback");
+    expect(spawnSyncFn).toHaveBeenNthCalledWith(
+      1,
+      "which",
+      ["NoSuchBrowser"],
+      expect.objectContaining({ encoding: "utf8" }),
+    );
+    expect(spawnSyncFn).toHaveBeenNthCalledWith(
+      2,
+      "which",
+      ["xdg-open"],
+      expect.objectContaining({ encoding: "utf8" }),
+    );
     expect(spawnFn).toHaveBeenCalledTimes(2);
     expect(spawnFn.mock.calls[1]?.[0]).toBe("xdg-open");
   });
@@ -213,14 +234,18 @@ describe("openBrowser spawn", () => {
     const spawnFn = vi.fn(() => {
       throw new Error("spawn failed");
     });
+    const spawnSyncFn = vi.fn(() => ({ status: 0, error: null }));
     const result = openBrowser("http://127.0.0.1:3511/", {
       env: {},
       preferred: "bad-bin",
       platform: "linux",
       spawnFn,
+      spawnSyncFn,
     });
     expect(result.opened).toBe(false);
     expect(result.reason).toBe("spawn-failed");
+    expect(spawnSyncFn).toHaveBeenCalled();
+    expect(spawnFn).toHaveBeenCalled();
   });
 
   it("returns invalid-url for empty url", () => {

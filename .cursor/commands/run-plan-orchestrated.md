@@ -11,4 +11,4 @@ When invoked, follow [`run-plan.md`](run-plan.md) forcing the **orchestrated** s
 
 > "Heads up: `/run-plan-orchestrated` is now `/run-plan`. Running with the orchestrated strategy."
 
-The full tick contract, worker routing table, and worker prompt template live in `run-plan.md`. Invariants unchanged: automatic `/git-staging` on diff, **never** `/git-prod`.
+The full tick contract, worker routing table, and worker prompt template live in `run-plan.md`. Invariants unchanged: automatic `/git-staging` on diff (including HANDOFF/memory kit buckets; never skip as trivial), **never** `/git-prod`.

@@ -79,6 +79,9 @@ describe("renderWelcomeScreen", () => {
     expect(out).toContain("agent-kit dashboard");
     expect(out).toContain("HITL");
     expect(out.includes("\u001b")).toBe(false);
+    expect(out).toMatch(
+      /Try agent-kit doctor|HITL gates stay|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
+    );
   });
 
   it("includes helmet ASCII frame lines", () => {
@@ -128,6 +131,9 @@ describe("renderGroupedRootHelp", () => {
     expect(text).toContain("INTEGRITY");
     expect(text).toContain("init");
     expect(text).toContain("Chat-only HITL");
+    expect(text).toMatch(
+      /Try agent-kit doctor|HITL gates stay|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
+    );
     for (const g of CLI_HELP_GROUPS) {
       expect(g.commands.length).toBeGreaterThan(0);
     }

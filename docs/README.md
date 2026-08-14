@@ -11,6 +11,7 @@
 - [Contribute upstream](contribute-upstream.md) - `agent-kit contribute` return channel + gate
 - [Public launch](public-launch.md) - go/no-go + append-only sync
 - [Public launch announcement](public-launch-announcement.md) - copy-paste launch text (chat / social)
+- [Adoption comms](comms.md) - channel map, recap/release cadence, HITL draft pipeline (does not auto-post)
 - [Mission Kit Landing](agentkit-landing.md) - public marketing page at [missionkit.io](https://missionkit.io) (filename kept for link stability; previous `agent.startupkit.com.br` is deprecated and 301-redirects)
 - [Topology private × public](topology-private-public.md) - Fase 7 registry-canonical public
 - [Marketplace catalog](marketplace.md) - versioning, CLI add, Cursor plugin, quality gate
@@ -19,9 +20,10 @@
 - [Creating Agent Personas](creating-personas.md) - persona pack format, placement, contribute checklist
 - [Agent Personas contract](personas-contract.md) - persona pack schema, mode defaults, acceptance rules (also summarized in the root [README Features](../README.md#features))
 - [External plan review](external-plan-review.md) - opt-in Claude Code monitor after plan exhaustion
+- [Claude CLI kit-load](claude-cli-kit-load.md) - thin `CLAUDE.md` plus `/agent-kit` session bootstrap (not audits, not A7)
 - [Consumer configuration](consumer-configuration.md) - every consumer knob (session config, skin, install choices, CLI flags/env) with copy snippets
 - Config tab write verification - durable allowlist PATCH matrix for Mission Control Config (private factory evidence under `docs/evidence/`; not public-synced)
-- [Cursor 3.0 Features](cursor-3-features.md) - how Agent Kit uses native IDE features
+- [Cursor 3.0 Features](cursor-3-features.md) - how Mission Kit uses native IDE features
 - [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
 - [Coherence inventory](coherence-inventory.md) - classification of rules, skills, hooks, agents, commands
 - [Drift inventory](drift-inventory.md) - per-workspace kit copies, L0 candidates, L3 uniques
@@ -36,6 +38,7 @@
 
 ## Community
 
+- [Adoption comms](comms.md) - spread-the-word drafts with HITL; contributor funnel stays CONTRIBUTING
 - [Code of Conduct](../.github/CODE_OF_CONDUCT.md) - Contributor Covenant 2.1 and how to report a concern
 - [Security policy](../.github/SECURITY.md) - private disclosure channel, supported versions, documented posture (never open a public issue for a vulnerability)
 - [Support](../.github/SUPPORT.md) - where to ask what, and what makes a question answerable

@@ -91,17 +91,18 @@ Published CLI packs `dashboard/**` from 4.8.2 onward; consumers normally run `ag
 
 Release and sync ops: [public-launch.md](public-launch.md), [npm-publish-checklist.md](npm-publish-checklist.md).
 
-## Mission Kit vs Agent Kit naming
+## Mission Kit / Agent Kit / Mission Control naming
 
-Public marketing uses **Mission Kit** (missionkit.io hero, README first screen, consumer product-family prose). Install and runtime identifiers stay **Agent Kit** / `agent-kit`. Blind find-replace either way breaks install truth or storefront positioning.
+Public marketing uses **Mission Kit** / **MissionKit** (missionkit.io hero, README first screen, consumer product-family prose). Install and runtime identifiers stay **Agent Kit** / `agent-kit`. **Mission Control** is the dashboard shell and tabs only. Blind find-replace either way breaks install truth, storefront positioning, or dashboard voice.
 
 | Surface | Prefer | Notes |
 |---------|--------|-------|
 | missionkit.io hero / SEO | Mission Kit | External design SoT; do not hand-edit `landing-missionkit/remote/` |
 | Root README storefront | Mission Kit framing | Keep install/CLI names as Agent Kit / `agent-kit` |
-| Consumer docs | Mission Kit for the product family; Agent Kit when naming CLI or installed kit | One sentence can introduce both |
+| Consumer docs | Mission Kit for the product family; Agent Kit when naming the CLI or pack | One sentence can introduce both |
 | npm / CLI / npx | `@dadado/agent-kit-cli`, `agent-kit` | Never rename in docs alone |
-| Slash commands, `.cursor/agent-kit.json` | Agent Kit identifiers | Literal command and file names |
+| Slash commands, `.cursor/agent-kit.json`, agent pack | Agent Kit identifiers | Literal command, file, and pack names |
+| Dashboard shell and tabs | Mission Control | Never use Mission Control as the product or CLI name |
 | Commercial contact | `sales@missionkit.io` | PolyForm Noncommercial path |
 | Legacy `agent.startupkit.com.br`, `landing-agentkit/` | Historical / rollback-only | Qualify when linked |
 

@@ -56,6 +56,10 @@ describe("allowlistConfig", () => {
         offerOnExhausted: false,
         autoRemediate: false,
         backend: "claude",
+        reviewerModel: "haiku",
+        advisorModel: "opus",
+        waitSliceSeconds: 90,
+        waitTimeoutSeconds: 900,
         mode: "autonomous",
         midBatchAudits: true,
         preflight: "warn",
@@ -82,6 +86,10 @@ describe("allowlistConfig", () => {
         mode: "autonomous",
         midBatchAudits: true,
         preflight: "warn",
+        reviewerModel: "haiku",
+        advisorModel: "opus",
+        waitSliceSeconds: 90,
+        waitTimeoutSeconds: 900,
       },
       agentPersona: {
         default: "night-shift",
@@ -123,7 +131,11 @@ describe("config write allowlist", () => {
       updateCheck: { enabled: true, intervalDays: 7 },
       externalPlanReview: {
         enabled: true,
-        backend: "claude",
+        backend: "auto",
+        reviewerModel: "haiku",
+        advisorModel: "opus",
+        waitSliceSeconds: 90,
+        waitTimeoutSeconds: 900,
         autoRemediate: false,
         offerOnExhausted: true,
         mode: "autonomous",
@@ -176,6 +188,18 @@ describe("config write allowlist", () => {
     );
     expect(validateConfigWriteBody({ externalPlanReview: { mode: true } }).ok).toBe(false);
     expect(validateConfigWriteBody({ externalPlanReview: { unknownAuditsKey: true } }).ok).toBe(
+      false,
+    );
+    expect(validateConfigWriteBody({ externalPlanReview: { backend: "auto" } }).ok).toBe(true);
+    expect(validateConfigWriteBody({ externalPlanReview: { backend: "cursor" } }).ok).toBe(true);
+    expect(validateConfigWriteBody({ externalPlanReview: { backend: "windsurf" } }).ok).toBe(false);
+    expect(
+      validateConfigWriteBody({
+        externalPlanReview: { reviewerModel: "haiku", waitSliceSeconds: 90 },
+      }).ok,
+    ).toBe(true);
+    expect(validateConfigWriteBody({ externalPlanReview: { waitSliceSeconds: 0 } }).ok).toBe(false);
+    expect(validateConfigWriteBody({ externalPlanReview: { reviewerModel: "bad name" } }).ok).toBe(
       false,
     );
   });

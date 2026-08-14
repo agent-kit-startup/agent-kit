@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "5.0.0",
+  "version": "5.2.0",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -22,6 +22,8 @@
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
     "lint": "biome check src",
+    "overlay:hashes": "tsx src/lifecycle/refresh-known-hashes.ts",
+    "overlay:hashes:check": "tsx src/lifecycle/refresh-known-hashes.ts --check",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

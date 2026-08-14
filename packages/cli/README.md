@@ -55,6 +55,8 @@ NO_COLOR=1 agent-kit
 
 Subcommands and `agent-kit --version` are unchanged. Chat-only HITL flows (`/start-project`, `/git-staging`, `/git-prod`, `/run-plan-all`, backlog CRUD) are not CLI commands.
 
+On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `update`, `run-plan` ticks) show an in-process ANSI spinner plus a rotating Mission Kit tip. Set `AGENT_KIT_REDUCED_MOTION=1` for static text on a capable TTY. Runtime dependencies stay `@clack/prompts`, `citty`, and `kolorist` (no `ora` / `figlet` / `chalk` / `ink`). Window titles for `agent-kit dashboard` and `agent-kit dashboard-broadcast` use the workspace basename, not the CLI package folder.
+
 ## Common commands
 
 | Command | Purpose |

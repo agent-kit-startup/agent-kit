@@ -1,10 +1,10 @@
 # Capability inventory
 
-Agent Kit capability catalog grouped by surface family. Lists every shipped capability with one line per item. Storefront positioning uses **Mission Kit** on [missionkit.io](https://missionkit.io); technical identifiers remain Agent Kit (naming ADR `2026-08-06_mission-kit-vs-agent-kit-naming`).
+Mission Kit capability catalog grouped by surface family. Lists every shipped capability with one line per item. Storefront positioning uses **Mission Kit** on [missionkit.io](https://missionkit.io); CLI, npm, slash commands, and `.cursor/agent-kit.json` remain Agent Kit identifiers (naming ADR `2026-08-06_mission-kit-vs-agent-kit-naming`).
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against private staging @ 7fdb03c): **28** slash commands under `.cursor/commands/` (**27** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 13 agents, 9 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling.
+Real counts (verified against the working tree on 2026-08-13): **28** slash commands under `.cursor/commands/` (**27** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 10 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
@@ -76,7 +76,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 
 ---
 
-## Named subagents (.cursor/agents/ - 13)
+## Named subagents (.cursor/agents/ - 14)
 
 - `cleancode-refactor` - Architecture and readability refactoring
 - `clickup-tasks` - ClickUp task creation and management via MCP
@@ -91,19 +91,21 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `sql-schema` - SQL schema creation and modification (demoted to skill-first)
 - `tech-lead` - Technology decisions, ADRs, architecture tradeoffs
 - `test-suites` - Test suite maintenance and E2E testing
+- `mission-kit-comms` - Adoption/comms drafts with HITL-before-post (not an Agent Persona)
 
 ---
 
-## Skills (.cursor/skills/ - 9)
+## Skills (.cursor/skills/ - 10)
 
 ### Core skills (2)
 - `clean-code` - AI code slop removal and clean patterns
 - `docs-repo` - Repository documentation with professional standard
 
-### Community skills (7)
+### Community skills (8)
 - `clickup` - ClickUp task management via MCP
 - `cursor-skills-node` - Node.js development standards
 - `json-data-config` - JSON validation, formatting, manipulation
+- `mission-kit-comms` - Mission Kit recap/release/contributor drafts; HITL-before-post
 - `n8n-workflows` - n8n workflow creation and editing
 - `prompts-markdown` - Agent prompt structure and versioning
 - `sql-postgres` - PostgreSQL schema and query patterns

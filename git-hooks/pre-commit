@@ -1,7 +1,10 @@
 #!/bin/sh
 # Block direct commits on the production branch (main/master).
 # Work happens on a working branch or on staging; main only receives merges via `git prod`.
-# Install: cp git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# After the main-guard: if `.cursor/hooks/pre-commit/` exists, run JSON then secrets
+# (same order as `.cursor/hooks/pre-commit/pre-commit`). Missing that directory is skip, not fail.
+# Repo root: `git rev-parse --show-toplevel` (works for `.git/hooks` copy and `core.hooksPath git-hooks`).
+# Install (operator HITL): cp git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 case "$branch" in
   main|master)
@@ -12,4 +15,13 @@ case "$branch" in
     exit 1
     ;;
 esac
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || REPO_ROOT=
+PRE_COMMIT_DIR="$REPO_ROOT/.cursor/hooks/pre-commit"
+
+if [ -n "$REPO_ROOT" ] && [ -d "$PRE_COMMIT_DIR" ]; then
+  "$PRE_COMMIT_DIR/validate-all-json.sh" || exit 1
+  "$PRE_COMMIT_DIR/check-secrets.sh" || exit 1
+fi
+
 exit 0

@@ -1,6 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import { readJson, writeJson } from "../utils/fs.js";
+import { fileExists, readJson, writeJson } from "../utils/fs.js";
 
 /** Official Cursor product changelog (detection source SoT). */
 export const DEFAULT_CURSOR_CHANGELOG_URL = "https://cursor.com/changelog";
@@ -19,7 +19,9 @@ const FEATURES_REL = path.join("docs", "cursor-3-features.md");
 
 /**
  * Walk up from cwd until docs/cursor-native-audit.md exists.
- * Returns the directory that contains docs/, or null when none is found.
+ * Stops at the first directory that contains `.git` (file or directory) if
+ * that directory has no inventory, so a nested checkout does not inherit a
+ * parent kit inventory. Returns the directory that contains docs/, or null.
  */
 export async function resolveInventoryRoot(cwd: string): Promise<string | null> {
   let dir = path.resolve(cwd);
@@ -28,8 +30,9 @@ export async function resolveInventoryRoot(cwd: string): Promise<string | null> 
       await access(path.join(dir, INVENTORY_REL));
       return dir;
     } catch {
-      // keep walking
+      // keep walking unless this directory is a git root
     }
+    if (await fileExists(path.join(dir, ".git"))) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -74,6 +77,8 @@ export interface CursorAwarenessResult {
   applyRecommended: false;
   /** Always false: never auto Field Reports. */
   fieldReportRecommended: false;
+  /** Absolute directory that contains docs/, or null when walk-up fails. */
+  inventoryRoot: string | null;
   inventoryPath: string;
   featuresPath: string;
   changelogUrl: string | null;
@@ -325,13 +330,17 @@ export async function checkCursorUpdateAwareness(
   cwd: string,
   options: CursorAwarenessOptions = {},
 ): Promise<CursorAwarenessResult> {
-  const prefs = readCursorUpdateCheckPrefs(await loadContextConfig(cwd));
+  const inventoryRoot = await resolveInventoryRoot(cwd);
+  const prefs = readCursorUpdateCheckPrefs(
+    inventoryRoot ? await loadContextConfig(inventoryRoot) : null,
+  );
   const changelogUrl = options.changelogUrl ?? prefs.changelogUrl;
 
   if (options.respectPrefs) {
     if (!prefs.enabled) {
       return baseResult({
         status: "skipped-disabled",
+        inventoryRoot,
         inventoryPath: INVENTORY_REL,
         featuresPath: FEATURES_REL,
         changelogUrl,
@@ -347,6 +356,7 @@ export async function checkCursorUpdateAwareness(
     if (!intervalElapsed(prefs.lastCheckedAt, prefs.intervalDays)) {
       return baseResult({
         status: "skipped-interval",
+        inventoryRoot,
         inventoryPath: INVENTORY_REL,
         featuresPath: FEATURES_REL,
         changelogUrl,
@@ -360,10 +370,10 @@ export async function checkCursorUpdateAwareness(
     }
   }
 
-  const inventoryRoot = await resolveInventoryRoot(cwd);
   if (!inventoryRoot) {
     return baseResult({
       status: "error",
+      inventoryRoot: null,
       inventoryPath: INVENTORY_REL,
       featuresPath: FEATURES_REL,
       changelogUrl,
@@ -385,6 +395,7 @@ export async function checkCursorUpdateAwareness(
   } catch {
     return baseResult({
       status: "error",
+      inventoryRoot,
       inventoryPath: INVENTORY_REL,
       featuresPath: FEATURES_REL,
       changelogUrl,
@@ -479,6 +490,7 @@ export async function checkCursorUpdateAwareness(
       const msg = err instanceof Error ? err.message : String(err);
       return baseResult({
         status: "error",
+        inventoryRoot,
         inventoryPath: INVENTORY_REL,
         featuresPath: FEATURES_REL,
         changelogUrl,
@@ -492,8 +504,8 @@ export async function checkCursorUpdateAwareness(
     }
   }
 
-  if (options.stamp) {
-    await stampCursorUpdateCheck(cwd, {
+  if (options.stamp && inventoryRoot) {
+    await stampCursorUpdateCheck(inventoryRoot, {
       lastSeenCursorVersion: latestCursorVersion ?? prefs.lastSeenCursorVersion,
     });
   }
@@ -506,6 +518,7 @@ export async function checkCursorUpdateAwareness(
 
   return baseResult({
     status,
+    inventoryRoot,
     inventoryPath: INVENTORY_REL,
     featuresPath: FEATURES_REL,
     changelogUrl: options.offline ? null : changelogUrl,

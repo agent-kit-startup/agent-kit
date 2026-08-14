@@ -8,8 +8,8 @@
  */
 
 import { execFileSync, execSync, spawn } from "node:child_process";
-import { existsSync, openSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, openSync, realpathSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildBroadcastShareUrl,
@@ -35,6 +35,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = join(__dirname, "..");
 /** Workspace snapshots / preference config. Defaults to KIT_ROOT. */
 const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
+process.title = `Mission Control · ${basename(ROOT) || "workspace"}`;
 const SERVE = join(__dirname, "serve.mjs");
 const LOG = process.env.MISSION_CONTROL_LOG || "/tmp/mission-control-broadcast.log";
 const PORT = Number.parseInt(process.env.PORT || "3333", 10);
@@ -240,7 +241,7 @@ async function main() {
     return;
   }
   let configValue = null;
-  const cfg = resolveContextConfigPath(ROOT, { existsSync });
+  const cfg = resolveContextConfigPath(ROOT, { existsSync, realpathSync });
   if (cfg.ok) {
     configValue = readPreferredBrowserFromConfig(cfg.path);
   }

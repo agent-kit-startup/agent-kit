@@ -54,4 +54,21 @@ describe("ci.yml private-origin allowlist pin", () => {
       expect(body).not.toMatch(denylistRe);
     },
   );
+
+  it.skipIf(!ciPresent)("runs the three root node --test suites from Evidence checks", () => {
+    const evidenceIdx = body.indexOf("- name: Evidence checks");
+    const guardIdx = body.indexOf("- name: Guard generated CLI dashboard is untracked");
+    expect(evidenceIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeGreaterThan(evidenceIdx);
+    const evidenceBlock = body.slice(evidenceIdx, guardIdx);
+    expect(evidenceBlock).toContain("pnpm test:root-node");
+
+    const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+    const rootNode = pkg.scripts?.["test:root-node"] ?? "";
+    expect(rootNode).toContain("plan-external-review-progress-gate.test.mjs");
+    expect(rootNode).toContain("check-public-deny-links.test.mjs");
+    expect(rootNode).toContain("verify-cli-dashboard-pack.test.mjs");
+  });
 });

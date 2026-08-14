@@ -2,7 +2,7 @@
 
 Copy-paste text for announcing the public repository (chat, social, communities). Portuguese body is the shippable launch copy; keep product claims aligned with [getting-started.md](getting-started.md), the root `README.md`, and the dual-name contract (Mission Kit marketing / Agent Kit install).
 
-Related: [Public launch go/no-go](public-launch.md). Naming: `2026-08-06_mission-kit-vs-agent-kit-naming`.
+Related: [Public launch go/no-go](public-launch.md). Recurring recap/release drafts: [comms.md](comms.md). Naming: `2026-08-06_mission-kit-vs-agent-kit-naming`.
 
 ```text
 Fala, devs! 🚀

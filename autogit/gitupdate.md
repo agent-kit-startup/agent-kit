@@ -56,8 +56,10 @@ git staging
 - `feat:` New feature
 - `fix:` Bug fix
 - `docs:` Documentation
+- `docs(memory):` Plan-monitors, Audits index rows, memory ADRs
 - `refactor:` Refactoring
 - `chore:` Maintenance tasks
+- `chore(kit):` Kit-command / HANDOFF-adjacent hygiene (own bucket when the product theme differs)
 
 ---
 
@@ -246,7 +248,15 @@ This section contains the detailed prompts that should be followed when commands
 #### 1. **Security Validation**  
    - Run `git status -sb` to check modified, staged files and current branch.
    - **BLOCK**: If attempting to commit directly to `main` or `origin/main`, BLOCK and inform: "Direct commits to main are blocked. Use 'git staging' to promote changes via staging."
-   - If there are uncommitted local changes that don't belong to the current flow, stop and request instructions.
+   - **Inventory the dirty tree** (do not stop-and-quiz because a path looks "out of the current flow"):
+     1. List every uncommitted path.
+     2. **Hard exclude** (never stage): secrets, PII, `.env` / keys / credentials, design-source dumps that belong in gitignore.
+     3. **Theme-bucket** the rest:
+        - **Product:** the current feature/fix/docs theme (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `perf:`).
+        - **Kit/memory:** versioned HANDOFF (when tracked), intentional plan files, `plan-monitor-*.md`, `_index.md` Audits rows (`docs(memory):` or `chore(kit):`).
+     4. Ship every **safe** bucket add-by-name (product commit first, then kit/memory as its own commit when the theme differs). Same PR is allowed; prefer a separate commit when the product diff is large.
+     5. After all safe buckets ship, the tree must be clean except hard excludes. Leftover safe dirt means the inventory is incomplete: bucket and ship, do not abandon.
+     6. **Ask HITL stays on `/git-prod`** (and on true risk: secrets, PII, ambiguous product scope). Do **not** invent a theme-Ask stop for routine dirty soft kit paths.
 
 #### 2. **Check and Update CHANGELOG.md**  
    - Check if `CHANGELOG.md` exists and read its content.
@@ -278,14 +288,20 @@ This section contains the detailed prompts that should be followed when commands
    - **Lint evidence (staging-ready):** when the diff touches formatted/linted paths (e.g. `*.ts` / `*.tsx` / `*.js` / `*.mjs` under `packages/` or other Biome/ESLint scopes), **run** the focused linter on those files (e.g. `pnpm exec biome check <paths>`) **before** commit and **record the exact command + pass/fail output** in the tick / worker summary. Claiming `Staging ready: yes` or pasting the contract phrase without that recorded run is invalid. **`dashboard/dashboard.html` is outside Biome** (`biome check dashboard/dashboard.html` processes nothing): for dashboard CSS/HTML-only diffs, record `Tests: none applicable (dashboard-CSS); covered by plugin-ux-validation` when the UX suite pins the change (ADR `decisions/2026-07-29_dashboard-css-lint-evidence-convention.md`); do not claim Biome covered the HTML. Pure markdown / docs-only with no applicable repo linter: record `Tests: none applicable` (or `Validation: none applicable`). Aligns with `/run-plan` Staging-ready lint gate (background: Biome-red merges fixed only after the fact).
 
 #### 7. **Stage and commit with semantic message**  
-   - Add relevant files with `git add` **by name**. If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** and do **not** broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
-   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP. **An `_index.md` Audits row and its target monitor file must land in the same commit** (no index link without the file). Product commits must not pick up unrelated untracked monitors (dogfood residual R7). ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
+   - Add relevant files with `git add` **by name**. Never broad-`git add` `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
+   - If `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn**, then **bucket** (warn is not leave-dirty-forever):
+     - Closeout evidence for **this** product change: add-by-name into the product commit only when it is that change's monitor (still prefer a separate `docs(memory):` commit when the product diff is large).
+     - Remaining **safe** monitors, versioned HANDOFF, and kit docs: ship in a `docs(memory):` or `chore(kit):` commit in this `/git-staging` run. Unrelated-plan monitors still get their own kit/memory bucket; they do not ride along inside the product commit.
+     - Hard excludes stay unstaged.
+   - **Monitor closeout (R14):** when a tick intentionally stages a `plan-monitor-*.md` (and/or `_index.md` Audits row), add those paths **by name**. Prefer a separate docs/memory commit when the same PR also has large product diffs. Never sweep unrelated monitor WIP into a product commit. **An `_index.md` Audits row and its target monitor file must land in the same commit** (no index link without the file). Product commits must not pick up unrelated untracked monitors (dogfood residual R7). ADR: `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`.
    - Create a commit following [Conventional Commits](https://www.conventionalcommits.org/):
      - `feat:` for new features
      - `fix:` for bug fixes
      - `docs:` for documentation
+     - `docs(memory):` for plan-monitors, `_index.md` Audits rows, memory ADRs
      - `refactor:` for refactoring
      - `chore:` for maintenance tasks
+     - `chore(kit):` for kit-command / HANDOFF-adjacent hygiene that is not the product theme
    - Example: `git commit -m "feat: add support for new agent"` or `git commit -m "fix: correct CPF validation"`
    - If CHANGELOG.md was updated, mention it in the commit: `git commit -m "feat: add new agent\n\nUpdate CHANGELOG.md with new version"`
 
@@ -302,7 +318,7 @@ This section contains the detailed prompts that should be followed when commands
    - Delete the remote branch on origin with `git push origin --delete update/<...>` or `git push origin --delete feature/<...>`.
    - Delete the local branch with `git branch -D update/<...>` or `git branch -D feature/<...>` (use `-D` since merge was done remotely and Git might not detect locally).
    - Update local `staging` with `git pull --ff-only origin staging` to incorporate merged changes.
-   - Confirm clean state with `git status -sb`.
+   - Confirm clean state with `git status -sb`. If leftover **safe** dirt remains (HANDOFF, monitors, kit docs), return to §1 inventory and ship the remaining bucket. Hard excludes may remain unstaged.
 
 #### 10.5. **Project manager — optional**  
    - **If** the project has PM tool MCP/skill configured: update related task status (e.g., "in staging"). If the user indicated task(s) or there's context in handoff/plan, update them. No tool or no tasks: skip without warning.

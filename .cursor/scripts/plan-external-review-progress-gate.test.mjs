@@ -128,3 +128,37 @@ wait_for_pty_progress "screen" "test-session"
     /audits: progress gate disabled \(AGENT_KIT_AUDIT_PROGRESS_TIMEOUT=0\)/,
   );
 });
+
+function extractSuffix() {
+  return spawnSync("sed", ["-n", "/^audit_kit_suffix() {/,/^}$/p", SCRIPT], {
+    encoding: "utf8",
+  }).stdout;
+}
+
+test("heartbeat lines keep status prefixes; suffix is empty under CI", () => {
+  const src = spawnSync("cat", [SCRIPT], { encoding: "utf8" }).stdout;
+  assert.match(src, /audit_kit_suffix\(\)/);
+  assert.match(src, /audits: progress gate still silent beyond banner/);
+  assert.match(src, /audits: wait-monitor still waiting/);
+  assert.match(src, /audits: wait-monitor timeout after \$\{elapsed\}s \(exit 3\)/);
+  assert.match(src, /audits: wait-monitor soft-fail \(exit 4\)/);
+  assert.match(src, /Try agent-kit doctor for repository readiness\./);
+  const fn = extractSuffix();
+  assert.match(fn, /audit_kit_suffix/);
+  const result = spawnSync("bash", ["-c", `${fn}\nexport CI=1\nprintf '[%s]' "$(audit_kit_suffix 20)"`], {
+    encoding: "utf8",
+  });
+  assert.strictEqual(result.status ?? 1, 0, result.stderr);
+  assert.strictEqual(result.stdout, "[]");
+});
+
+test("audit_kit_suffix is empty under NO_COLOR even without CI", () => {
+  const fn = extractSuffix();
+  const result = spawnSync(
+    "bash",
+    ["-c", `${fn}\nunset CI\nexport NO_COLOR=1\nprintf '[%s]' "$(audit_kit_suffix 8)"`],
+    { encoding: "utf8" },
+  );
+  assert.strictEqual(result.status ?? 1, 0, result.stderr);
+  assert.strictEqual(result.stdout, "[]");
+});

@@ -52,11 +52,11 @@ The "never commit to `main`" rule only works if the checkout is not on `main` wh
 
 ## Conventional Commits
 
-Use prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`, `style:`, `perf:`.
+Use prefixes: `feat:`, `fix:`, `docs:`, `docs(memory):`, `refactor:`, `chore:`, `chore(kit):`, `test:`, `style:`, `perf:`. Soft kit paths (plan-monitors, `_index.md` Audits rows, versioned HANDOFF) ship as `docs(memory):` / `chore(kit):` when they are not the product theme.
 
 ## When the user says
 
-- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): validation, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF. Warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only (never broad `git add` of `.cursor/memory/` WIP).
+- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): inventory the dirty tree, theme-bucket, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF. SoT for inventory → bucket → ship. Warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only (never broad `git add` of `.cursor/memory/` WIP into a product commit). Remaining safe kit dirt ships in a `docs(memory):` / `chore(kit):` bucket in the same run; do not stop-and-quiz because a path looks out of flow.
 - **`git prod`** - Routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git prod" section): validation, close the release in the CHANGELOG, summary, **explicit confirmation**, merge to main, push; then HANDOFF (+ public sync in this monorepo if applicable). Advisory mention of Blocking untriaged monitors matching the delta is allowed; never steal the confirmation Ask.
 
 ## Quick troubleshooting
