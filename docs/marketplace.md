@@ -71,7 +71,7 @@ The plugin root is the **parent of `.cursor-plugin/`** - the repo root. Cursor's
 | `agents` | `.cursor/agents` | 14 subagent definitions |
 | `commands` | `.cursor/commands` | 27 slash commands |
 | `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, and `sessionStart` surfaces the degraded-mode diagnostic (see "Hook resolution boundary" below) |
-| `logo` | `dashboard/logo.svg` | Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced and would be dropped from the public mirror without failing anything |
+| `logo` | `dashboard/logo-marketplace.svg` | 512×512 SVG (1:1), transparent canvas, rounded plate `#0b0e14`, Cursor-skin stroke mark from `logo-cursor.svg` centered (~10% padding). Chrome keeps unplated `logo.svg` (legacy helmet) and `logo-cursor.svg` (16px header). Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced and would be dropped from the public mirror without failing anything. Production copies of the three marks live under `assets/production/` (private; not public-synced) |
 
 #### Hook resolution boundary
 
@@ -96,7 +96,7 @@ The promotion path is ready only when the evidence gate is green; each step belo
 1. **Evidence gate green:** `npm run evidence:knowledge-classification:check` passes on the staging tip being promoted. The shared ledger (`docs/evidence/knowledge-classification.json`) has **one regeneration owner** — the ship-5.0 evidence closeout (clean-tree regen guard + regen shipped in the PR #719–#725 stack). Marketplace-side plans record the dependency and never regenerate the ledger themselves. Note: the check recomputes from the working tree, so uncommitted `_index.md` rows pointing at untracked `plan-monitor-*.md` files fail it locally; verify at committed HEAD content (e.g. a clean worktree) when audit WIP is present.
 2. **Merge pending staging PRs** in stack order (operator merge gate).
 3. **`/git-prod`** (never agent-initiated) → annotated `vX.Y.Z` tag → `sync-public` PR, per the submission checklist above.
-4. **Public mirror recheck:** verify the public repo exposes `.cursor-plugin/plugin.json` at the released version with explicit component paths — owned by the parked `submit-cursor-marketplace.plan.md` (`recheck-public-mirror`), alongside the publisher HITL submission gate.
+4. **Public mirror recheck:** verify the public repo exposes `.cursor-plugin/plugin.json` at the released version with explicit component paths. Owned by `submit-cursor-marketplace.plan.md` (`recheck-public-mirror`), alongside the publisher HITL submission gate. Rechecked 2026-08-14: public manifest is **5.2.0** with explicit `rules` / `skills` / `agents` / `commands` / `hooks`.
 5. **Post-promote plugin smoke:** rerun the local-plugin smoke checklist ([plugin-smoke-checklist.md](plugin-smoke-checklist.md)) against the public ref before submitting.
 
 ## Listing UX (CLI)
@@ -117,5 +117,5 @@ Future nicety (not required for this to-do): `agent-kit search <query>` over `re
 - [x] Builder emits version/category into `registry.json`
 - [x] CONTRIBUTING quality gate documented
 - [x] This marketplace doc + plugin.json thesis/version note
-- [ ] Live Cursor Marketplace submission (publisher ops / HITL) - packaging ready at **5.0.0**; blocked on promoting that manifest to the public mirror (still **4.8.9**)
+- [ ] Live Cursor Marketplace submission (publisher ops / HITL) - packaging ready at **5.2.0** on the public mirror (explicit component paths). Submit remains operator HITL; this box stays unchecked until a real submission.
 - [x] Phase B cutover so public catalog is not overwritten by private sync

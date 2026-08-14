@@ -15,10 +15,10 @@
     "anti-slop"
   ],
   "license": "PolyForm-Noncommercial-1.0.0",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "homepage": "https://github.com/agent-kit-startup/agent-kit",
   "repository": "https://github.com/agent-kit-startup/agent-kit",
-  "logo": "dashboard/logo.svg",
+  "logo": "dashboard/logo-marketplace.svg",
   "rules": ".cursor/rules",
   "skills": ".cursor/skills/core",
   "agents": ".cursor/agents",

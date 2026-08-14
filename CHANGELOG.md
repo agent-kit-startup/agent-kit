@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.2.1] - 2026-08-14
+
+### Changed
+
+- Marketplace SoT no longer claims the public plugin manifest is **4.8.9** / metadata-only. Public `.cursor-plugin/plugin.json` is **5.2.0** with explicit component paths; live Cursor Marketplace submission stays publisher HITL and unchecked (`docs/marketplace.md`, `docs/cursor-update-awareness.md`, `docs/comms-channel-map.md`, `docs/cursor-native-audit.md`).
+- Marketplace / plugin logotype is `dashboard/logo-marketplace.svg`: 512×512 (1:1) SVG, transparent square canvas, rounded `#0b0e14` plate, Cursor-skin stroke mark centered. Mission Control chrome still uses unplated `dashboard/logo.svg` (legacy) and `dashboard/logo-cursor.svg` (Cursor skin).
+- Production also versions the Mission Control logo marks (helmet, cursor-skin, marketplace plate) under `assets/production/` (private; not public-synced).
+
+### Fixed
+
+- `/plan-review-triage` no longer tells agents to suggest Field Report **Review all** or `/field-report-review` when every monitor is already triaged. Next step is `/plan-external-review` if a new review is owed, or a Flight Log **Copy triage command** paste. There is no `/field-report-review` slash command and no Mission Control **Review all** button.
+
 ## [5.2.0] - 2026-08-14
 
 ### Added
