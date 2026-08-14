@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -183,6 +183,27 @@ describe("checkCursorUpdateAwareness", () => {
     writeInventory(cwd, "last refreshed **2026-07-19**\n");
     const result = await checkCursorUpdateAwareness(cwd, { respectPrefs: true, offline: true });
     expect(result.status).toBe("skipped-disabled");
+    expect(result.inventoryRoot).toBe(path.resolve(cwd));
+  });
+
+  it("skips when respectPrefs and within interval", async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "cursor-awareness-"));
+    writeInventory(cwd, "last refreshed **2026-07-19**\n");
+    mkdirSync(path.join(cwd, ".cursor", "context"), { recursive: true });
+    writeFileSync(
+      path.join(cwd, ".cursor", "context", "config.json"),
+      JSON.stringify({
+        cursorUpdateCheck: {
+          enabled: true,
+          intervalDays: 7,
+          lastCheckedAt: new Date().toISOString(),
+        },
+      }),
+      "utf8",
+    );
+    const result = await checkCursorUpdateAwareness(cwd, { respectPrefs: true, offline: true });
+    expect(result.status).toBe("skipped-interval");
+    expect(result.inventoryRoot).toBe(path.resolve(cwd));
   });
 
   it("walks up from nested cwd to find inventory", async () => {
@@ -191,6 +212,7 @@ describe("checkCursorUpdateAwareness", () => {
       root,
       "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n",
     );
+    mkdirSync(path.join(root, ".git"), { recursive: true });
     const nested = path.join(root, "packages", "cli");
     mkdirSync(nested, { recursive: true });
 
@@ -198,6 +220,66 @@ describe("checkCursorUpdateAwareness", () => {
     const result = await checkCursorUpdateAwareness(nested, { offline: true });
     expect(result.status).toBe("current");
     expect(result.message).not.toMatch(/Missing inventory/);
+    expect(result.inventoryRoot).toBe(path.resolve(root));
+    expect(result.inventoryRoot).not.toBe(nested);
+    expect(result.inventoryPath).toBe(path.join("docs", "cursor-native-audit.md"));
+    expect(result.featuresPath).toBe(path.join("docs", "cursor-3-features.md"));
+  });
+
+  it("stamps prefs at resolved inventory root, not nested cwd", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "cursor-awareness-stamp-root-"));
+    writeInventory(
+      root,
+      "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n",
+    );
+    mkdirSync(path.join(root, ".git"), { recursive: true });
+    mkdirSync(path.join(root, ".cursor", "context"), { recursive: true });
+    writeFileSync(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({
+        cursorUpdateCheck: {
+          enabled: true,
+          lastSeenCursorVersion: "3.0",
+        },
+      }),
+      "utf8",
+    );
+    const nested = path.join(root, "packages", "cli");
+    mkdirSync(nested, { recursive: true });
+
+    const result = await checkCursorUpdateAwareness(nested, {
+      stamp: true,
+      changelogBody: "3.6 May 29 · Changelog Cursor 3.6",
+    });
+    expect(result.inventoryRoot).toBe(path.resolve(root));
+    expect(result.gaps.some((g) => g.id === "changelog-ahead")).toBe(true);
+
+    const cfg = JSON.parse(
+      readFileSync(path.join(root, ".cursor", "context", "config.json"), "utf8"),
+    ) as { cursorUpdateCheck: { lastSeenCursorVersion: string | null } };
+    expect(cfg.cursorUpdateCheck.lastSeenCursorVersion).toBe("3.6");
+    expect(existsSync(path.join(nested, ".cursor"))).toBe(false);
+  });
+
+  it("does not inherit a parent kit inventory across a nested .git boundary", async () => {
+    const kitroot = mkdtempSync(path.join(tmpdir(), "cursor-awareness-nested-kit-"));
+    writeInventory(
+      kitroot,
+      "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| Z9 | Open | Foreign kit action that the consumer does not own |\n",
+    );
+    mkdirSync(path.join(kitroot, ".git"), { recursive: true });
+    const nestedCwd = path.join(kitroot, "consumer-app", "src");
+    mkdirSync(nestedCwd, { recursive: true });
+    mkdirSync(path.join(kitroot, "consumer-app", ".git"), { recursive: true });
+
+    expect(await resolveInventoryRoot(nestedCwd)).toBeNull();
+    const result = await checkCursorUpdateAwareness(nestedCwd, { offline: true });
+    expect(result.status).toBe("error");
+    expect(result.inventoryRoot).toBeNull();
+    expect(result.openActionIds).toEqual([]);
+    expect(result.gaps.some((g) => g.id === "open-action-Z9")).toBe(false);
+    expect(result.message).toMatch(/Missing inventory/);
+    expect(result.message).toMatch(/--cwd/);
   });
 
   it("errors with --cwd hint when no inventory in ancestors", async () => {
@@ -205,7 +287,33 @@ describe("checkCursorUpdateAwareness", () => {
     expect(await resolveInventoryRoot(cwd)).toBeNull();
     const result = await checkCursorUpdateAwareness(cwd, { offline: true });
     expect(result.status).toBe("error");
+    expect(result.inventoryRoot).toBeNull();
     expect(result.message).toMatch(/Missing inventory/);
     expect(result.message).toMatch(/--cwd/);
+  });
+
+  it("does not stamp under caller cwd when inventory root is missing", async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "cursor-awareness-nostamp-"));
+    const result = await checkCursorUpdateAwareness(cwd, { stamp: true, offline: true });
+    expect(result.status).toBe("error");
+    expect(result.inventoryRoot).toBeNull();
+    expect(existsSync(path.join(cwd, ".cursor", "context", "config.json"))).toBe(false);
+  });
+
+  it("does not stamp under caller cwd across a nested .git boundary", async () => {
+    const kitroot = mkdtempSync(path.join(tmpdir(), "cursor-awareness-nostamp-git-"));
+    writeInventory(
+      kitroot,
+      "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| Z9 | Open | Foreign kit action that the consumer does not own |\n",
+    );
+    mkdirSync(path.join(kitroot, ".git"), { recursive: true });
+    const nestedCwd = path.join(kitroot, "consumer-app", "src");
+    mkdirSync(nestedCwd, { recursive: true });
+    mkdirSync(path.join(kitroot, "consumer-app", ".git"), { recursive: true });
+
+    const result = await checkCursorUpdateAwareness(nestedCwd, { stamp: true, offline: true });
+    expect(result.status).toBe("error");
+    expect(result.inventoryRoot).toBeNull();
+    expect(existsSync(path.join(nestedCwd, ".cursor", "context", "config.json"))).toBe(false);
   });
 });

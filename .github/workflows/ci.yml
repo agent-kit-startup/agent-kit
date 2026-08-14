@@ -87,6 +87,9 @@ jobs:
           pnpm evidence:knowledge-classification:check
           pnpm landing:build
           pnpm landing:build:check
+          # Test files for root node --test suites. Scan scripts already run
+          # above (deny-links) and on publish-npm (verify-cli-dashboard-pack.mjs).
+          pnpm test:root-node
 
       - name: Guard generated CLI dashboard is untracked
         run: |

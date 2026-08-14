@@ -40,9 +40,9 @@ Update the handoff document to preserve current state and allow continuation in 
    If they pick automatic, save `{ "autoHandoff": true }` in `.cursor/context/config.json`.
 
 4. **DevOps spine (suggest, do not run without being asked):**
-   - If the phase produced commitable code, suggest `/git-staging` to promote to pre-prod.
+   - If the phase produced commitable changes (including versioned HANDOFF, `plan-monitor-*.md`, or `_index.md` Audits rows), suggest `/git-staging`. That command follows `autogit/gitupdate.md` inventory → theme-bucket → ship. Do not treat HANDOFF/memory as skippable dirt.
    - If there was an error or a tradeoff decision, suggest a memory-loop WRITE (`.cursor/memory/`).
-   - Never suggest committing directly to `main`; production only via `/git-prod` after staging.
+   - Never suggest committing directly to `main`; production only via `/git-prod` after staging. `/git-prod` still requires a clean tree except hard excludes; staging must leave it that way.
 
 5. **Respond to the user:**
    > "Handoff updated! Continue: `/continue-plan`. With code ready: `/git-staging`. Production: `/git-prod`."

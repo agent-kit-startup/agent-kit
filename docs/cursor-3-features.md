@@ -1,14 +1,14 @@
-# Cursor 3.0 Features - How Agent Kit Uses Them
+# Cursor 3.0 Features - How Mission Kit Uses Them
 
-Agent Kit helps develop without losing context and uses native Cursor features as **complement**, not replacement.
+Mission Kit helps develop without losing context and uses native Cursor features as **complement**, not replacement. Install and CLI identifiers stay Agent Kit (`agent-kit`, `@dadado/agent-kit-cli`).
 
-## Agent Kit Position
+## Mission Kit position
 
-File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continuity. No IDE guarantees infinite memory; context limits are real, and new sessions start from zero. That's why Agent Kit maintains state on disk: structured plans, progress, and suggested routines.
+File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continuity. No IDE guarantees infinite memory; context limits are real, and new sessions start from zero. That's why Mission Kit maintains state on disk: structured plans, progress, and suggested routines.
 
 ## Native features and how to use them
 
-| Feature | What it does | How Agent Kit uses it |
+| Feature | What it does | How Mission Kit uses it |
 |---------|-----------|----------------------|
 | `/resume` | Resume previous conversation | Complement to HANDOFF - good for quick reference, doesn't replace file state |
 | Summaries | Automatic summary of long sessions | Useful for revisiting decisions; handoff remains mandatory |
@@ -16,11 +16,11 @@ File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continu
 | Agents Window | Multiple agents in parallel | Each agent reads HANDOFF before acting; shared state is in file |
 | `/worktree` | Isolated git worktree | For risky changes without dirtying the working tree |
 | `/best-of-n` | Compare approaches side by side | For architecture decisions |
-| Plans | Native Cursor plans | Agent Kit generates plans with todos in frontmatter; HANDOFF references active plan |
+| Plans | Native Cursor plans | Mission Kit generates plans with todos in frontmatter; HANDOFF references active plan |
 
 ## MCP, hooks and SDK
 
-**Agent gateways parallel to Cursor are not part of the Agent Kit stack** - we don't document or version config for that.
+**Agent gateways parallel to Cursor are not part of the Mission Kit stack** - we don't document or version config for that.
 
 For extensions and automation, use what Cursor itself offers:
 

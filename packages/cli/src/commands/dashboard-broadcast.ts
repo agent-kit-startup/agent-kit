@@ -5,8 +5,9 @@ import { defineCommand } from "citty";
 import { logger } from "../utils/logger.js";
 import {
   type FindDashboardOptions,
-  applyDashboardOpenEnv,
   bundledDashboardCandidates,
+  dashboardProcessTitle,
+  dashboardSpawnEnv,
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "./dashboard.js";
@@ -124,10 +125,11 @@ export const dashboardBroadcastCommand = defineCommand({
     }
 
     const snapshotRoot = resolveDashboardSnapshotRoot(args.cwd);
-    const env = applyDashboardOpenEnv(
-      { ...process.env },
-      { noOpen: Boolean(args["no-open"]), browser: args.browser, cwd: snapshotRoot },
-    );
+    const env = dashboardSpawnEnv({ ...process.env }, snapshotRoot, {
+      noOpen: Boolean(args["no-open"]),
+      browser: args.browser,
+    });
+    process.title = dashboardProcessTitle(snapshotRoot);
 
     const code = await runStartScript(startPath, env);
     if (code !== 0) process.exitCode = code;

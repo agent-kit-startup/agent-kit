@@ -1,6 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_CLI_PERSONA_ID,
@@ -9,6 +11,23 @@ import {
   loadPersonaPack,
   resolveCliPersonaId,
 } from "./persona-banners.js";
+
+function findShippedPersonaRepoRoot(): string | null {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    if (
+      existsSync(path.join(dir, "registry", "personas", "core", "ghost-runner", "persona.json"))
+    ) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/** Core persona packs live under `registry/**`, which public-sync excludes (public-owned SoT). */
+const shippedPersonaRepoRoot = findShippedPersonaRepoRoot();
 
 async function writePersona(
   root: string,
@@ -121,4 +140,25 @@ describe("persona-banners", () => {
     expect(createPersonaBannerPrinter({ id: "x" })).toBeNull();
     expect(createPersonaBannerPrinter(null)).toBeNull();
   });
+
+  it.skipIf(!shippedPersonaRepoRoot)(
+    "keeps shipped core cliBanners prefixes at or under 40 characters",
+    async () => {
+      const coreDir = path.join(shippedPersonaRepoRoot ?? "", "registry", "personas", "core");
+      const ids = await readdir(coreDir);
+      expect(ids.length).toBeGreaterThan(0);
+      let packs = 0;
+      for (const id of ids) {
+        const personaPath = path.join(coreDir, id, "persona.json");
+        if (!existsSync(personaPath)) continue;
+        packs += 1;
+        const raw = await readFile(personaPath, "utf8");
+        const pack = JSON.parse(raw) as { cliBanners?: Record<string, string> };
+        for (const [key, value] of Object.entries(pack.cliBanners ?? {})) {
+          expect(value.length, `${id} ${key}`).toBeLessThanOrEqual(40);
+        }
+      }
+      expect(packs).toBeGreaterThan(0);
+    },
+  );
 });

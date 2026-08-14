@@ -48,13 +48,24 @@
 #   --focus-terminal / AGENT_KIT_AUDIT_FOCUS_TERMINAL=1: rollback to OS Terminal activate /
 #     emulator focus (legacy foreground window). Default is no-focus background spawn.
 #   --wait-monitor: after autonomous spawn (or standalone), poll until plan-monitor-<slug>.md
-#     is fresh under .cursor/memory/, or until --wait-timeout (default 900s).
+#     is fresh under .cursor/memory/, or until the effective slice/remaining budget.
 #     Fresh = mtime >= arm epoch (recorded when wait arm starts) OR file contains
 #     the content sentinel line: <!-- audits-wait-fresh: created -->
 #     Pre-arm / stale files are ignored (do not exit 0 on existence alone).
 #     Combine with --force --autonomous (spawn then wait), or use alone to poll an
 #     already-running review. Does not switch to invisible agent-shell claude -p.
-#   --wait-timeout SECONDS: poll budget for --wait-monitor (default 900).
+#     Wait state lives in .cursor/context/audit-wait/<slug>.json (not HANDOFF).
+#     A new session resumes remaining budget; it does not restart 900s from zero.
+#   --wait-timeout SECONDS: total remaining budget for a new arm (default 900; config
+#     waitTimeoutSeconds). CI/headless uses this as the invocation cap.
+#   --wait-slice SECONDS: chat AwaitShell budget per session (default 90; config
+#     waitSliceSeconds). Early-ready still exits 0 at first freshness.
+#   --backend auto|claude|cursor: reviewer cascade override. auto uses Claude when
+#     usable, else cursor-agent. Existing config with missing backend stays claude.
+#   --reviewer-model NAME: reviewer model id (default sonnet / config reviewerModel).
+#   --advisor-model NAME: escalate-only advisor (default opus / config advisorModel).
+#   --implementer-model NAME: stamp the model that shipped the tick (default auto /
+#     AGENT_KIT_AUDIT_IMPLEMENTER_MODEL). Same-family reviewer is refused.
 #
 # Progress gate (post-spawn PTY activity):
 #   A successful spawn is a launch, not a running review. After an autonomous background
@@ -98,6 +109,8 @@
 #   AGENT_KIT_AUDIT_REAP              1/true: same as --reap-audit-sessions (opt-in disposal
 #                                     of detached workspace-owned sessions past the age floor).
 #   AGENT_KIT_AUDIT_FOCUS_TERMINAL    1/true: rollback to OS Terminal activate / emulator focus.
+#   AGENT_KIT_AUDIT_IMPLEMENTER_MODEL model id that shipped the tick (stamp only; no secrets).
+#   AGENT_KIT_AUDIT_REVIEWER_MODEL    override reviewer model id (default sonnet).
 #
 # Exit codes:
 #   0  ok / fresh monitor ready (with --wait-monitor) / soft-fail tip when NOT waiting
@@ -112,6 +125,7 @@
 # Freshness ADR: .cursor/memory/decisions/2026-07-27_audits-wait-freshness-enforce.md
 # Background PTY ADR: .cursor/memory/decisions/2026-07-28_audits-headless-terminal-honesty.md
 # Progress gate ADR: .cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
+# Atomic wait ADR: .cursor/memory/decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md
 
 set -euo pipefail
 
@@ -124,18 +138,66 @@ LAUNCHER_REL=".cursor/scripts/plan-external-review.sh"
 
 MODE="" # print | paste-only | interactive | autonomous (resolved after flags + config)
 MODE_EXPLICIT=0
+# auto requires a classifier-capable reviewer (Sonnet/Opus/Fable). Default reviewer is sonnet.
 CLAUDE_PERMISSION_MODE="auto"
 FORCE=0
 BATCH=0
 DRY_RUN=0
 WAIT_MONITOR=0
 WAIT_TIMEOUT=900
+WAIT_TIMEOUT_EXPLICIT=0
+WAIT_SLICE=90
+WAIT_SLICE_EXPLICIT=0
 WAIT_ARM_EPOCH=""
+WAIT_DEADLINE=""
+WAIT_REMAINING=""
+WAIT_RESUME=0
+WAIT_STATE_DIR_REL=".cursor/context/audit-wait"
+WAIT_BACKEND_STAMP="claude"
+WAIT_IMPLEMENTER_MODEL=""
+WAIT_REVIEWER_MODEL=""
+REVIEWER_BACKEND=""
+REVIEWER_BACKEND_EXPLICIT=0
+REVIEWER_MODEL=""
+REVIEWER_MODEL_EXPLICIT=0
+ADVISOR_MODEL=""
+ADVISOR_MODEL_EXPLICIT=0
+IMPLEMENTER_MODEL_EXPLICIT=0
+SAME_MODEL_REFUSE=0
+ADVISOR_ESCALATE_SENTINEL="<!-- audits-advisor-escalate -->"
 # Post-spawn PTY activity gate grace window (seconds). 0 disables.
 PROGRESS_TIMEOUT=60
 # Kit-owned audit session namespace. Cap/reap only touch workspace-owned names (see token).
 AUDIT_SESSION_NS_PREFIX="agent-kit-audit-"
 # 8-hex token from ROOT so concurrent workspaces do not share cap/reap scope.
+
+# Visual-kit heartbeat suffix (frames + tip). Empty under NO_COLOR / CI / non-TTY.
+# Does not change wait freshness exits 0|3|4. Same catalog as packages/cli visual-kit.ts.
+audit_kit_suffix() {
+  local elapsed="${1:-0}"
+  if [[ -n "${NO_COLOR:-}" || -n "${NODE_DISABLE_COLORS:-}" || "${FORCE_COLOR:-}" == "0" ]]; then
+    return 0
+  fi
+  if [[ -n "${CI:-}" || "${AGENT_KIT_REDUCED_MOTION:-}" == "1" ]]; then
+    return 0
+  fi
+  if [[ ! -t 1 ]]; then
+    return 0
+  fi
+  local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+  local tips=(
+    "Try agent-kit doctor for repository readiness."
+    "HITL gates stay in Cursor slash commands."
+    "/run-plan never promotes to production."
+    "Mission Control is the dashboard, not the CLI name."
+    "NO_COLOR and CI keep this output static."
+    "agent-kit --help groups SETUP, MISSION, DASHBOARD, INTEGRITY."
+  )
+  local fi=$((elapsed % ${#frames[@]}))
+  local ti=$(((elapsed / 4) % ${#tips[@]}))
+  printf ' %s ✦ %s' "${frames[$fi]}" "${tips[$ti]}"
+}
+
 audit_workspace_token() {
   local hash=""
   if command -v shasum >/dev/null 2>&1; then
@@ -225,7 +287,7 @@ if [[ "${AGENT_KIT_AUDIT_REAP:-}" == "1" || "${AGENT_KIT_AUDIT_REAP:-}" == "true
 fi
 
 usage() {
-  sed -n '2,111p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,128p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -288,6 +350,60 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       WAIT_TIMEOUT="$2"
+      WAIT_TIMEOUT_EXPLICIT=1
+      shift 2
+      ;;
+    --wait-slice)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --wait-slice requires SECONDS" >&2
+        exit 2
+      fi
+      if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "error: --wait-slice must be a positive integer (got: $2)" >&2
+        exit 2
+      fi
+      WAIT_SLICE="$2"
+      WAIT_SLICE_EXPLICIT=1
+      shift 2
+      ;;
+    --backend)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --backend requires auto|claude|cursor" >&2
+        exit 2
+      fi
+      if [[ "$2" != "auto" && "$2" != "claude" && "$2" != "cursor" ]]; then
+        echo "error: --backend must be auto, claude, or cursor (got: $2)" >&2
+        exit 2
+      fi
+      REVIEWER_BACKEND="$2"
+      REVIEWER_BACKEND_EXPLICIT=1
+      shift 2
+      ;;
+    --reviewer-model)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --reviewer-model requires NAME" >&2
+        exit 2
+      fi
+      REVIEWER_MODEL="$2"
+      REVIEWER_MODEL_EXPLICIT=1
+      shift 2
+      ;;
+    --advisor-model)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --advisor-model requires NAME" >&2
+        exit 2
+      fi
+      ADVISOR_MODEL="$2"
+      ADVISOR_MODEL_EXPLICIT=1
+      shift 2
+      ;;
+    --implementer-model)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --implementer-model requires NAME" >&2
+        exit 2
+      fi
+      WAIT_IMPLEMENTER_MODEL="$2"
+      IMPLEMENTER_MODEL_EXPLICIT=1
       shift 2
       ;;
     --)
@@ -333,11 +449,22 @@ EOF
 
 tip_no_claude() {
   cat <<EOF
-tip: 'claude' not found on PATH. Audit skipped (no-op; Field Report stays owed).
-  Install Claude Code CLI, then re-run: $LAUNCHER_REL --force --autonomous
-  Or use paste fallback: $LAUNCHER_REL --force --paste-only
+tip: 'claude' not found on PATH (or AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY=1).
+  backend=claude is pinned: audit skipped (Field Report stays owed).
+  Install Claude Code CLI, or set backend to "auto" / "cursor" for Cursor Agent fallback.
+  Paste fallback: $LAUNCHER_REL --force --paste-only
   Manual fallback: /plan-external-review
   Template: $TEMPLATE_REL
+EOF
+}
+
+tip_no_reviewer() {
+  cat <<EOF
+tip: no reviewer backend is usable (claude missing/quota-empty and cursor-agent not on PATH).
+  Audit skipped (Field Report stays owed). This is not a Cursor tick API/usage-limit hard-stop.
+  Install Claude Code CLI and/or cursor-agent, then re-run: $LAUNCHER_REL --force --autonomous
+  Paste fallback: $LAUNCHER_REL --force --paste-only
+  Manual fallback: /plan-external-review
 EOF
 }
 
@@ -969,7 +1096,11 @@ wait_for_pty_progress() {
       return 1
     fi
     if [[ "$elapsed" -gt 0 && $((elapsed % 20)) -eq 0 ]]; then
-      echo "audits: progress gate still silent beyond banner (${elapsed}s elapsed, baseline=${baseline}, current=${bytes})"
+      local _ak_suf=""
+      if declare -F audit_kit_suffix >/dev/null 2>&1; then
+        _ak_suf="$(audit_kit_suffix "$elapsed" || true)"
+      fi
+      echo "audits: progress gate still silent beyond banner (${elapsed}s elapsed, baseline=${baseline}, current=${bytes})${_ak_suf}"
     fi
     sleep 2
   done
@@ -1016,6 +1147,547 @@ Autonomous background/inspectable launch was unavailable or --paste-only was req
 Do not arm silent agent-shell --force/--print from chat (HITL can block invisibly).
 CI / headless: $LAUNCHER_REL --force --print   (claude -p; agent-kit run-plan only)
 EOF
+}
+
+# Prints a positive integer from externalPlanReview.<key>, or $2 when missing/invalid.
+config_positive_int() {
+  local key="$1"
+  local default="$2"
+  if [[ ! -f "$CONFIG" ]]; then
+    echo "$default"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      const key = process.argv[2];
+      const fallback = process.argv[3];
+      try {
+        const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const v = j && j.externalPlanReview && j.externalPlanReview[key];
+        process.stdout.write(Number.isInteger(v) && v >= 1 ? String(v) : fallback);
+      } catch {
+        process.stdout.write(fallback);
+      }
+    ' "$CONFIG" "$key" "$default"
+    return
+  fi
+  echo "$default"
+}
+
+apply_wait_budget_defaults() {
+  if [[ "$WAIT_TIMEOUT_EXPLICIT" -eq 0 ]]; then
+    WAIT_TIMEOUT="$(config_positive_int waitTimeoutSeconds 900)"
+  fi
+  if [[ "$WAIT_SLICE_EXPLICIT" -eq 0 ]]; then
+    WAIT_SLICE="$(config_positive_int waitSliceSeconds 90)"
+  fi
+}
+
+# Prints a non-empty string from externalPlanReview.<key>, or $2 when missing/invalid.
+config_review_string() {
+  local key="$1"
+  local default="$2"
+  if [[ ! -f "$CONFIG" ]]; then
+    echo "$default"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      const key = process.argv[2];
+      const fallback = process.argv[3];
+      try {
+        const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const v = j && j.externalPlanReview && j.externalPlanReview[key];
+        process.stdout.write(typeof v === "string" && v.trim() ? v.trim() : fallback);
+      } catch {
+        process.stdout.write(fallback);
+      }
+    ' "$CONFIG" "$key" "$default"
+    return
+  fi
+  echo "$default"
+}
+
+# Collapse vendor aliases to a family id for implementer≠reviewer compare.
+normalize_model_family() {
+  local raw
+  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  if [[ -z "$raw" ]]; then
+    printf '%s' "auto"
+    return
+  fi
+  case "$raw" in
+    auto|cursor-auto|cursorauto|default)
+      printf '%s' "auto"
+      ;;
+    haiku|claude-haiku|claude-3-haiku*|claude-3.5-haiku*|claude-3-5-haiku*|claude-haiku-*|claude-4-haiku*|claude-4.5-haiku*)
+      printf '%s' "haiku"
+      ;;
+    opus|claude-opus|claude-3-opus*|claude-opus-*|claude-4-opus*|claude-4.5-opus*)
+      printf '%s' "opus"
+      ;;
+    sonnet|claude-sonnet|claude-3-sonnet*|claude-3.5-sonnet*|claude-3-5-sonnet*|claude-3-7-sonnet*|claude-sonnet-*|claude-4-sonnet*|claude-4.5-sonnet*)
+      printf '%s' "sonnet"
+      ;;
+    composer|composer-*|cursor-composer*)
+      printf '%s' "composer"
+      ;;
+    grok|grok-*)
+      printf '%s' "grok"
+      ;;
+    *)
+      printf '%s' "$raw"
+      ;;
+  esac
+}
+
+models_same_family() {
+  [[ "$(normalize_model_family "$1")" == "$(normalize_model_family "$2")" ]]
+}
+
+# Runtime reviewer id. Cursor cannot honor Claude-family names; those collapse to auto.
+effective_reviewer_model() {
+  local named="${REVIEWER_MODEL:-sonnet}"
+  if [[ "${REVIEWER_BACKEND:-}" == "cursor" ]]; then
+    local fam
+    fam="$(normalize_model_family "$named")"
+    case "$fam" in
+      haiku|opus|sonnet)
+        printf '%s' "auto"
+        return
+        ;;
+    esac
+  fi
+  printf '%s' "$named"
+}
+
+tip_same_model() {
+  cat <<EOF
+tip: implementer and reviewer are the same model family (${WAIT_IMPLEMENTER_MODEL:-auto} / ${WAIT_REVIEWER_MODEL:-auto}).
+  Same-model review is refused (including Auto/Auto). This is not a silent self-review.
+  Stamp a different --implementer-model or AGENT_KIT_AUDIT_IMPLEMENTER_MODEL, or set
+  --reviewer-model / reviewerModel to a different id (Claude default is sonnet).
+  Cursor fallback cannot honor a Claude-family reviewerModel; runtime is Auto unless
+  you pass a named Cursor model. Distinct from the Cursor tick API/usage-limit hard-stop.
+EOF
+}
+
+resolve_review_models() {
+  if [[ "$REVIEWER_MODEL_EXPLICIT" -eq 0 ]]; then
+    if [[ -n "${AGENT_KIT_AUDIT_REVIEWER_MODEL:-}" ]]; then
+      REVIEWER_MODEL="$AGENT_KIT_AUDIT_REVIEWER_MODEL"
+    else
+      REVIEWER_MODEL="$(config_review_string reviewerModel sonnet)"
+    fi
+  fi
+  if [[ "$ADVISOR_MODEL_EXPLICIT" -eq 0 ]]; then
+    ADVISOR_MODEL="$(config_review_string advisorModel opus)"
+  fi
+  if [[ "$IMPLEMENTER_MODEL_EXPLICIT" -eq 0 ]]; then
+    if [[ -n "${AGENT_KIT_AUDIT_IMPLEMENTER_MODEL:-}" ]]; then
+      WAIT_IMPLEMENTER_MODEL="$AGENT_KIT_AUDIT_IMPLEMENTER_MODEL"
+    elif [[ -z "${WAIT_IMPLEMENTER_MODEL:-}" ]]; then
+      WAIT_IMPLEMENTER_MODEL="auto"
+    fi
+  fi
+  if [[ -z "${WAIT_IMPLEMENTER_MODEL:-}" ]]; then
+    WAIT_IMPLEMENTER_MODEL="auto"
+  fi
+  WAIT_REVIEWER_MODEL="$(effective_reviewer_model)"
+  if models_same_family "$WAIT_IMPLEMENTER_MODEL" "$WAIT_REVIEWER_MODEL"; then
+    SAME_MODEL_REFUSE=1
+  else
+    SAME_MODEL_REFUSE=0
+  fi
+}
+
+# Poll-only may resume an already-running review. Dry-run prints the tip and continues.
+enforce_implementer_reviewer_split() {
+  if [[ "$POLL_ONLY" -eq 1 || "$SAME_MODEL_REFUSE" -ne 1 ]]; then
+    return 0
+  fi
+  tip_same_model
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    return 0
+  fi
+  soft_fail_exit
+}
+
+# Prints auto|claude|cursor. Missing key / file => claude (existing-install pin).
+config_review_backend() {
+  if [[ ! -f "$CONFIG" ]]; then
+    echo "claude"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      try {
+        const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const v = j && j.externalPlanReview && j.externalPlanReview.backend;
+        process.stdout.write(v === "auto" || v === "cursor" || v === "claude" ? v : "claude");
+      } catch {
+        process.stdout.write("claude");
+      }
+    ' "$CONFIG"
+    return
+  fi
+  echo "claude"
+}
+
+claude_usable() {
+  if [[ "${AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY:-}" == "1" || "${AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY:-}" == "true" ]]; then
+    return 1
+  fi
+  command -v claude >/dev/null 2>&1
+}
+
+cursor_agent_usable() {
+  command -v cursor-agent >/dev/null 2>&1
+}
+
+# Sets REVIEWER_BACKEND to claude|cursor|none. Distinct from Cursor tick quota hard-stop.
+resolve_reviewer_backend() {
+  local want
+  if [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 1 && -n "$REVIEWER_BACKEND" ]]; then
+    want="$REVIEWER_BACKEND"
+  else
+    want="$(config_review_backend)"
+  fi
+  case "$want" in
+    cursor)
+      if cursor_agent_usable; then
+        REVIEWER_BACKEND="cursor"
+      else
+        REVIEWER_BACKEND="none"
+      fi
+      ;;
+    auto)
+      if claude_usable; then
+        REVIEWER_BACKEND="claude"
+      elif cursor_agent_usable; then
+        REVIEWER_BACKEND="cursor"
+      else
+        REVIEWER_BACKEND="none"
+      fi
+      ;;
+    *)
+      if claude_usable; then
+        REVIEWER_BACKEND="claude"
+      else
+        REVIEWER_BACKEND="none"
+      fi
+      ;;
+  esac
+  if [[ "$REVIEWER_BACKEND" != "none" ]]; then
+    WAIT_BACKEND_STAMP="$REVIEWER_BACKEND"
+  fi
+}
+
+cursor_agent_cmd() {
+  local prompt="$1"
+  if [[ -n "${WAIT_REVIEWER_MODEL:-}" && "$(normalize_model_family "$WAIT_REVIEWER_MODEL")" != "auto" ]]; then
+    printf '%s' "cursor-agent -p --force --sandbox disabled --workspace $(printf '%q' "$ROOT") --model $(printf '%q' "$WAIT_REVIEWER_MODEL") $(printf '%q' "$prompt")"
+    return
+  fi
+  printf '%s' "cursor-agent -p --force --sandbox disabled --workspace $(printf '%q' "$ROOT") $(printf '%q' "$prompt")"
+}
+
+# Interactive (no -p) or print/headless (-p). Never used for chat autonomous spawn.
+exec_reviewer() {
+  local print_flag="${1:-}"
+  cd "$ROOT"
+  if [[ "$REVIEWER_BACKEND" == "cursor" ]]; then
+    if [[ -n "${WAIT_REVIEWER_MODEL:-}" && "$(normalize_model_family "$WAIT_REVIEWER_MODEL")" != "auto" ]]; then
+      exec cursor-agent -p --force --sandbox disabled --workspace "$ROOT" --model "$WAIT_REVIEWER_MODEL" "$PROMPT"
+    fi
+    exec cursor-agent -p --force --sandbox disabled --workspace "$ROOT" "$PROMPT"
+  fi
+  if [[ "$print_flag" == "-p" ]]; then
+    exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" --model "${WAIT_REVIEWER_MODEL:-sonnet}" -p "$PROMPT"
+  fi
+  exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" --model "${WAIT_REVIEWER_MODEL:-sonnet}" "$PROMPT"
+}
+
+monitor_wants_advisor() {
+  local rel="$1"
+  [[ -f "$ROOT/$rel" ]] && grep -qF "$ADVISOR_ESCALATE_SENTINEL" "$ROOT/$rel"
+}
+
+build_advisor_prompt() {
+  local paths=("$@")
+  local list=""
+  local p
+  for p in "${paths[@]}"; do
+    list+="- $p"$'\n'
+  done
+  cat <<EOF
+Conduct a short advisor pass on an Agent Kit plan-monitor (findings-only).
+
+Read: $TEMPLATE_REL
+Git HEAD: $HEAD_SHA
+Repo root: $ROOT
+Advisor model: ${ADVISOR_MODEL:-opus}
+Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}
+Reviewer model (already wrote the monitor): ${WAIT_REVIEWER_MODEL:-sonnet}
+
+Monitors that marked escalate:
+$list
+
+Append an Advisor section to each listed monitor. Do not re-implement. Do not edit product source, configs, or tests. Do not /git-prod. Cite path/SHA/command evidence. Add <!-- audits-advisor-done --> after the Advisor section.
+EOF
+}
+
+# After Haiku monitor is fresh: Opus only when the escalate sentinel is present.
+# Headless/print may use claude -p (CI path). Chat uses inspectable PTY or a tip; does not re-burn wait.
+maybe_run_advisor() {
+  local paths=("$@")
+  local want=0
+  local p
+  for p in "${paths[@]}"; do
+    if monitor_wants_advisor "$p"; then
+      want=1
+      break
+    fi
+  done
+  [[ "$want" -eq 1 ]] || return 0
+  if models_same_family "${WAIT_IMPLEMENTER_MODEL:-auto}" "${ADVISOR_MODEL:-opus}"; then
+    echo "audits: advisor escalate skipped (advisor-model=${ADVISOR_MODEL:-opus} matches implementer; not a silent self-review)"
+    return 0
+  fi
+  if models_same_family "${WAIT_REVIEWER_MODEL:-sonnet}" "${ADVISOR_MODEL:-opus}"; then
+    echo "audits: advisor escalate skipped (advisor-model matches reviewer)"
+    return 0
+  fi
+  echo "audits: advisor escalate (advisor-model=${ADVISOR_MODEL:-opus}; findings-only; not a second implement pass)"
+  if ! claude_usable; then
+    echo "tip: advisor requires Claude. Haiku/Cursor monitor is already ready; triage still applies."
+    return 0
+  fi
+  local advisor_prompt
+  advisor_prompt="$(build_advisor_prompt "${paths[@]}")"
+  if is_headless_env || [[ "${MODE:-}" == "print" ]]; then
+    claude --permission-mode "$CLAUDE_PERMISSION_MODE" --model "${ADVISOR_MODEL:-opus}" -p "$advisor_prompt" || true
+    return 0
+  fi
+  local advisor_cmd
+  advisor_cmd="cd $(printf '%q' "$ROOT") && claude --permission-mode $(printf '%q' "$CLAUDE_PERMISSION_MODE") --model $(printf '%q' "${ADVISOR_MODEL:-opus}") $(printf '%q' "$advisor_prompt")"
+  if launch_background_terminal "$advisor_cmd"; then
+    echo "audits: advisor PTY launched (channel: ${LAUNCH_CHANNEL:-unknown}). Haiku monitor is already ready for triage."
+  else
+    echo "tip: advisor escalate is marked on the monitor. Paste in a terminal (findings-only):"
+    echo "  claude --permission-mode ${CLAUDE_PERMISSION_MODE} --model ${ADVISOR_MODEL:-opus}"
+  fi
+}
+
+slug_from_monitor_path() {
+  local rel="$1"
+  local base
+  base="$(basename "$rel")"
+  base="${base#plan-monitor-}"
+  printf '%s' "${base%.md}"
+}
+
+wait_state_path() {
+  local slug="$1"
+  printf '%s' "$ROOT/$WAIT_STATE_DIR_REL/${slug}.json"
+}
+
+wait_state_get() {
+  local slug="$1"
+  local field="$2"
+  local path
+  path="$(wait_state_path "$slug")"
+  if [[ ! -f "$path" ]]; then
+    echo ""
+    return
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo ""
+    return
+  fi
+  node -e '
+    const fs = require("fs");
+    try {
+      const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const v = j && j[process.argv[2]];
+      process.stdout.write(v == null ? "" : String(v));
+    } catch {
+      process.stdout.write("");
+    }
+  ' "$path" "$field"
+}
+
+wait_state_write() {
+  local slug="$1"
+  local arm_epoch="$2"
+  local deadline="$3"
+  local remaining="$4"
+  local status="$5"
+  local path
+  path="$(wait_state_path "$slug")"
+  mkdir -p "$(dirname "$path")"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "tip: node required to persist audit wait-state at $WAIT_STATE_DIR_REL" >&2
+    return 1
+  fi
+  node -e '
+    const fs = require("fs");
+    const out = {
+      armEpoch: Number(process.argv[2]),
+      deadline: Number(process.argv[3]),
+      remainingBudgetSeconds: Number(process.argv[4]),
+      backend: process.argv[5],
+      implementerModel: process.argv[6],
+      reviewerModel: process.argv[7],
+      status: process.argv[8],
+    };
+    fs.writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
+  ' "$path" "$arm_epoch" "$deadline" "$remaining" "${WAIT_BACKEND_STAMP:-claude}" "${WAIT_IMPLEMENTER_MODEL:-}" "${WAIT_REVIEWER_MODEL:-}" "$status"
+}
+
+wait_state_clear() {
+  local slug="$1"
+  rm -f "$(wait_state_path "$slug")"
+}
+
+wait_state_is_resumable() {
+  local slug="$1"
+  local status deadline remaining now
+  status="$(wait_state_get "$slug" status)"
+  [[ "$status" == "armed" ]] || return 1
+  deadline="$(wait_state_get "$slug" deadline)"
+  remaining="$(wait_state_get "$slug" remainingBudgetSeconds)"
+  now="$(date +%s)"
+  [[ "$deadline" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$remaining" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$now" -lt "$deadline" ]] || return 1
+  return 0
+}
+
+# Sets WAIT_RESUME, WAIT_ARM_EPOCH, WAIT_DEADLINE, WAIT_REMAINING. Writes state unless dry-run.
+wait_state_load_or_init() {
+  local paths=("$@")
+  local all_resume=1
+  local p slug
+  if [[ ${#paths[@]} -eq 0 ]]; then
+    WAIT_RESUME=0
+    return
+  fi
+  for p in "${paths[@]}"; do
+    slug="$(slug_from_monitor_path "$p")"
+    if ! wait_state_is_resumable "$slug"; then
+      all_resume=0
+      break
+    fi
+  done
+  local now
+  now="$(date +%s)"
+  if [[ "$all_resume" -eq 1 ]]; then
+    local first_slug
+    first_slug="$(slug_from_monitor_path "${paths[0]}")"
+    WAIT_ARM_EPOCH="$(wait_state_get "$first_slug" armEpoch)"
+    WAIT_DEADLINE="$(wait_state_get "$first_slug" deadline)"
+    WAIT_REMAINING=$((WAIT_DEADLINE - now))
+    if [[ "$WAIT_REMAINING" -ge 1 ]]; then
+      local min_rem="$WAIT_REMAINING"
+      for p in "${paths[@]}"; do
+        slug="$(slug_from_monitor_path "$p")"
+        local d r
+        d="$(wait_state_get "$slug" deadline)"
+        r=$((d - now))
+        if [[ "$r" -lt "$min_rem" ]]; then
+          min_rem="$r"
+        fi
+      done
+      WAIT_REMAINING="$min_rem"
+      WAIT_RESUME=1
+      echo "audits: wait-state resume (arm-epoch=${WAIT_ARM_EPOCH} remaining=${WAIT_REMAINING}s)"
+      return
+    fi
+  fi
+  WAIT_RESUME=0
+  if [[ -z "${WAIT_ARM_EPOCH:-}" ]]; then
+    WAIT_ARM_EPOCH="$now"
+  fi
+  WAIT_DEADLINE=$((WAIT_ARM_EPOCH + WAIT_TIMEOUT))
+  WAIT_REMAINING="$WAIT_TIMEOUT"
+  if [[ "$DRY_RUN" -ne 1 ]]; then
+    for p in "${paths[@]}"; do
+      slug="$(slug_from_monitor_path "$p")"
+      wait_state_write "$slug" "$WAIT_ARM_EPOCH" "$WAIT_DEADLINE" "$WAIT_REMAINING" "armed"
+    done
+  fi
+}
+
+wait_effective_timeout() {
+  local remaining="${WAIT_REMAINING:-$WAIT_TIMEOUT}"
+  if [[ "$remaining" -lt 1 ]]; then
+    echo 1
+    return
+  fi
+  if is_headless_env && [[ "$WAIT_SLICE_EXPLICIT" -eq 0 ]]; then
+    echo "$remaining"
+    return
+  fi
+  local slice="${WAIT_SLICE:-90}"
+  if [[ "$slice" -lt "$remaining" ]]; then
+    echo "$slice"
+  else
+    echo "$remaining"
+  fi
+}
+
+wait_state_finish() {
+  local outcome="$1"
+  shift
+  local paths=("$@")
+  local now remaining status
+  now="$(date +%s)"
+  remaining=$((WAIT_DEADLINE - now))
+  if [[ "$remaining" -lt 0 ]]; then
+    remaining=0
+  fi
+  local p slug
+  if [[ "$outcome" == "ready" ]]; then
+    for p in "${paths[@]}"; do
+      slug="$(slug_from_monitor_path "$p")"
+      wait_state_clear "$slug"
+    done
+    return
+  fi
+  status="armed"
+  if [[ "$remaining" -le 0 ]]; then
+    status="timeout"
+    remaining=0
+  fi
+  for p in "${paths[@]}"; do
+    slug="$(slug_from_monitor_path "$p")"
+    wait_state_write "$slug" "$WAIT_ARM_EPOCH" "$WAIT_DEADLINE" "$remaining" "$status"
+  done
+  if [[ "$status" == "armed" ]]; then
+    echo "audits: wait-slice timeout (remaining=${remaining}s; resume via --wait-monitor; not review done)"
+  fi
+}
+
+maybe_resume_from_plan_args() {
+  [[ "$WAIT_MONITOR" -eq 1 ]] || return 0
+  [[ ${#PLAN_ARGS[@]} -gt 0 ]] || return 0
+  local paths=()
+  local arg base
+  for arg in "${PLAN_ARGS[@]}"; do
+    base="$(basename "$arg")"
+    paths+=("$(monitor_path_for_plan_base "$base")")
+  done
+  wait_state_load_or_init "${paths[@]}"
+  if [[ "$WAIT_RESUME" -eq 1 ]]; then
+    POLL_ONLY=1
+    if [[ "$MODE_EXPLICIT" -eq 0 ]]; then
+      MODE="paste-only"
+    fi
+  fi
 }
 
 # Prints "true" or "false". Missing config / key / parse failure => false (default).
@@ -1169,6 +1841,12 @@ Also read: $HANDOFF_REL
 Git HEAD: $HEAD_SHA
 Repo root: $ROOT
 autoRemediate (from config): $auto_remediate
+Reviewer model: ${WAIT_REVIEWER_MODEL:-sonnet}
+Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}
+Advisor model (escalate only): ${ADVISOR_MODEL:-opus}
+
+This is a findings-contract against the git delta plus the plan, not a second implement pass.
+Use git log / git diff / git show vs HEAD and the plan to-dos. Do not re-implement features.
 
 Contract reminders:
 - Evidence-based monitor only under .cursor/memory/plan-monitor-<slug>.md
@@ -1179,6 +1857,9 @@ Contract reminders:
 - When autoRemediate is false (default): do not apply or suggest starting product edits in this session
 - Never /git-prod; never broad git add (add-by-name if staging monitor)
 - Index new monitors in .cursor/memory/_index.md (Audits table)
+- If any finding is high/critical severity or you are uncertain, add exactly one HTML comment line:
+  <!-- audits-advisor-escalate -->
+  Do not invoke the advisor yourself.
 - Closeout: print a ready-to-paste line with explicit paths for every monitor written this session:
   /plan-review-triage .cursor/memory/plan-monitor-<slug>.md
   Never recommend bare /plan-review-triage alone (mtime can miss fresh reviews behind bulk-touched older monitors).
@@ -1196,6 +1877,12 @@ Also read: $HANDOFF_REL
 Git HEAD: $HEAD_SHA
 Repo root: $ROOT
 autoRemediate (from config): $auto_remediate
+Reviewer model: ${WAIT_REVIEWER_MODEL:-sonnet}
+Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}
+Advisor model (escalate only): ${ADVISOR_MODEL:-opus}
+
+This is a findings-contract against the git delta plus each plan, not a second implement pass.
+Use git log / git diff / git show vs HEAD and the plan to-dos. Do not re-implement features.
 
 Review each of these plans in one session (write one plan-monitor-<slug>.md per plan):
 $plan_list
@@ -1209,6 +1896,9 @@ Contract reminders:
 - When autoRemediate is false (default): do not apply or suggest starting product edits in this session
 - Never /git-prod; never broad git add (add-by-name if staging monitor)
 - Index new monitors in .cursor/memory/_index.md (Audits table)
+- If any finding is high/critical severity or you are uncertain, add exactly one HTML comment line:
+  <!-- audits-advisor-escalate -->
+  Do not invoke the advisor yourself.
 - Closeout: print one ready-to-paste line covering every monitor written this session, e.g.
   /plan-review-triage .cursor/memory/plan-monitor-<slug-a>.md .cursor/memory/plan-monitor-<slug-b>.md
   Never recommend bare /plan-review-triage alone (mtime can miss fresh reviews behind bulk-touched older monitors).
@@ -1225,6 +1915,14 @@ monitor_path_for_plan_base() {
 # Soft-fail while waiting: exit 4. Soft-fail without wait: tip already printed, exit 0.
 soft_fail_exit() {
   if [[ "$WAIT_MONITOR" -eq 1 ]]; then
+    local arg base slug
+    for arg in "${PLAN_ARGS[@]+"${PLAN_ARGS[@]}"}"; do
+      base="$(basename "$arg")"
+      slug="${base%.plan.md}"
+      if [[ -f "$(wait_state_path "$slug")" ]]; then
+        wait_state_write "$slug" "${WAIT_ARM_EPOCH:-$(date +%s)}" "${WAIT_DEADLINE:-0}" 0 "soft-fail"
+      fi
+    done
     echo "audits: wait-monitor soft-fail (exit 4)"
     exit 4
   fi
@@ -1266,19 +1964,19 @@ monitor_is_fresh() {
 
 # Poll until every relative monitor path is fresh under $ROOT, or timeout.
 # Prints waiting/created/timeout status lines. Exits 0 (fresh ready) or 3 (timeout).
+# Chat uses waitSliceSeconds (default 90); remaining total budget is persisted.
 wait_for_monitors() {
   local paths=("$@")
   if [[ ${#paths[@]} -eq 0 ]]; then
     echo "error: wait_for_monitors requires at least one monitor path" >&2
     exit 2
   fi
-  if [[ -z "${WAIT_ARM_EPOCH:-}" ]]; then
-    WAIT_ARM_EPOCH="$(date +%s)"
-  fi
-  local timeout="$WAIT_TIMEOUT"
+  wait_state_load_or_init "${paths[@]}"
+  local timeout
+  timeout="$(wait_effective_timeout)"
   local start now elapsed remaining
   start="$(date +%s)"
-  echo "audits: wait-monitor waiting (timeout=${timeout}s arm-epoch=${WAIT_ARM_EPOCH})"
+  echo "audits: wait-monitor waiting (timeout=${timeout}s slice=${WAIT_SLICE}s total=${WAIT_TIMEOUT}s remaining=${WAIT_REMAINING}s arm-epoch=${WAIT_ARM_EPOCH})"
   local p
   for p in "${paths[@]}"; do
     if [[ -f "$ROOT/$p" ]] && ! monitor_is_fresh "$p"; then
@@ -1300,6 +1998,8 @@ wait_for_monitors() {
       for p in "${paths[@]}"; do
         echo "  ready: $p"
       done
+      wait_state_finish ready "${paths[@]}"
+      maybe_run_advisor "${paths[@]}"
       exit 0
     fi
     now="$(date +%s)"
@@ -1315,11 +2015,16 @@ wait_for_monitors() {
           echo "  missing: $p"
         fi
       done
+      wait_state_finish timeout "${paths[@]}"
       exit 3
     fi
     remaining=$((timeout - elapsed))
     if [[ $((elapsed % 30)) -eq 0 ]]; then
-      echo "audits: wait-monitor still waiting (${elapsed}s elapsed, ${remaining}s left)"
+      local _ak_suf=""
+      if declare -F audit_kit_suffix >/dev/null 2>&1; then
+        _ak_suf="$(audit_kit_suffix "$elapsed" || true)"
+      fi
+      echo "audits: wait-monitor still waiting (${elapsed}s elapsed, ${remaining}s left this slice)${_ak_suf}"
     fi
     sleep 1
   done
@@ -1335,16 +2040,23 @@ print_wait_monitor_dry_run() {
   echo "  progress-timeout: ${PROGRESS_TIMEOUT}s"
   echo "  progress-gate-channel: resolved at spawn time (tmux/screen sampled; other channels advisory)"
   if [[ "$WAIT_MONITOR" -eq 1 ]]; then
+    wait_state_load_or_init "${paths[@]}"
     if [[ -z "${WAIT_ARM_EPOCH:-}" ]]; then
       WAIT_ARM_EPOCH="$(date +%s)"
     fi
     echo "  wait-monitor: yes"
     echo "  wait-timeout: ${WAIT_TIMEOUT}s"
+    echo "  wait-slice: ${WAIT_SLICE}s"
+    echo "  wait-remaining: ${WAIT_REMAINING:-$WAIT_TIMEOUT}s"
+    echo "  wait-resume: $([[ "$WAIT_RESUME" -eq 1 ]] && echo yes || echo no)"
     echo "  wait-arm-epoch: ${WAIT_ARM_EPOCH}"
+    echo "  wait-state-dir: ${WAIT_STATE_DIR_REL}"
     echo "  wait-freshness: mtime>=arm-epoch or <!-- audits-wait-fresh: created|updated -->"
-    local p
+    local p slug
     for p in "${paths[@]}"; do
+      slug="$(slug_from_monitor_path "$p")"
       echo "  wait-path: $p"
+      echo "  wait-state: ${WAIT_STATE_DIR_REL}/${slug}.json"
       if [[ -f "$ROOT/$p" ]]; then
         if monitor_is_fresh "$p"; then
           echo "  wait-path-status: fresh (would ready)"
@@ -1404,6 +2116,9 @@ if [[ "$REAP_SESSIONS" -eq 1 && "$BATCH" -eq 0 && "${#PLAN_ARGS[@]}" -eq 0 ]]; t
   exit 0
 fi
 
+apply_wait_budget_defaults
+resolve_reviewer_backend
+
 # Arm epoch before spawn/poll so pre-existing monitors are not false-ready.
 if [[ "$WAIT_MONITOR" -eq 1 && -z "${WAIT_ARM_EPOCH:-}" ]]; then
   WAIT_ARM_EPOCH="$(date +%s)"
@@ -1420,14 +2135,23 @@ if [[ "$WAIT_MONITOR" -eq 1 && "$MODE_EXPLICIT" -eq 0 ]]; then
   POLL_ONLY=1
   MODE="paste-only"
 fi
+maybe_resume_from_plan_args
+resolve_review_models
 if [[ "$WAIT_MONITOR" -eq 1 && ( "$MODE" == "interactive" || "$MODE" == "print" ) && "$MODE_EXPLICIT" -eq 1 ]]; then
   echo "tip: --wait-monitor is ignored with --interactive/--print (process is replaced by claude)" >&2
 fi
 
-# paste-only / dry-run / poll-only do not require claude on PATH.
+# paste-only / dry-run / poll-only do not require a reviewer binary.
+# backend=auto uses Cursor Agent when Claude is missing or quota-empty.
+# Cursor tick API/usage-limit hard-stop is a different path (do not reuse here).
 if [[ "$MODE" != "paste-only" && "$DRY_RUN" -ne 1 && "$POLL_ONLY" -ne 1 ]]; then
-  if ! command -v claude >/dev/null 2>&1; then
-    tip_no_claude
+  if [[ "$REVIEWER_BACKEND" == "none" ]]; then
+    local_want="$(config_review_backend)"
+    if [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 0 && "$local_want" == "claude" ]]; then
+      tip_no_claude
+    else
+      tip_no_reviewer
+    fi
     soft_fail_exit
   fi
 fi
@@ -1437,6 +2161,19 @@ if [[ "$FORCE" -eq 1 ]]; then
   INTERACTIVE_FLAGS+=(--force)
 fi
 INTERACTIVE_FLAGS+=(--interactive)
+if [[ "$REVIEWER_BACKEND" == "claude" || "$REVIEWER_BACKEND" == "cursor" ]]; then
+  INTERACTIVE_FLAGS+=(--backend "$REVIEWER_BACKEND")
+fi
+if [[ -n "${REVIEWER_MODEL:-}" ]]; then
+  INTERACTIVE_FLAGS+=(--reviewer-model "$REVIEWER_MODEL")
+fi
+if [[ -n "${WAIT_IMPLEMENTER_MODEL:-}" ]]; then
+  INTERACTIVE_FLAGS+=(--implementer-model "$WAIT_IMPLEMENTER_MODEL")
+fi
+if [[ -n "${ADVISOR_MODEL:-}" ]]; then
+  INTERACTIVE_FLAGS+=(--advisor-model "$ADVISOR_MODEL")
+fi
+enforce_implementer_reviewer_split
 
 if [[ "$BATCH" -eq 1 ]]; then
   if [[ ${#PLAN_ARGS[@]} -eq 0 ]]; then
@@ -1472,6 +2209,11 @@ if [[ "$BATCH" -eq 1 ]]; then
   echo "  plans: ${BATCH_BASENAMES[*]}"
   echo "  head: $HEAD_SHA"
   echo "  mode: $MODE (config mode: ${CONFIG_MODE_RAW:-missing/legacy})"
+  echo "  reviewer-backend: ${REVIEWER_BACKEND:-unresolved}"
+  echo "  reviewer-model: ${WAIT_REVIEWER_MODEL:-unresolved}"
+  echo "  implementer-model: ${WAIT_IMPLEMENTER_MODEL:-auto}"
+  echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
+  echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
   echo "  midBatchAudits: $MID_BATCH_AUDITS"
   echo "  autoRemediate: $AUTO_REMEDIATE"
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -1533,12 +2275,10 @@ EOF
       exit 0
       ;;
     interactive)
-      cd "$ROOT"
-      exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" "$PROMPT"
+      exec_reviewer
       ;;
     print)
-      cd "$ROOT"
-      exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" -p "$PROMPT"
+      exec_reviewer -p
       ;;
     *)
       echo "error: internal mode bug: $MODE" >&2
@@ -1565,6 +2305,11 @@ echo "audits / external plan review: prepared"
 echo "  plan: $PLAN_REL"
 echo "  head: $HEAD_SHA"
 echo "  mode: $MODE (config mode: ${CONFIG_MODE_RAW:-missing/legacy})"
+echo "  reviewer-backend: ${REVIEWER_BACKEND:-unresolved}"
+echo "  reviewer-model: ${WAIT_REVIEWER_MODEL:-unresolved}"
+echo "  implementer-model: ${WAIT_IMPLEMENTER_MODEL:-auto}"
+echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
+echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
 echo "  midBatchAudits: $MID_BATCH_AUDITS"
 echo "  autoRemediate: $AUTO_REMEDIATE"
 echo "  permission mode: $CLAUDE_PERMISSION_MODE"
@@ -1572,6 +2317,11 @@ if command -v claude >/dev/null 2>&1; then
   echo "  claude: $(command -v claude)"
 else
   echo "  claude: (not on PATH yet)"
+fi
+if command -v cursor-agent >/dev/null 2>&1; then
+  echo "  cursor-agent: $(command -v cursor-agent)"
+else
+  echo "  cursor-agent: (not on PATH yet)"
 fi
 SINGLE_MONITOR_PATH="$(monitor_path_for_plan_base "$SINGLE_BASE")"
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -1636,15 +2386,10 @@ EOF
     exit 0
     ;;
   interactive)
-    cd "$ROOT"
-    # Interactive session in Cursor terminal (user continues the review).
-    exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" "$PROMPT"
+    exec_reviewer
     ;;
   print)
-    cd "$ROOT"
-    # Verified Claude Code flag: -p/--print (non-interactive). Do not invent other flags.
-    # Headless / CI only. Chat agents must use --autonomous or --paste-only, never silent -p.
-    exec claude --permission-mode "$CLAUDE_PERMISSION_MODE" -p "$PROMPT"
+    exec_reviewer -p
     ;;
   *)
     echo "error: internal mode bug: $MODE" >&2

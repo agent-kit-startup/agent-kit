@@ -1291,6 +1291,28 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(plansRenderer).not.toMatch(
       /class="plan-accordion-panel"[\s\S]*?class="progress-bar plan-progress-bar"/,
     );
+    // Shimmer keys on lifecycle only — queueRole never attaches is-executing
+    // (queue-mode COMPLETED + EXECUTING dual pills must not shimmer a done bar).
+    expect(dashboardHtml).not.toMatch(/queueRole[^\n]*is-executing/);
+  });
+
+  it("renders a readable 6px progress track with non-error fill colors", () => {
+    // Track must stay visibly a track at 0% (Phase 0 contract item 5):
+    // 6px var(--border-active) with rounded ends, not the old 4px
+    // var(--border) hairline that vanished against the card background.
+    const track = dashboardHtml.match(/\.progress-bar\s*\{([^}]+)\}/)?.[1];
+    expect(track).toBeTruthy();
+    expect(track).toContain("height: 6px");
+    expect(track).toContain("background: var(--border-active)");
+    expect(track).toContain("border-radius: 3px");
+    expect(track).not.toContain("height: 4px");
+    // Progress is never an error signal: green only at 100%, neutral blue
+    // otherwise — no red/yellow low-progress branches.
+    const colorFn = dashboardHtml.match(/function progressColor\(pct\)\s*\{([\s\S]*?)\n\}/)?.[1];
+    expect(colorFn).toBeTruthy();
+    expect(colorFn).toContain("return pct >= 100 ? 'green' : 'blue';");
+    expect(colorFn).not.toContain("red");
+    expect(colorFn).not.toContain("yellow");
   });
 
   it("renders current-mission status badges as solid fills with no outline", () => {
@@ -2764,8 +2786,13 @@ describe("plugin-ux-validation: hardening regressions", () => {
     expect(staticFn).not.toContain("/api/config");
     // Clipboard failure toast truncates long snippets instead of dumping the full body.
     expect(dashboardHtml).toContain("const preview = raw.length > 120");
-    // Dead-control hints: backend is claude-only; updateApply.auto never writable.
-    expect(dashboardHtml).toContain("claude is the only backend today.");
+    // Audits backend cascade is writable (auto / claude / cursor); updateApply.auto never writable.
+    expect(dashboardHtml).toContain("auto uses Claude when usable, else Cursor Agent.");
+    expect(dashboardHtml).not.toContain("claude is the only backend today.");
+    expect(dashboardHtml).toContain('option value="auto"');
+    expect(dashboardHtml).toContain('option value="cursor"');
+    expect(dashboardHtml).toContain('id="config-epr-reviewerModel"');
+    expect(dashboardHtml).toContain('id="config-epr-waitSlice"');
     expect(dashboardHtml).toContain("updateApply.auto is never writable here.");
   });
 
@@ -3162,6 +3189,27 @@ describe("plans tab v2: actionable rows, live status bar, next action", () => {
     // Live signals stay visible as text: in-progress count and next to-do id.
     expect(renderer).toContain("${p.progressInProgress} in progress");
     expect(renderer).toContain("Next: <code>${escapeHtml(p.nextActionTodo.id)}</code>");
+  });
+
+  it("fills progress from terminal to-dos and mirrors todoStats in the fallback lifecycle", () => {
+    // Phase 0 contract (align-with-todoStats): the fill numerator counts
+    // terminal to-dos (completed + cancelled, the TERMINAL_TODO_STATUSES set)
+    // so the bar reaches 100% whenever the lifecycle pill says COMPLETED.
+    expect(dashboardHtml).toContain("items.filter((t) => t.status === 'cancelled').length");
+    expect(dashboardHtml).toContain("Math.round(((completed + cancelled) / total) * 100)");
+    expect(dashboardHtml).not.toContain("Math.round((completed / total) * 100)");
+    // The label keeps the honest completed-only count and surfaces cancelled
+    // explicitly — only when cancelled > 0.
+    expect(dashboardHtml).toContain(
+      "progressLabel: `${completed} of ${total} complete` + (cancelled > 0 ? ` · ${cancelled} cancelled` : '')",
+    );
+    expect(dashboardHtml).toContain("progressCancelled: cancelled,");
+    // Fallback lifecycle (no missionControl enrichment) mirrors
+    // todoStats.open === 0: terminal work exhausting the list is completed.
+    expect(dashboardHtml).toContain(
+      "if (total > 0 && completed + cancelled >= total && inProgress === 0) {",
+    );
+    expect(dashboardHtml).not.toContain("if (total > 0 && completed >= total && inProgress === 0)");
   });
 
   it("computes the next actionable to-do (in_progress first, else first pending)", () => {
@@ -3724,9 +3772,15 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).not.toMatch(
       /HEALTH_SEVERITY_CHROME\s*=\s*\{(?:(?!\};)[\s\S])*\btoken\s*:(?:(?!\};)[\s\S])*\};/,
     );
-    // Fallback || { … }: reject token within that object only (not unbounded to EOF).
+    // Positive shape anchor for the fallback return: if the `|| { … }` form is
+    // refactored away (e.g. `??`, extracted default), this fails loudly instead
+    // of letting the negative pin below go silently vacuous (health R1).
+    expect(dashboardHtml).toMatch(/return HEALTH_SEVERITY_CHROME\[sev\]\s*\|\|\s*\{/);
+    // Fallback || { … }: reject token within that object only (not unbounded to
+    // EOF). Whitespace-tolerant (\s*) so a line-wrapped return or double space
+    // cannot silently skip the pin (mutations H2/H4).
     expect(dashboardHtml).not.toMatch(
-      /return HEALTH_SEVERITY_CHROME\[sev\] \|\| \{(?:(?!\})[\s\S])*\btoken\s*:/,
+      /return HEALTH_SEVERITY_CHROME\[sev\]\s*\|\|\s*\{(?:(?!\})[\s\S])*\btoken\s*:/,
     );
     // Presence dot, card dot, and severity label all read the same mapping.
     expect(dashboardHtml).toContain(

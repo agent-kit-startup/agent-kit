@@ -6,9 +6,21 @@ Local guards for the DevOps spine (staging -> prod flow). Git doesn't version `.
 
 | Hook | What it does |
 |------|--------------|
-| `pre-commit` | Aborts direct commit to `main`/`master`. Work goes to working branch or `staging`. |
+| `pre-commit` | Aborts direct commit to `main`/`master` first. Then, if `.cursor/hooks/pre-commit/` exists, runs `validate-all-json.sh` then `check-secrets.sh`. Work goes to a working branch or `staging`. |
 | `pre-push` | Aborts direct push to `main`/`master` on any remote, unless `ALLOW_MAIN_PUSH=1` (used by `/git-prod`). Also aborts force-update or delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1`. |
 | `prepare-commit-msg` | Removes the `Co-authored-by: Cursor` trailer from commit message. |
+
+## Install matrix
+
+Factory source of truth is this folder (`git-hooks/`). Updating a tracked hook does not change a live `.git/hooks/` copy until reinstall. Reinstall is operator HITL (do not `cp`, `chmod` `.git/hooks/*`, or set `core.hooksPath` from an agent session without that confirm).
+
+| Lane | Source | main/master abort | secrets + JSON |
+|------|--------|-------------------|----------------|
+| Factory SoT | `git-hooks/pre-commit` via the copy loop or `core.hooksPath git-hooks` | Yes (first) | Yes, when `.cursor/hooks/pre-commit/` exists; skip (exit 0 after the guard) when it does not |
+| Alternate | `.cursor/hooks/pre-commit/pre-commit` copied to `.git/hooks/pre-commit` | No | Yes (`validate-all-json.sh` then `check-secrets.sh`). Resolves repo root via `dirname $0/../..`, which breaks under `core.hooksPath git-hooks` |
+| CLI generator | `packages/cli/src/generator/git-hooks.ts` | No | Skip if `.git/hooks/pre-commit` already exists; otherwise writes a simpler `rg` scan, not this chain |
+
+Repo root for the factory hook is `git rev-parse --show-toplevel`, so both install methods above resolve `.cursor/hooks/pre-commit/` helpers.
 
 ## Install
 

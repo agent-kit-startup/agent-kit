@@ -9,6 +9,7 @@ import { KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
 import { logger } from "../utils/logger.js";
 import { RootRefusedError, confirmProjectRoot, isNonInteractive } from "../utils/terminal.js";
+import { withCliProgress } from "../welcome/visual-kit.js";
 
 export const updateCommand = defineCommand({
   meta: {
@@ -24,7 +25,7 @@ export const updateCommand = defineCommand({
     check: {
       type: "boolean",
       description:
-        "Check-only: compare installed version to latest public tag; never apply L0 writes",
+        "Check-only: compare installed version to the resolved registry (public tags, or --registry local checkout); never apply L0 writes",
       default: false,
     },
     json: {
@@ -68,6 +69,8 @@ export const updateCommand = defineCommand({
         respectPrefs: Boolean(args["respect-prefs"]),
         stamp: Boolean(args.stamp),
         publicRegistryUrl: typeof args.url === "string" && args.url ? args.url : undefined,
+        registryPath:
+          typeof args.registry === "string" && args.registry ? args.registry : undefined,
       });
 
       if (args.json) {
@@ -140,7 +143,9 @@ export const updateCommand = defineCommand({
         await seedManagedHashLedger(projectRoot);
         logger.info("Seeded managed-hash ledger from current local overlay files.");
       }
-      const stats = await syncFromManifest(registry.root, projectRoot, next);
+      const stats = await withCliProgress("update", () =>
+        syncFromManifest(registry.root, projectRoot, next),
+      );
       await saveManifest(projectRoot, next);
       logApplyStats(stats);
       logger.success("Update complete (L3 protected paths left untouched).");

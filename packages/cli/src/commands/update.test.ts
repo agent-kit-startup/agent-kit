@@ -86,4 +86,67 @@ describe("updateCommand", () => {
     // original installedAt value, not a fresh timestamp.
     expect(saved.installedAt).toBe("2026-07-30T00:00:00.000Z");
   }, 15_000);
+
+  it("passes --registry into update --check", async () => {
+    const consumer = await mkdtemp(path.join(tmpdir(), "ak-update-check-c-"));
+    const kit = await mkdtemp(path.join(tmpdir(), "ak-update-check-k-"));
+    await mkdir(path.join(consumer, ".cursor"), { recursive: true });
+    await writeFile(
+      path.join(consumer, ".cursor", "agent-kit.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        version: "5.0.0",
+        packs: [],
+        skills: [],
+        protected: [],
+        registry: { url: "https://github.com/agent-kit-startup/agent-kit", ref: "main" },
+      }),
+      "utf8",
+    );
+    await mkdir(path.join(kit, "registry"), { recursive: true });
+    await writeFile(path.join(kit, "registry", "registry.json"), "{}\n", "utf8");
+    await mkdir(path.join(kit, "packages", "cli"), { recursive: true });
+    await writeFile(
+      path.join(kit, "packages", "cli", "package.json"),
+      JSON.stringify({ version: "5.1.0" }),
+      "utf8",
+    );
+
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((line: unknown) => {
+      logs.push(String(line));
+    });
+    try {
+      await (
+        updateCommand.run as unknown as (ctx: { args: Record<string, unknown> }) => Promise<void>
+      )({
+        args: {
+          _: [],
+          cwd: consumer,
+          check: true,
+          json: true,
+          "respect-prefs": false,
+          stamp: false,
+          "seed-overlay": false,
+          registry: kit,
+          url: undefined as unknown as string,
+          ref: undefined as unknown as string,
+          refresh: false,
+        },
+      });
+    } finally {
+      spy.mockRestore();
+    }
+
+    const payload = JSON.parse(logs.join("\n")) as {
+      status: string;
+      registryUrl: string;
+      registryRef: string;
+      message: string;
+    };
+    expect(payload.status).toBe("update-available");
+    expect(payload.registryUrl).toBe(path.resolve(kit));
+    expect(payload.registryRef).toBe("local");
+    expect(payload.message).not.toMatch(/public/i);
+  });
 });

@@ -45,12 +45,25 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
+function isMarkdownTableSeparator(line: string): boolean {
+  const stripped = line.trim();
+  if (!stripped.startsWith("|")) return false;
+  const parts = stripped
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+  return parts.length > 0 && parts.every((cell) => /^:?-+:?$/.test(cell));
+}
+
 /** Match factory (`###`) and consumer (`##`) Unprocessed headings. */
 export function parseUnprocessedDogfoodItems(readmeText: string): string[] {
   const items: string[] = [];
   let inSection = false;
   let sectionLevel = 0;
-  for (const line of readmeText.split(/\r?\n/)) {
+  const lines = readmeText.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
     const unprocessedMatch = /^(#{2,3})\s+Unprocessed Files\b/.exec(line);
     if (unprocessedMatch) {
       const hashes = unprocessedMatch[1];
@@ -62,10 +75,14 @@ export function parseUnprocessedDogfoodItems(readmeText: string): string[] {
     if (!inSection) continue;
     const headingMatch = /^(#{1,6})\s+/.exec(line);
     if (headingMatch) {
-      // Any Processed Files heading ends the section (mixed H2/H3 must not leak).
-      if (/\bProcessed Files\b/.test(line)) break;
+      // Any Processed heading ends the section (Files optional; mixed H2/H3 must not leak).
+      if (/^#{1,6}\s+Processed(?:\s+Files)?\b/.test(line)) break;
       const hashes = headingMatch[1];
       if (hashes && hashes.length <= sectionLevel) break;
+      continue;
+    }
+    // Header is the table row immediately before a separator, not a word allowlist.
+    if (line.trim().startsWith("|") && isMarkdownTableSeparator(lines[i + 1] ?? "")) {
       continue;
     }
     const body = extractUnprocessedDogfoodLine(line);
@@ -88,17 +105,14 @@ function extractUnprocessedDogfoodLine(line: string): string | null {
     if (numbered?.[2]) {
       raw = numbered[2].trim();
     } else if (stripped.startsWith("|")) {
+      if (isMarkdownTableSeparator(stripped)) return null;
       const parts = stripped
         .replace(/^\|/, "")
         .replace(/\|$/, "")
         .split("|")
         .map((cell) => cell.trim());
       if (parts.length === 0) return null;
-      if (parts.every((cell) => /^:?-+:?$/.test(cell))) return null;
-      const first = parts[0] ?? "";
-      const headerish = first.toLowerCase().replace(/[*_`]/g, "").trim();
-      if (/^(note|file|entrada|title|name|item|path)$/.test(headerish)) return null;
-      raw = first.trim();
+      raw = (parts[0] ?? "").trim();
     }
   }
 

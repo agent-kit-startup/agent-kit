@@ -546,6 +546,49 @@ describe("run-plan-all queue view (semantic layer)", () => {
       true,
     );
   });
+
+  it("enrichPlans progress exposes terminal counters (cancelled counts toward the fill)", () => {
+    const handoff = { plan: "other.plan.md", mode: "idle" };
+    const enrich = (statuses: string[]) =>
+      enrichPlans([queuePlan("p.plan.md", statuses)], handoff)[0];
+
+    // No cancelled work: counters unchanged, label has no cancelled suffix.
+    const mid = enrich(["completed", "completed", "in_progress", "pending", "pending"]);
+    expect(mid.progress).toMatchObject({ completed: 2, cancelled: 0, terminal: 2, total: 5 });
+    expect(mid.progress.label).toBe("2 of 5 complete");
+
+    // Cancelled is terminal: it joins the numerator and is surfaced in the label,
+    // so terminal === total exactly when classifyPlan reports completed.
+    const cancelheavy = enrich(["completed", "completed", "completed", "cancelled", "cancelled"]);
+    expect(cancelheavy.progress).toMatchObject({
+      completed: 3,
+      cancelled: 2,
+      terminal: 5,
+      total: 5,
+    });
+    expect(cancelheavy.progress.label).toBe("3 of 5 complete · 2 cancelled");
+    expect(cancelheavy.lifecycle).toBe("completed");
+
+    // All-cancelled worst case: 100% terminal fill, honest label, completed pill.
+    const allcancel = enrich(["cancelled", "cancelled"]);
+    expect(allcancel.progress).toMatchObject({ completed: 0, cancelled: 2, terminal: 2, total: 2 });
+    expect(allcancel.progress.label).toBe("0 of 2 complete · 2 cancelled");
+    expect(allcancel.lifecycle).toBe("completed");
+
+    // Invariant (Phase 0 contract item 5): lifecycle completed with total > 0
+    // always has terminal === total, so the UI's terminal-inclusive pct math
+    // (mergePlansForUi) renders exactly 100% under the COMPLETED pill.
+    const done = enrich(["completed", "completed", "completed"]);
+    for (const plan of [done, cancelheavy, allcancel]) {
+      expect(plan.lifecycle).toBe("completed");
+      expect(plan.progress.total).toBeGreaterThan(0);
+      expect(plan.progress.terminal).toBe(plan.progress.total);
+      expect(Math.round((plan.progress.terminal / plan.progress.total) * 100)).toBe(100);
+    }
+    // And never prematurely: open work keeps terminal below total.
+    expect(mid.lifecycle).not.toBe("completed");
+    expect(mid.progress.terminal).toBeLessThan(mid.progress.total);
+  });
 });
 
 /** Parked list entry that still has open todos (decision note stays). */

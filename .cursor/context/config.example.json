@@ -9,7 +9,9 @@
   },
   "externalPlanReview": {
     "enabled": false,
-    "backend": "claude",
+    "backend": "auto",
+    "reviewerModel": "sonnet",
+    "advisorModel": "opus",
     "autoRemediate": false,
     "offerOnExhausted": true,
     "mode": "autonomous",

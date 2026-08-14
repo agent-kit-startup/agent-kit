@@ -20,6 +20,7 @@ design tool renders.
 ### Constraints
 
 - Do not edit files under `remote/`; `landing:sync` overwrites them wholesale.
+- **Upstream Design prompt guard:** `pnpm landing:sync` (and `landing:vendor`, same script) fail closed while `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT.md` exists with any unchecked markdown task (`- [ ]`). Apply that prompt in Claude Design first, export a zip via Download, then sync. The prompt counts as applied when the file is absent or every markdown task in it is checked (`- [x]` / `- [X]`). To sync before that (accepting overwrite of `remote/`), pass `--waive-upstream-prompt` or set `LANDING_SYNC_WAIVE_UPSTREAM_PROMPT=1`.
 - Do not hand-edit anything in `dist/` after build; `landing:build` derives it (plus the product overlay below).
 - Do not add design assets by hand; the build derives the design asset list from the canvas.
 - Visual or copy changes to the marketing canvas go through the design tool, then re-export and re-sync.

@@ -19,6 +19,7 @@ import type {
   RepositoryPurpose,
 } from "../types.js";
 import { ensureDir, fileExists, writeJson } from "../utils/fs.js";
+import { generateClaudeKitLoadArtifacts } from "./claude-kit-load.js";
 import { generateVSCodeArtifacts } from "./vscode.js";
 
 export const PERSONALIZATION_CONTRACT_VERSION = 1 as const;
@@ -197,7 +198,52 @@ export function buildPersonalizationPlan(
     .sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`));
 }
 
-function renderProjectContext(profile: RepositoryProfile): string {
+const INSTALLED_SKILL_STATUSES = new Set<PersonalizationStatus>(["applied", "skipped-customized"]);
+
+export function installedSkillItems(
+  items: PersonalizationItem[],
+  installedIds: Iterable<string> = [],
+): PersonalizationItem[] {
+  const rows: PersonalizationItem[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    if (item.kind !== "skill" || !INSTALLED_SKILL_STATUSES.has(item.status)) continue;
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    rows.push(item);
+  }
+  for (const id of installedIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    rows.push({
+      kind: "skill",
+      id,
+      status: "applied",
+      evidence: [{ source: "configuration", value: `.cursor/agent-kit.json skills[]:${id}` }],
+    });
+  }
+  return rows.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function relevantSkillTableRows(skills: PersonalizationItem[]): string[] {
+  if (skills.length === 0) {
+    return ["| (none yet) | No installed or project-owned skills detected | — |"];
+  }
+  return skills.map((skill) => {
+    const label = skill.path ?? skill.id;
+    const role =
+      skill.status === "skipped-customized"
+        ? "Already present (customized)"
+        : "Installed by personalization";
+    const evidence = skill.path ?? skill.evidence[0]?.value ?? "personalization";
+    return `| ${label} | ${role} | ${evidence} |`;
+  });
+}
+
+export function renderProjectContext(
+  profile: RepositoryProfile,
+  skillItems: PersonalizationItem[] = [],
+): string {
   const sections: string[] = ["# Project Context", "", "Verified repository facts:"];
   const purpose = purposeEvidence(profile);
   if (purpose.length > 0 && profile.purpose.value !== "unknown") {
@@ -224,7 +270,7 @@ function renderProjectContext(profile: RepositoryProfile): string {
     "",
     "| Skill / path | Role | Evidence |",
     "|--------------|------|----------|",
-    "| (none yet) | Add rows when `/agent-kit-onboard` scaffolds domain skills or personalization installs packs | — |",
+    ...relevantSkillTableRows(installedSkillItems(skillItems)),
   );
   if (profile.context.sources.length > 0) {
     sections.push("", "## Sources", ...profile.context.sources.map((item) => `- ${item.value}`));
@@ -343,7 +389,7 @@ export async function applyPersonalization(input: {
     createOwnedFile(
       input.rootDir,
       CONTEXT_PATH,
-      renderProjectContext(input.profile),
+      renderProjectContext(input.profile, installedSkillItems(componentResults, skills)),
       profileEvidence,
     ),
     createOwnedFile(
@@ -355,6 +401,18 @@ export async function applyPersonalization(input: {
   ]);
   protectedPaths.add(CONTEXT_PATH);
   protectedPaths.add(AGENTS_PATH);
+
+  const claudeResults = await generateClaudeKitLoadArtifacts(input.rootDir);
+  const claudeItems = claudeResults.map((artifact) => {
+    protectedPaths.add(artifact.relativePath);
+    return {
+      kind: "file" as const,
+      id: artifact.relativePath,
+      path: artifact.relativePath,
+      status: artifact.status,
+      evidence: profileEvidence,
+    };
+  });
 
   const ideDetection = await detectIde(input.rootDir);
   if (ideDetection.ide === "vscode" || ideDetection.ide === "other") {
@@ -404,7 +462,7 @@ export async function applyPersonalization(input: {
     contractVersion: PERSONALIZATION_CONTRACT_VERSION,
     generatorVersion: input.generatorVersion,
     repositoryFingerprint: input.report.repositoryFingerprint,
-    items: [...fileResults, ...componentResults],
+    items: [...fileResults, ...claudeItems, ...componentResults],
     protectedPaths: [...protectedPaths].sort(),
   };
   await writeJson(path.join(input.rootDir, RESULT_PATH), result);

@@ -12,6 +12,7 @@ import {
   applyPersonalization,
   buildPersonalizationPlan,
   readRepositoryProfile,
+  renderProjectContext,
 } from "./personalization.js";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -112,7 +113,12 @@ describe("repository personalization", () => {
       ]),
     );
     expect(applied.manifest.protected).toEqual(
-      expect.arrayContaining(["AGENTS.md", ".cursor/project-context.md"]),
+      expect.arrayContaining([
+        "AGENTS.md",
+        ".cursor/project-context.md",
+        "CLAUDE.md",
+        ".claude/commands/agent-kit.md",
+      ]),
     );
     expect(applied.manifest.personalization).toEqual(
       expect.objectContaining({
@@ -159,5 +165,37 @@ describe("repository personalization", () => {
     expect(command).toContain("Do **not** treat `pendingActions` as an essential-only queue");
     expect(command).toContain("confirm-provider");
     expect(command).toContain("warnings only");
+  });
+
+  it("fills Relevant skills from installed components instead of a hardcoded empty row", async () => {
+    const { root, profile, report } = await preparedNodeRepository();
+    const registry = await loadRegistry(REPOSITORY_ROOT);
+
+    await applyPersonalization({
+      rootDir: root,
+      registryRoot: REPOSITORY_ROOT,
+      profile,
+      report,
+      registry,
+      manifest: buildManifest({ version: "4.4.7" }),
+      generatorVersion: "4.4.7",
+    });
+    const context = await readFile(path.join(root, ".cursor/project-context.md"), "utf8");
+
+    expect(context).toContain("cursor-skills-node");
+    expect(context).not.toContain(
+      "Add rows when `/agent-kit-onboard` scaffolds domain skills or personalization installs packs",
+    );
+    expect(context).not.toMatch(/\|\s*\(none yet\)\s*\|/);
+  });
+
+  it("emits a generated empty Relevant skills row when no skills are installed", async () => {
+    const { profile } = await preparedNodeRepository();
+    const context = renderProjectContext(profile, []);
+
+    expect(context).toContain("| (none yet) | No installed or project-owned skills detected | — |");
+    expect(context).not.toContain(
+      "Add rows when `/agent-kit-onboard` scaffolds domain skills or personalization installs packs",
+    );
   });
 });

@@ -61,6 +61,34 @@ describe("parseUnprocessedDogfoodItems", () => {
       "### Unprocessed Files\n1. `first.md`\n2) `second.md`\n\n### Processed Files\n3. `done.md`\n";
     expect(parseUnprocessedDogfoodItems(text)).toEqual(["`first.md`", "`second.md`"]);
   });
+
+  it("skips the table header row before a separator (not a word allowlist)", () => {
+    const text = [
+      "## Unprocessed Files",
+      "",
+      "| Nota | Status |",
+      "| --- | --- |",
+      "| `issue-37.md` | pending |",
+      "",
+      "## Processed Files",
+      "| `done.md` | done |",
+      "",
+    ].join("\n");
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`issue-37.md`"]);
+  });
+
+  it("stops Unprocessed at ### Processed without the word Files (no leak)", () => {
+    const text = [
+      "## Unprocessed Files",
+      "- `a.md`",
+      "",
+      "### Processed",
+      "- `done.md`",
+      "| `later.md` | done |",
+      "",
+    ].join("\n");
+    expect(parseUnprocessedDogfoodItems(text)).toEqual(["`a.md`"]);
+  });
 });
 
 describe("buildPreCompactUserMessage", () => {

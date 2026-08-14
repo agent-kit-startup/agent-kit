@@ -7,6 +7,7 @@ import {
   DEFAULT_REGISTRY_URL,
   acquireCacheLock,
   assertSafeRegistrySource,
+  refreshLockOwner,
   releaseCacheLock,
   resolveRegistryRoot,
 } from "./resolve.js";
@@ -348,5 +349,84 @@ describe("acquireCacheLock", () => {
       .then(() => true)
       .catch(() => false);
     expect(gone).toBe(false);
+  });
+
+  it("releaseCacheLock restores a successor's owner file instead of deleting the lock", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-lock-"));
+    const lockDir = path.join(dir, "cache-target.lock");
+    await mkdir(lockDir, { recursive: true });
+    // Stale reclaim + successor republish landed between the prior holder's
+    // ownership read and its removal step: the release must claim-and-verify,
+    // then hand the owner file back untouched.
+    await writeFile(
+      path.join(lockDir, "owner.json"),
+      JSON.stringify({ pid: process.pid, uuid: "successor-uuid", updatedAt: Date.now() }),
+      "utf8",
+    );
+    await releaseCacheLock(lockDir, "prior-holder-uuid");
+    const restored = JSON.parse(await readFile(path.join(lockDir, "owner.json"), "utf8")) as {
+      uuid: string;
+    };
+    expect(restored.uuid).toBe("successor-uuid");
+    await rm(lockDir, { recursive: true, force: true });
+  });
+
+  it("refreshLockOwner heals a corrupt owner file so the holder can still release", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-lock-"));
+    const lockDir = path.join(dir, "cache-target.lock");
+    await mkdir(lockDir, { recursive: true });
+    // Corrupt owner.json + fail-closed release used to strand the lock until
+    // stale reclaim (up to LOCK_STALE_MS); the refresh heal closes that.
+    await writeFile(path.join(lockDir, "owner.json"), "{corrupt", "utf8");
+    await refreshLockOwner(lockDir, "holder-uuid");
+    const healed = JSON.parse(await readFile(path.join(lockDir, "owner.json"), "utf8")) as {
+      uuid: string;
+    };
+    expect(healed.uuid).toBe("holder-uuid");
+    await releaseCacheLock(lockDir, "holder-uuid");
+    const gone = await stat(lockDir)
+      .then(() => true)
+      .catch(() => false);
+    expect(gone).toBe(false);
+  });
+
+  it("owner refresh advances the lock dir mtime (stale reclaim measures liveness, not age)", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-lock-"));
+    const lockDir = path.join(dir, "cache-target.lock");
+    await mkdir(lockDir, { recursive: true });
+    await writeFile(
+      path.join(lockDir, "owner.json"),
+      JSON.stringify({ pid: process.pid, uuid: "holder-uuid", updatedAt: Date.now() }),
+      "utf8",
+    );
+    // Age the dir as if the holder acquired long ago.
+    const past = new Date(Date.now() - 10 * 60_000);
+    await utimes(lockDir, past, past);
+    const before = (await stat(lockDir)).mtimeMs;
+    await refreshLockOwner(lockDir, "holder-uuid");
+    const after = (await stat(lockDir)).mtimeMs;
+    // tmp + rename inside the dir bumps its mtime: the LOCK_STALE_MS gate in
+    // tryReclaimStaleLock counts from the last heartbeat, not acquisition.
+    expect(after).toBeGreaterThan(before);
+    await releaseCacheLock(lockDir, "holder-uuid");
+  });
+
+  it("refreshLockOwner never overwrites another holder's owner file", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-lock-"));
+    const lockDir = path.join(dir, "cache-target.lock");
+    await mkdir(lockDir, { recursive: true });
+    await writeFile(
+      path.join(lockDir, "owner.json"),
+      JSON.stringify({ pid: process.pid, uuid: "other-holder", updatedAt: 1 }),
+      "utf8",
+    );
+    await refreshLockOwner(lockDir, "mine");
+    const untouched = JSON.parse(await readFile(path.join(lockDir, "owner.json"), "utf8")) as {
+      uuid: string;
+      updatedAt: number;
+    };
+    expect(untouched.uuid).toBe("other-holder");
+    expect(untouched.updatedAt).toBe(1);
+    await rm(lockDir, { recursive: true, force: true });
   });
 });

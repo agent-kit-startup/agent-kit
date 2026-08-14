@@ -9,12 +9,12 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | Area | Status | Notes |
 |------|--------|-------|
 | `.cursor/rules/` | Present (25 files) | 10 core rules `alwaysApply: true`; stack rules use globs |
-| `.cursor/skills/` | Present (9 skills) | Install output from registry (`core/` 2 + `community/` 7) |
-| `.cursor/agents/` | Present (13 agents) | Mix of core and stack subagents; EN pack ids |
+| `.cursor/skills/` | Present (10 skills) | Install output from registry (`core/` 2 + `community/` 8) |
+| `.cursor/agents/` | Present (14 agents) | Mix of core and stack subagents; EN pack ids |
 | `.cursor/commands/` | Present (27 commands) | DevOps spine + handoff + orchestration + backlog/dashboard |
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
 | `.cursor/hooks.json` | **Present (L0)** | 5 events (`sessionStart`, `preCompact`, `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`); no `stop` hook |
-| `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.0.0**, aligned with product; declares explicit component paths |
+| `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.2.0**, aligned with product; declares explicit component paths |
 | `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
 | `AGENTS.md` (dogfood) | **Present** | Root cross-IDE contract; points at `.cursor/project-context.md` |
 | `mcp.json` | Absent | No project-level MCP config in core |
@@ -28,7 +28,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | Field | Value |
 |-------|-------|
 | name | `agent-kit` |
-| version | `5.0.0` (pinned to `KIT_VERSION` by `packages/cli/src/lifecycle/l0.test.ts`) |
+| version | `5.2.0` (pinned to `KIT_VERSION` by `packages/cli/src/lifecycle/l0.test.ts`) |
 | description | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop, anti-slop) |
 | components | `rules`, `skills`, `agents`, `commands`, `hooks` declared explicitly |
 
@@ -39,7 +39,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 - `skills` points at `.cursor/skills/core`, not `.cursor/skills`: discovery matches direct children holding a `SKILL.md`, and `core/`/`community/` are one level too shallow. This also keeps stack skills on `agent-kit add`.
 - CLI `init` does **not** write `.cursor-plugin/plugin.json` into target projects; no generator under `packages/cli/src/generator/` references it. (Corrected 2026-08-05; the earlier claim was stale.)
 
-**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan. Live submission stays publisher HITL and is gated on the public mirror carrying the 5.0.0 manifest.
+**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan. Live submission stays publisher HITL and is gated on the public mirror carrying the 5.2.0 manifest.
 
 ---
 
@@ -140,7 +140,7 @@ Separate from `.cursor/hooks/`; optional hygiene for teams that reject bot co-au
 
 ## Agents and commands (Cursor-native)
 
-### Agents (`.cursor/agents/` - 13)
+### Agents (`.cursor/agents/` - 14)
 
 Cursor subagent definitions. Consumed via Task tool / Agents Window. Full classification in [coherence-inventory.md](coherence-inventory.md).
 
@@ -216,12 +216,12 @@ Commands are **Cursor-only**. VS Code/Windsurf have no equivalent slash-command 
 The Agent Kit repo uses the full Cursor workspace and **does**:
 
 1. Version `.cursor/hooks.json` (`sessionStart` / `preCompact`)
+2. Include root `AGENTS.md` (cross-IDE contract)
 
 Still open dogfood gaps:
 
-2. ~~Include root `AGENTS.md` (cross-IDE contract)~~ **Done** (root `AGENTS.md` present)
-3. Auto-install git hooks on clone (documented manual copy)
-4. Ship `mcp.json` for optional MCP servers
+1. Auto-install git hooks on clone (documented manual copy)
+2. Ship `mcp.json` for optional MCP servers
 
 Acceptable for private SoT until Phase B registry cutover defines minimum dogfood before public sync.
 
@@ -234,10 +234,10 @@ Acceptable for private SoT until Phase B registry cutover defines minimum dogfoo
 | A1 | ✅ Done | Fix `ux-tone.mdc` frontmatter |
 | A2 | ✅ Done | Refresh [coherence-inventory.md](coherence-inventory.md) + [drift-inventory.md](drift-inventory.md) (2026-07-19) |
 | A3 | ✅ Done | `.cursor/hooks.json` + agent scripts (`sessionStart` / `preCompact`) |
-| A4 | Partial | Dual hook lanes remain: `git-hooks/` (main/push guards + co-author strip) vs `.cursor/hooks/pre-commit/` (secrets + JSON). Next step: document install matrix and decide whether CLI `git-hooks` generator should mirror the Cursor pre-commit chain (no silent merge). |
+| A4 | ✅ Done | Factory tracked `git-hooks/pre-commit` chains main-guard first, then `.cursor/hooks/pre-commit/` JSON + secrets (`validate-all-json.sh` then `check-secrets.sh`) via `git rev-parse --show-toplevel`. Consumer clones without that directory still get the main-guard. Alternate Cursor-native copy lacks the main-guard. CLI generator still skips if a hook exists. Install/reinstall remains HITL. |
 | A5 | ✅ Done | Root `AGENTS.md` present (dogfood cross-IDE contract) |
 | A6 | Partial | Marketplace plugin path documented ([marketplace.md](marketplace.md) packaging contract, 2026-08-05); VS Code/Windsurf install still open |
-| A7 | Open | Expand generators or template files for multi-IDE parity (scoped: Windsurf `.windsurfrules` handoff/git bullets + VS Code instruction parity with [cursor-3-features.md](cursor-3-features.md); not Marketplace submit) |
+| A7 | Open | Expand generators or template files for multi-IDE parity (scoped: Windsurf `.windsurfrules` handoff/git bullets + VS Code instruction parity with [cursor-3-features.md](cursor-3-features.md); not Marketplace submit). Claude CLI session kit-load (`CLAUDE.md` / `/agent-kit`) is a separate surface: [claude-cli-kit-load.md](claude-cli-kit-load.md). |
 
 ---
 

@@ -2,7 +2,9 @@
 
 Optional post-completion **audits** of shipped work against the original plan using Claude Code CLI. When a plan finishes all implementable to-dos, get evidence-based gap detection from a second agent without interfering with the original execution flow. Config object key remains `externalPlanReview` for compatibility; L0 and docs prefer the product name **audits**.
 
-L0 ships the commands, templates, launcher, and `config.example.json` with the base install. The feature stays **opt-in** (`enabled: false` by default). Claude Code is never required for install or CI; a missing `claude` binary or missing prompt template yields a tip and exit 0.
+This page is **not** session kit-load. Loading Agent Kit context at the start of a Claude Code session (`CLAUDE.md`, `/agent-kit`) is documented in [claude-cli-kit-load.md](claude-cli-kit-load.md).
+
+L0 ships the commands, templates, launcher, and `config.example.json` with the base install. The feature stays **opt-in** (`enabled: false` by default). Claude Code is never required for install or CI. `backend: "auto"` uses Cursor Agent when Claude is missing or quota-empty. A pinned `backend: "claude"` with no usable Claude still yields a tip and exit 0 (or exit 4 with `--wait-monitor`). A missing prompt template yields a tip and exit 0.
 
 **Install note:** session L3 protection covers `config.json`, `current/**`, and `backups/**` only. If an older manifest still lists `.cursor/context/**`, `agent-kit update` expands that glob so templates can install. If the prompt file is missing after a fresh offer, run `agent-kit update --refresh` and re-arm.
 
@@ -14,7 +16,9 @@ L0 ships the commands, templates, launcher, and `config.example.json` with the b
    {
      "externalPlanReview": {
        "enabled": true,
-       "backend": "claude",
+       "backend": "auto",
+       "reviewerModel": "sonnet",
+       "advisorModel": "opus",
        "autoRemediate": false,
        "offerOnExhausted": true,
        "mode": "autonomous",
@@ -111,7 +115,9 @@ Mission Control **Flight Log** shows HANDOFF Gaps (**NOW** + **Earlier** history
 {
   "externalPlanReview": {
     "enabled": false,
-    "backend": "claude",
+    "backend": "auto",
+    "reviewerModel": "sonnet",
+    "advisorModel": "opus",
     "autoRemediate": false,
     "offerOnExhausted": true,
     "mode": "paste",
@@ -124,7 +130,9 @@ Mission Control **Flight Log** shows HANDOFF Gaps (**NOW** + **Earlier** history
 | Field | Meaning |
 |-------|---------|
 | `enabled` | Auto-arm on plan exhaustion (default: false) |
-| `backend` | External agent type (default: `"claude"`) |
+| `backend` | Reviewer: `"auto"` (Claude if usable, else Cursor Agent), `"claude"`, or `"cursor"`. Missing key keeps `"claude"` for existing installs. Claude quota empty (`AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY=1`) is not the Cursor tick API/usage-limit hard-stop. |
+| `reviewerModel` | Named reviewer (default `sonnet`). Claude spawn passes `--model`. Auto permission mode requires a classifier-capable model (Sonnet/Opus/Fable); Haiku is a valid explicit pin and cannot run auto. Cursor fallback cannot honor a Claude-family name; runtime is Auto unless a named Cursor model is set. |
+| `advisorModel` | Escalate-only advisor (default `opus`). Runs only when the reviewer monitor includes `<!-- audits-advisor-escalate -->` (high severity or uncertainty). Findings-only; not a second implement pass. |
 | `autoRemediate` | When `false` (default): review workers and external Claude stay findings-only; `/run-plan` must not auto-fix product code after findings (fix-agent Task for small nits, or residuals backlog plan for large). When `true`: review workers remain findings-only; orchestrator may dispatch a fix agent for small nits without an extra Ask. External-monitor path still requires `/plan-review-triage` before product edits. |
 | `offerOnExhausted` | When `enabled` is false, allow exhaustion Ask until Always or Not now (default: true) |
 | `mode` | Audits arming path: `"paste"` (legacy clipboard/paste into Cursor Terminal) or `"autonomous"` (background/inspectable PTY auto-launch when enabled). Missing key keeps paste-compatible behavior for existing installs. Greenfield example may show `"autonomous"`. |
@@ -148,11 +156,11 @@ Do **not** flip `autoRemediate` to `true` as a shortcut for fewer backlog plans;
 
 Canonical launcher: `.cursor/scripts/plan-external-review.sh` (wrapper: `scripts/plan-external-review.sh`).
 
-The launcher starts Claude with `--permission-mode auto` in interactive and headless modes. This removes the need to toggle auto mode manually while retaining Claude's permission policy; it does not use `bypassPermissions`.
+The launcher starts Claude with `--permission-mode auto` and `--model` from `reviewerModel` (default `sonnet`) in interactive and headless modes. Auto requires a classifier-capable reviewer; the default is Sonnet so that mode can run (ADR `2026-08-14_audits-haiku-auto-permission-amend.md`). This does not use `bypassPermissions`. Override with `--reviewer-model`, `--advisor-model`, and `--implementer-model` (or `AGENT_KIT_AUDIT_IMPLEMENTER_MODEL`). Same-family implementer and reviewer is an honest skip (exit 4 with `--wait-monitor`), including Auto/Auto.
 
 **Background/inspectable auto-launch (`mode: "autonomous"` or `--autonomous`):** prefers tmux/screen detached PTY, then macOS Terminal.app `do script` **without** `activate`, then Linux/Windows emulators. Soft-falls back to `--paste-only` when spawn is unavailable. Soft-fails with tip + exit 0 when `claude` is missing (Field Report owed). Never runs silent `claude -p` in a chat agent shell. Rollback to OS window focus: `--focus-terminal` or `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1`. ADR: `.cursor/memory/decisions/2026-07-28_audits-headless-terminal-honesty.md`.
 
-**Post-spawn monitor watch (`--wait-monitor`):** chat autonomous arms **must** pass `--force --autonomous --wait-monitor`. The launcher records an arm epoch, then polls until `.cursor/memory/plan-monitor-<slug>.md` is **fresh** (`mtime >= arm epoch`, or a content sentinel line `<!-- audits-wait-fresh: created -->` / `updated`), or until `--wait-timeout` (default 900s). Pre-arm files are ignored (existence alone is not ready). Exit codes: `0` fresh ready (soft-fail tip + exit 0 only when wait is off), `3` timeout, `4` soft-fail while waiting. Dry-run prints wait path, timeout, arm-epoch, and stale/missing status. Spawn-only exit 0 without wait is not review done. Exit `3` is **timeout only**: it never means review done, and a monitor written afterwards by a later or separate arm does not convert it into success (leave the target Field Report owed and re-arm). ADRs: `.cursor/memory/decisions/2026-07-27_audits-wait-freshness-enforce.md`, `.cursor/memory/decisions/2026-07-27_audits-post-spawn-monitor-watch-continue.md`.
+**Post-spawn monitor watch (`--wait-monitor`):** chat autonomous arms **must** pass `--force --autonomous --wait-monitor`. The launcher records an arm epoch and persists wait state in `.cursor/context/audit-wait/<slug>.json` (gitignored; not HANDOFF). It then polls until `.cursor/memory/plan-monitor-<slug>.md` is **fresh** (`mtime >= arm epoch`, or a content sentinel line `<!-- audits-wait-fresh: created -->` / `updated`). Chat AwaitShell uses `waitSliceSeconds` / `--wait-slice` (default 90s). Total budget across slices is `waitTimeoutSeconds` / `--wait-timeout` (default 900s). CI/headless may use the full remaining budget in one invocation. A new session that finds an armed wait-state file either exits `0` immediately (monitor already fresh vs stored epoch) or polls **remaining** budget only; it does not restart 900s from zero. Early-ready is unchanged: first freshness exits `0`. Pre-arm files are ignored (existence alone is not ready). Exit codes: `0` fresh ready (soft-fail tip + exit 0 only when wait is off), `3` timeout (slice or total; not review done), `4` soft-fail while waiting. Dry-run prints wait path, slice, timeout, remaining, resume, arm-epoch, wait-state path, and stale/missing status. Spawn-only exit 0 without wait is not review done. Exit `3` is **timeout only**: it never means review done, and a monitor written afterwards by a later or separate arm does not convert it into success (leave the target Field Report owed and re-arm). ADRs: `.cursor/memory/decisions/2026-07-27_audits-wait-freshness-enforce.md`, `.cursor/memory/decisions/2026-07-27_audits-post-spawn-monitor-watch-continue.md`, `.cursor/memory/decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md`.
 
 **Post-spawn progress gate:** a successful spawn is a launch, not a running review. After an autonomous background spawn on a channel that exposes scrollback (tmux `capture-pane`, screen `hardcopy`), the launcher waits briefly for its own pre-exec banner to land, measures that banner as a baseline, then polls every 2 seconds for scrollback growth *beyond* the banner before entering the monitor wait. Default grace window is 60s, overridable with `AGENT_KIT_AUDIT_PROGRESS_TIMEOUT` (`0` disables the gate; a non-integer value prints a tip and falls back to 60). Channels without a scrollback API (Terminal.app, Linux/Windows emulators) degrade to advisory (`progress gate skipped`) and proceed to the normal wait; the gate never aborts a channel it cannot sample. A silent PTY (no growth beyond the banner, or a session that vanished before producing output) is reported as a failed launch: the launcher disposes only the session it just spawned, prints the paste fallback, and soft-fails (exit `4` with `--wait-monitor`, tip + exit `0` otherwise) instead of burning the remaining `--wait-timeout`. No new exit code. Dry-run prints `progress-gate`, `progress-timeout`, and a note that the channel is resolved at spawn time. ADR: `.cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 
@@ -233,6 +241,8 @@ AGENT_KIT_AUDIT_SESSION_CAP=1 .cursor/scripts/plan-external-review.sh --force --
 - Architecture improvements
 - Multi-file refactoring needs
 
+Do not treat Write residuals as the uncaveated happy path when closeout depth is already capped (`close-*`) or Still open is nits / process-only. Prefer **Ack and stop** or **Fix nits only** in those cases (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Blocking product work may still use Write residuals, or an explicit operator override.
+
 **Choose "Ack and stop" for:**
 
 - Known limitations (documented decisions)
@@ -286,9 +296,16 @@ AGENT_KIT_AUDIT_REAP_MIN_AGE=0 .cursor/scripts/plan-external-review.sh --reap-au
 
 **Claude CLI not found:**
 
-- External review skips with a tip message and exit 0 (exit 4 when `--wait-monitor` was requested)
-- Plan execution continues normally
-- Manual review remains available when Claude is installed later
+- `backend: "auto"` uses Cursor Agent when Claude is missing or `AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY` is set. That is not the Cursor tick API/usage-limit hard-stop.
+- Pinned `backend: "claude"` still tips and skips (exit 0, or exit 4 with `--wait-monitor`). Field Report stays owed.
+- Same-family implementer and reviewer is an honest skip (including Auto/Auto), not a silent self-review.
+
+## Security
+
+- **Findings-only:** reviewers write `plan-monitor-*.md` and do not auto-fix product source. `autoRemediate` stays false unless the operator opts in; `/plan-review-triage` remains the HITL gate. Never silent-Ack.
+- **Secrets:** review prompts and `.cursor/context/audit-wait/<slug>.json` hold model ids and timestamps only. No tokens, `.env`, or credentials.
+- **Integrity:** freshness stays `mtime >=` arm epoch or the wait-fresh sentinel. Exit `0` ready / `3` timeout / `4` soft-fail. `/git-prod` is never armed from this path.
+- **Split-brain:** implementer ≠ reviewer is a hard refuse. Cursor fallback cannot honor a Claude-family `reviewerModel`; runtime is Auto unless a named Cursor model is set.
 
 **Review disabled:**
 
@@ -305,7 +322,7 @@ AGENT_KIT_AUDIT_REAP_MIN_AGE=0 .cursor/scripts/plan-external-review.sh --reap-au
 ## Implementation notes
 
 - **Not a native Cursor hook:** Avoids interfering with HITL confirmation prompts
-- **Evidence-based:** Claude reviews actual git history and deliverables
+- **Evidence-based:** the reviewer (Claude Haiku or Cursor Agent) checks git history and deliverables against the plan. Tests: `.cursor/scripts/plan-external-review-atomic-wait.test.mjs` (early-ready, slice honesty), `plan-external-review-backend-cascade.test.mjs` (Claude-missing cascade), `plan-external-review-model-routing.test.mjs` (same-model refuse).
 - **Findings-only review workers:** Claude and Cursor review ticks write monitors/findings; they do not auto-fix product code. `/run-plan` enforces `externalPlanReview.autoRemediate` (default false) as the remediation gate (fix agent vs residuals plan). The launcher injects the current `autoRemediate` value into the Claude prompt.
 - **Staging-first:** All fixes follow standard `/git-staging` → `/git-prod` flow
 - **Opt-in default:** Requires explicit configuration (or Always / onboard Enable) to auto-arm

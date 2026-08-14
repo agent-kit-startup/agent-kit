@@ -68,18 +68,36 @@ The plugin root is the **parent of `.cursor-plugin/`** - the repo root. Cursor's
 |--------------|-------|-----|
 | `rules` | `.cursor/rules` | 25 `.mdc`; 10 `alwaysApply: true` structural, the rest glob-gated per stack |
 | `skills` | `.cursor/skills/core` | **Core only.** Discovery matches direct children holding a `SKILL.md`, so `.cursor/skills` (whose children are `core/` and `community/`) would find nothing. Pointing at `core/` also encodes the thesis: stack skills stay on `agent-kit add` |
-| `agents` | `.cursor/agents` | 13 subagent definitions |
+| `agents` | `.cursor/agents` | 14 subagent definitions |
 | `commands` | `.cursor/commands` | 27 slash commands |
-| `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, so an unresolved path degrades quietly |
+| `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, and `sessionStart` surfaces the degraded-mode diagnostic (see "Hook resolution boundary" below) |
 | `logo` | `dashboard/logo.svg` | Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced and would be dropped from the public mirror without failing anything |
+
+#### Hook resolution boundary
+
+All five hook adapters (`sessionStart`, `preCompact`, `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`) resolve the CLI via `.cursor/hooks/agent/resolve-agent-kit.sh` (order: `AGENT_KIT_HOOK_BIN` → `PATH` → `<root>/node_modules/.bin/agent-kit` → `node <root>/packages/cli/dist/index.js`) and are **fail-open by design**: they must never block shell, edit, prompt, or compact flows, so an unresolved CLI makes them exit 0 with no effect. That silent degradation is the **accepted boundary** for the four non-sessionStart hooks — `guard-shell`, `after-edit-schema`, `secrets-prompt`, and `pre-compact` emit nothing when resolution fails.
+
+`sessionStart` is the one hook that can surface text into the session, so it carries the diagnostic for all five: when resolution fails, `.cursor/hooks/agent/session-start.sh` emits (exit 0) an `additional_context` JSON payload stating that hooks are in degraded fail-open mode, which surfaces are inactive (hook-provided context, shell guard, schema check, secrets scan), and the fix (`npm i -D @dadado/agent-kit-cli` or set `AGENT_KIT_HOOK_BIN`). Emission is stateless per session — no marker files.
+
+**Verify:** `node --test scripts/hook-session-start-diagnostic.test.mjs` exercises both branches (resolvable → valid JSON from the real CLI; unresolvable → exit 0 + degraded-mode diagnostic). Manually: run `sh .cursor/hooks/agent/session-start.sh </dev/null` from the repo root (resolvable here via `packages/cli/dist`); smoke procedure in [plugin-smoke-checklist.md](plugin-smoke-checklist.md) section 4.
 
 `author` is an **object** (`{ "name": … }`), not a string. Rules, agents, skills, and commands all need YAML frontmatter; command frontmatter carries `name` (kebab-case, matching the filename slug) plus `description`.
 
-Editing any file under `.cursor/{agents,skills,commands}/` changes its consumer-overlay hash: append the new hashes to `KNOWN_SHIPPED_OVERLAY_HASHES` (`packages/cli/src/lifecycle/overlay-known-hashes.ts`) in the same commit, keeping the prior entries. Without that, an unedited consumer copy is misread as customized and never refreshed. `packages/cli/src/lifecycle/overlay.test.ts` covers this for `.cursor/commands/summary.md` only.
+Editing any file under `.cursor/{agents,skills,commands}/` (or a registry skill's `SKILL.md`) changes its consumer-overlay hash: run `pnpm overlay:hashes` (root; or `npm run overlay:hashes` from `packages/cli`) in the same commit to append the new hashes to `KNOWN_SHIPPED_OVERLAY_HASHES` (`packages/cli/src/lifecycle/overlay-known-hashes.ts`). The helper is append-only — prior entries are never removed or reordered — and `pnpm overlay:hashes:check` lists missing hashes (exit 1) without writing. Without the append, an unedited consumer copy is misread as customized and never refreshed. The "KNOWN_SHIPPED_OVERLAY_HASHES coverage" tests in `packages/cli/src/lifecycle/overlay.test.ts` enforce this for every L0 overlay artifact and every registry skill `SKILL.md` (core + community).
 
 ### Submission checklist (publisher HITL)
 
 Cursor reviews the **public** repo, so the manifest must have reached public `main` first: `/git-prod` → annotated `vX.Y.Z` tag → `sync-public` PR. Submit `https://github.com/agent-kit-startup/agent-kit` at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish). No agent performs this step.
+
+### Public promote sequence (operator, in order)
+
+The promotion path is ready only when the evidence gate is green; each step below is operator-owned (HITL):
+
+1. **Evidence gate green:** `npm run evidence:knowledge-classification:check` passes on the staging tip being promoted. The shared ledger (`docs/evidence/knowledge-classification.json`) has **one regeneration owner** — the ship-5.0 evidence closeout (clean-tree regen guard + regen shipped in the PR #719–#725 stack). Marketplace-side plans record the dependency and never regenerate the ledger themselves. Note: the check recomputes from the working tree, so uncommitted `_index.md` rows pointing at untracked `plan-monitor-*.md` files fail it locally; verify at committed HEAD content (e.g. a clean worktree) when audit WIP is present.
+2. **Merge pending staging PRs** in stack order (operator merge gate).
+3. **`/git-prod`** (never agent-initiated) → annotated `vX.Y.Z` tag → `sync-public` PR, per the submission checklist above.
+4. **Public mirror recheck:** verify the public repo exposes `.cursor-plugin/plugin.json` at the released version with explicit component paths — owned by the parked `submit-cursor-marketplace.plan.md` (`recheck-public-mirror`), alongside the publisher HITL submission gate.
+5. **Post-promote plugin smoke:** rerun the local-plugin smoke checklist ([plugin-smoke-checklist.md](plugin-smoke-checklist.md)) against the public ref before submitting.
 
 ## Listing UX (CLI)
 

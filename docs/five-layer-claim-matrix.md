@@ -33,6 +33,7 @@ Classification: **shipped core** (L0), **optional pack** (L1/L2), **planned**, *
 3. Hosted multi-tenant control plane or cloud HANDOFF sync.
 4. Guaranteed production readiness without lane-qualified release evidence.
 5. Silent auto-remediation of product code from external review when `autoRemediate` is false (default).
+6. Silent cross-network social posting (adoption comms draft with HITL only; community skill `mission-kit-comms`).
 
 ## Lane note
 

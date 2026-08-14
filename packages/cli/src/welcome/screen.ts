@@ -13,15 +13,26 @@ import {
   white,
 } from "kolorist";
 import { KIT_VERSION } from "../lifecycle/version.js";
+import {
+  HELMET_ACCENT,
+  HELMET_FILL,
+  HELMET_OUTLINE,
+  LABEL_MUTED,
+  SPACE_MARKS,
+  type WelcomeRenderOptions,
+  shouldUseVisualMotion,
+  shouldUseWelcomeColor,
+  tipAt,
+} from "./visual-kit.js";
 
-/** Helmet outline / primary text — MC `--text-primary` / landing logo stroke. */
-export const HELMET_OUTLINE = "#e2e8f0";
-/** Deep brand blue — landing logo gradient mid. */
-export const HELMET_FILL = "#0C8DEB";
-/** Aqua accent — landing logo gradient late stops. */
-export const HELMET_ACCENT = "#00D0E7";
-/** Muted labels — MC `--text-secondary`. */
-export const LABEL_MUTED = "#8899aa";
+export {
+  HELMET_ACCENT,
+  HELMET_FILL,
+  HELMET_OUTLINE,
+  LABEL_MUTED,
+  shouldUseWelcomeColor,
+  type WelcomeRenderOptions,
+};
 
 /** kolorist SupportLevel.TrueColor — needed so trueColor() emits when TTY probes say none (CI). */
 const KOLORIST_TRUECOLOR = 3;
@@ -66,28 +77,9 @@ function withKoloristColor<T>(fn: () => T): T {
   }
 }
 
-export interface WelcomeRenderOptions {
-  version?: string;
-  /** Force color on/off; when omitted, derive from env + TTY. */
-  color?: boolean;
-  stdoutIsTTY?: boolean;
-}
-
 /** True when argv names a citty subcommand (non-flag token), so skip root welcome. */
 export function hasCliSubcommand(rawArgs: string[] | undefined): boolean {
   return Boolean(rawArgs?.some((arg) => !arg.startsWith("-")));
-}
-
-/** Whether welcome / root help should emit ANSI (respects NO_COLOR / CI / non-TTY). */
-export function shouldUseWelcomeColor(opts: WelcomeRenderOptions = {}): boolean {
-  if (opts.color === false) return false;
-  if (process.env.NO_COLOR) return false;
-  if (process.env.NODE_DISABLE_COLORS) return false;
-  if (process.env.FORCE_COLOR === "0") return false;
-  if (process.env.CI != null && process.env.CI !== "") return false;
-  if (opts.color === true) return true;
-  const tty = opts.stdoutIsTTY ?? Boolean(process.stdout.isTTY);
-  return tty;
 }
 
 export function renderHelmetAscii(color: boolean): string {
@@ -135,6 +127,11 @@ export function renderWelcomeScreen(opts: WelcomeRenderOptions = {}): string {
     "",
     muted(
       "Chat HITL (start-project, git-staging/prod, run-plan-all) stays in Cursor slash commands.",
+    ),
+    muted(
+      `${shouldUseVisualMotion(opts) ? SPACE_MARKS.star : SPACE_MARKS.tick} ${tipAt(
+        [...version].reduce((n, c) => n + c.charCodeAt(0), 0),
+      )}`,
     ),
   ];
   return `${lines.join("\n")}\n`;

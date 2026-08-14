@@ -3064,10 +3064,16 @@ export function enrichPlans(plans, handoff) {
       path: plan.path,
       overview: truncateStr(plan.overview || "", MAX_SEMANTIC_LABEL),
       modifiedAt: plan.modifiedAt || null,
+      // Counter SoT for plan progress (todoStats / TERMINAL_TODO_STATUSES).
+      // `terminal` (completed + cancelled) is the fill numerator so the bar can
+      // reach 100% exactly when classifyPlan says completed (open === 0).
+      // Label format is mirrored by mergePlansForUi in dashboard/dashboard.html.
       progress: {
         completed: stats.completed,
+        cancelled: stats.cancelled,
+        terminal: stats.completed + stats.cancelled,
         total: stats.total,
-        label: `${stats.completed} of ${stats.total}`,
+        label: `${stats.completed} of ${stats.total} complete${stats.cancelled > 0 ? ` · ${stats.cancelled} cancelled` : ""}`,
       },
       lifecycle: classifyPlan(plan, handoff),
       // Preserved when lifecycle is completed so UI/sort can still know provenance.

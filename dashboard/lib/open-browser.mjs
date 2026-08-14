@@ -201,16 +201,11 @@ export function openBrowser(url, options = {}) {
 
   /**
    * Preferred open: detect failure before claiming success, then caller may fall back.
-   * Hermetic tests that only inject spawnFn use the detached path (throw = fail).
    *
    * @param {{ command: string, args: string[] }} built
    * @returns {{ opened: boolean, reason?: string, command: string, args: string[] }}
    */
   function runPreferred(built) {
-    if (options.spawnFn && !spawnSyncFn) {
-      return runDetached(built);
-    }
-
     const sync = spawnSyncFn ?? spawnSync;
 
     if (platform !== "darwin" && platform !== "win32") {

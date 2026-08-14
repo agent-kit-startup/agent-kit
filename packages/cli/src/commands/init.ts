@@ -3,6 +3,7 @@ import { defineCommand } from "citty";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { logger } from "../utils/logger.js";
 import { classifyInstallError, isNonInteractive } from "../utils/terminal.js";
+import { withCliProgress } from "../welcome/visual-kit.js";
 import { type InstallResult, performInstall } from "./install.js";
 
 type CompatibilityInstaller = (options: { cwd: string }) => Promise<InstallResult>;
@@ -35,7 +36,7 @@ export const initCommand = defineCommand({
     }
     logger.info("init now uses the canonical install and readiness workflow.");
     try {
-      const result = await runInitCompatibility(args.cwd);
+      const result = await withCliProgress("init", () => runInitCompatibility(args.cwd));
       const pending = result.readiness.pendingActions.length;
       logger.success(`L0 and readiness prepared in ${result.projectRoot}`);
       const nextStep =

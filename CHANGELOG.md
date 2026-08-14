@@ -1,4 +1,4 @@
-# Changelog - Agent Kit
+# Changelog - Mission Kit
 
 All notable changes to this project are documented in this file.
 
@@ -7,6 +7,74 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 ---
 
 ## [Unreleased]
+
+## [5.2.0] - 2026-08-14
+
+### Added
+
+- Factory CI Evidence checks run the root `node --test` suites (`plan-external-review-progress-gate.test.mjs`, `check-public-deny-links.test.mjs`, `verify-cli-dashboard-pack.test.mjs`, `git-hooks-pre-commit-composed.test.mjs`) via `pnpm test:root-node`. Scan scripts themselves already ran in CI.
+- Dashboard `guards.d.mts` now declares every `export function` and `export const` from `dashboard/lib/guards.mjs` (49/49), pinned by `packages/cli/src/dashboard/guards-dts-parity.test.ts`.
+- Overlay known-hashes refresh helper: `pnpm overlay:hashes` (root) / `npm run overlay:hashes` (`packages/cli`, `src/lifecycle/refresh-known-hashes.ts`) appends missing consumer-overlay content hashes to `KNOWN_SHIPPED_OVERLAY_HASHES` after L0 command/agent/skill body edits, enumerating the same sources as the overlay coverage tests (L0 overlay artifacts + registry skills core/community). Append-only (existing entries and inline comments are never removed or reordered), idempotent, with `overlay:hashes:check` exiting non-zero listing missing hashes without writing; replaces the manual hand-append step previously documented in `docs/marketplace.md`.
+- Knowledge-classification dirty-tree guard: the generator warns on in-scope working-tree drift and refuses regeneration with `--require-clean-tree` (now default in `pnpm evidence:knowledge-classification`) when tracked in-scope paths carry unstaged edits, closing the regen-poison class behind three stale-ledger incidents (ADR `2026-08-13_ledger-regen-clean-tree-guard.md`).
+
+### Changed
+
+- `/plan-review-triage` Step 2b names `.cursor/plans/`, `.cursor/plans/archive/`, and HANDOFF Backlog as `closeout_depth` sources; Hard stop 5 points at the depth-capped override (Ask Other) instead of a dead-end Write residuals redirect.
+- R15 Closed-by append on `plan-monitor-harden-cursor-awareness-inventory-cwd.md` for R2–R4 (factory composed pre-commit, `inventoryRoot` JSON, stamp at resolved root).
+- R15 Closed-by appends on the owning monitors for live Relevant skills rows, root `node --test` CI wiring, landing SoR ADR supersession, and triage-guidelines caveat (`personalization-context-and-ci-root-tests`).
+- Landing SoR ADR `2026-08-05_landing-external-design-source-of-record` records a dated supersession: rollback is not a self-contained single-file zip; live procedure is `docs/agentkit-landing.md`.
+- `docs/external-plan-review.md` Triage guidelines caveat Write residuals when closeout is depth-capped or Still open is process-only (ADR `2026-08-11_plan-audit-residuals-termination`).
+- Audits Claude reviewer default is `sonnet` (classifier-capable) so `--permission-mode auto` can run. `advisorModel` stays `opus` (escalate only). Explicit `reviewerModel: "haiku"` remains valid and cannot run auto (ADR `2026-08-14_audits-haiku-auto-permission-amend.md`).
+- Cursor hook resolution boundary decided and surfaced: `.cursor/hooks/agent/session-start.sh` now emits a degraded-mode `additional_context` diagnostic (still exit 0, stateless per session) when `resolve_agent_kit` fails, instead of a silent `{}`; the other four adapters (`guard-shell`, `after-edit-schema`, `secrets-prompt`, `pre-compact`) stay fail-open silent by accepted design. Boundary documented in `docs/marketplace.md` ("Hook resolution boundary"), smoke checklist section 4 aligned, and both branches pinned by `node --test scripts/hook-session-start-diagnostic.test.mjs`.
+
+### Fixed
+
+- Generator `renderProjectContext` fills the Relevant skills table from installed skill/component rows (generated empty-state when none) instead of a hardcoded `(none yet)` singleton that ignored live `componentResults`.
+- Preferred-browser `openBrowser` no longer short-circuits to detached `spawn` when `spawnFn` is injected without `spawnSyncFn`. `runPreferred` always uses `spawnSync`/`which` (then detach on linux). Hermetic tests inject `spawnSyncFn`.
+- `pnpm landing:sync` fails closed while `UPSTREAM-DESIGN-FIX-PROMPT.md` still has unchecked tasks. Apply the prompt in Claude Design first, or waive with `--waive-upstream-prompt` / `LANDING_SYNC_WAIVE_UPSTREAM_PROMPT=1`.
+- Dogfood Unprocessed parser skips the markdown table row immediately before a separator (so headers like `Nota` are not items) and ends the section on a Processed heading even without the word Files.
+- Dashboard starters `start.mjs` and `start-broadcast.mjs` pass `realpathSync` into `resolveContextConfigPath` (parity with `serve.mjs` and the CLI), so symlink-escape checks are not skipped.
+- Cursor-awareness inventory walk-up stops at the nearest `.git` (file or directory) when that directory has no `docs/cursor-native-audit.md`, so a nested consumer checkout does not inherit a parent kit's Open actions.
+- Public sync: missing or unreadable `scripts/public-sync.denylist` fails closed (exit 1) instead of loading zero extra patterns. A present comments-only extra-pattern file still dry-runs.
+- Public Path C CI: skip factory-only CLI tests when repo-root `CLAUDE.md` / `.claude/commands/agent-kit.md` or `registry/personas/core` are absent (those paths are not in the public-sync allowlist; `registry/**` is public-owned). Recurrence of `errors/2026-07-24_public-sync-ci-test-portability.md`.
+- Mission Control Plans tab / Checklist progress fill now matches to-do truth: the numerator counts terminal to-dos (completed + cancelled, mirroring `TERMINAL_TODO_STATUSES`/`todoStats` in `dashboard/lib/semantic-model.mjs`), so the bar reaches 100% whenever the lifecycle pill reads COMPLETED (previously a plan with any cancelled to-do could never fill past its completed-only count). `progressLabel` keeps the honest completed count and appends `· N cancelled` when present; `mergePlansForUi`'s fallback lifecycle mirrors `todoStats.open === 0`; `enrichPlans.progress` exposes `cancelled`/`terminal` counters as the single counter SoT. Vitest pins in `plugin-ux-validation.test.ts` + `semantic-model.test.ts` lock the math, label, fallback, and the completed-pill ⇒ 100% invariant.
+- Mission Control progress bars render a readable track and non-error colors: track upgraded from the 4px `var(--border)` hairline (invisible at 0%) to 6px `var(--border-active)` with 3px rounded ends, and `progressColor` returns green at 100% / neutral blue otherwise — low progress no longer renders red like an error state. Shimmer stays keyed to lifecycle `executing` only (never queueRole).
+- Cache lock hardening (multi-workspace install isolation residuals A–D): `acquireCacheLock`'s ENOENT retry now backs off with the jittered `LOCK_RETRY_MS` delay, re-creates the vanished parent directory, and reports a distinct timeout cause (was a ~3.4k syscalls/sec hot loop with a misleading "Another install may be stuck"); `releaseCacheLock` claims the owner file atomically (rename + verify + restore-on-mismatch) instead of check-then-`rm -rf`, so a stale-reclaim + successor republish can no longer lose the successor's lock; `writeLockOwner` adds a per-write tmp nonce and refreshes are serialized with an in-flight guard; a corrupt/missing owner file is healed on refresh so the fail-closed release cannot strand the lock until stale reclaim. New regression tests cover the ENOENT compensator, successor restore, and refresh heal/no-touch paths.
+- Install command generic failure path (residual E) now sets `process.exitCode = 1` and returns instead of `process.exit(1)`, so the recovery hint cannot be truncated on piped stderr; stale-reclaim mtime semantics documented and pinned by test (residual F: the lock dir mtime tracks the last owner refresh, so reclaim measures liveness, not acquisition age); unused `rmdir` import dropped (residual G).
+- HealthCenter fallback token pin hardened (health R1): new positive shape anchor for the `return HEALTH_SEVERITY_CHROME[sev] || { … }` form fails loudly if the fallback is refactored (`??`, extraction), and the negative token pin is whitespace-tolerant (`\s*`) so a line-wrapped return or double space can no longer skip it silently; regex stays bounded to the fallback object. Mutation-verified: H1/H2/H4 fire the pin, H3 fails the anchor.
+- Factory tracked `git-hooks/pre-commit` runs the main/master abort first, then `.cursor/hooks/pre-commit/` JSON validation and secrets scan when that directory exists (ADR `2026-08-14_factory-pre-commit-composed-chain.md`). Consumer clones without that directory still get the main-guard. Install/reinstall remains HITL. Pin: `scripts/git-hooks-pre-commit-composed.test.mjs` (in `pnpm test:root-node`).
+- `agent-kit cursor-awareness --check --json` includes `inventoryRoot` (absolute resolved inventory directory, or `null` when walk-up fails). Relative `inventoryPath` / `featuresPath` are unchanged.
+- Cursor-awareness prefs and `--stamp` read/write `.cursor/context/config.json` under the resolved `inventoryRoot`, not the caller cwd. When walk-up returns null, `--stamp` does not create a `.cursor/` tree at the caller cwd.
+
+## [5.1.0] - 2026-08-13
+
+### Added
+
+- CLI visual kit: in-process ANSI spinner frames, space marks, and rotating Mission Kit tips on welcome, grouped help, long-running commands, run-plan ticks, and audits wait heartbeats. Motion off under `NO_COLOR`, `CI`, non-TTY, and `AGENT_KIT_REDUCED_MOTION=1`. Runtime deps stay `@clack/prompts`, `citty`, `kolorist`. See `.cursor/memory/decisions/2026-08-13_cli-visual-kit-space-chrome.md`.
+- Mission Kit adoption comms loop (community skill `mission-kit-comms`, agent `.cursor/agents/mission-kit-comms.md`, channel map/calendar/templates, fail-closed local draft script). Drafts only; HITL Ask before any public post. Not Core Pack; not auto-posting; Cursor Marketplace submit stays parked.
+- Audits atomic wait: launcher persists arm epoch / deadline / remaining budget in `.cursor/context/audit-wait/<slug>.json` (not HANDOFF). Chat AwaitShell uses `waitSliceSeconds` (default 90); CI/headless may use the full remaining `waitTimeoutSeconds` (default 900). Early-ready and freshness `0|3|4` stay. See `.cursor/memory/decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md`.
+- Audits reviewer cascade: `backend: "auto"` uses Claude when usable, else Cursor Agent writing the same `plan-monitor-*.md` contract. Pinned `backend: "claude"` keeps tip+no-op when Claude is missing. Claude quota empty (`AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY`) is not the Cursor tick API/usage-limit hard-stop.
+- Audits model routing: Claude review spawn uses `reviewerModel` (default `haiku`); `advisorModel` (default `opus`) runs only when the monitor marks `<!-- audits-advisor-escalate -->`. Implementer model is stamped at arm (`--implementer-model` / `AGENT_KIT_AUDIT_IMPLEMENTER_MODEL`, default `auto`). Same-family reviewer is refused (including Auto/Auto). The reviewer prompt is a findings-contract against the git delta plus the plan, not a second implement pass.
+- ADR: Claude Code dynamic workflows and ultracode stay Claude-native. Agent Kit records a docs-only thin adapter (no ultracode runner, no `--backend claude` ticks, distinct from kit-load and audits). See `.cursor/memory/decisions/2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md`.
+- Claude CLI kit-load: pack contract (`docs/claude-cli-kit-load.md`), generator snippets, factory `CLAUDE.md` + `/agent-kit`, and getting-started / audits / A7 boundary. Install emits root `CLAUDE.md` and `.claude/commands/agent-kit.md` (skip if present). Distinct from audits, `--backend claude` ticks, and Action A7 (ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`).
+
+### Changed
+
+- Mission Control Config audits backend is no longer Claude-only: `auto` / `claude` / `cursor`, plus writable `reviewerModel`, `advisorModel`, `waitSliceSeconds`, and `waitTimeoutSeconds`. L0 `/run-plan`, `/run-plan-all`, and `/plan-external-review` document the wait-slice and reviewer cascade. Dogfood `cursor_audit_cursor_auto_fallback_20260813.md` is Processed with a Fix-now pointer to the atomic-wait ADR.
+- `/git-prod` documents the authorized post-Ask push form `ALLOW_MAIN_PUSH=1 git push origin main` (inline prefix, not a session export). Bare `git push origin main` stays denied. CLI guard already shipped; this closes the L0 gap for agent-kit-startup/agent-kit#38.
+- Factory dogfood bridge for git-staging dirty-tree spine drift (public issue #41). Acceptance is against factory `staging` wording; public tree updates on the next promote.
+- `/handoff` and the git-workflow rule now point at the same `/git-staging` inventory → theme-bucket SoT (`autogit/gitupdate.md`). Loop/orchestrated aliases already follow `/run-plan` closeout. Factory has no `/recupera-staging` command file.
+- `/run-plan` tick closeout no longer skips "trivial" HANDOFF/memory diffs. Those paths ship as a `docs(memory):` / `chore(kit):` bucket via `/git-staging`; broad `git add` of unrelated monitor WIP into a product commit stays forbidden.
+- `/git-staging` inventories the dirty tree and ships every safe theme-bucket (product vs `docs(memory):` / `chore(kit):`) instead of stop-and-quiz when soft kit paths look "out of the current flow." Warn/add-by-name still forbids sweeping monitor WIP into a product commit. Ask HITL stays on `/git-prod`. Public issue #41.
+- Naming glossary tighten (ADR `2026-08-06`): Mission Kit / MissionKit = product; Agent Kit = CLI, npm, slash commands, install manifest, and pack only; Mission Control = dashboard shell and tabs. Residual product-voice Agent Kit openers updated (CHANGELOG H1, bootstrap, capability-inventory, cursor-3-features, getting-started, docs index, DEVELOPMENT naming table). npm/CLI/slash/manifest identifiers and marketplace `displayName` unchanged.
+- Post-publish D2 dogfood closed: blank-folder `npx @dadado/agent-kit-cli@5.0 install` against npm `latest` 5.0.0 passed five assertions + Path C dashboard HTTP 200; checklist After-publish rows and ship-5.0 npm/npx monitor R15 Closed-by updated (no retag).
+- Forward note (do not rewrite `[5.0.0]`): the released evidence-gate "green again" line overstates a staging-red. CI at the predecessor SHA already had Evidence checks success; the red was a local worktree with untracked monitors.
+- `docs/evidence/npm-pack-5.0.0-2026-08-11/` is a pre-tag proxy (18 packed files) and is superseded by published npm `5.0.0` (`dist.fileCount` 23, shasum `203db8ec…`). See that directory README. The JSON is left as history, not rewritten.
+
+### Fixed
+
+- `agent-kit update --check` honors `--registry` (local checkout): compare against that source's version and L0 drift instead of the public latest tag; JSON `registryUrl` / `registryRef` report the resolved source (agent-kit-startup/agent-kit#37).
+- `agent-kit dashboard-broadcast` window and process title used the CLI package folder `cli` when snapshot env was missing. Spawn now sets `MISSION_CONTROL_REPO_ROOT` and titles from the workspace basename.
 
 ## [5.0.0] - 2026-08-12
 

@@ -6,6 +6,7 @@ import type { ArgsDef, CommandDef } from "citty";
 import { bold, gray, underline } from "kolorist";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { shouldUseWelcomeColor } from "./screen.js";
+import { SPACE_MARKS, shouldUseVisualMotion, tipAt } from "./visual-kit.js";
 
 export type HelpGroupId = "setup" | "mission" | "dashboard" | "integrity" | "other";
 
@@ -103,11 +104,14 @@ export async function renderGroupedRootHelp<T extends ArgsDef = ArgsDef>(
     lines.push("");
   }
 
+  const tipMark = shouldUseVisualMotion() ? SPACE_MARKS.star : SPACE_MARKS.tick;
+  const tip = tipAt([...version].reduce((n, c) => n + c.charCodeAt(0), 0));
   lines.push(
     g(`Use \`${name} <command> --help\` for more information about a command.`),
     g(
       "Chat-only HITL (start-project, backlog, git-staging/prod, run-plan-all) is not a CLI surface.",
     ),
+    g(`${tipMark} ${tip}`),
     "",
   );
   return lines.join("\n");

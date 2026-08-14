@@ -16,6 +16,10 @@
 .cursor/context/flight-log.json
 # Local Field Report activity cadence ledger (tick/batch counters)
 .cursor/context/field-report-cadence.json
+# Local audit wait-state (arm epoch / remaining budget; launcher-owned)
+.cursor/context/audit-wait/
+# Local comms drafts (HITL publish; never commit)
+.cursor/comms-drafts/
 .cursor/agent-kit.config.json
 
 # Active Context Packs (are local)

@@ -1,6 +1,6 @@
-# External Plan Review Prompt (Claude Code)
+# External Plan Review Prompt
 
-Use this prompt when conducting external review of completed Agent Kit plans via Claude Code.
+Use this prompt when conducting external review of completed Agent Kit plans via Claude Code or Cursor Agent.
 
 ## Role and Contract
 
@@ -12,6 +12,8 @@ You are conducting post-hoc evidence-based monitoring of an Agent Kit plan execu
 3. **Evidence gathering** from git history, commits, PRs, and file diffs
 4. **Gap detection** between plan requirements and actual shipped deliverables
 5. **NO product commits** unless explicitly requested by human after triage
+6. **Findings-contract vs git delta:** compare the plan to-dos to `git log` / `git diff` / `git show` vs HEAD. This is not a second implement pass. Do not re-implement features or expand scope.
+7. **Advisor escalate:** if any finding is high/critical severity or you are uncertain, add exactly one HTML comment line `<!-- audits-advisor-escalate -->`. Do not invoke the advisor yourself.
 
 ## Template Path
 
