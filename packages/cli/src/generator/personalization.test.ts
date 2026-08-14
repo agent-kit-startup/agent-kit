@@ -112,7 +112,12 @@ describe("repository personalization", () => {
       ]),
     );
     expect(applied.manifest.protected).toEqual(
-      expect.arrayContaining(["AGENTS.md", ".cursor/project-context.md"]),
+      expect.arrayContaining([
+        "AGENTS.md",
+        ".cursor/project-context.md",
+        "CLAUDE.md",
+        ".claude/commands/agent-kit.md",
+      ]),
     );
     expect(applied.manifest.personalization).toEqual(
       expect.objectContaining({

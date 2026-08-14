@@ -1,4 +1,4 @@
-# Changelog - Agent Kit
+# Changelog - Mission Kit
 
 All notable changes to this project are documented in this file.
 
@@ -7,6 +7,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 ---
 
 ## [Unreleased]
+
+## [5.1.0] - 2026-08-13
+
+### Added
+
+- CLI visual kit: in-process ANSI spinner frames, space marks, and rotating Mission Kit tips on welcome, grouped help, long-running commands, run-plan ticks, and audits wait heartbeats. Motion off under `NO_COLOR`, `CI`, non-TTY, and `AGENT_KIT_REDUCED_MOTION=1`. Runtime deps stay `@clack/prompts`, `citty`, `kolorist`. See `.cursor/memory/decisions/2026-08-13_cli-visual-kit-space-chrome.md`.
+- Mission Kit adoption comms loop (community skill `mission-kit-comms`, agent `.cursor/agents/mission-kit-comms.md`, channel map/calendar/templates, fail-closed local draft script). Drafts only; HITL Ask before any public post. Not Core Pack; not auto-posting; Cursor Marketplace submit stays parked.
+- Audits atomic wait: launcher persists arm epoch / deadline / remaining budget in `.cursor/context/audit-wait/<slug>.json` (not HANDOFF). Chat AwaitShell uses `waitSliceSeconds` (default 90); CI/headless may use the full remaining `waitTimeoutSeconds` (default 900). Early-ready and freshness `0|3|4` stay. See `.cursor/memory/decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md`.
+- Audits reviewer cascade: `backend: "auto"` uses Claude when usable, else Cursor Agent writing the same `plan-monitor-*.md` contract. Pinned `backend: "claude"` keeps tip+no-op when Claude is missing. Claude quota empty (`AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY`) is not the Cursor tick API/usage-limit hard-stop.
+- Audits model routing: Claude review spawn uses `reviewerModel` (default `haiku`); `advisorModel` (default `opus`) runs only when the monitor marks `<!-- audits-advisor-escalate -->`. Implementer model is stamped at arm (`--implementer-model` / `AGENT_KIT_AUDIT_IMPLEMENTER_MODEL`, default `auto`). Same-family reviewer is refused (including Auto/Auto). The reviewer prompt is a findings-contract against the git delta plus the plan, not a second implement pass.
+- ADR: Claude Code dynamic workflows and ultracode stay Claude-native. Agent Kit records a docs-only thin adapter (no ultracode runner, no `--backend claude` ticks, distinct from kit-load and audits). See `.cursor/memory/decisions/2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md`.
+- Claude CLI kit-load: pack contract (`docs/claude-cli-kit-load.md`), generator snippets, factory `CLAUDE.md` + `/agent-kit`, and getting-started / audits / A7 boundary. Install emits root `CLAUDE.md` and `.claude/commands/agent-kit.md` (skip if present). Distinct from audits, `--backend claude` ticks, and Action A7 (ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`).
+
+### Changed
+
+- Mission Control Config audits backend is no longer Claude-only: `auto` / `claude` / `cursor`, plus writable `reviewerModel`, `advisorModel`, `waitSliceSeconds`, and `waitTimeoutSeconds`. L0 `/run-plan`, `/run-plan-all`, and `/plan-external-review` document the wait-slice and reviewer cascade. Dogfood `cursor_audit_cursor_auto_fallback_20260813.md` is Processed with a Fix-now pointer to the atomic-wait ADR.
+- `/git-prod` documents the authorized post-Ask push form `ALLOW_MAIN_PUSH=1 git push origin main` (inline prefix, not a session export). Bare `git push origin main` stays denied. CLI guard already shipped; this closes the L0 gap for agent-kit-startup/agent-kit#38.
+- Factory dogfood bridge for git-staging dirty-tree spine drift (public issue #41). Acceptance is against factory `staging` wording; public tree updates on the next promote.
+- `/handoff` and the git-workflow rule now point at the same `/git-staging` inventory → theme-bucket SoT (`autogit/gitupdate.md`). Loop/orchestrated aliases already follow `/run-plan` closeout. Factory has no `/recupera-staging` command file.
+- `/run-plan` tick closeout no longer skips "trivial" HANDOFF/memory diffs. Those paths ship as a `docs(memory):` / `chore(kit):` bucket via `/git-staging`; broad `git add` of unrelated monitor WIP into a product commit stays forbidden.
+- `/git-staging` inventories the dirty tree and ships every safe theme-bucket (product vs `docs(memory):` / `chore(kit):`) instead of stop-and-quiz when soft kit paths look "out of the current flow." Warn/add-by-name still forbids sweeping monitor WIP into a product commit. Ask HITL stays on `/git-prod`. Public issue #41.
+- Naming glossary tighten (ADR `2026-08-06`): Mission Kit / MissionKit = product; Agent Kit = CLI, npm, slash commands, install manifest, and pack only; Mission Control = dashboard shell and tabs. Residual product-voice Agent Kit openers updated (CHANGELOG H1, bootstrap, capability-inventory, cursor-3-features, getting-started, docs index, DEVELOPMENT naming table). npm/CLI/slash/manifest identifiers and marketplace `displayName` unchanged.
+- Post-publish D2 dogfood closed: blank-folder `npx @dadado/agent-kit-cli@5.0 install` against npm `latest` 5.0.0 passed five assertions + Path C dashboard HTTP 200; checklist After-publish rows and ship-5.0 npm/npx monitor R15 Closed-by updated (no retag).
+- Forward note (do not rewrite `[5.0.0]`): the released evidence-gate "green again" line overstates a staging-red. CI at the predecessor SHA already had Evidence checks success; the red was a local worktree with untracked monitors.
+- `docs/evidence/npm-pack-5.0.0-2026-08-11/` is a pre-tag proxy (18 packed files) and is superseded by published npm `5.0.0` (`dist.fileCount` 23, shasum `203db8ec…`). See that directory README. The JSON is left as history, not rewritten.
+
+### Fixed
+
+- `agent-kit update --check` honors `--registry` (local checkout): compare against that source's version and L0 drift instead of the public latest tag; JSON `registryUrl` / `registryRef` report the resolved source (agent-kit-startup/agent-kit#37).
+- `agent-kit dashboard-broadcast` window and process title used the CLI package folder `cli` when snapshot env was missing. Spawn now sets `MISSION_CONTROL_REPO_ROOT` and titles from the workspace basename.
 
 ## [5.0.0] - 2026-08-12
 

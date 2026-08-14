@@ -18,7 +18,7 @@
 
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, openSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   REPO_ROOT_ENV,
@@ -34,6 +34,7 @@ import { openBrowser, readPreferredBrowserFromConfig } from "./lib/open-browser.
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = join(__dirname, "..");
 const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
+process.title = `Mission Control · ${basename(ROOT) || "workspace"}`;
 const SERVE = join(__dirname, "serve.mjs");
 const HOST = process.env.HOST || "127.0.0.1";
 const DISPLAY_HOST = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;

@@ -80,11 +80,11 @@ If the answer is not an explicit **yes**, stop. No tag push, no token change for
 
 These rows are **post-publish** only. Do not mark them Met from pre-tag mechanism review while registry `latest` is still behind the tree.
 
-- [ ] `npm view @dadado/agent-kit-cli version` matches the release (for 5.0: expect `5.0.0`, not residual `4.8.9`).
+- [x] `npm view @dadado/agent-kit-cli version` matches the release (for 5.0: expect `5.0.0`, not residual `4.8.9`).
 - [ ] Smoke install: `npx @dadado/agent-kit-cli@<version> --help` (or `pnpm dlx`).
-- [ ] Blank-folder dogfood: `npx @dadado/agent-kit-cli@5.0 install` (or `@5.0.0`) plus five assertions (`--version`, manifest pin, `hooks.json`, dashboard invoke, no nested `agent-kit/` folder). Owned after publish; blocked while `latest` is 4.8.9.
+- [x] Blank-folder dogfood: `npx @dadado/agent-kit-cli@5.0 install` (or `@5.0.0`) plus five assertions (`--version`, manifest pin, `hooks.json`, dashboard invoke, no nested `agent-kit/` folder). Verified 2026-08-12 against npm `latest` 5.0.0 (see monitor D2 Closed-by).
 - [ ] Public GitHub Release Latest and public storefront label resolve to 5.0 (after tag + sync-public), not pre-tag mechanism-only checks.
-- [ ] Scoped Path C smoke (blank folder): install the published package under `node_modules/@dadado/agent-kit-cli` and confirm `agent-kit dashboard` returns HTTP 200 on loopback (required after Path C / detach-start changes; also a `/git-prod` §12.5 row).
+- [x] Scoped Path C smoke (blank folder): `npx @dadado/agent-kit-cli@5.0.0 dashboard --no-open` served from `_npx/.../@dadado/agent-kit-cli/dashboard/` with HTTP 200 on loopback (2026-08-12 D2 dogfood).
 - [ ] GitHub Actions `publish-npm` job for the tag shows publish success (not skip), when using CI.
 
 ## Cross-lens go/no-go (before tagging)

@@ -19,7 +19,11 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
    **Advisory (does not replace confirmation):** if Blocking untriaged `.cursor/memory/plan-monitor-*.md` match themes in the staging→main delta, mention them once in the summary. Never steal this Ask; Field Report / `/plan-review-triage` stay attention/HITL SoT.
    
    **Fallback:** if Ask questions tool unavailable, ask for explicit confirmation in chat.
-5. Run merge to main, push main, create/push annotated vX.Y.Z tag (when absent), confirm production.
+5. Run merge to main, then push with the authorized inline form only:
+
+   `ALLOW_MAIN_PUSH=1 git push origin main`
+
+   Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination. Then create/push annotated vX.Y.Z tag (when absent) and confirm production. Details: `autogit/gitupdate.md` Prompt git prod step 9.
 6. Update `.cursor/HANDOFF.md` ("promoted to production") and memory-loop WRITE if it applies.
 7. In this monorepo: annotated tags trigger `publish-npm` + `sync-public` CI; `pnpm git:trigger-public-sync` fallback when needed per `autogit/gitupdate.md`.
 8. **Post-prod verification (mandatory in this monorepo):** before ending, check tag CI jobs (`publish-npm`, `sync-public`), `npm view @dadado/agent-kit-cli version`, **public sync PR merged** (not CI-green alone), public `main` sync commit, and public GitHub Release Latest. Report each row. Silent npm success with a stale public Releases badge, or CI-green with an unmerged sync PR, is a kit failure mode; see `autogit/gitupdate.md` step 12.5.

@@ -445,7 +445,10 @@ export const CONFIG_PERSONA_IDS = Object.freeze(["autopilot", "night-shift", "gh
 export const CONFIG_PERSONA_MODES = Object.freeze(["continue-plan", "run-plan", "cli-run-plan"]);
 
 /** Allowed externalPlanReview.backend values. */
-export const CONFIG_REVIEW_BACKENDS = Object.freeze(["claude"]);
+export const CONFIG_REVIEW_BACKENDS = Object.freeze(["auto", "claude", "cursor"]);
+
+/** Named reviewer / advisor / implementer model id (no secrets). */
+const REVIEW_MODEL_ID = /^[A-Za-z0-9._:+-]{1,64}$/;
 
 /** Allowed externalPlanReview.mode values (audits arming path). */
 export const CONFIG_REVIEW_MODES = Object.freeze(["paste", "autonomous"]);
@@ -591,6 +594,10 @@ export function validateConfigWriteBody(body) {
     const eprAllowed = new Set([
       "enabled",
       "backend",
+      "reviewerModel",
+      "advisorModel",
+      "waitSliceSeconds",
+      "waitTimeoutSeconds",
       "autoRemediate",
       "offerOnExhausted",
       "mode",
@@ -612,9 +619,44 @@ export function validateConfigWriteBody(body) {
     }
     if ("backend" in epr) {
       if (typeof epr.backend !== "string" || !CONFIG_REVIEW_BACKENDS.includes(epr.backend)) {
-        return { ok: false, error: "externalPlanReview.backend must be a known backend" };
+        return { ok: false, error: "externalPlanReview.backend must be auto, claude, or cursor" };
       }
       eprPatch.backend = epr.backend;
+    }
+    if ("reviewerModel" in epr) {
+      if (
+        typeof epr.reviewerModel !== "string" ||
+        !REVIEW_MODEL_ID.test(epr.reviewerModel.trim())
+      ) {
+        return { ok: false, error: "externalPlanReview.reviewerModel must be a model id" };
+      }
+      eprPatch.reviewerModel = epr.reviewerModel.trim();
+    }
+    if ("advisorModel" in epr) {
+      if (typeof epr.advisorModel !== "string" || !REVIEW_MODEL_ID.test(epr.advisorModel.trim())) {
+        return { ok: false, error: "externalPlanReview.advisorModel must be a model id" };
+      }
+      eprPatch.advisorModel = epr.advisorModel.trim();
+    }
+    if ("waitSliceSeconds" in epr) {
+      const n = epr.waitSliceSeconds;
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 3600) {
+        return {
+          ok: false,
+          error: "externalPlanReview.waitSliceSeconds must be an integer 1..3600",
+        };
+      }
+      eprPatch.waitSliceSeconds = n;
+    }
+    if ("waitTimeoutSeconds" in epr) {
+      const n = epr.waitTimeoutSeconds;
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 86400) {
+        return {
+          ok: false,
+          error: "externalPlanReview.waitTimeoutSeconds must be an integer 1..86400",
+        };
+      }
+      eprPatch.waitTimeoutSeconds = n;
     }
     if ("autoRemediate" in epr) {
       if (typeof epr.autoRemediate !== "boolean") {
@@ -846,6 +888,18 @@ export function allowlistConfig(raw) {
     }
     if (typeof raw.externalPlanReview.preflight === "string") {
       epr.preflight = truncateStr(raw.externalPlanReview.preflight, 16);
+    }
+    if (typeof raw.externalPlanReview.reviewerModel === "string") {
+      epr.reviewerModel = truncateStr(raw.externalPlanReview.reviewerModel, 64);
+    }
+    if (typeof raw.externalPlanReview.advisorModel === "string") {
+      epr.advisorModel = truncateStr(raw.externalPlanReview.advisorModel, 64);
+    }
+    if (typeof raw.externalPlanReview.waitSliceSeconds === "number") {
+      epr.waitSliceSeconds = raw.externalPlanReview.waitSliceSeconds;
+    }
+    if (typeof raw.externalPlanReview.waitTimeoutSeconds === "number") {
+      epr.waitTimeoutSeconds = raw.externalPlanReview.waitTimeoutSeconds;
     }
     summary.externalPlanReview = epr;
   }

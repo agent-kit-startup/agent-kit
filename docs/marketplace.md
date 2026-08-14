@@ -68,7 +68,7 @@ The plugin root is the **parent of `.cursor-plugin/`** - the repo root. Cursor's
 |--------------|-------|-----|
 | `rules` | `.cursor/rules` | 25 `.mdc`; 10 `alwaysApply: true` structural, the rest glob-gated per stack |
 | `skills` | `.cursor/skills/core` | **Core only.** Discovery matches direct children holding a `SKILL.md`, so `.cursor/skills` (whose children are `core/` and `community/`) would find nothing. Pointing at `core/` also encodes the thesis: stack skills stay on `agent-kit add` |
-| `agents` | `.cursor/agents` | 13 subagent definitions |
+| `agents` | `.cursor/agents` | 14 subagent definitions |
 | `commands` | `.cursor/commands` | 27 slash commands |
 | `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, so an unresolved path degrades quietly |
 | `logo` | `dashboard/logo.svg` | Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced and would be dropped from the public mirror without failing anything |

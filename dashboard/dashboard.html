@@ -5606,9 +5606,31 @@ function renderConfigSection(d) {
           <div class="config-row">
             <label for="config-epr-backend">Backend</label>
             <select id="config-epr-backend" name="eprBackend" data-focus-key="config-epr-backend">
+              <option value="auto"${epr.backend === 'auto' ? ' selected' : ''}>auto</option>
               <option value="claude"${epr.backend === 'claude' || !epr.backend ? ' selected' : ''}>claude</option>
+              <option value="cursor"${epr.backend === 'cursor' ? ' selected' : ''}>cursor</option>
             </select>
-            <span class="config-hint">claude is the only backend today.</span>
+            <span class="config-hint">auto uses Claude when usable, else Cursor Agent. Pin claude or cursor to force one backend.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-epr-reviewerModel">Reviewer model</label>
+            <input type="text" id="config-epr-reviewerModel" name="eprReviewerModel" value="${escapeAttr(epr.reviewerModel || 'haiku')}" maxlength="64" data-focus-key="config-epr-reviewerModel" />
+            <span class="config-hint">Claude default haiku. Must differ from the implementer stamp (Auto/Auto refused).</span>
+          </div>
+          <div class="config-row">
+            <label for="config-epr-advisorModel">Advisor model</label>
+            <input type="text" id="config-epr-advisorModel" name="eprAdvisorModel" value="${escapeAttr(epr.advisorModel || 'opus')}" maxlength="64" data-focus-key="config-epr-advisorModel" />
+            <span class="config-hint">Opus only when the monitor marks high severity or uncertainty.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-epr-waitSlice">Wait slice (seconds)</label>
+            <input type="number" id="config-epr-waitSlice" name="eprWaitSlice" min="1" max="3600" step="1" value="${escapeAttr(String(epr.waitSliceSeconds || 90))}" data-focus-key="config-epr-waitSlice" />
+            <span class="config-hint">Chat AwaitShell budget per session. Default 90.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-epr-waitTimeout">Wait timeout (seconds)</label>
+            <input type="number" id="config-epr-waitTimeout" name="eprWaitTimeout" min="1" max="86400" step="1" value="${escapeAttr(String(epr.waitTimeoutSeconds || 900))}" data-focus-key="config-epr-waitTimeout" />
+            <span class="config-hint">Total remaining budget across slices and CI. Default 900.</span>
           </div>
           <div class="config-row">
             <label for="config-epr-mode">Arming mode</label>
@@ -5680,6 +5702,18 @@ function collectMissionConfigPayload() {
       offerOnExhausted: !!document.getElementById('config-epr-offer')?.checked,
       autoRemediate: !!document.getElementById('config-epr-auto')?.checked,
       backend: document.getElementById('config-epr-backend')?.value || 'claude',
+      reviewerModel: (document.getElementById('config-epr-reviewerModel')?.value || 'haiku').trim(),
+      advisorModel: (document.getElementById('config-epr-advisorModel')?.value || 'opus').trim(),
+      waitSliceSeconds: (() => {
+        const raw = document.getElementById('config-epr-waitSlice')?.value;
+        const n = Number.parseInt(String(raw || '90'), 10);
+        return Number.isFinite(n) && n >= 1 ? n : 90;
+      })(),
+      waitTimeoutSeconds: (() => {
+        const raw = document.getElementById('config-epr-waitTimeout')?.value;
+        const n = Number.parseInt(String(raw || '900'), 10);
+        return Number.isFinite(n) && n >= 1 ? n : 900;
+      })(),
       mode: document.getElementById('config-epr-mode')?.value || 'paste',
       midBatchAudits: !!document.getElementById('config-epr-midBatch')?.checked,
       preflight: document.getElementById('config-epr-preflight')?.value || 'off',

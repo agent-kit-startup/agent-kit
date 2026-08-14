@@ -28,6 +28,8 @@ New to the kit? Here's where things land and how to test before your PR:
 
 See [getting-started.md](getting-started.md) for the consumer workflow after install.
 
+Optional: `agent-kit add mission-kit-comms` installs the adoption-comms skill (draft recap/release copy with HITL before any public post). Not part of Core Pack. Guide: [comms.md](comms.md).
+
 ## Standards
 
 - Conventional Commits
@@ -99,6 +101,19 @@ pnpm --filter @dadado/agent-kit-cli start -- contribute \
 ```
 
 See [contribute-upstream.md](contribute-upstream.md). Registry contributions now target the **public** repo as Phase B is complete - [topology-private-public.md](topology-private-public.md).
+
+## Contributor funnel (issues to PR to upstream)
+
+1. **Question or bug:** GitHub issue forms (Discussions is not enabled; see [SUPPORT.md](../.github/SUPPORT.md)).
+2. **Code or skill PR:** this guide; public repo targets `main`, factory targets `staging`.
+3. **Consumer-project drift:** [`agent-kit contribute`](contribute-upstream.md) (CLI never pushes).
+4. **Vulnerability:** [SECURITY.md](../.github/SECURITY.md) private channel only.
+
+Maintainer replies that are promotional still need HITL (skill `mission-kit-comms`). Cursor Marketplace publisher submit is not this funnel.
+
+## Telling people about Mission Kit
+
+Drafts and cadence live in [comms.md](comms.md). The launch paste in [public-launch-announcement.md](public-launch-announcement.md) remains valid seed copy. Nothing in the kit posts to social networks by itself.
 
 ## Contribution license (follow-on)
 

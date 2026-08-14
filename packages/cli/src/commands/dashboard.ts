@@ -53,6 +53,22 @@ export function applyDashboardOpenEnv(
   return next;
 }
 
+/** Snapshot env + open flags for Mission Control starters. */
+export function dashboardSpawnEnv(
+  env: NodeJS.ProcessEnv,
+  snapshotRoot: string,
+  opts: { noOpen?: boolean; browser?: string },
+): NodeJS.ProcessEnv {
+  const root = path.resolve(snapshotRoot);
+  return applyDashboardOpenEnv({ ...env, MISSION_CONTROL_REPO_ROOT: root }, { ...opts, cwd: root });
+}
+
+/** Terminal / tab identity: workspace basename only (no absolute home paths). */
+export function dashboardProcessTitle(snapshotRoot: string): string {
+  const base = path.basename(path.resolve(snapshotRoot)) || "workspace";
+  return `Mission Control · ${base}`;
+}
+
 /** Candidates for dashboard assets shipped beside the CLI package (Path C). */
 export function bundledDashboardCandidates(
   filename: "start.mjs" | "start-broadcast.mjs",
@@ -222,10 +238,11 @@ export const dashboardCommand = defineCommand({
       return;
     }
 
-    const env = applyDashboardOpenEnv(
-      { ...process.env, MISSION_CONTROL_REPO_ROOT: snapshotRoot },
-      { noOpen: Boolean(args["no-open"]), browser: args.browser, cwd: snapshotRoot },
-    );
+    const env = dashboardSpawnEnv({ ...process.env }, snapshotRoot, {
+      noOpen: Boolean(args["no-open"]),
+      browser: args.browser,
+    });
+    process.title = dashboardProcessTitle(snapshotRoot);
 
     const code = await runStartScript(startPath, env);
     if (code !== 0) process.exitCode = code;

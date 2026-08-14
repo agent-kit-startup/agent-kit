@@ -1,6 +1,6 @@
-# What installing Agent Kit puts in your project
+# What a Mission Kit install puts in your project
 
-When you install Agent Kit, it doesn't copy its own repository into your project. It writes just the files your project needs: a few rules and commands under `.cursor/`, a git routine under `autogit/`, and a small manifest that tracks what was installed. This page shows exactly what lands where and why.
+When you install via the Agent Kit CLI (`npx @dadado/agent-kit-cli install`), it does not copy the kit repository into your project. It writes just the files your project needs: a few rules and commands under `.cursor/`, a git routine under `autogit/`, and a small manifest that tracks what was installed. This page shows exactly what lands where and why.
 
 ## The layout you get
 

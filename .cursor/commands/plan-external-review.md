@@ -7,7 +7,7 @@ description: Arm an optional external plan audit after /run-plan exhausts its im
 
 ## Goal
 
-Manually arm **optional plan audits** (external plan review via Claude Code) after `/run-plan` has exhausted implementable to-dos. Claude writes an evidence-based monitor under `.cursor/memory/plan-monitor-*.md`. Cursor triage of findings is a **later** step (not this command).
+Manually arm **optional plan audits** (external plan review via Claude Code or Cursor Agent) after `/run-plan` has exhausted implementable to-dos. The reviewer writes an evidence-based monitor under `.cursor/memory/plan-monitor-*.md`. Cursor triage of findings is a **later** step (not this command).
 
 ## When to Use
 
@@ -34,7 +34,7 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 1. Prefight files above exist.
 2. `.cursor/context/config.json` has `externalPlanReview.enabled: true` (see `config.example.json`), **or** use `--force` for a one-shot arm without persisting opt-in. Missing file = disabled unless `--force`.
 3. Prefer `externalPlanReview.mode: "autonomous"` for background/inspectable auto-launch. Missing `mode` keeps paste-compatible / legacy behavior.
-4. Claude Code CLI (`claude`) on PATH for autonomous / interactive / headless launch; if missing, soft tip + exit 0 (Field Report stays owed). `--paste-only` still prints the command without requiring `claude` yet.
+4. A usable reviewer: `backend: "auto"` (default for new example/docs) uses Claude when present, else Cursor Agent. Pinned `backend: "claude"` still tips + no-op when Claude is missing. `--paste-only` still prints the command without requiring a binary yet. Same-family implementer and reviewer is an honest skip (including Auto/Auto). Claude review uses `reviewerModel` (default `haiku`); `advisorModel` (default `opus`) runs only on escalate.
 
 ## Manual arm
 
@@ -51,11 +51,12 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 
 ### What "operator-visible" means (smoke notes)
 
-- **Autonomous success:** chat arm **must** use `--force --autonomous --wait-monitor`. The launcher prefers a background/inspectable PTY (no OS Terminal focus by default; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` restores activate), then polls until a **fresh** monitor exists (`mtime >= arm epoch` or the HTML comment sentinel `<!-- audits-wait-fresh: created|updated -->` written into the monitor). Exit `0` = fresh ready; `3` = timeout; `4` = soft-fail while waiting. Spawn-only exit 0 without wait is **not** review done. **Chat continuation:** AwaitShell until `0|3|4`; on `0` run `/plan-review-triage` Ask in the same session. Do **not** stop at Final HANDOFF "after monitor lands" or require typing `done`. ADR: `decisions/2026-07-27_audits-wait-freshness-enforce.md`.
+- **Autonomous success:** chat arm **must** use `--force --autonomous --wait-monitor`. The launcher prefers a background/inspectable PTY (no OS Terminal focus by default; `--focus-terminal` / `AGENT_KIT_AUDIT_FOCUS_TERMINAL=1` restores activate), then polls until a **fresh** monitor exists (`mtime >= arm epoch` or the HTML comment sentinel `<!-- audits-wait-fresh: created|updated -->` written into the monitor). Chat AwaitShell uses `waitSliceSeconds` (default 90); total budget is `waitTimeoutSeconds` (default 900) persisted in `.cursor/context/audit-wait/<slug>.json`. A new session resumes remaining budget and does not restart 900s. Early-ready still exits `0` at first freshness. Exit `0` = fresh ready; `3` = timeout (slice or total; not review done); `4` = soft-fail while waiting. Spawn-only exit 0 without wait is **not** review done. **Chat continuation:** AwaitShell until `0|3|4`; on `0` run `/plan-review-triage` Ask in the same session. Do **not** stop at Final HANDOFF "after monitor lands" or require typing `done`. ADRs: `decisions/2026-07-27_audits-wait-freshness-enforce.md`, `decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md`.
 - **Autonomous soft-fail:** missing `claude` → tip + exit `4` when `--wait-monitor` was requested (Field Report owed). Background spawn unavailable → falls back to `--paste-only` UX with an honest "NOT running yet" banner. A **silent PTY** (spawn succeeded, no scrollback within the progress-gate grace window) is reported as a failed launch: the launcher disposes the session it just spawned, prints the paste fallback, and soft-fails instead of burning the wait budget. A **session-cap refusal** (detached `agent-kit-audit-*` sessions at the cap) never spawns at all. Soft-fail does **not** invent a monitor or run triage as if review completed.
 - **Exit 3 is timeout-only:** it means the freshness gate was not satisfied inside the budget, never that the review finished. A monitor that appears later, including one written by a different or later arm, does **not** convert a `3` into success. Leave the target Field Report **owed** and re-arm. ADR: `decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 - **Paste-only:** clipboard + printed interactive one-liner; review starts only after the operator pastes into their Cursor Terminal. After paste (Claude running), the session still waits for the monitor file then continues into triage Ask when possible.
-- **`--dry-run`:** resolves mode/plan and prints `background-cmd` / `paste-cmd` / `focus-terminal` without spawning Claude (useful for smoke).
+- **`--dry-run`:** resolves mode/plan and prints `background-cmd` / `paste-cmd` / `focus-terminal` / `reviewer-backend` / `same-model-refuse` without spawning a reviewer (useful for smoke).
+- **Reviewer cascade:** `--backend auto|claude|cursor` (or config). Claude spawn passes `--model` from `reviewerModel`. Cursor fallback cannot honor a Claude-family name; Auto/Auto is refused. Findings-only until `/plan-review-triage`. Never `/git-prod`.
 
 ### A. Script (preferred)
 

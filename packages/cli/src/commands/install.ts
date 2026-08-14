@@ -21,6 +21,7 @@ import {
   confirmProjectRoot,
   isNonInteractive,
 } from "../utils/terminal.js";
+import { withCliProgress } from "../welcome/visual-kit.js";
 
 function parsePackList(raw: string | undefined): string[] {
   if (!raw?.trim()) return [];
@@ -196,15 +197,17 @@ export const installCommand = defineCommand({
     }
 
     try {
-      const result = await performInstall({
-        cwd: projectRoot,
-        profile: args.profile as string | undefined,
-        pack: args.pack,
-        registry: args.registry,
-        url: args.url,
-        ref: args.ref,
-        refresh: args.refresh,
-      });
+      const result = await withCliProgress("install", () =>
+        performInstall({
+          cwd: projectRoot,
+          profile: args.profile as string | undefined,
+          pack: args.pack,
+          registry: args.registry,
+          url: args.url,
+          ref: args.ref,
+          refresh: args.refresh,
+        }),
+      );
       logApplyStats(result.stats);
       logger.success(`Manifest written: ${result.manifestPath}`);
       logger.success("Readiness snapshot written: .cursor/context/readiness.json");

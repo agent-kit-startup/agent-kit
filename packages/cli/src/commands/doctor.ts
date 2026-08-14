@@ -7,6 +7,7 @@ import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
+import { withCliProgress } from "../welcome/visual-kit.js";
 
 export interface DoctorResult {
   report: ReadinessReport;
@@ -97,7 +98,8 @@ export const doctorCommand = defineCommand({
     },
   },
   async run({ args }) {
-    const result = await runDoctor(args.cwd, { fixSafe: args["fix-safe"] });
+    const run = () => runDoctor(args.cwd, { fixSafe: args["fix-safe"] });
+    const result = args.json ? await run() : await withCliProgress("doctor", run);
     if (args.json) {
       console.log(JSON.stringify(result, null, 2));
       return;

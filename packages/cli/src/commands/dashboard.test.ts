@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { findDashboardBroadcastStart } from "../commands/dashboard-broadcast.js";
 import {
   bundledDashboardCandidates,
+  dashboardProcessTitle,
+  dashboardSpawnEnv,
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "../commands/dashboard.js";
@@ -136,5 +138,22 @@ describe("findDashboardBroadcastStart", () => {
     const { moduleUrl } = fakeCliPackage(false);
     const consumer = mkdtempSync(join(tmpdir(), "ak-bc-none-"));
     await expect(findDashboardBroadcastStart(consumer, {}, { moduleUrl })).resolves.toBeNull();
+  });
+});
+
+describe("dashboardSpawnEnv / dashboardProcessTitle", () => {
+  it("sets MISSION_CONTROL_REPO_ROOT to the resolved snapshot root", () => {
+    const root = join(tmpdir(), "ak-workspace");
+    const env = dashboardSpawnEnv({ FOO: "1" }, root, {});
+    expect(env.MISSION_CONTROL_REPO_ROOT).toBe(resolve(root));
+    expect(env.FOO).toBe("1");
+  });
+
+  it("uses workspace basename only (no home path, not the CLI package folder)", () => {
+    expect(dashboardProcessTitle("/Users/example/Git/agent-kit")).toBe(
+      "Mission Control · agent-kit",
+    );
+    expect(dashboardProcessTitle("/Users/example/Git/agent-kit")).not.toContain("/Users/");
+    expect(dashboardProcessTitle("/tmp/work/my-app")).toBe("Mission Control · my-app");
   });
 });

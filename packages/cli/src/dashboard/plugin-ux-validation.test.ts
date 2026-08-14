@@ -2764,8 +2764,13 @@ describe("plugin-ux-validation: hardening regressions", () => {
     expect(staticFn).not.toContain("/api/config");
     // Clipboard failure toast truncates long snippets instead of dumping the full body.
     expect(dashboardHtml).toContain("const preview = raw.length > 120");
-    // Dead-control hints: backend is claude-only; updateApply.auto never writable.
-    expect(dashboardHtml).toContain("claude is the only backend today.");
+    // Audits backend cascade is writable (auto / claude / cursor); updateApply.auto never writable.
+    expect(dashboardHtml).toContain("auto uses Claude when usable, else Cursor Agent.");
+    expect(dashboardHtml).not.toContain("claude is the only backend today.");
+    expect(dashboardHtml).toContain('option value="auto"');
+    expect(dashboardHtml).toContain('option value="cursor"');
+    expect(dashboardHtml).toContain('id="config-epr-reviewerModel"');
+    expect(dashboardHtml).toContain('id="config-epr-waitSlice"');
     expect(dashboardHtml).toContain("updateApply.auto is never writable here.");
   });
 

@@ -199,4 +199,61 @@ describe("checkForUpdates", () => {
     const result = await checkForUpdates(cwd);
     expect(result.status).toBe("skipped-no-manifest");
   });
+
+  it("compares --registry local checkout instead of public tags", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "ak-check-consumer-"));
+    const kit = await mkdtemp(path.join(tmpdir(), "ak-check-kit-"));
+    temps.push(cwd, kit);
+    await writeManifest(cwd, "5.0.0", {
+      url: "https://github.com/agent-kit-startup/agent-kit",
+      ref: "main",
+    });
+    await mkdir(path.join(kit, "registry"), { recursive: true });
+    await writeFile(path.join(kit, "registry", "registry.json"), "{}\n", "utf8");
+    await mkdir(path.join(kit, "packages", "cli"), { recursive: true });
+    await writeFile(
+      path.join(kit, "packages", "cli", "package.json"),
+      JSON.stringify({ version: "5.1.0" }),
+      "utf8",
+    );
+
+    const result = await checkForUpdates(cwd, { registryPath: kit });
+    expect(result.status).toBe("update-available");
+    expect(result.installedVersion).toBe("5.0.0");
+    expect(result.latestVersion).toBe("5.1.0");
+    expect(result.registryUrl).toBe(path.resolve(kit));
+    expect(result.registryRef).toBe("local");
+    expect(result.message).not.toMatch(/public/i);
+    expect(result.applyRecommended).toBe(false);
+  });
+
+  it("does not report public up-to-date when local --registry L0 drifted", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "ak-check-drift-c-"));
+    const kit = await mkdtemp(path.join(tmpdir(), "ak-check-drift-k-"));
+    temps.push(cwd, kit);
+    await writeManifest(cwd, "5.0.0", {
+      url: "https://github.com/agent-kit-startup/agent-kit",
+      ref: "main",
+    });
+    await mkdir(path.join(kit, "registry"), { recursive: true });
+    await writeFile(path.join(kit, "registry", "registry.json"), "{}\n", "utf8");
+    await mkdir(path.join(kit, "packages", "cli"), { recursive: true });
+    await writeFile(
+      path.join(kit, "packages", "cli", "package.json"),
+      JSON.stringify({ version: "5.0.0" }),
+      "utf8",
+    );
+    const rel = path.join(".cursor", "rules", "cursor-plan-handoff.mdc");
+    await mkdir(path.join(kit, ".cursor", "rules"), { recursive: true });
+    await mkdir(path.join(cwd, ".cursor", "rules"), { recursive: true });
+    await writeFile(path.join(kit, rel), "# kit newer\n", "utf8");
+    await writeFile(path.join(cwd, rel), "# consumer older\n", "utf8");
+
+    const result = await checkForUpdates(cwd, { registryPath: kit });
+    expect(result.status).toBe("update-available");
+    expect(result.registryUrl).toBe(path.resolve(kit));
+    expect(result.registryRef).toBe("local");
+    expect(result.message).not.toMatch(/public/i);
+    expect(result.message).toMatch(/drift/i);
+  });
 });

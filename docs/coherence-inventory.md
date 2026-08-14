@@ -75,7 +75,7 @@ Workspace layout after dogfood `update`: `.cursor/skills/core|community/<id>/SKI
 
 ---
 
-## Agents (`.cursor/agents/` - 13)
+## Agents (`.cursor/agents/` - 14)
 
 Install path = pack/registry member, or dogfood-only / demoted (see [domain-packs.md](domain-packs.md)). Catalog label `core` ≠ L0 install layer.
 
@@ -94,6 +94,7 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | `sql-schema.md` | stack | Demoted; prefer `sql-postgres` skill |
 | `clickup-tasks.md` | stack | L1 `project-management` |
 | `test-suites.md` | stack | L1 `quality` |
+| `mission-kit-comms.md` | stack | Community skill `mission-kit-comms`; not Core Pack; HITL drafts only |
 
 ---
 

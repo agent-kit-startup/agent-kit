@@ -19,6 +19,7 @@ import type {
   RepositoryPurpose,
 } from "../types.js";
 import { ensureDir, fileExists, writeJson } from "../utils/fs.js";
+import { generateClaudeKitLoadArtifacts } from "./claude-kit-load.js";
 import { generateVSCodeArtifacts } from "./vscode.js";
 
 export const PERSONALIZATION_CONTRACT_VERSION = 1 as const;
@@ -356,6 +357,18 @@ export async function applyPersonalization(input: {
   protectedPaths.add(CONTEXT_PATH);
   protectedPaths.add(AGENTS_PATH);
 
+  const claudeResults = await generateClaudeKitLoadArtifacts(input.rootDir);
+  const claudeItems = claudeResults.map((artifact) => {
+    protectedPaths.add(artifact.relativePath);
+    return {
+      kind: "file" as const,
+      id: artifact.relativePath,
+      path: artifact.relativePath,
+      status: artifact.status,
+      evidence: profileEvidence,
+    };
+  });
+
   const ideDetection = await detectIde(input.rootDir);
   if (ideDetection.ide === "vscode" || ideDetection.ide === "other") {
     const git: GitDetection = {
@@ -404,7 +417,7 @@ export async function applyPersonalization(input: {
     contractVersion: PERSONALIZATION_CONTRACT_VERSION,
     generatorVersion: input.generatorVersion,
     repositoryFingerprint: input.report.repositoryFingerprint,
-    items: [...fileResults, ...componentResults],
+    items: [...fileResults, ...claudeItems, ...componentResults],
     protectedPaths: [...protectedPaths].sort(),
   };
   await writeJson(path.join(input.rootDir, RESULT_PATH), result);

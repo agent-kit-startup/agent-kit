@@ -9,7 +9,9 @@
   },
   "externalPlanReview": {
     "enabled": false,
-    "backend": "claude",
+    "backend": "auto",
+    "reviewerModel": "haiku",
+    "advisorModel": "opus",
     "autoRemediate": false,
     "offerOnExhausted": true,
     "mode": "autonomous",

@@ -2,8 +2,14 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { loadAgentKitManifest } from "../manifest/index.js";
-import { DEFAULT_REGISTRY_URL, assertSafeRegistrySource } from "../registry/resolve.js";
+import type { AgentKitManifest } from "../manifest/types.js";
+import {
+  DEFAULT_REGISTRY_URL,
+  assertSafeRegistrySource,
+  resolveRegistryRoot,
+} from "../registry/resolve.js";
 import { readJson, writeJson } from "../utils/fs.js";
+import { diffAgainstRegistry, summarizeDiff } from "./diff.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -194,14 +200,142 @@ export interface CheckForUpdatesOptions {
   stamp?: boolean;
   /** Override public registry URL for tag lookup (HTTPS only). */
   publicRegistryUrl?: string;
+  /** Local kit checkout (`--registry`). Compared instead of public tags. */
+  registryPath?: string;
   /** Injected latest version (tests). */
   latestVersion?: string | null;
   /** Injected now (tests). */
   now?: Date;
 }
 
+async function readLocalKitVersion(registryRoot: string): Promise<string | null> {
+  for (const rel of ["packages/cli/package.json", "package.json"] as const) {
+    const data = await readJson<{ version?: unknown }>(path.join(registryRoot, rel));
+    if (data && typeof data.version === "string" && data.version.length > 0) {
+      return data.version;
+    }
+  }
+  return null;
+}
+
+async function checkAgainstLocalRegistry(
+  cwd: string,
+  manifest: AgentKitManifest,
+  options: CheckForUpdatesOptions,
+): Promise<UpdateCheckResult> {
+  const registryPath = options.registryPath;
+  if (!registryPath) {
+    throw new Error("checkAgainstLocalRegistry requires registryPath");
+  }
+
+  let resolved: Awaited<ReturnType<typeof resolveRegistryRoot>>;
+  try {
+    resolved = await resolveRegistryRoot({ cwd, registryPath });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      status: "error",
+      installedVersion: manifest.version,
+      latestVersion: null,
+      registryUrl: path.resolve(registryPath),
+      registryRef: "local",
+      applyRecommended: false,
+      message: `Failed to resolve --registry: ${msg}`,
+    };
+  }
+
+  const registryUrl = resolved.root;
+  const registryRef = "local";
+
+  try {
+    let latest: string | null;
+    if (options.latestVersion !== undefined) {
+      latest = options.latestVersion;
+    } else {
+      const raw = await readLocalKitVersion(resolved.root);
+      latest = raw ? normalizeSemver(raw) : null;
+    }
+
+    const summary = summarizeDiff(await diffAgainstRegistry(resolved.root, cwd, manifest));
+    const hasFileDrift = summary.drift > 0 || summary["missing-local"] > 0;
+
+    const installed = normalizeSemver(manifest.version);
+    if (!installed) {
+      return {
+        status: "error",
+        installedVersion: manifest.version,
+        latestVersion: latest,
+        registryUrl,
+        registryRef,
+        applyRecommended: false,
+        message: `Installed version "${manifest.version}" is not valid semver.`,
+      };
+    }
+
+    if (!latest) {
+      return {
+        status: "error",
+        installedVersion: installed,
+        latestVersion: null,
+        registryUrl,
+        registryRef,
+        applyRecommended: false,
+        message:
+          "No semver found in the local --registry checkout (packages/cli/package.json or package.json).",
+      };
+    }
+
+    const cmp = compareSemver(installed, latest);
+    if (hasFileDrift) {
+      return {
+        status: "update-available",
+        installedVersion: installed,
+        latestVersion: latest,
+        registryUrl,
+        registryRef,
+        applyRecommended: false,
+        message: `Local registry has drift vs this install (drift=${summary.drift}, missing-local=${summary["missing-local"]}; source v${latest}). Run /update --registry <path> (Ask confirm) to apply; never silent.`,
+      };
+    }
+    if (cmp === 0) {
+      return {
+        status: "up-to-date",
+        installedVersion: installed,
+        latestVersion: latest,
+        registryUrl,
+        registryRef,
+        applyRecommended: false,
+        message: `Installed v${installed} matches local registry v${latest}.`,
+      };
+    }
+    if (cmp < 0) {
+      return {
+        status: "update-available",
+        installedVersion: installed,
+        latestVersion: latest,
+        registryUrl,
+        registryRef,
+        applyRecommended: false,
+        message: `Update available from local registry: v${installed} → v${latest}. Run /update --registry <path> (Ask confirm) to apply; never silent.`,
+      };
+    }
+    return {
+      status: "ahead-of-public",
+      installedVersion: installed,
+      latestVersion: latest,
+      registryUrl,
+      registryRef,
+      applyRecommended: false,
+      message: `Installed v${installed} is ahead of local registry v${latest}.`,
+    };
+  } finally {
+    await resolved.unlock?.();
+  }
+}
+
 /**
- * Check-only: compare installed manifest version to latest public tag.
+ * Check-only: compare installed manifest version to latest public tag,
+ * or to a local `--registry` checkout when `registryPath` is set.
  * Never writes L0 / packs / skills. applyRecommended is always false.
  */
 export async function checkForUpdates(
@@ -221,7 +355,11 @@ export async function checkForUpdates(
     };
   }
 
-  const registryUrl = manifest.registry?.url ?? null;
+  if (options.registryPath) {
+    return checkAgainstLocalRegistry(cwd, manifest, options);
+  }
+
+  const registryUrl = options.publicRegistryUrl ?? manifest.registry?.url ?? null;
   const registryRef = manifest.registry?.ref ?? null;
 
   if (isFactoryOrDevRegistry(registryUrl, registryRef)) {
