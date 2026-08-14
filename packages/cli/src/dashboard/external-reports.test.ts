@@ -200,6 +200,19 @@ describe("/plan-review-triage triage heading contract", () => {
       /Broad Intake[\s\S]*Write plan to backlog[\s\S]*Modify proposal first[\s\S]*Cancel/i,
     );
   });
+
+  it("does not offer retired Review all or /field-report-review as a next step", () => {
+    expect(planReviewTriageCmd).not.toMatch(
+      /suggest Field Report \*\*Review all\*\* or `\/plan-external-review`/,
+    );
+    expect(planReviewTriageCmd).toContain(
+      "Do not suggest Field Report **Review all** or `/field-report-review`: neither exists.",
+    );
+    expect(planReviewTriageCmd).toContain("There is no `/field-report-review` command");
+    expect(planReviewTriageCmd).toContain(
+      "suggest `/plan-external-review` if a new review is owed",
+    );
+  });
 });
 
 describe("isReportTriaged", () => {

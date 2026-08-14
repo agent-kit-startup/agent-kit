@@ -14,7 +14,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | `.cursor/commands/` | Present (27 commands) | DevOps spine + handoff + orchestration + backlog/dashboard |
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
 | `.cursor/hooks.json` | **Present (L0)** | 5 events (`sessionStart`, `preCompact`, `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`); no `stop` hook |
-| `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.2.0**, aligned with product; declares explicit component paths |
+| `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.2.1**, aligned with product; declares explicit component paths |
 | `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
 | `AGENTS.md` (dogfood) | **Present** | Root cross-IDE contract; points at `.cursor/project-context.md` |
 | `mcp.json` | Absent | No project-level MCP config in core |
@@ -28,7 +28,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | Field | Value |
 |-------|-------|
 | name | `agent-kit` |
-| version | `5.2.0` (pinned to `KIT_VERSION` by `packages/cli/src/lifecycle/l0.test.ts`) |
+| version | `5.2.1` (pinned to `KIT_VERSION` by `packages/cli/src/lifecycle/l0.test.ts`) |
 | description | HITL framework for AI-assisted IDEs (plan, handoff, staging→prod, memory loop, anti-slop) |
 | components | `rules`, `skills`, `agents`, `commands`, `hooks` declared explicitly |
 
@@ -39,7 +39,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 - `skills` points at `.cursor/skills/core`, not `.cursor/skills`: discovery matches direct children holding a `SKILL.md`, and `core/`/`community/` are one level too shallow. This also keeps stack skills on `agent-kit add`.
 - CLI `init` does **not** write `.cursor-plugin/plugin.json` into target projects; no generator under `packages/cli/src/generator/` references it. (Corrected 2026-08-05; the earlier claim was stale.)
 
-**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan. Live submission stays publisher HITL and is gated on the public mirror carrying the 5.2.0 manifest.
+**Gap:** Plugin packaging and Marketplace submission flow are not documented end-to-end in `docs/getting-started.md`. See [marketplace.md](marketplace.md) and Phase B registry cutover plan. Live submission stays publisher HITL. The public mirror already carries the **5.2.1** manifest with explicit component paths.
 
 ---
 

@@ -27,7 +27,7 @@ Do not market unchecked full autonomy. Staging may be automatic; production (`/g
 | GitHub Discussions | - | - | **never** (until enabled) | [SUPPORT.md](../.github/SUPPORT.md) states Discussions is not enabled; issues are the support channel | Do not invent a Discussions presence |
 | Slack | Low | Med | **defer** | No official Mission Kit Slack is documented in this repo | Do not create or post until an operator-owned workspace exists |
 | Discord | Low | Med | **defer** | Same as Slack | Same |
-| Cursor Marketplace listing | - | - | **never** (this loop) | Distribution channel owned by parked `submit-cursor-marketplace` | Reference only; no submit from this plan |
+| Cursor Marketplace listing | - | - | **never** (this loop) | Distribution channel owned by `submit-cursor-marketplace` (publisher HITL; public manifest **5.2.0**) | Reference only; no submit from a comms plan |
 
 **Never:** paid ads as the first delivery; scraping PII into recaps; silent cross-network posting; renaming npm/CLI/slash to Mission Kit; overloading Agent Personas as the poster.
 

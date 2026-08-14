@@ -11,7 +11,7 @@ Opt-in advisory for Cursor product updates (releases, changelog entries, new MCP
 | No Field Reports | `fieldReportRecommended` is always `false` |
 | Conveyor | Confirmed gaps → Ask → `/backlog-add` or `/dogfood` (lane-aware) |
 | Separate from kit update | Kit self-release uses `updateCheck` / `/update` (ADR `2026-07-27_consumer-autoupdate-check-opt-in.md`) |
-| Native-audit prose | Marketplace / version-prose refresh stays on parked `submit-cursor-marketplace` |
+| Native-audit prose | Native-audit plugin version is **5.2.0**. Live Marketplace submission stays on `submit-cursor-marketplace` (publisher HITL) |
 
 ## Detection source
 

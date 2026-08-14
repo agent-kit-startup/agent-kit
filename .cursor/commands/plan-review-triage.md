@@ -9,7 +9,7 @@ description: Triage residuals from an external plan review monitor and guide nex
 
 Triage residuals from a **Claude external plan review** monitor. Select the right monitor(s) (untriaged / explicit paths, **not** raw mtime), summarize open residuals, and guide next steps with **Ask questions**.
 
-Supports **multi-path walk**: iterate multiple monitors in blocking-first then debt order when given several report paths (for example from Field Report **Review all**, or the path list printed by `/plan-external-review` after a batch). When remaining monitors share a **uniform** outcome class, use **one** batch Ask (still write a durable triage heading on every target). Mixed outcomes fall back to sequential Asks. Operator may expand Write residuals to the whole remaining set in one reply (`1 and write all the other`); enqueue via paced per-monitor Tasks (wave size 2) or one combined plan (see Step 6).
+Supports **multi-path walk**: iterate multiple monitors in blocking-first then debt order when given several report paths (for example the path list printed by `/plan-external-review` after a batch, or a Flight Log **Copy triage command** paste). When remaining monitors share a **uniform** outcome class, use **one** batch Ask (still write a durable triage heading on every target). Mixed outcomes fall back to sequential Asks. Operator may expand Write residuals to the whole remaining set in one reply (`1 and write all the other`); enqueue via paced per-monitor Tasks (wave size 2) or one combined plan (see Step 6).
 
 ## When to Use
 
@@ -30,7 +30,7 @@ Multi-path (preferred after a fresh external review; walk specific monitors in o
 /plan-review-triage .cursor/memory/plan-monitor-slug-1.md .cursor/memory/plan-monitor-slug-2.md
 ```
 
-When paths are provided, the agent walks them in the given order (blocking first, then debt when auto-ordered by **Review all**). After gap-aware skip, if two or more monitors still need a decision and share a **uniform** outcome class, use **one** Ask for the set (batch Ack or one residuals summary); otherwise Ask **per** monitor. Every decided monitor still gets its own durable triage heading.
+When paths are provided, the agent walks them in the given order (blocking first, then debt when auto-ordered). After gap-aware skip, if two or more monitors still need a decision and share a **uniform** outcome class, use **one** Ask for the set (batch Ack or one residuals summary); otherwise Ask **per** monitor. Every decided monitor still gets its own durable triage heading.
 
 **Do not rely on bare `/plan-review-triage` after a batch external review** when the launcher (or Claude closeout) already printed explicit monitor paths: paste that path list so triage cannot miss the files just written.
 
@@ -44,7 +44,7 @@ Before Asking on a path, skip with a **one-line note** (do not abort the walk) w
 | No open gaps (empty Still open / no residual items / clean Outcome) | `Skip plan-monitor-x.md: no open residuals` |
 | Path missing or not a `plan-monitor-*.md` under `.cursor/memory/` | `Skip <path>: not a monitor file` |
 
-Field Report **Review all** already pastes a gap-filtered path list; the skip rules above are defensive for hand-built multi-path lists. Per-row **Copy triage command** remains available for intentional one-monitor triage of a clean or already-visible row.
+The skip rules above are defensive for hand-built multi-path lists. Flight Log per-row **Copy triage command** remains available for intentional one-monitor triage of a clean or already-visible row. There is no `/field-report-review` command and no Mission Control **Review all** button.
 
 ## Preconditions
 
@@ -55,7 +55,7 @@ Field Report **Review all** already pastes a gap-filtered path list; the skip ru
 
 If no `plan-monitor-*.md` exists (and no paths given), say so once, suggest `/plan-external-review` after prefight files exist, and **stop**. Do not invent residuals.
 
-If monitors exist but **all** are already triaged (and none are new/staged without a heading), say so once, suggest Field Report **Review all** or `/plan-external-review` if new reviews are owed, and **stop**. Do not invent residuals from an already-acked file.
+If monitors exist but **all** are already triaged (and none are new/staged without a heading), say so once, suggest `/plan-external-review` if a new review is owed, and **stop**. Do not invent residuals from an already-acked file. Do not suggest Field Report **Review all** or `/field-report-review`: neither exists.
 
 ## What to Do
 
@@ -78,7 +78,7 @@ Use the returned `monitors[].relativePath` list as the walk order. Cite: ADR `20
 3. **Untriaged scan:** all `.cursor/memory/plan-monitor-*.md` without a triage heading. Prefer those with open gaps (numbered Residual items, non-empty Still open, substantive Standing finding; same spirit as Field Report `reportHasOpenReviewGaps`), but still include clean untriaged files so the operator can **Ack and stop**. If several match, walk them (blocking/debt order when obvious; otherwise newest **content** review date, then mtime as a weak tie-break only).
 4. **Hard stop:** if every candidate is already triaged, report "no untriaged monitors" and stop. Do **not** Ask on an already-triaged file just because its mtime is newest.
 
-**Gap-aware skip** (empty Still open / no residual items) applies to **explicit multi-path** lists (e.g. Field Report **Review all**). Bare-command selection above does **not** skip clean untriaged monitors: they still need a durable triage heading.
+**Gap-aware skip** (empty Still open / no residual items) applies to **explicit multi-path** lists (launcher-printed paths or hand-built lists). Bare-command selection above does **not** skip clean untriaged monitors: they still need a durable triage heading.
 
 **Then read the selected set:**
 
@@ -97,7 +97,7 @@ When one path is selected, continue with Steps 2-5. When several are selected, u
 
 When **paths provided**:
 
-1. Treat paths as an ordered list: blocking paths first, debt paths second (same order as the **Review all** copy target).
+1. Treat paths as an ordered list: blocking paths first, debt paths second (Field Report classification order).
 2. For each path, apply **Gap-aware skip** (above). Only remaining gap monitors get a Task(explore) dispatch (or batch them in one worker if multiple paths).
 3. **Fallback:** when Task dispatch is unavailable, verify each path is an existing file under `.cursor/memory/` matching `plan-monitor-*.md`. Non-existent, non-monitor, already-triaged, or no-open-residual paths are skipped with a one-line note; the walk continues.
 4. Read the worker summary for each path that was not skipped.

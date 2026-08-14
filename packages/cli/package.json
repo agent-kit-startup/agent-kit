@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
