@@ -132,13 +132,14 @@ If the operator chooses `Keep local only`, stop. The local file is the record.
 
 ### Step 6: Respond
 
-> Dogfood filed: `dogfood/cursor_<topic>_<date>.md` (factory) or `.cursor/dogfood/cursor_<topic>_<date>.md` (consumer). Next: analyze → memory WRITE → triage, or ask for a public issue if the pattern is upstream-relevant.
+> Dogfood filed: `dogfood/cursor_<topic>_<date>.md` (factory) or `.cursor/dogfood/cursor_<topic>_<date>.md` (consumer). This command stays file-only. Analysis is offered from `/continue-plan`, `/run-plan`, `/run-plan-all`, or `/backlog-add` preflight Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`), not from `/dogfood`. Notes become plans/memory after HITL, never `plan-monitor-*.md`.
 
 ## Related
 
 - `dogfood/README.md` — factory inbox and ingest ritual
 - `.cursor/memory/decisions/2026-07-31_dogfood-factory-consumer-lanes.md` — lane decision
 - `.cursor/memory/decisions/2026-07-31_dogfood-ingest-contract.md` — ingest contract
+- `.cursor/memory/decisions/2026-08-14_main-command-dogfood-audit-routing.md` — main-command daily path; this slash stays file-only
 - `.cursor/memory/decisions/2026-07-17_session-origin-not-product-usecase.md` — hygiene
 - Cursor product-update gaps may route here via `/cursor-update-awareness` (Ask → `/dogfood`)
 - Incoming **public** issue triage (factory-only) is `/public-issue-triage`, not this command

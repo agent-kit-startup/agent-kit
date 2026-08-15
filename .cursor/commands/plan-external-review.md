@@ -15,7 +15,7 @@ Manually arm **optional plan audits** (external plan review via Claude Code or C
 - You want a second-agent check of shipped work vs the plan (gaps, residuals)
 - Auto-arm from the exhausted path was skipped (opt-in off, no `claude` on PATH, soft-fail tip) or you prefer a manual re-run
 
-**Wired path:** when `/run-plan` (orchestrated / in-session) or headless `agent-kit run-plan` stops on plan exhausted, the kit arms or suggests `.cursor/scripts/plan-external-review.sh` (see `/run-plan` "Optional external plan review"). Use this command when you need to re-arm manually. Still not a Cursor `hooks.json` `stop` entry.
+**Daily path:** `/run-plan` and `/run-plan-all` invoke this contract when audits are enabled (arm + `--wait-monitor`). Use this slash for paste, manual re-arm, or when auto-arm was skipped. Still not a Cursor `hooks.json` `stop` entry. ADR `2026-08-14_main-command-dogfood-audit-routing.md`.
 
 Do **not** use this mid-plan for in-flight to-dos; the monitor method only verdicts `completed` work.
 
@@ -34,7 +34,7 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 1. Prefight files above exist.
 2. `.cursor/context/config.json` has `externalPlanReview.enabled: true` (see `config.example.json`), **or** use `--force` for a one-shot arm without persisting opt-in. Missing file = disabled unless `--force`.
 3. Prefer `externalPlanReview.mode: "autonomous"` for background/inspectable auto-launch. Missing `mode` keeps paste-compatible / legacy behavior.
-4. A usable reviewer: `backend: "auto"` (default for new example/docs) uses Claude when present, else Cursor Agent. Pinned `backend: "claude"` still tips + no-op when Claude is missing. `--paste-only` still prints the command without requiring a binary yet. Same-family implementer and reviewer is an honest skip (including Auto/Auto). Claude review uses `reviewerModel` (default `sonnet` so `--permission-mode auto` can run); `advisorModel` (default `opus`) runs only on escalate. An explicit Haiku pin is valid and cannot run auto.
+4. A usable reviewer: `backend: "auto"` (default for new example/docs) uses Claude when present, else Cursor Agent. Pinned `backend: "claude"` still tips + no-op when Claude is missing. Pinned `backend: "cloud"` (Cursor Cloud Agents over REST) needs `curl`, `node`, and `CURSOR_API_KEY`, and reviews the **pushed** branch — it soft-fails rather than auditing unpushed state, and is never reached by `"auto"`. `--paste-only` still prints the command without requiring a binary yet. Same-family implementer and reviewer is an honest skip (including Auto/Auto). Claude review uses `reviewerModel` (default `sonnet` so `--permission-mode auto` can run); `advisorModel` (default `opus`) runs only on escalate. An explicit Haiku pin is valid and cannot run auto.
 
 ## Manual arm
 
@@ -56,7 +56,7 @@ If any are missing: stop. Do **not** claim a review ran. Tell the user to run `a
 - **Exit 3 is timeout-only:** it means the freshness gate was not satisfied inside the budget, never that the review finished. A monitor that appears later, including one written by a different or later arm, does **not** convert a `3` into success. Leave the target Field Report **owed** and re-arm. ADR: `decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md`.
 - **Paste-only:** clipboard + printed interactive one-liner; review starts only after the operator pastes into their Cursor Terminal. After paste (Claude running), the session still waits for the monitor file then continues into triage Ask when possible.
 - **`--dry-run`:** resolves mode/plan and prints `background-cmd` / `paste-cmd` / `focus-terminal` / `reviewer-backend` / `same-model-refuse` without spawning a reviewer (useful for smoke).
-- **Reviewer cascade:** `--backend auto|claude|cursor` (or config). Claude spawn passes `--model` from `reviewerModel`. Cursor fallback cannot honor a Claude-family name; Auto/Auto is refused. Findings-only until `/plan-review-triage`. Never `/git-prod`.
+- **Reviewer cascade:** `--backend auto|claude|cursor|cloud` (or config). `cloud` is an opt-in pin (Cursor Cloud Agents over REST) that `auto` never reaches. Claude spawn passes `--model` from `reviewerModel`. Cursor fallback cannot honor a Claude-family name; Auto/Auto is refused. Findings-only until `/plan-review-triage`. Never `/git-prod`.
 
 ### A. Script (preferred)
 

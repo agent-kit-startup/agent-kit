@@ -21,7 +21,7 @@ isProject: true
 
 # [Plan name]
 
-**Goal:** …
+**Goal:** … (what and why first; how belongs in Phases / Constraints)
 
 ## Phases
 

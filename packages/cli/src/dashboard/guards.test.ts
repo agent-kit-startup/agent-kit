@@ -725,3 +725,202 @@ describe("serve.mjs HTTP auth exemption for share shell", () => {
     }
   }, 30_000);
 });
+
+describe("broadcast multi-instance port allocation", () => {
+  const alpha = "/tmp/workspace-alpha";
+  const beta = "/tmp/workspace-beta";
+
+  const free = { listening: false, repoRoot: null, acceptsToken: false, tokenGated: false };
+  const ownBroadcast = {
+    listening: true,
+    repoRoot: alpha,
+    acceptsToken: true,
+    tokenGated: false,
+    lanReachable: true,
+  };
+  const ownLoopback = {
+    listening: true,
+    repoRoot: alpha,
+    acceptsToken: true,
+    tokenGated: false,
+    lanReachable: false,
+  };
+  const foreignLoopback = {
+    listening: true,
+    repoRoot: beta,
+    acceptsToken: true,
+    tokenGated: false,
+    lanReachable: false,
+  };
+  const foreignBroadcast = {
+    listening: true,
+    repoRoot: null,
+    acceptsToken: false,
+    tokenGated: true,
+  };
+  const stranger = { listening: true, repoRoot: null, acceptsToken: false, tokenGated: false };
+
+  it("classifies listeners by workspace and bind surface", async () => {
+    const { classifyBroadcastListener } = await import("../../../../dashboard/lib/guards.mjs");
+
+    expect(classifyBroadcastListener(free, alpha)).toBe("free");
+    expect(classifyBroadcastListener(ownBroadcast, alpha)).toBe("self-broadcast");
+    // Loopback /dashboard ignores ?token= and answers 200: root+token is not enough.
+    expect(classifyBroadcastListener(ownLoopback, alpha)).toBe("self-other-mode");
+    expect(classifyBroadcastListener(foreignLoopback, alpha)).toBe("foreign");
+    expect(classifyBroadcastListener(foreignBroadcast, alpha)).toBe("token-gated");
+    expect(classifyBroadcastListener(stranger, alpha)).toBe("unknown");
+    // No LAN IPv4 to probe → root + token match is accepted.
+    expect(classifyBroadcastListener({ ...ownBroadcast, lanReachable: null }, alpha)).toBe(
+      "self-broadcast",
+    );
+    expect(classifyBroadcastListener({ ...ownBroadcast, repoRoot: `${alpha}/` }, alpha)).toBe(
+      "self-broadcast",
+    );
+  });
+
+  it("walks past a loopback panel on the preferred port instead of demanding a kill", async () => {
+    const { portCandidatesForRepoRoot, resolveBroadcastPort } = await import(
+      "../../../../dashboard/lib/guards.mjs"
+    );
+    const candidates = portCandidatesForRepoRoot(alpha);
+    const held = new Map([[candidates[0], ownLoopback]]);
+
+    const picked = resolveBroadcastPort({
+      repoRoot: alpha,
+      probe: (port) => held.get(port) || free,
+    });
+    expect(picked.port).toBe(candidates[1]);
+    expect(picked.reuse).toBe(false);
+    expect(picked.explicit).toBe(false);
+    expect(picked.skipped).toEqual([
+      { port: candidates[0], kind: "self-other-mode", repoRoot: alpha },
+    ]);
+  });
+
+  it("skips foreign, token-gated, and unidentified listeners without killing them", async () => {
+    const { portCandidatesForRepoRoot, resolveBroadcastPort } = await import(
+      "../../../../dashboard/lib/guards.mjs"
+    );
+    const candidates = portCandidatesForRepoRoot(alpha);
+    const held = new Map([
+      [candidates[0], foreignLoopback],
+      [candidates[1], foreignBroadcast],
+      [candidates[2], stranger],
+    ]);
+
+    const picked = resolveBroadcastPort({
+      repoRoot: alpha,
+      probe: (port) => held.get(port) || free,
+    });
+    expect(picked.port).toBe(candidates[3]);
+    expect(picked.skipped.map((entry) => entry.kind)).toEqual([
+      "foreign",
+      "token-gated",
+      "unknown",
+    ]);
+  });
+
+  it("reuses this workspace's own broadcast listener", async () => {
+    const { portCandidatesForRepoRoot, resolveBroadcastPort } = await import(
+      "../../../../dashboard/lib/guards.mjs"
+    );
+    const candidates = portCandidatesForRepoRoot(alpha);
+    const held = new Map([
+      [candidates[0], ownLoopback],
+      [candidates[1], ownBroadcast],
+    ]);
+
+    const picked = resolveBroadcastPort({
+      repoRoot: alpha,
+      probe: (port) => held.get(port) || free,
+    });
+    expect(picked).toMatchObject({ port: candidates[1], reuse: true, explicit: false });
+  });
+
+  it("honours an explicit free PORT and refuses an occupied one with an honest reason", async () => {
+    const { resolveBroadcastPort } = await import("../../../../dashboard/lib/guards.mjs");
+
+    expect(resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => free })).toEqual({
+      port: 4444,
+      reuse: false,
+      explicit: true,
+      skipped: [],
+    });
+
+    expect(
+      resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => ownBroadcast }),
+    ).toMatchObject({ port: 4444, reuse: true, explicit: true });
+
+    expect(() =>
+      resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => ownLoopback }),
+    ).toThrow(/not a broadcast listener/);
+    expect(() =>
+      resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => foreignLoopback }),
+    ).toThrow(/never touches another workspace/);
+    expect(() =>
+      resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => foreignBroadcast }),
+    ).toThrow(/owner this token cannot confirm/);
+    expect(() =>
+      resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => stranger }),
+    ).toThrow(/unidentified process is there/);
+  });
+
+  it("never tells the operator to kill anything it does not own", async () => {
+    const { resolveBroadcastPort } = await import("../../../../dashboard/lib/guards.mjs");
+    for (const info of [foreignLoopback, foreignBroadcast, stranger]) {
+      let message = "";
+      try {
+        resolveBroadcastPort({ repoRoot: alpha, envPort: "4444", probe: () => info });
+      } catch (err) {
+        message = err instanceof Error ? err.message : String(err);
+      }
+      expect(message).not.toMatch(/kill/i);
+      expect(message).not.toMatch(/lsof/);
+    }
+  });
+
+  it("describes who holds a port without suggesting a kill", async () => {
+    const { describeBroadcastListener } = await import("../../../../dashboard/lib/guards.mjs");
+
+    expect(describeBroadcastListener("foreign", { port: 3401, repoRoot: beta })).toBe(
+      `3401: another workspace (${beta})`,
+    );
+    expect(describeBroadcastListener("foreign", { port: 3401 })).toBe("3401: another workspace");
+    expect(describeBroadcastListener("self-other-mode", { port: 3402 })).toMatch(
+      /this workspace, but not a broadcast listener/,
+    );
+    expect(describeBroadcastListener("token-gated", { port: 3403 })).toMatch(
+      /owner this token cannot confirm/,
+    );
+    expect(describeBroadcastListener("unknown", {})).toBe("an unidentified process");
+    // Unmapped kinds degrade to the safest wording rather than throwing.
+    expect(describeBroadcastListener("nonsense", { port: 3404 })).toBe(
+      "3404: an unidentified process",
+    );
+    for (const kind of ["foreign", "token-gated", "unknown", "exhausted"]) {
+      expect(describeBroadcastListener(kind, { port: 3405, repoRoot: beta })).not.toMatch(/kill/i);
+    }
+  });
+
+  it("refuses when the whole per-workspace range is held by other instances", async () => {
+    const { resolveBroadcastPort, DEFAULT_PORT_RANGE } = await import(
+      "../../../../dashboard/lib/guards.mjs"
+    );
+    let thrown: Error | null = null;
+    try {
+      resolveBroadcastPort({
+        repoRoot: alpha,
+        probe: () => foreignLoopback,
+        opts: { range: 4 },
+      });
+    } catch (err) {
+      thrown = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(thrown?.message).toMatch(/No free Mission Control broadcast port/);
+    expect(DEFAULT_PORT_RANGE).toBe(256);
+    const skipped = (thrown as unknown as { broadcast?: { skipped?: unknown[] } })?.broadcast
+      ?.skipped;
+    expect(skipped).toHaveLength(4);
+  });
+});

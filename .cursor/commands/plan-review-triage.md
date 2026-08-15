@@ -15,7 +15,7 @@ Supports **multi-path walk**: iterate multiple monitors in blocking-first then d
 
 - After Claude external plan review completed (monitor file exists under `.cursor/memory/plan-monitor-*.md`)
 - You want to process findings from the monitor and decide next steps
-- **Automatic after chat arm:** `/run-plan` / `/plan-external-review` (and `/run-plan-all` queue-end) wait for the monitor then continue into this command's Ask; operators should not need to type `done` or paste triage solely to resume
+- **Daily path:** `/run-plan` (exhaustion) and `/run-plan-all` (queue-end) continue into this Ask after wait exit 0. This slash stays HITL SoT; operators should not need to type `done` or paste triage solely to resume. ADR `2026-08-14_main-command-dogfood-audit-routing.md`.
 - **Not for mid-plan reviews** - this command expects `completed` work only
 
 ## Usage

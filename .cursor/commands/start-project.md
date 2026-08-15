@@ -34,7 +34,7 @@ Before intake, read `.cursor/agent-kit.config.json` and `.cursor/context/readine
 **Planning blockers** (stop and point to `/agent-kit-onboard`; do not resolve setup here):
 
 - Derive unresolved essentials from `pillars[].checks[]` where `essential: true` and `status` is not `ready`. Preserve report order.
-- Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending items (for example `collaboration.provider` / action `confirm-provider`) are **warnings only**: mention once, continue Broad Intake, and do not halt planning.
+- Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending items (for example `collaboration.provider` / action `confirm-provider`) are **warnings only**: one-line mention or silence, continue Broad Intake, and do not halt planning. Do **not** Ask on `confirm-provider` / `collaboration.provider`.
 - Missing readiness or config files, unsupported snapshot schema, or a fingerprint mismatch that invalidates the snapshot: point to `/agent-kit-onboard`. Do not reconstruct onboarding inside `/start-project`.
 
 **When essentials are ready** (non-essential pending allowed):

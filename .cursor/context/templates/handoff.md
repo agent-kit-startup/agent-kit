@@ -4,6 +4,22 @@ Machine fields below must stay as `- **Field:**` bullets (Mission Control parses
 
 **Mid-batch monitor pointers are not durable here.** `.cursor/HANDOFF.md` is gitignored session state. Pointers to sibling monitors must live in the tracked `.cursor/memory/_index.md` Audits row for the watched monitor (R14-paired in the same commit). Cite that row in the plan or monitor notes; do not rely on a HANDOFF line as delivery evidence.
 
+### HITL provenance (required)
+
+Any field that asserts a human decision (parked, approved, deferred, confirmed, stopped-by-operator, `Queue status: stopped` as an operator action) must record what produced it in the same bullet or the next line:
+
+- Ask id (example: `queue-confirm`)
+- Operator reply text (example: `Run as proposed`)
+- `agent-inferred` when no human said it
+
+An inferred park or stop must not look identical to an operator park. Do not write Parked / Queue status stopped as operator action unless an Ask id and operator reply exist.
+
+Examples:
+
+- `- **Parked plans:** \`foo.plan.md\` (agent-inferred; no Ask)`
+- `- **Queue status:** stopped (Ask \`queue-confirm\` = Cancel)`
+- `- **Queue status:** running (Ask \`queue-confirm\` = Run as proposed)`
+
 - **Plan:** `file.plan.md`
 - **Last updated:** [YYYY-MM-DD HH:MM]
 - **Mode:** [manual | run-plan (orchestrated) | run-plan (in-session loop) | run-plan-all]

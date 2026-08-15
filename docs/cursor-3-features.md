@@ -26,7 +26,10 @@ For extensions and automation, use what Cursor itself offers:
 
 - **MCP** - servers supported by Cursor (ex.: official integrations or documented in ecosystem; in IDE, prefer what comes enabled or project `mcp.json` for stable tools).
 - **Hooks** - agent events in workspace (see `create-hook` skill in your Cursor installation, if applicable).
-- **`@cursor/sdk`** - agents and flows outside IDE when it makes sense (see SDK documentation).
+- **Cursor Cloud Agents / `@cursor/sdk`** - agents and flows outside the IDE. The kit uses this in exactly **one** place: the opt-in `externalPlanReview.backend: "cloud"` audits reviewer, driven over the Cloud Agents REST API (`https://api.cursor.com`) so the kit keeps zero runtime dependencies. See [`external-plan-review.md`](external-plan-review.md#cloud-agents-backend-backend-cloud) and ADR `2026-08-14_cursor-cloud-agents-sdk-audits-backend.md`.
+  - The SDK itself (`@cursor/sdk`, Node 22.13+; `cursor-sdk` for Python) is **not** a kit dependency. Scripting it directly outside the kit is supported and documented, not a gap: `Agent.prompt` (one-shot), `Agent.create` + `agent.send` (durable/stream), `Agent.resume` (re-attach by `bc-` id). Always set `local` or `cloud` explicitly.
+  - `CURSOR_API_KEY` is a secret: environment or gitignored `.env` only, empty placeholder in `.env.example`, never committed or logged.
+  - Kit-load (`CLAUDE.md` / `/agent-kit`), audits, and `agent-kit run-plan --backend` stay three separate surfaces. Cloud Agents are not a plan-loop tick backend.
 
 This maintains a single source of truth for agent tools and avoids duplicating session control outside the native model.
 
