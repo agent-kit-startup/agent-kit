@@ -117,5 +117,5 @@ Future nicety (not required for this to-do): `agent-kit search <query>` over `re
 - [x] Builder emits version/category into `registry.json`
 - [x] CONTRIBUTING quality gate documented
 - [x] This marketplace doc + plugin.json thesis/version note
-- [ ] Live Cursor Marketplace submission (publisher ops / HITL) - packaging ready at **5.2.0** on the public mirror (explicit component paths). Submit remains operator HITL; this box stays unchecked until a real submission.
+- [x] Live Cursor Marketplace submission (publisher ops / HITL) - operator submitted 2026-08-14. Packaging ready at **5.2.0** on the public mirror (explicit component paths). Listing may still be pending Cursor review; no listing URL or submission id recorded yet.
 - [x] Phase B cutover so public catalog is not overwritten by private sync

@@ -30,6 +30,7 @@ You are an Agent Kit worker. Execute ONLY the task below and stop.
 - Hygiene: technical commits/docs; no transient content (no meta-language, no agent gossip)
 - If you touch `.cursor/memory/plan-monitor-*.md`, never expect a broad `git add` of `.cursor/memory/` into a product commit; the orchestrator stages monitors **add-by-name only** when intentional
 - Never `/git-prod`
+- A refused command (permission classifier, never `/git-prod` class) is terminal. Do not retry the same command.
 - Do not ask the user for `/continue-plan`
 - Before "Staging ready: yes": run repository-appropriate formatter/linter on touched files (e.g. biome/eslint/prettier for code; markdownlint or docs tests if the repo has them). Pure markdown/docs with no applicable linter: state none applicable in Tests/Validation.
 - Summary MUST include `Tests:` or `Validation:` with commands and results (pass/fail). `Staging ready: yes` without that evidence is invalid when you changed formatted/linted files.

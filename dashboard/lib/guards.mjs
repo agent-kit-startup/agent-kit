@@ -194,6 +194,134 @@ export function resolveMissionControlPort({ repoRoot, envPort, probe, opts = {} 
   );
 }
 
+/**
+ * Classify what holds a candidate Mission Control port, from the point of view
+ * of a **broadcast** (LAN) start.
+ *
+ * Broadcast needs a non-loopback, token-gated listener of its own. A loopback
+ * `/dashboard` for this same workspace answers `?token=…` with 200 (the query is
+ * ignored when no token is required), so "same repoRoot + accepts our token" is
+ * not sufficient: reuse also requires the listener to answer on a LAN address.
+ * `lanReachable` may be `null`/omitted when the host has no LAN IPv4 to probe —
+ * then a root + token match is accepted.
+ *
+ * `token-gated` means: something Mission-Control-shaped is listening but refuses
+ * our token, so its owner cannot be confirmed. Like `foreign` and `unknown` it is
+ * never killed and never reused.
+ *
+ * @param {{ listening: boolean, repoRoot?: string|null, acceptsToken?: boolean, tokenGated?: boolean, lanReachable?: boolean|null }} info
+ * @param {string} repoRoot
+ * @returns {"free"|"self-broadcast"|"self-other-mode"|"foreign"|"token-gated"|"unknown"}
+ */
+export function classifyBroadcastListener(info, repoRoot) {
+  if (!info || info.listening !== true) return "free";
+  const mine = sameRepoRoot(info.repoRoot, repoRoot);
+  if (mine && info.acceptsToken === true) {
+    return info.lanReachable === false ? "self-other-mode" : "self-broadcast";
+  }
+  if (mine) return "self-other-mode";
+  if (info.repoRoot != null) return "foreign";
+  return info.tokenGated === true ? "token-gated" : "unknown";
+}
+
+/** Operator-facing wording for each {@link classifyBroadcastListener} kind. */
+const BROADCAST_LISTENER_LABELS = {
+  free: "free",
+  "self-broadcast": "this workspace's broadcast",
+  "self-other-mode":
+    "this workspace, but not a broadcast listener (loopback /dashboard, or another token)",
+  foreign: "another workspace",
+  "token-gated": "a token-gated Mission Control whose owner this token cannot confirm",
+  unknown: "an unidentified process",
+  exhausted: "no free port in this workspace's range",
+};
+
+/**
+ * One honest line about who holds a port. Used by the broadcast preflight so the
+ * operator is told *which* instance is in the way instead of a blind kill recipe.
+ *
+ * @param {string} kind
+ * @param {{ port?: number | null, repoRoot?: string | null }} [info]
+ * @returns {string}
+ */
+export function describeBroadcastListener(kind, info = {}) {
+  const label = BROADCAST_LISTENER_LABELS[kind] || BROADCAST_LISTENER_LABELS.unknown;
+  const owner =
+    kind === "foreign" && info.repoRoot ? `another workspace (${info.repoRoot})` : label;
+  return info.port == null ? owner : `${info.port}: ${owner}`;
+}
+
+/**
+ * Pick a listen port for a broadcast (LAN) Mission Control instance.
+ *
+ * Same per-workspace candidate walk as {@link resolveMissionControlPort}, with
+ * broadcast-aware reuse: only this workspace's own broadcast listener is reused.
+ * Anything else on a candidate port (our loopback panel, another workspace, an
+ * unidentified process) is **skipped, never killed** — that is what allows more
+ * than one Mission Control instance to run at once.
+ *
+ * Explicit `PORT` still refuses rather than walking, so an operator who pinned a
+ * port is told the truth instead of silently landing somewhere else.
+ *
+ * @param {object} args
+ * @param {string} args.repoRoot
+ * @param {string | number | undefined | null} [args.envPort] - raw `PORT` env
+ * @param {(port: number) => { listening: boolean, repoRoot?: string|null, acceptsToken?: boolean, tokenGated?: boolean, lanReachable?: boolean|null }} args.probe
+ * @param {{ base?: number, range?: number }} [args.opts]
+ * @returns {{ port: number, reuse: boolean, explicit: boolean, skipped: Array<{ port: number, kind: string, repoRoot: string | null }> }}
+ */
+export function resolveBroadcastPort({ repoRoot, envPort, probe, opts = {} }) {
+  const root = resolve(String(repoRoot || "").trim() || ".");
+  const raw =
+    envPort != null && String(envPort).trim() !== ""
+      ? Number.parseInt(String(envPort), 10)
+      : Number.NaN;
+  /** @type {Array<{ port: number, kind: string, repoRoot: string | null }>} */
+  const skipped = [];
+
+  if (Number.isFinite(raw) && raw > 0) {
+    const info = probe(raw) || { listening: false };
+    const kind = classifyBroadcastListener(info, root);
+    if (kind === "free") return { port: raw, reuse: false, explicit: true, skipped };
+    if (kind === "self-broadcast") return { port: raw, reuse: true, explicit: true, skipped };
+    const owner = info.repoRoot ? String(info.repoRoot) : null;
+    skipped.push({ port: raw, kind, repoRoot: owner });
+    const detail =
+      kind === "self-other-mode"
+        ? "it is this workspace's Mission Control but not a broadcast listener (loopback /dashboard, or a different MISSION_CONTROL_TOKEN)"
+        : kind === "foreign"
+          ? `it is Mission Control for ${owner}, and broadcast never touches another workspace`
+          : kind === "token-gated"
+            ? "a token-gated Mission Control is there whose owner this token cannot confirm, so it is left alone"
+            : "an unidentified process is there, so it is left alone";
+    const err = new Error(
+      `PORT ${raw} is not available for broadcast: ${detail}. Unset PORT to let broadcast pick a free per-workspace port instead.`,
+    );
+    Object.assign(err, {
+      broadcast: { port: raw, kind, repoRoot: owner, explicit: true, skipped },
+    });
+    throw err;
+  }
+
+  for (const port of portCandidatesForRepoRoot(root, opts)) {
+    const info = probe(port) || { listening: false };
+    const kind = classifyBroadcastListener(info, root);
+    if (kind === "free") return { port, reuse: false, explicit: false, skipped };
+    if (kind === "self-broadcast") return { port, reuse: true, explicit: false, skipped };
+    skipped.push({ port, kind, repoRoot: info.repoRoot ? String(info.repoRoot) : null });
+  }
+
+  const base = Number.isFinite(opts.base) ? opts.base : DEFAULT_PORT_BASE;
+  const range = Number.isFinite(opts.range) && opts.range > 0 ? opts.range : DEFAULT_PORT_RANGE;
+  const err = new Error(
+    `No free Mission Control broadcast port in ${base}-${base + range - 1} for ${root}. Stop one of your own unused instances, or set PORT to a free port.`,
+  );
+  Object.assign(err, {
+    broadcast: { port: null, kind: "exhausted", repoRoot: null, explicit: false, skipped },
+  });
+  throw err;
+}
+
 export const MAX_STRING = {
   branch: 64,
   lastCommit: 120,

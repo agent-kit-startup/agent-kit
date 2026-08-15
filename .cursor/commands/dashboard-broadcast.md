@@ -37,7 +37,9 @@ node dashboard/start-broadcast.mjs
    export MC_PORT=$(node -e 'import("./dashboard/lib/guards.mjs").then(m => console.log(m.preferredPortForRepoRoot(process.cwd()))).catch(e => { console.error(e.message); process.exit(1) })')
    ```
 
-   If you set an explicit `PORT`, use that value instead of the derivation.
+   If you set an explicit `PORT`, use that value instead of the derivation. `MC_PORT` is the *preferred*
+   port: when it is already held the starter walks to the next per-workspace candidate, so always prefer
+   the `Bind:` line it prints over the derivation.
 
 1. **Prefer the starter** (handles token generation, `HOST=0.0.0.0`, detach, LAN URL print):
 
@@ -91,13 +93,19 @@ node dashboard/start-broadcast.mjs
   ```bash
   curl -sf "http://127.0.0.1:$MC_PORT/dashboard-data.json?token=$MISSION_CONTROL_TOKEN" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>console.log(JSON.parse(d).system?.repoRoot))'
   ```
-- If a loopback `/dashboard` already holds the port, stop it before broadcast.
+- **You do not have to stop anything to broadcast.** When the preferred port is held by this workspace's
+  loopback `/dashboard`, by another workspace, or by a token-gated instance the starter cannot identify,
+  it walks to the next per-workspace candidate and prints what it skipped ("left running"). Concurrent
+  Mission Control instances are supported; nothing is killed on your behalf.
+- To **reuse** an existing broadcast for this workspace instead of starting another, export the same
+  `MISSION_CONTROL_TOKEN` it was started with. A freshly generated token cannot match a running instance,
+  so the starter treats it as someone else's and starts beside it.
 - OS firewall may block inbound LAN TCP; allow the chosen port for your local network profile if needed.
 
 ## Notes
 
-- Port: `PORT` env overrides; default is the per-workspace hash allocation (range `3333-3588`). Derive it with the snippet in step 0 or read the printed `system.port`.
-- Log default: `/tmp/mission-control-broadcast.log`
+- Port: `PORT` env overrides; default is the per-workspace hash allocation (range `3333-3588`), walking to the next candidate when one is held. Derive the preferred port with the snippet in step 0, or read the printed `Bind:` line / `system.port`. Explicit `PORT` refuses instead of walking, so a pinned port never silently moves.
+- Log default: `/tmp/mission-control-broadcast-<rootId>.log` (per workspace; `MISSION_CONTROL_LOG` overrides)
 - Loopback UX remains `/dashboard` / `npm run dashboard` / `agent-kit dashboard`
 - Detach lessons match `/dashboard` (error `2026-07-25_dashboard-server-reaped-agent-shell`)
 
@@ -106,6 +114,8 @@ node dashboard/start-broadcast.mjs
 | Symptom | Cause | Fix |
 |---|---|---|
 | Serve exits: non-loopback requires token | `HOST` set without `MISSION_CONTROL_TOKEN` | Use `dashboard:broadcast` or set a ≥16 char token |
-| Port busy / token rejected | Existing instance on the allocated port | Kill LISTEN pid for **this** workspace only (verify `repoRoot`); retry broadcast |
+| Port busy / token rejected | Existing instance on the allocated port | Nothing to do: the starter skips it and binds the next per-workspace candidate. Want that exact port? Kill the LISTEN pid **only** after verifying `repoRoot` is yours |
+| Explicit `PORT` refused | You pinned a `PORT` that another instance holds | Unset `PORT` (auto-pick a free per-workspace port), or free that port yourself if it is this workspace's |
+| A second broadcast appears each run | `MISSION_CONTROL_TOKEN` is regenerated per run, so the running one cannot be identified | Export a stable `MISSION_CONTROL_TOKEN` to reuse the existing broadcast |
 | Phone cannot connect | Firewall or wrong IP | Confirm printed LAN IPv4; allow inbound TCP |
 | Config save 403 from phone | Expected | Config writes are loopback-only |

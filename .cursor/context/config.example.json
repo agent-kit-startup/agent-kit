@@ -16,7 +16,12 @@
     "offerOnExhausted": true,
     "mode": "autonomous",
     "midBatchAudits": true,
-    "preflight": "warn"
+    "preflight": "warn",
+    "cloudAgent": {
+      "repoUrl": null,
+      "startingRef": null,
+      "model": "composer-2.5"
+    }
   },
   "autoHandoff": false,
   "interTickCooldownMs": 0,

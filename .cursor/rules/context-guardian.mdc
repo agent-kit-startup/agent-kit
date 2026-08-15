@@ -72,7 +72,7 @@ If detection fails, just tell the user the command without copying it.
 - Do not block unrelated work because the legacy `onboarded` marker is missing.
 - Derive blockers from `pillars[].checks[]` with `essential: true` and `status` not `ready`. Do not treat `pendingActions` as essential-only.
 - Essential unresolved: surface the first one and offer `/agent-kit-onboard`. `/start-project` must stop until essentials are ready.
-- Non-essential unresolved (for example provider confirm / local-only collaboration): advisory only; do not halt `/start-project` or active plan work.
+- Non-essential unresolved (for example `confirm-provider` / `collaboration.provider` / local-only collaboration): advisory only; do not halt `/start-project`, `/backlog-add`, or active plan work. `/backlog-add` must not Ask on that check (one-line advisory or silence, then Broad Intake → write Ask).
 - Preserve an active plan and HANDOFF as the current work. Readiness guidance must not restart or replace them.
 - `/start-project` remains responsible for deliverable planning after essential readiness passes.
 

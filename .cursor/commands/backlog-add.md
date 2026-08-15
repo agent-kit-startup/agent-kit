@@ -36,6 +36,8 @@ Example: `/backlog-add Polish Mission Control empty-state icons`
 
 Same planning blockers as `/start-project`: unresolved essential readiness → point to `/agent-kit-onboard`. Non-essential pending is advisory only.
 
+**Never-Ask:** `confirm-provider` / `collaboration.provider` must not become an Ask. One-line advisory or silence, then continue Broad Intake → propose → write Ask. Do not halt enqueue. Distinct from an essential-readiness hard stop (that still points to `/agent-kit-onboard`). The Broad Intake worker inherits this: do not return a readiness-gate Ask for that check.
+
 ## What to Do
 
 ### 1. Broad Intake Review (required before plan proposal)
@@ -52,7 +54,7 @@ Before enqueueing a new plan, **scan** these sources (read/skim; do not deep-div
 | **Archived context** | Prior packs for same theme | `.cursor/context/archive/**` (if present; glob by topic) |
 | **Decisions** | ADRs that constrain the goal | `.cursor/memory/decisions/`, `_index.md` Decisions table |
 | **Memory** | Errors, audits, consolidations, review logs, plan-monitors, findings audits | `.cursor/memory/errors/`, `.cursor/memory/plan-monitor-*.md`, theme-matched `plan-review-*.md`, `_index.md` (Audits + Decisions) |
-| **Unprocessed dogfood** | Factory/consumer inbox notes awaiting triage (not sessionStart-only) | `dogfood/README.md` or `.cursor/dogfood/README.md` under `##` or `### Unprocessed Files`; skim titles/summaries only. Missing/empty inbox → no findings. Labels: ignore (owned by open plan), error/include (kit gap), note (inbox evidence only). Never auto-analyze or memory WRITE (ADR `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`) |
+| **Unprocessed dogfood** | Factory/consumer inbox notes awaiting triage (not sessionStart-only) | `dogfood/README.md` or `.cursor/dogfood/README.md` under `##` or `### Unprocessed Files`; skim titles/summaries only. Missing/empty inbox → no findings. Labels: ignore (owned by open plan), error/include (kit gap), note (inbox evidence only). Never auto-analyze or memory WRITE (ADRs `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`, `decisions/2026-08-14_main-command-dogfood-audit-routing.md`) |
 | **Local docs** | SoT / inventories / getting-started that the goal touches | `docs/**`, especially files named in the payload or related SoT |
 | **Working tree** | Uncommitted local work that would collide | `git status`, `git diff` (staged + unstaged); do not commit |
 | **Recent commits** | What already shipped for this theme | `git log` (short, recent), related PR titles if available |
@@ -82,6 +84,13 @@ The actual scanning and triage is delegated to a **Task(explore) subagent** usin
 3. **Read the worker summary** — the main window uses the triage findings for conflict triage in Step 2 (vague goals) and Step 3 (propose and confirm write).
 
 **Fallback:** If Task dispatch is unavailable, run the Broad Intake Review inline (same as pre-delegation behavior).
+
+**Unprocessed inbox Ask (when non-empty):** after the skim, if Unprocessed has rows, **Ask questions** (one question; chat numbered-list fallback) with labels exactly:
+- `Analyze inbox now` — start the ingest ritual (analyze → memory WRITE → triage). Notes become plans/memory after HITL, never `plan-monitor-*.md`. Then continue this enqueue.
+- `Enqueue Fix now` — fold include/error Unprocessed rows into this proposal (already in Broad Intake). Do not start a nested `/backlog-add`.
+- `Not now` — continue the write Ask. Treat remaining inbox rows as `note` only.
+
+Never auto-analyze. Empty or missing inbox: skip this Ask.
 
 ### 2. Vague goal
 

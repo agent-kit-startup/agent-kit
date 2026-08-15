@@ -60,8 +60,10 @@
 #     waitTimeoutSeconds). CI/headless uses this as the invocation cap.
 #   --wait-slice SECONDS: chat AwaitShell budget per session (default 90; config
 #     waitSliceSeconds). Early-ready still exits 0 at first freshness.
-#   --backend auto|claude|cursor: reviewer cascade override. auto uses Claude when
+#   --backend auto|claude|cursor|cloud: reviewer cascade override. auto uses Claude when
 #     usable, else cursor-agent. Existing config with missing backend stays claude.
+#     cloud is an opt-in pin only (Cursor Cloud Agents over REST); it is never in the
+#     auto cascade. cursor reviews the working tree; cloud reviews the PUSHED branch.
 #   --reviewer-model NAME: reviewer model id (default sonnet / config reviewerModel).
 #   --advisor-model NAME: escalate-only advisor (default opus / config advisorModel).
 #   --implementer-model NAME: stamp the model that shipped the tick (default auto /
@@ -111,6 +113,11 @@
 #   AGENT_KIT_AUDIT_FOCUS_TERMINAL    1/true: rollback to OS Terminal activate / emulator focus.
 #   AGENT_KIT_AUDIT_IMPLEMENTER_MODEL model id that shipped the tick (stamp only; no secrets).
 #   AGENT_KIT_AUDIT_REVIEWER_MODEL    override reviewer model id (default sonnet).
+#   CURSOR_API_KEY                    SECRET. Cursor user/service-account key, required by
+#                                     backend=cloud only. Read from the environment; never
+#                                     echoed, logged, put on a command line, or written to
+#                                     wait-state. curl reads it from a stdin config (-K -).
+#   AGENT_KIT_CURSOR_API_BASE         Cloud Agents REST base (default https://api.cursor.com).
 #
 # Exit codes:
 #   0  ok / fresh monitor ready (with --wait-monitor) / soft-fail tip when NOT waiting
@@ -119,13 +126,16 @@
 #   3  --wait-monitor timeout (no fresh monitor within budget)
 #   4  soft-fail while --wait-monitor was requested (e.g. missing claude on autonomous
 #      arm, background spawn fell back to paste-only without a waitable arm, the
-#      post-spawn progress gate aborted early on a silent PTY, or the audit-session cap
-#      refused the spawn). Without --wait-monitor the same soft-fails stay tip + exit 0.
+#      post-spawn progress gate aborted early on a silent PTY, the audit-session cap
+#      refused the spawn, or on backend=cloud: no CURSOR_API_KEY, unpushed HEAD, a
+#      create call that never started, or a run that reached ERROR/CANCELLED/EXPIRED).
+#      Without --wait-monitor the same soft-fails stay tip + exit 0.
 #
 # Freshness ADR: .cursor/memory/decisions/2026-07-27_audits-wait-freshness-enforce.md
 # Background PTY ADR: .cursor/memory/decisions/2026-07-28_audits-headless-terminal-honesty.md
 # Progress gate ADR: .cursor/memory/decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
 # Atomic wait ADR: .cursor/memory/decisions/2026-08-13_audits-atomic-wait-reviewer-fallback.md
+# Cloud Agents ADR: .cursor/memory/decisions/2026-08-14_cursor-cloud-agents-sdk-audits-backend.md
 
 set -euo pipefail
 
@@ -158,6 +168,13 @@ WAIT_IMPLEMENTER_MODEL=""
 WAIT_REVIEWER_MODEL=""
 REVIEWER_BACKEND=""
 REVIEWER_BACKEND_EXPLICIT=0
+REVIEWER_BACKEND_WANT=""
+# Cloud Agents (backend=cloud). Ids only; the API key is never stored in any of these.
+CLOUD_API_BASE="${AGENT_KIT_CURSOR_API_BASE:-https://api.cursor.com}"
+CLOUD_MODEL_DEFAULT="composer-2.5"
+WAIT_CLOUD_AGENT_ID=""
+WAIT_CLOUD_RUN_ID=""
+CLOUD_TMP_FILES=()
 REVIEWER_MODEL=""
 REVIEWER_MODEL_EXPLICIT=0
 ADVISOR_MODEL=""
@@ -368,11 +385,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --backend)
       if [[ $# -lt 2 || -z "${2:-}" ]]; then
-        echo "error: --backend requires auto|claude|cursor" >&2
+        echo "error: --backend requires auto|claude|cursor|cloud" >&2
         exit 2
       fi
-      if [[ "$2" != "auto" && "$2" != "claude" && "$2" != "cursor" ]]; then
-        echo "error: --backend must be auto, claude, or cursor (got: $2)" >&2
+      if [[ "$2" != "auto" && "$2" != "claude" && "$2" != "cursor" && "$2" != "cloud" ]]; then
+        echo "error: --backend must be auto, claude, cursor, or cloud (got: $2)" >&2
         exit 2
       fi
       REVIEWER_BACKEND="$2"
@@ -466,6 +483,46 @@ tip: no reviewer backend is usable (claude missing/quota-empty and cursor-agent 
   Paste fallback: $LAUNCHER_REL --force --paste-only
   Manual fallback: /plan-external-review
 EOF
+}
+
+tip_no_cloud() {
+  cat <<EOF
+tip: backend=cloud is pinned but not usable. Audit skipped (Field Report stays owed).
+  Needs curl, node, and a non-empty CURSOR_API_KEY in the environment.
+  Export the key from your gitignored .env (never commit it; .env.example ships an
+  empty placeholder). A Cursor service-account key is preferred for shared use.
+  Working-tree review instead: set backend to "cursor" (cursor-agent).
+  This is not a Cursor tick API/usage-limit hard-stop.
+  Paste fallback: $LAUNCHER_REL --force --paste-only
+EOF
+}
+
+# Cloud Agents clone the repo from GitHub: unpushed local commits are invisible to the
+# reviewer, so a stale-state audit would be dishonest. Reads local remote-tracking state
+# only (no fetch). Prints the tip and returns 1 when HEAD is not an ancestor of upstream.
+cloud_pushed_state_ok() {
+  local upstream
+  upstream="$(git -C "$ROOT" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  if [[ -z "$upstream" ]]; then
+    cat <<EOF
+tip: backend=cloud needs an upstream branch to review (no @{upstream} for HEAD).
+  Cloud Agents clone the repo from GitHub; a branch that was never pushed reviews as empty.
+  Push the branch (or open the PR) first, then re-arm. Audit skipped; Field Report stays owed.
+EOF
+    return 1
+  fi
+  if ! git -C "$ROOT" merge-base --is-ancestor HEAD "$upstream" 2>/dev/null; then
+    local ahead
+    ahead="$(git -C "$ROOT" rev-list --count "$upstream..HEAD" 2>/dev/null || echo '?')"
+    cat <<EOF
+tip: backend=cloud refuses to review stale state - HEAD is ${ahead} commit(s) ahead of ${upstream}.
+  Cloud Agents clone the pushed branch, so those commits would be reviewed as absent.
+  Push (or land the PR) and re-arm, or use backend "cursor" to review the working tree.
+  Checked against local remote-tracking state only (no fetch). Field Report stays owed.
+EOF
+    return 1
+  fi
+  return 0
 }
 
 tip_no_template() {
@@ -1250,6 +1307,16 @@ models_same_family() {
 # Runtime reviewer id. Cursor cannot honor Claude-family names; those collapse to auto.
 effective_reviewer_model() {
   local named="${REVIEWER_MODEL:-sonnet}"
+  # Cloud Agents run Cursor models: a Claude-family reviewerModel is not honorable there,
+  # so the configured cloud model id is the honest stamp for implementer≠reviewer.
+  if [[ "${REVIEWER_BACKEND:-}" == "cloud" ]]; then
+    if [[ "$REVIEWER_MODEL_EXPLICIT" -eq 1 && "$(normalize_model_family "$named")" != "haiku" && "$(normalize_model_family "$named")" != "opus" && "$(normalize_model_family "$named")" != "sonnet" ]]; then
+      printf '%s' "$named"
+      return
+    fi
+    printf '%s' "$(config_cloud_string model "$CLOUD_MODEL_DEFAULT")"
+    return
+  fi
   if [[ "${REVIEWER_BACKEND:-}" == "cursor" ]]; then
     local fam
     fam="$(normalize_model_family "$named")"
@@ -1315,7 +1382,7 @@ enforce_implementer_reviewer_split() {
   soft_fail_exit
 }
 
-# Prints auto|claude|cursor. Missing key / file => claude (existing-install pin).
+# Prints auto|claude|cursor|cloud. Missing key / file => claude (existing-install pin).
 config_review_backend() {
   if [[ ! -f "$CONFIG" ]]; then
     echo "claude"
@@ -1327,7 +1394,8 @@ config_review_backend() {
       try {
         const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
         const v = j && j.externalPlanReview && j.externalPlanReview.backend;
-        process.stdout.write(v === "auto" || v === "cursor" || v === "claude" ? v : "claude");
+        const ok = ["auto", "cursor", "claude", "cloud"];
+        process.stdout.write(ok.includes(v) ? v : "claude");
       } catch {
         process.stdout.write("claude");
       }
@@ -1348,7 +1416,16 @@ cursor_agent_usable() {
   command -v cursor-agent >/dev/null 2>&1
 }
 
-# Sets REVIEWER_BACKEND to claude|cursor|none. Distinct from Cursor tick quota hard-stop.
+# backend=cloud needs curl, node (JSON), and a non-empty CURSOR_API_KEY in the environment.
+# The key is only tested for emptiness here; it is never printed, logged, or exported onward.
+cloud_usable() {
+  command -v curl >/dev/null 2>&1 || return 1
+  command -v node >/dev/null 2>&1 || return 1
+  [[ -n "${CURSOR_API_KEY:-}" ]]
+}
+
+# Sets REVIEWER_BACKEND to claude|cursor|cloud|none. Distinct from Cursor tick quota hard-stop.
+# cloud is a pin only: auto never cascades into it (ADR 2026-08-14 cursor-cloud-agents-sdk).
 resolve_reviewer_backend() {
   local want
   if [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 1 && -n "$REVIEWER_BACKEND" ]]; then
@@ -1356,10 +1433,19 @@ resolve_reviewer_backend() {
   else
     want="$(config_review_backend)"
   fi
+  # Requested value survives the resolve so tips can name the pin that failed.
+  REVIEWER_BACKEND_WANT="$want"
   case "$want" in
     cursor)
       if cursor_agent_usable; then
         REVIEWER_BACKEND="cursor"
+      else
+        REVIEWER_BACKEND="none"
+      fi
+      ;;
+    cloud)
+      if cloud_usable; then
+        REVIEWER_BACKEND="cloud"
       else
         REVIEWER_BACKEND="none"
       fi
@@ -1544,8 +1630,12 @@ wait_state_write() {
       reviewerModel: process.argv[7],
       status: process.argv[8],
     };
+    // Cloud Agents handles so an exit-3 resume re-polls the same run instead of
+    // creating a second agent. Ids and timestamps only: never the API key.
+    if (process.argv[9]) out.cloudAgentId = process.argv[9];
+    if (process.argv[10]) out.cloudRunId = process.argv[10];
     fs.writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
-  ' "$path" "$arm_epoch" "$deadline" "$remaining" "${WAIT_BACKEND_STAMP:-claude}" "${WAIT_IMPLEMENTER_MODEL:-}" "${WAIT_REVIEWER_MODEL:-}" "$status"
+  ' "$path" "$arm_epoch" "$deadline" "$remaining" "${WAIT_BACKEND_STAMP:-claude}" "${WAIT_IMPLEMENTER_MODEL:-}" "${WAIT_REVIEWER_MODEL:-}" "$status" "${WAIT_CLOUD_AGENT_ID:-}" "${WAIT_CLOUD_RUN_ID:-}"
 }
 
 wait_state_clear() {
@@ -1866,6 +1956,235 @@ Contract reminders:
 EOF
 }
 
+# backend=cloud output contract. The reviewer runs on a Cursor VM against a clone, so it
+# cannot write into this working tree; the launcher materializes the monitor locally from
+# the terminal run result. That keeps freshness polling and findings-only intact.
+build_cloud_prompt() {
+  local base="$1"
+  cat <<EOF
+$base
+
+Cloud Agents output contract (this run only):
+- You are running on a Cursor VM against a clone of the PUSHED branch. You cannot write
+  into the operator's working tree, and you must not try.
+- Do NOT create a branch, commit, push, or open a pull request. This is findings-only.
+- Your FINAL message must be the complete monitor markdown and nothing else: no preamble,
+  no code fence around the whole document, no "here is the report" sentence. The launcher
+  writes that message verbatim to the monitor path on the operator's machine.
+- Keep the escalation line and the /plan-review-triage closeout line inside that markdown.
+- Do not index the monitor in _index.md yourself; the operator's triage step owns that.
+EOF
+}
+
+config_cloud_string() {
+  local key="$1"
+  local default="$2"
+  if [[ ! -f "$CONFIG" ]] || ! command -v node >/dev/null 2>&1; then
+    printf '%s' "$default"
+    return
+  fi
+  node -e '
+    const fs = require("fs");
+    const key = process.argv[2];
+    const fallback = process.argv[3];
+    try {
+      const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const c = j && j.externalPlanReview && j.externalPlanReview.cloudAgent;
+      const v = c && c[key];
+      process.stdout.write(typeof v === "string" && v.trim() ? v.trim() : fallback);
+    } catch {
+      process.stdout.write(fallback);
+    }
+  ' "$CONFIG" "$key" "$default"
+}
+
+# Normalize the origin remote to the https GitHub form Cloud Agents expect. An explicit
+# cloudAgent.repoUrl always wins. SSH host aliases (git@my-alias:owner/repo.git, common with
+# per-repo deploy keys) cannot be resolved to a real host here, so this prints nothing and
+# the caller soft-fails asking for an explicit repoUrl rather than guessing wrong.
+cloud_repo_url() {
+  local configured raw host_path host path
+  configured="$(config_cloud_string repoUrl "")"
+  if [[ -n "$configured" ]]; then
+    printf '%s' "$configured"
+    return
+  fi
+  raw="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
+  [[ -n "$raw" ]] || return 0
+  case "$raw" in
+    git@*:*)
+      host_path="${raw#git@}"
+      host="${host_path%%:*}"
+      path="${host_path#*:}"
+      raw="https://${host}/${path}"
+      ;;
+    ssh://git@*)
+      raw="https://${raw#ssh://git@}"
+      ;;
+  esac
+  raw="${raw%.git}"
+  if [[ "$raw" != https://github.com/*/* ]]; then
+    return 0
+  fi
+  printf '%s' "$raw"
+}
+
+# One authenticated REST call. The key is passed through curl's stdin config (-K -), never
+# on the command line, so it cannot appear in `ps`, in a printed command, or in a log.
+# Body (never secret) goes through a file. Prints the HTTP status; body lands in $2.
+cloud_api() {
+  local method="$1" out_file="$2" url="$3" body_file="${4:-}"
+  local args=(-sS --max-time 120 -o "$out_file" -w '%{http_code}' -X "$method" -K -)
+  if [[ -n "$body_file" ]]; then
+    args+=(-H "Content-Type: application/json" --data-binary "@$body_file")
+  fi
+  printf 'header = "Authorization: Bearer %s"\n' "${CURSOR_API_KEY:-}" \
+    | curl "${args[@]}" "$url" 2>/dev/null || true
+}
+
+cloud_json_get() {
+  node -e '
+    const fs = require("fs");
+    try {
+      const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const v = process.argv[2].split(".").reduce((a, k) => (a == null ? a : a[k]), j);
+      process.stdout.write(v == null ? "" : String(v));
+    } catch {
+      process.stdout.write("");
+    }
+  ' "$1" "$2"
+}
+
+# Create the Cloud Agent, poll its run, and materialize the monitor locally on FINISHED.
+# Exit contract matches the rest of the launcher: 0 fresh-ready, 3 timeout, 4 soft-fail
+# while waiting (0 with a tip when --wait-monitor is off). Never fabricates a monitor.
+cloud_review_run() {
+  local monitor_rel="$1"
+  local slug body_file resp_file code agent_id run_id status model repo_url starting_ref
+  slug="$(slug_from_monitor_path "$monitor_rel")"
+  model="$(config_cloud_string model "$CLOUD_MODEL_DEFAULT")"
+  repo_url="$(cloud_repo_url)"
+  starting_ref="$(config_cloud_string startingRef "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)")"
+
+  if [[ -z "$repo_url" ]]; then
+    cat <<EOF >&2
+tip: backend=cloud could not derive a GitHub repo URL from the origin remote
+  ($(git -C "$ROOT" remote get-url origin 2>/dev/null || echo 'no origin')).
+  SSH host aliases cannot be resolved to a real host, so nothing is guessed.
+  Set externalPlanReview.cloudAgent.repoUrl to the https://github.com/<owner>/<repo> form
+  and re-arm. Audit skipped; Field Report stays owed.
+EOF
+    soft_fail_exit
+  fi
+
+  body_file="$(mktemp -t agent-kit-cloud-body)"
+  resp_file="$(mktemp -t agent-kit-cloud-resp)"
+  CLOUD_TMP_FILES=("$body_file" "$resp_file")
+  # Most paths out of this function are `exit`, so cleanup hangs off EXIT, not RETURN.
+  # shellcheck disable=SC2064
+  trap 'rm -f "${CLOUD_TMP_FILES[@]}"' EXIT
+
+  # autoCreatePR and workOnCurrentBranch are hard-false: a reviewer must never touch the
+  # branch or open a PR (findings-only; ADR 2026-08-14_cursor-cloud-agents-sdk-audits-backend).
+  CLOUD_PROMPT="$(build_cloud_prompt "$PROMPT")" node -e '
+    const fs = require("fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify({
+      prompt: { text: process.env.CLOUD_PROMPT },
+      model: { id: process.argv[2] },
+      name: ("audit " + process.argv[3]).slice(0, 100),
+      repos: [{ url: process.argv[4], startingRef: process.argv[5] }],
+      autoCreatePR: false,
+      workOnCurrentBranch: false,
+    }));
+  ' "$body_file" "$model" "$slug" "$repo_url" "$starting_ref"
+
+  echo "audits: creating Cursor Cloud Agent (findings-only, autoCreatePR=false)"
+  echo "  api: $CLOUD_API_BASE/v1/agents"
+  echo "  repo: $repo_url @ $starting_ref"
+  echo "  model: $model"
+  code="$(cloud_api POST "$resp_file" "$CLOUD_API_BASE/v1/agents" "$body_file")"
+  agent_id="$(cloud_json_get "$resp_file" agent.id)"
+  run_id="$(cloud_json_get "$resp_file" run.id)"
+  if [[ "$code" != "200" && "$code" != "201" ]] || [[ -z "$agent_id" || -z "$run_id" ]]; then
+    cat <<EOF >&2
+tip: backend=cloud could not start the review (HTTP ${code:-none}). The review NEVER STARTED,
+  so no monitor exists and the Field Report stays owed. Check CURSOR_API_KEY validity and
+  that the Cursor GitHub App can read $repo_url. This is not a Cursor tick usage-limit hard-stop.
+EOF
+    soft_fail_exit
+  fi
+  WAIT_CLOUD_AGENT_ID="$agent_id"
+  WAIT_CLOUD_RUN_ID="$run_id"
+  echo "audits: cloud agent $agent_id run $run_id (inspect: https://cursor.com/agents)"
+  if [[ "$WAIT_MONITOR" -eq 1 ]]; then
+    wait_state_write "$slug" "${WAIT_ARM_EPOCH:-$(date +%s)}" "${WAIT_DEADLINE:-0}" "${WAIT_REMAINING:-0}" "armed" || true
+  fi
+
+  if [[ "$WAIT_MONITOR" -ne 1 ]]; then
+    cat <<EOF
+
+audits: cloud run armed but not waited (--wait-monitor is off). A spawn is not a review.
+  Poll it with: $LAUNCHER_REL --wait-monitor $(basename "${PLAN_REL}")
+EOF
+    return 0
+  fi
+
+  # Poll until terminal or the slice/total budget runs out. Slice exhaustion is exit 3.
+  local deadline slice_deadline now
+  now="$(date +%s)"
+  deadline=$((now + ${WAIT_REMAINING:-$WAIT_TIMEOUT}))
+  slice_deadline=$((now + WAIT_SLICE))
+  echo "audits: wait-monitor waiting on cloud run (slice=${WAIT_SLICE}s remaining=${WAIT_REMAINING:-$WAIT_TIMEOUT}s)"
+  while :; do
+    now="$(date +%s)"
+    if [[ "$now" -ge "$deadline" || "$now" -ge "$slice_deadline" ]]; then
+      wait_state_write "$slug" "${WAIT_ARM_EPOCH:-$now}" "${WAIT_DEADLINE:-$deadline}" "$((deadline - now < 0 ? 0 : deadline - now))" "armed" || true
+      cat <<EOF
+audits: wait-monitor timeout (exit 3). This is NOT review done.
+  The cloud run is still ${status:-RUNNING}; resume the remaining budget in this session with:
+  $LAUNCHER_REL --wait-monitor $(basename "${PLAN_REL}")
+EOF
+      exit 3
+    fi
+    code="$(cloud_api GET "$resp_file" "$CLOUD_API_BASE/v1/agents/$agent_id/runs/$run_id")"
+    status="$(cloud_json_get "$resp_file" status)"
+    case "$status" in
+      FINISHED)
+        break
+        ;;
+      ERROR|CANCELLED|EXPIRED)
+        cat <<EOF >&2
+tip: the cloud review RAN AND FAILED (status $status). No monitor is written and none is
+  fabricated. Field Report stays owed. Inspect the run at https://cursor.com/agents and re-arm.
+EOF
+        soft_fail_exit
+        ;;
+    esac
+    sleep 10
+  done
+
+  local result
+  result="$(cloud_json_get "$resp_file" result)"
+  if [[ -z "$result" ]]; then
+    echo "tip: cloud run FINISHED with an empty result; refusing to write an empty monitor. Field Report stays owed." >&2
+    soft_fail_exit
+  fi
+  mkdir -p "$(dirname "$ROOT/$monitor_rel")"
+  {
+    echo "<!-- audits-wait-fresh: created -->"
+    printf '%s\n' "$result"
+  } >"$ROOT/$monitor_rel"
+  wait_state_clear "$slug"
+  cat <<EOF
+audits: cloud review finished; monitor written at
+  $monitor_rel
+Findings-only. Nothing was committed, pushed, or opened as a PR. Triage with:
+
+  $TRIAGE_PASTE
+EOF
+  exit 0
+}
+
 build_batch_prompt() {
   local auto_remediate="${1:-false}"
   local plan_list="$2"
@@ -2147,11 +2466,20 @@ fi
 if [[ "$MODE" != "paste-only" && "$DRY_RUN" -ne 1 && "$POLL_ONLY" -ne 1 ]]; then
   if [[ "$REVIEWER_BACKEND" == "none" ]]; then
     local_want="$(config_review_backend)"
-    if [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 0 && "$local_want" == "claude" ]]; then
+    if [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 1 ]]; then
+      local_want="$REVIEWER_BACKEND_WANT"
+    fi
+    if [[ "$local_want" == "cloud" ]]; then
+      tip_no_cloud
+    elif [[ "$REVIEWER_BACKEND_EXPLICIT" -eq 0 && "$local_want" == "claude" ]]; then
       tip_no_claude
     else
       tip_no_reviewer
     fi
+    soft_fail_exit
+  fi
+  # Pinned cloud: refuse a stale-state audit before spending API credits.
+  if [[ "$REVIEWER_BACKEND" == "cloud" ]] && ! cloud_pushed_state_ok; then
     soft_fail_exit
   fi
 fi
@@ -2161,7 +2489,7 @@ if [[ "$FORCE" -eq 1 ]]; then
   INTERACTIVE_FLAGS+=(--force)
 fi
 INTERACTIVE_FLAGS+=(--interactive)
-if [[ "$REVIEWER_BACKEND" == "claude" || "$REVIEWER_BACKEND" == "cursor" ]]; then
+if [[ "$REVIEWER_BACKEND" == "claude" || "$REVIEWER_BACKEND" == "cursor" || "$REVIEWER_BACKEND" == "cloud" ]]; then
   INTERACTIVE_FLAGS+=(--backend "$REVIEWER_BACKEND")
 fi
 if [[ -n "${REVIEWER_MODEL:-}" ]]; then
@@ -2231,6 +2559,17 @@ if [[ "$BATCH" -eq 1 ]]; then
   if [[ "$POLL_ONLY" -eq 1 ]]; then
     echo "audits: wait-monitor poll-only (no spawn)"
     wait_for_monitors "${BATCH_MONITOR_PATHS[@]}"
+  fi
+
+  # One cloud agent per monitor is not implemented; refuse honestly rather than reviewing
+  # only the first plan and claiming the batch was covered.
+  if [[ "$REVIEWER_BACKEND" == "cloud" && "$MODE" != "paste-only" && "$POLL_ONLY" -ne 1 ]]; then
+    cat <<EOF >&2
+tip: backend=cloud does not support --batch yet (one cloud agent per plan is not wired).
+  Arm each plan separately, or use backend "claude" / "cursor" for the batch.
+  Audit skipped; Field Reports stay owed.
+EOF
+    soft_fail_exit
   fi
 
   echo
@@ -2330,6 +2669,20 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "  paste-cmd: $PASTE_CMD"
   echo "  focus-terminal: $FOCUS_TERMINAL"
   echo "  triage: $TRIAGE_PASTE"
+  if [[ "$REVIEWER_BACKEND" == "cloud" || "$REVIEWER_BACKEND_WANT" == "cloud" ]]; then
+    echo "  cloud-api-base: $CLOUD_API_BASE (key from CURSOR_API_KEY env; never printed)"
+    echo "  cloud-repo: $(cloud_repo_url || true) @ $(config_cloud_string startingRef "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)")"
+    if [[ -z "$(cloud_repo_url || true)" ]]; then
+      echo "  cloud-repo-note: unresolved (SSH alias or non-GitHub origin) - set cloudAgent.repoUrl"
+    fi
+    echo "  cloud-model: $(config_cloud_string model "$CLOUD_MODEL_DEFAULT")"
+    echo "  cloud-write-switches: autoCreatePR=false workOnCurrentBranch=false (findings-only, not configurable)"
+    if cloud_pushed_state_ok >/dev/null 2>&1; then
+      echo "  cloud-pushed-state: ok (HEAD is an ancestor of upstream)"
+    else
+      echo "  cloud-pushed-state: STALE - would soft-fail (HEAD not pushed; cloud clones the remote)"
+    fi
+  fi
   print_session_pressure_dry_run
   print_wait_monitor_dry_run "$SINGLE_MONITOR_PATH"
   exit 0
@@ -2342,6 +2695,13 @@ if [[ "$POLL_ONLY" -eq 1 ]]; then
 fi
 
 echo
+
+# backend=cloud has no PTY: create -> poll -> the launcher writes the monitor from the
+# terminal run result. It deliberately skips launch_background_terminal, the progress
+# gate, and the detached-session pressure gate, which are tmux/screen concepts.
+if [[ "$REVIEWER_BACKEND" == "cloud" && "$MODE" != "paste-only" && "$POLL_ONLY" -ne 1 ]]; then
+  cloud_review_run "$SINGLE_MONITOR_PATH"
+fi
 
 case "$MODE" in
   paste-only)

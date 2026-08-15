@@ -8,6 +8,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-08-15
+
+### Added
+
+- Optional **Cursor Cloud Agents audits backend**: `externalPlanReview.backend: "cloud"` runs the post-hoc plan review on Cursor Cloud Agents over REST (`https://api.cursor.com`) and writes the same `plan-monitor-*.md` findings contract. It is a **pin only** — `"auto"` still cascades Claude → Cursor Agent CLI and never reaches it. Because Cloud Agents clone the repo, it reviews the **pushed** branch and a preflight soft-fails on unpushed `HEAD` instead of auditing state the reviewer cannot see (`backend: "cursor"` remains the working-tree reviewer). The launcher writes the monitor from the terminal run result, so freshness, exits `0|3|4`, `autoRemediate: false`, implementer≠reviewer, and `/plan-review-triage` are unchanged; `autoCreatePR` and `workOnCurrentBranch` are hard-off and not configurable. `ERROR` / `CANCELLED` / `EXPIRED` / empty results write no monitor and fabricate nothing; agent and run ids persist in wait-state for exit-3 resume. `--batch` is refused rather than partially covered. New config: `externalPlanReview.cloudAgent` (`repoUrl`, `startingRef`, `model`). Requires `curl`, `node`, and `CURSOR_API_KEY` — no new runtime dependency, and `@cursor/sdk` is deliberately **not** vendored (it needs Node 22.13+ against the kit's `engines >=20`). ADR `2026-08-14_cursor-cloud-agents-sdk-audits-backend.md`; tests `.cursor/scripts/plan-external-review-cloud-backend.test.mjs`.
+- Spec Kit SDD research: Accepted ADR maps GitHub Spec Kit commands onto existing Agent Kit surfaces (adapt vocabulary, ignore runtime / CLI / `.specify/`). Getting-started pointer and plan-template Goal what/why cue. ADR `2026-08-14_spec-kit-sdd-adapt-ignore.md`.
+- **Multi-instance Mission Control broadcast**: `agent-kit dashboard-broadcast` / `npm run dashboard:broadcast` binds the same per-workspace port allocation as `/dashboard` (hash of the snapshot root in `3333-3588`) instead of a hardcoded `3333`, so a broadcast starts **beside** an already-running instance. New `classifyBroadcastListener` / `resolveBroadcastPort` / `describeBroadcastListener` in `dashboard/lib/guards.mjs` walk the candidate ports and reuse **only** this workspace's own broadcast — reuse requires LAN reachability, not just a matching `system.repoRoot`, because a loopback panel answers `?token=` with 200 without any token. Everything else (our loopback panel, another workspace, a token-gated instance this token cannot identify, an unknown process) is skipped and left running. Export a stable `MISSION_CONTROL_TOKEN` to reuse an existing broadcast instead of starting another. The broadcast log is now per workspace (`/tmp/mission-control-broadcast-<rootId>.log`).
+
+### Fixed
+
+- HANDOFF HITL claims (parked, approved, deferred, confirmed, stopped-by-operator) must record Ask id, operator reply, or `agent-inferred`. A refused command is terminal in the worker contract (same class as never `/git-prod`). Queue and audit start preflight the detached `agent-kit-audit-*` session pile (warn or offer reap; cap surfaces in the orchestrator Ask, not only launcher stderr).
+- `/backlog-add` (and the reused Broad Intake worker) never Asks on non-essential `confirm-provider` / `collaboration.provider`. One-line advisory or silence, then Broad Intake → write Ask.
+- Audit wait-slice exit 3 with leftover `waitTimeoutSeconds` resumes in the same `/run-plan` / `/run-plan-all` session (re-arm `--wait-monitor`) before advancing the queue or skipping triage. Exit 3 is still timeout-only and is never narrated as reviewed.
+- Broadcast preflight no longer answers a busy port with `kill "$(lsof -nP -iTCP:3333 -sTCP:LISTEN -t)"`. It names who holds each port it walked past (this workspace's loopback panel, another workspace by root, a token-gated instance, an unidentified process), leaves them running, and offers a `kill` line **only** for a listener proven to be this workspace's own. Explicit `PORT` still refuses rather than silently moving. The starter also stamps `PORT` and `MISSION_CONTROL_REPO_ROOT` onto the detached `serve.mjs` env on both spawn paths, so the server binds the allocated port instead of falling back to `3333`. The token gate for non-loopback bind is unchanged.
+
+### Changed
+
+- Operator submitted the Core Pack plugin to Cursor Marketplace (pending review).
+- Daily dogfood and audit path stays on `/run-plan`, `/run-plan-all`, `/continue-plan`, and `/backlog-add`. When Unprocessed is non-empty, those commands may Ask `Analyze inbox now` / `Enqueue Fix now` / `Not now` (never auto-analyze). `/dogfood` stays file-only. Notes become plans/memory after HITL, never `plan-monitor-*.md`. When audits are enabled, arm/wait/rearm/triage continuation is the `/run-plan` / `/run-plan-all` default; `/plan-external-review` and `/plan-review-triage` stay specialist SoT. ADR `2026-08-14_main-command-dogfood-audit-routing.md`.
+
 ## [5.2.1] - 2026-08-14
 
 ### Changed

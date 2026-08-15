@@ -5,11 +5,17 @@
  * Opt-in LAN bind: HOST=0.0.0.0 (or explicit non-loopback), requires
  * MISSION_CONTROL_TOKEN (generated when unset), detach-starts serve.mjs,
  * prints LAN URL(s) with token. Does not weaken loopback `/dashboard`.
+ *
+ * Multi-instance: the listen port is the same per-workspace allocation the
+ * loopback starter uses (hash of the snapshot root in the 3333-3588 range unless
+ * PORT is set). Candidate ports held by this workspace's loopback panel, another
+ * workspace, or an unidentified process are skipped - never killed - so a
+ * broadcast can come up beside an already-running Mission Control.
  */
 
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { existsSync, openSync, realpathSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildBroadcastShareUrl,
@@ -19,13 +25,17 @@ import {
 } from "./lib/broadcast-share.mjs";
 import {
   BROADCAST_TOKEN_ENV,
+  REPO_ROOT_ENV,
+  describeBroadcastListener,
   escapePerlDoubleQuoted,
   generateBroadcastToken,
   isLoopbackBindHost,
   isValidBroadcastToken,
   listLanIPv4Addresses,
   normalizeAuthToken,
+  repoRootLogId,
   resolveBindHost,
+  resolveBroadcastPort,
   resolveContextConfigPath,
   resolveSnapshotRepoRoot,
 } from "./lib/guards.mjs";
@@ -37,10 +47,13 @@ const KIT_ROOT = join(__dirname, "..");
 const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
 process.title = `Mission Control · ${basename(ROOT) || "workspace"}`;
 const SERVE = join(__dirname, "serve.mjs");
-const LOG = process.env.MISSION_CONTROL_LOG || "/tmp/mission-control-broadcast.log";
-const PORT = Number.parseInt(process.env.PORT || "3333", 10);
+const LOG =
+  process.env.MISSION_CONTROL_LOG || `/tmp/mission-control-broadcast-${repoRootLogId(ROOT)}.log`;
 const READY_TIMEOUT_MS = 20_000;
 const READY_POLL_MS = 250;
+
+/** Allocated listen port for this run (see resolveBroadcastPort in main). */
+let PORT = 0;
 
 function resolveBroadcastEnv() {
   const env = { ...process.env };
@@ -58,30 +71,84 @@ function resolveBroadcastEnv() {
   return { env, host, token };
 }
 
-function urlsForProbe(token) {
+function urlsForProbe(token, port = PORT) {
   const q = `?token=${encodeURIComponent(token)}`;
-  const urls = [`http://127.0.0.1:${PORT}/${q}`];
+  const urls = [`http://127.0.0.1:${port}/${q}`];
   for (const ip of listLanIPv4Addresses()) {
-    urls.push(`http://${ip}:${PORT}/${q}`);
+    urls.push(`http://${ip}:${port}/${q}`);
   }
   return urls;
 }
 
-function probeHttp(url) {
+/** HTTP status code as a string; "000" when the connection failed. */
+function httpStatus(url) {
   try {
-    const code = execFileSync("curl", ["-sf", "-o", "/dev/null", "-w", "%{http_code}", url], {
-      encoding: "utf8",
-      timeout: 3000,
-    }).trim();
-    return code === "200";
+    return execFileSync(
+      "curl",
+      ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", url],
+      { encoding: "utf8", timeout: 5000 },
+    ).trim();
   } catch {
-    return false;
+    return "000";
   }
 }
 
-function listeningPids() {
+function probeHttp(url) {
+  return httpStatus(url) === "200";
+}
+
+/** Snapshot root reported by a listener that accepts our token, else null. */
+function snapshotRootAt(port, token) {
+  const url = `http://127.0.0.1:${port}/dashboard-data.json?token=${encodeURIComponent(token)}`;
   try {
-    const out = execFileSync("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN", "-t"], {
+    const raw = execFileSync("curl", ["-sf", url], {
+      encoding: "utf8",
+      timeout: 8000,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    const root = JSON.parse(raw)?.system?.repoRoot;
+    return typeof root === "string" && root.trim() ? resolve(root.trim()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Probe one candidate port for `resolveBroadcastPort`.
+ *
+ * `lanReachable` is what separates our own broadcast (reusable) from our own
+ * loopback panel: a loopback listener needs no token, so it answers `?token=…`
+ * with 200 on 127.0.0.1 while staying unreachable on every LAN address.
+ */
+function probeBroadcastPort(port, token) {
+  const q = `?token=${encodeURIComponent(token)}`;
+  const loopbackStatus = httpStatus(`http://127.0.0.1:${port}/${q}`);
+  const listening = loopbackStatus !== "000" || listeningPids(port).length > 0;
+  if (!listening) {
+    return { listening: false, repoRoot: null, acceptsToken: false, tokenGated: false };
+  }
+  const acceptsToken = loopbackStatus === "200";
+  if (!acceptsToken) {
+    return {
+      listening: true,
+      repoRoot: null,
+      acceptsToken: false,
+      tokenGated: loopbackStatus === "401" || loopbackStatus === "403",
+    };
+  }
+  const ips = listLanIPv4Addresses();
+  return {
+    listening: true,
+    repoRoot: snapshotRootAt(port, token),
+    acceptsToken: true,
+    tokenGated: false,
+    lanReachable: ips.length > 0 ? ips.some((ip) => probeHttp(`http://${ip}:${port}/${q}`)) : null,
+  };
+}
+
+function listeningPids(port = PORT) {
+  try {
+    const out = execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], {
       encoding: "utf8",
       timeout: 3000,
     }).trim();
@@ -124,6 +191,7 @@ function detachStart(env) {
   const hostEsc = escapePerlDoubleQuoted(String(env.HOST));
   const tokenEsc = escapePerlDoubleQuoted(String(env[BROADCAST_TOKEN_ENV]));
   const portEsc = escapePerlDoubleQuoted(String(PORT));
+  const snapEsc = escapePerlDoubleQuoted(ROOT);
   const perl = [
     "use POSIX qw(setsid);",
     "exit if fork;",
@@ -136,6 +204,7 @@ function detachStart(env) {
     `$ENV{HOST}="${hostEsc}";`,
     `$ENV{${BROADCAST_TOKEN_ENV}}="${tokenEsc}";`,
     `$ENV{PORT}="${portEsc}";`,
+    `$ENV{${REPO_ROOT_ENV}}="${snapEsc}";`,
     `exec("node","${serveEsc}");`,
   ].join(" ");
 
@@ -159,6 +228,68 @@ async function waitReady(urls) {
   return null;
 }
 
+/**
+ * Preflight: name every candidate port we walked past. Nothing here is killed —
+ * a busy port means another Mission Control (ours or someone else's) keeps
+ * running and broadcast lands on the next free per-workspace port.
+ */
+function reportSkipped(skipped) {
+  if (!skipped || skipped.length === 0) return;
+  console.log("Ports already held (left running):");
+  for (const entry of skipped) {
+    console.log(`  ${describeBroadcastListener(entry.kind, entry)}`);
+  }
+  if (skipped.some((entry) => entry.kind === "token-gated")) {
+    console.log(
+      `  Export ${BROADCAST_TOKEN_ENV} with an existing broadcast's token to reuse it instead of starting another.`,
+    );
+  }
+}
+
+/** Recovery text for a port we may not take. Never a blind kill of a foreign listener. */
+function recoveryLines(kind, port) {
+  switch (kind) {
+    case "self-other-mode":
+      return [
+        `  That listener is this workspace (${ROOT}). Stop it yourself if you want this exact port:`,
+        `    kill "$(lsof -nP -iTCP:${port} -sTCP:LISTEN -t)"`,
+        "  Or retry with PORT unset: broadcast will take a free per-workspace port and leave it running.",
+      ];
+    case "foreign":
+      return [
+        "  Leave that workspace's Mission Control running. Retry with PORT unset to take a free per-workspace port.",
+      ];
+    case "token-gated":
+      return [
+        `  Export ${BROADCAST_TOKEN_ENV} with that instance's token to reuse it, or retry with PORT unset.`,
+      ];
+    case "exhausted":
+      return [
+        "  Every candidate port in this workspace's range is held by an instance that is not ours to stop.",
+        "  Stop one of your own Mission Control instances, or set PORT to a port you know is free.",
+      ];
+    default:
+      return [
+        "  Leave that process alone. Retry with PORT unset to take a free per-workspace port.",
+      ];
+  }
+}
+
+function reportRefusal(err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  const info = err?.broadcast;
+  if (!info) return;
+  if (info.kind === "exhausted" && info.skipped?.length) {
+    console.error("Ports checked (all left running):");
+    for (const entry of info.skipped.slice(0, 8)) {
+      console.error(`  ${describeBroadcastListener(entry.kind, entry)}`);
+    }
+  }
+  for (const line of recoveryLines(info.kind, info.port)) {
+    console.error(line);
+  }
+}
+
 async function main() {
   const { env, host, token } = resolveBroadcastEnv();
   if (isLoopbackBindHost(host)) {
@@ -168,6 +299,26 @@ async function main() {
     process.exit(1);
   }
 
+  let allocation;
+  try {
+    allocation = resolveBroadcastPort({
+      repoRoot: ROOT,
+      envPort: process.env.PORT,
+      probe: (port) => probeBroadcastPort(port, token),
+    });
+  } catch (err) {
+    reportRefusal(err);
+    process.exit(1);
+  }
+
+  reportSkipped(allocation.skipped);
+
+  PORT = allocation.port;
+  // Pin the allocation for this process and the detached server.
+  process.env.PORT = String(PORT);
+  env.PORT = String(PORT);
+  env[REPO_ROOT_ENV] = ROOT;
+
   const urls = urlsForProbe(token);
   const primaryLan = listLanIPv4Addresses()[0];
   const displayUrl =
@@ -175,15 +326,9 @@ async function main() {
       ? `http://${primaryLan}:${PORT}/?token=${encodeURIComponent(token)}`
       : urls[0];
 
-  const already = listeningPids().length > 0 && urls.some((u) => probeHttp(u));
-  if (!already) {
-    if (listeningPids().length > 0) {
-      console.error(
-        `Port ${PORT} is listening but did not accept the broadcast token. Stop the existing Mission Control instance (loopback /dashboard) first, then retry.`,
-      );
-      console.error(`  kill "$(lsof -nP -iTCP:${PORT} -sTCP:LISTEN -t)"`);
-      process.exit(1);
-    }
+  if (allocation.reuse) {
+    console.log(`Mission Control broadcast already listening on port ${PORT} for ${ROOT}`);
+  } else {
     console.log(`Starting Mission Control broadcast on ${host}:${PORT}…`);
     detachStart(env);
     const ready = await waitReady(urls);
@@ -192,8 +337,6 @@ async function main() {
       console.error(`Check the log: ${LOG}`);
       process.exit(1);
     }
-  } else {
-    console.log(`Mission Control broadcast already listening on port ${PORT}`);
   }
 
   const shareBase = resolveShareBase(process.env);
@@ -233,7 +376,10 @@ async function main() {
       "  Share is a cosmetic Mission Kit (or BYO) link; phone must still reach this LAN.",
     );
   }
-  console.log("  Config writes stay loopback-only. Stop: kill the LISTEN pid on this port.");
+  console.log(`  Root:  ${ROOT}`);
+  console.log(
+    "  Config writes stay loopback-only. Stop this workspace only: kill the LISTEN pid on this port.",
+  );
   console.log("  Firewall: allow inbound TCP on this port for your LAN profile if needed.");
   console.log("");
 

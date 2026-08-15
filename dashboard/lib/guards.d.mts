@@ -52,6 +52,39 @@ export function resolveMissionControlPort(args: {
   probe: (port: number) => { listening: boolean; repoRoot: string | null };
   opts?: PortOpts;
 }): { port: number; reuse: boolean; explicit: boolean };
+type BroadcastProbe = {
+  listening: boolean;
+  repoRoot?: string | null;
+  acceptsToken?: boolean;
+  tokenGated?: boolean;
+  lanReachable?: boolean | null;
+};
+type BroadcastListenerKind =
+  | "free"
+  | "self-broadcast"
+  | "self-other-mode"
+  | "foreign"
+  | "token-gated"
+  | "unknown";
+export function classifyBroadcastListener(
+  info: BroadcastProbe,
+  repoRoot: string,
+): BroadcastListenerKind;
+export function describeBroadcastListener(
+  kind: string,
+  info?: { port?: number | null; repoRoot?: string | null },
+): string;
+export function resolveBroadcastPort(args: {
+  repoRoot: string;
+  envPort?: string | number | null;
+  probe: (port: number) => BroadcastProbe;
+  opts?: PortOpts;
+}): {
+  port: number;
+  reuse: boolean;
+  explicit: boolean;
+  skipped: Array<{ port: number; kind: string; repoRoot: string | null }>;
+};
 export function isSafeRepoRelativePath(relPath: unknown): boolean;
 export function resolveBindHost(envHost?: string | null): string;
 export function isLoopbackBindHost(host: string | undefined | null): boolean;

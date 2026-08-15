@@ -374,4 +374,4 @@ Cursor's Ask questions tool provides clickable option buttons. When unavailable 
 - A docs and operations repository on a self-hosted Git service is not classified as greenfield or GitHub without evidence.
 - The slash picker shows one Agent Kit onboarding entry.
 - `/start-project` receives a prepared repository profile and asks only for the deliverable goal.
-- `/start-project` blocks planning only on unresolved essential checks (`essential: true` in `pillars[].checks[]`). Non-essential pending items such as `collaboration.provider` / `confirm-provider` are warnings only and must not halt Broad Intake or the Gate A / Gate B HITL contract.
+- `/start-project` blocks planning only on unresolved essential checks (`essential: true` in `pillars[].checks[]`). Non-essential pending items such as `collaboration.provider` / `confirm-provider` are warnings only and must not halt Broad Intake or the Gate A / Gate B HITL contract. `/backlog-add` must not Ask on that check (one-line advisory or silence, then Broad Intake → write Ask).
