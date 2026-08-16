@@ -343,7 +343,7 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 | `README.md` | L120 | [Bootstrap](bootstrap.md) — Exactly what lands in your project, and why there's no nested folder | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L121 | [Layers](layers-spec.md) — How the base install, optional packs, and your local files layer together | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L122 | [Domain packs](domain-packs.md) — Optional bundles: clean code, DevOps, testing, and more | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L123 | [Agent Personas](personas-contract.md) — Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](docs/creating-p… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L123 | [Agent Personas](personas-contract.md) — Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](creating-personas.md)) | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L125 | [Manifest](agent-kit-manifest.md) — The `.cursor/agent-kit.json` file | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L126 | [Contributing](CONTRIBUTING.md) — Working on the kit itself (includes contributor quickstart) | allowlist-synced (`README.md`) |
 | `README.md` | L127 | [Development](DEVELOPMENT.md) — Factory topology, local CLI, and maintainer workflows | allowlist-synced (`README.md`) |
