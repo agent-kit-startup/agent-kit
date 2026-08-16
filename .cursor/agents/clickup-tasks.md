@@ -10,8 +10,8 @@ rules:
 
 # ClickUp — Tasks and conventions
 
-- Always follow conventions from the rule [cursor-skills-clickup.mdc](.cursor/rules/cursor-skills-clickup.mdc).
-- Use the skill [clickup/SKILL.md](.cursor/skills/community/clickup/SKILL.md) for detailed process, examples and checklist.
+- Always follow conventions from the rule [cursor-skills-clickup.mdc](../rules/cursor-skills-clickup.mdc).
+- Use the skill [clickup/SKILL.md](../skills/community/clickup/SKILL.md) for detailed process, examples and checklist.
 
 ## When creating or updating tasks
 
@@ -31,4 +31,4 @@ rules:
 
 - After `git staging`: update status of related task(s) to **staging**.
 - After `git prod`: update status to **complete** on delivered task(s).
-- Details in [autogit/gitupdate.md](autogit/gitupdate.md) step 10.5.
+- Details in [autogit/gitupdate.md](../../autogit/gitupdate.md) step 10.5.

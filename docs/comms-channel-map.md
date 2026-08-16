@@ -18,7 +18,7 @@ Do not market unchecked full autonomy. Staging may be automatic; production (`/g
 
 | Channel | Priority | Effort | Disposition | Policy | HITL depth |
 |---------|----------|--------|-------------|--------|------------|
-| missionkit.io / blog-equivalent | High | Med | **include** | Product voice; dual-name; claims match 5.0.0 shipped docs | Ask before any public publish |
+| missionkit.io / blog-equivalent | High | Med | **include** | Product voice; dual-name; claims match the current release's shipped docs | Ask before any public publish |
 | Copy-paste social (X / Twitter) | High | Low | **include** | Short; no autonomy-first slogans; link site + public GitHub | Ask before post or reply |
 | Medium | Med | Med | **include** | Same claims as [public-launch-announcement.md](public-launch-announcement.md) and getting-started | Ask before publish |
 | Newsletter / Substack | Med | High | **include** | Digest of recaps and releases only; no unshipped features | Ask before send |
@@ -37,7 +37,7 @@ Bind every cycle to artifacts that already exist:
 
 | Cycle | Trigger (must be real) | Output | Channels |
 |-------|------------------------|--------|----------|
-| Recap | Merged CHANGELOG `[Unreleased]` items that have reached `staging`, or a dated recap of what already shipped in 5.0.0 | [recap template](comms-templates/recap.md) | X (short), Medium/newsletter (optional) |
+| Recap | Merged CHANGELOG `[Unreleased]` items that have reached `staging`, or a dated recap of what already shipped in the current release | [recap template](comms-templates/recap.md) | X (short), Medium/newsletter (optional) |
 | Release | GitHub Release / closed CHANGELOG version / missionkit.io already showing that version | [release template](comms-templates/release.md) | Site, X, HN (optional), Medium |
 | Contributor-ask | Open issues or registry contribution paths that are actually ready | [contributor-ask template](comms-templates/contributor-ask.md) | GitHub, X, launch paste follow-up |
 

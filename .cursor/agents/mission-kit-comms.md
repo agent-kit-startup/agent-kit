@@ -28,7 +28,7 @@ Follow skill `registry/skills/community/mission-kit-comms/SKILL.md` (factory ove
 
 - HTTP post, webhook, or `gh` issue comment that is marketing without Ask.
 - Put tokens, webhooks, or cookies in files that can be committed.
-- Claim product behavior that is not in CHANGELOG 5.0.0 / getting-started / five-layer matrix.
+- Claim product behavior that is not in the newest closed CHANGELOG version / getting-started / five-layer matrix.
 
 ## Naming
 

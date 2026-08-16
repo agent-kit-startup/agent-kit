@@ -166,7 +166,7 @@ When creating plans (`/start-project` or planner): prefer template; fill budget 
 
 ## 7. Update HANDOFF at end of each phase
 
-According to [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc):
+According to [cursor-plan-handoff.mdc](../.cursor/rules/cursor-plan-handoff.mdc):
 
 - Record completed phase, completed to-dos, next phase.
 - Include instruction for the next agent.
@@ -274,9 +274,9 @@ When Task dispatch is unavailable (no subagent support in the current session), 
 ## References
 
 - [`.cursor/context/templates/plan.md`](../.cursor/context/templates/plan.md) — canonical template with budget
-- [cursor-plan-handoff.mdc](.cursor/rules/cursor-plan-handoff.mdc)
-- [cursor-skills-git-workflow.mdc](.cursor/rules/cursor-skills-git-workflow.mdc)
-- [autogit/gitupdate.md](autogit/gitupdate.md) (`git staging`, `git prod`)
+- [cursor-plan-handoff.mdc](../.cursor/rules/cursor-plan-handoff.mdc)
+- [cursor-skills-git-workflow.mdc](../.cursor/rules/cursor-skills-git-workflow.mdc)
+- [autogit/gitupdate.md](gitupdate.md) (`git staging`, `git prod`)
 - [`.cursor/commands/run-plan.md`](../.cursor/commands/run-plan.md) (continuous; `/run-plan-loop` and `/run-plan-orchestrated` are deprecated aliases)
 - [`.cursor/commands/hotfix.md`](../.cursor/commands/hotfix.md) (mini plan + continuous tick contract)
 - [`.cursor/commands/run-plan-all.md`](../.cursor/commands/run-plan-all.md) (multi-plan queue); operator path in [docs/getting-started.md](../docs/getting-started.md)

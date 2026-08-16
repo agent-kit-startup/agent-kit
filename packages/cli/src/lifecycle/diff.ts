@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentKitManifest } from "../manifest/types.js";
 import { allSkills, loadRegistry } from "../registry/client.js";
-import { loadPackManifest, packMemberTargets } from "../registry/install.js";
+import { loadPackManifest, packMemberTargets, skillFileTargets } from "../registry/install.js";
 import { L0_ARTIFACTS } from "./l0.js";
 import { resolveContained } from "./paths.js";
 import { isProtectedPath, resolveProtectedGlobs } from "./protected.js";
@@ -85,8 +85,13 @@ export async function diffAgainstRegistry(
   for (const packId of manifest.packs ?? []) {
     const pack = await loadPackManifest(registryRoot, packId);
     for (const member of pack.members) {
-      const { sourceRel, targetRel } = packMemberTargets(member);
-      await pushUnique(sourceRel, targetRel);
+      const pairs =
+        member.kind === "skill"
+          ? await skillFileTargets(registryRoot, member.source, member.id)
+          : [packMemberTargets(member)];
+      for (const { sourceRel, targetRel } of pairs) {
+        await pushUnique(sourceRel, targetRel);
+      }
     }
   }
 
@@ -99,10 +104,13 @@ export async function diffAgainstRegistry(
         entries.push({ path: `skill:${id}`, status: "missing-registry" });
         continue;
       }
-      const category = skill.path.includes("/core/") ? "core" : "community";
-      const sourceRel = path.posix.join(skill.path, "SKILL.md");
-      const targetRel = path.posix.join(".cursor", "skills", category, skill.id, "SKILL.md");
-      await pushUnique(sourceRel, targetRel);
+      for (const { sourceRel, targetRel } of await skillFileTargets(
+        registryRoot,
+        skill.path,
+        skill.id,
+      )) {
+        await pushUnique(sourceRel, targetRel);
+      }
     }
   }
 

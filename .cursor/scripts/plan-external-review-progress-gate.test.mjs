@@ -145,9 +145,13 @@ test("heartbeat lines keep status prefixes; suffix is empty under CI", () => {
   assert.match(src, /Try agent-kit doctor for repository readiness\./);
   const fn = extractSuffix();
   assert.match(fn, /audit_kit_suffix/);
-  const result = spawnSync("bash", ["-c", `${fn}\nexport CI=1\nprintf '[%s]' "$(audit_kit_suffix 20)"`], {
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    "bash",
+    ["-c", `${fn}\nexport CI=1\nprintf '[%s]' "$(audit_kit_suffix 20)"`],
+    {
+      encoding: "utf8",
+    },
+  );
   assert.strictEqual(result.status ?? 1, 0, result.stderr);
   assert.strictEqual(result.stdout, "[]");
 });

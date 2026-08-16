@@ -5,7 +5,7 @@ Human-in-the-loop gate before the first npm publish or any publish that changes 
 ## Preconditions
 
 - [ ] Release content is on `origin/main` (promote via `git prod` from `origin/staging` when the release is not already on `main`).
-- [ ] Root `package.json` `version`, `packages/cli/package.json` `version`, and the dated section in `CHANGELOG.md` match the intended release. **Tree today:** root + CLI + `CHANGELOG` `[5.0.0]` are aligned at **5.0.0**. **Registry today:** `npm view @dadado/agent-kit-cli version` is still **4.8.9** until `v5.0.0` publishes. Do not treat tree SemVer as live npm `latest`.
+- [ ] Root `package.json` `version`, `packages/cli/package.json` `version`, and the dated section in `CHANGELOG.md` match the intended release. Read both from the tree (`node -p "require('./package.json').version"`) and from the registry (`npm view @dadado/agent-kit-cli version`) at the moment you run this checklist; they diverge by design until the tag publishes. Do not treat tree SemVer as live npm `latest`, and do not trust a version literal written into this file.
 - [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` succeed on the **exact commit you intend to tag** (CI-green-at-tagged-SHA; see `.cursor/memory/decisions/2026-08-02_npm-5.0-go-no-go.md`). A later green SHA does not repair a red tagged commit.
 - [ ] Public sync and other post-`git prod` steps are done or explicitly deferred per [repository-boundaries.md](repository-boundaries.md).
 
@@ -43,7 +43,7 @@ The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. 
 ## Tag strategy and CI
 
 - [ ] Tags use the form **`vMAJOR.MINOR.PATCH`** (e.g. `v4.8.9`).
-- [ ] **Existing tags on `origin`:** `v3.0.0` through `v4.8.9` (35 tags; full series: v3.0.0, v3.5.0, v3.5.1, v4.0.0, v4.0.1, v4.1.0, v4.2.0–v4.2.4, v4.3.0, v4.4.0–v4.4.7, v4.5.0–v4.5.1, v4.6.0, v4.7.0–v4.7.2, v4.8.0–v4.8.9). Next: `v5.0.0`. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
+- [ ] **Existing tags on `origin`:** list them with `git tag --sort=-creatordate | head` (the series runs from `v3.0.0`; `v5.3.0` is the newest as of 2026-08-15). Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
 - [ ] Tag the commit on `main` that matches the release version; do not tag staging-only commits unless that is an explicit exception documented in the release notes.
 - [ ] **Integrated with `/git-prod`**: Annotated tags are created automatically when absent during `/git-prod` workflow (step 9.5 in `autogit/gitupdate.md`). Manual tag creation via `git push origin vX.Y.Z` or GitHub Releases UI is fallback only.
 

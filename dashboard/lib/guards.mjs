@@ -47,12 +47,12 @@ export function escapePerlDoubleQuoted(value) {
 
 /**
  * Resolve the repository root Mission Control should snapshot.
- * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
+ * @param {NodeJS.ProcessEnv | Record<string, string | undefined> | undefined} env - `undefined` falls back to `process.env`
  * @param {string} kitRoot - absolute path to the kit tree (parent of `dashboard/`)
  * @returns {string} absolute snapshot root
  */
-export function resolveSnapshotRepoRoot(env = process.env, kitRoot) {
-  const raw = env?.[REPO_ROOT_ENV];
+export function resolveSnapshotRepoRoot(env, kitRoot) {
+  const raw = (env ?? process.env)?.[REPO_ROOT_ENV];
   if (typeof raw === "string" && raw.trim()) {
     return resolve(raw.trim());
   }
@@ -400,7 +400,7 @@ export function tokensMatch(a, b) {
 /**
  * Resolve bind + token gate for Mission Control serve.
  * Non-loopback bind requires a valid MISSION_CONTROL_TOKEN (no warn-only 0.0.0.0).
- * @param {NodeJS.ProcessEnv | Record<string, string | undefined>} [env]
+ * @param {NodeJS.ProcessEnv | Record<string, string | undefined> | undefined} env - `undefined` falls back to `process.env`
  * @returns
  *   | { ok: true, host: string, tokenRequired: boolean, token: string | null, broadcast: boolean }
  *   | { ok: false, error: string }

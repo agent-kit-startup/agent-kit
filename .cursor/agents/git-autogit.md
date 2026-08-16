@@ -15,6 +15,6 @@ rules:
 - **git prod:** approved staging → `origin/main`.
 - After each promote: update `.cursor/HANDOFF.md`; if applicable, memory-loop WRITE.
 - Messages: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
-- Details: [autogit/gitupdate.md](autogit/gitupdate.md). Rule: [cursor-skills-git-workflow.mdc](.cursor/rules/cursor-skills-git-workflow.mdc).
+- Details: [autogit/gitupdate.md](../../autogit/gitupdate.md). Rule: [cursor-skills-git-workflow.mdc](../rules/cursor-skills-git-workflow.mdc).
 - Commands: `/git-staging`, `/git-prod`.
 - **Plan-monitor skim:** before promote, warn on dirty untracked `plan-monitor-*.md` and stage memory files add-by-name only. Advisory mention of Blocking untriaged monitors on `/git-prod` is allowed; never steal prod HITL.

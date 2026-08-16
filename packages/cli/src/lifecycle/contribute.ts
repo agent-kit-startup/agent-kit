@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentKitManifest } from "../manifest/types.js";
 import { allSkills, loadRegistry } from "../registry/client.js";
-import { loadPackManifest, packMemberTargets } from "../registry/install.js";
+import { loadPackManifest, packMemberTargets, skillFileTargets } from "../registry/install.js";
 import { type GateIssue, gateContributeContent, gateContributePath } from "./contribute-gate.js";
 import { L0_ARTIFACTS } from "./l0.js";
 import { resolveContained } from "./paths.js";
@@ -45,8 +45,13 @@ export async function buildRegistryPathMap(
   for (const packId of manifest.packs ?? []) {
     const pack = await loadPackManifest(registryRoot, packId);
     for (const member of pack.members) {
-      const { sourceRel, targetRel } = packMemberTargets(member);
-      map.set(targetRel.split(path.sep).join("/"), sourceRel.split(path.sep).join("/"));
+      const pairs =
+        member.kind === "skill"
+          ? await skillFileTargets(registryRoot, member.source, member.id)
+          : [packMemberTargets(member)];
+      for (const { sourceRel, targetRel } of pairs) {
+        map.set(targetRel.split(path.sep).join("/"), sourceRel.split(path.sep).join("/"));
+      }
     }
   }
 
@@ -56,10 +61,13 @@ export async function buildRegistryPathMap(
     for (const id of manifest.skills ?? []) {
       const skill = pool.find((s) => s.id === id);
       if (!skill) continue;
-      const category = skill.path.includes("/core/") ? "core" : "community";
-      const sourceRel = path.posix.join(skill.path, "SKILL.md");
-      const targetRel = path.posix.join(".cursor", "skills", category, skill.id, "SKILL.md");
-      map.set(targetRel, sourceRel);
+      for (const { sourceRel, targetRel } of await skillFileTargets(
+        registryRoot,
+        skill.path,
+        skill.id,
+      )) {
+        map.set(targetRel, sourceRel);
+      }
     }
   }
 
@@ -68,17 +76,19 @@ export async function buildRegistryPathMap(
 
 function guessRegistryPath(projectRel: string): string | null {
   const p = projectRel.split(path.sep).join("/");
-  if (p.startsWith(".cursor/skills/") && p.endsWith("/SKILL.md")) {
+  if (p.startsWith(".cursor/skills/")) {
     const rest = p.slice(".cursor/skills/".length);
     const parts = rest.split("/");
-    // .cursor/skills/<cat>/<id>/SKILL.md → registry/skills/<cat>/<id>/SKILL.md
-    if (parts.length === 3 && (parts[0] === "core" || parts[0] === "community")) {
+    // A skill is a directory, not a single file: companion files (checklists,
+    // references/) map alongside SKILL.md rather than being dropped.
+    // .cursor/skills/<cat>/<id>/<file...> → registry/skills/<cat>/<id>/<file...>
+    if (parts.length >= 3 && (parts[0] === "core" || parts[0] === "community")) {
       return path.posix.join("registry/skills", rest);
     }
-    // Legacy flat: .cursor/skills/<id>/SKILL.md → community by default
+    // Legacy flat: .cursor/skills/<id>/<file...> → community by default
     const skillId = parts[0];
-    if (parts.length === 2 && skillId) {
-      return path.posix.join("registry/skills", "community", skillId, "SKILL.md");
+    if (parts.length >= 2 && skillId) {
+      return path.posix.join("registry/skills", "community", rest);
     }
   }
   if (p.startsWith(".cursor/rules/")) {

@@ -154,7 +154,7 @@ Create if it doesn't exist (adjust `version` / `registry` to current SoT):
 ```json
 {
   "schemaVersion": 1,
-  "version": "5.2.1",
+  "version": "5.3.0",
   "profile": "default",
   "packs": [],
   "skills": [],

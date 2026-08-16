@@ -27,7 +27,7 @@ Documentation belongs to the **project**: professional, inheritable, without peo
 
 ## References
 
-- [README.md](README.md)
+- [README.md](../../README.md)
 - Rule: `.cursor/rules/docs-professional-standard.mdc`
 
 ## Plan-monitor skim
