@@ -2,7 +2,7 @@
 
 Repeatable **draft then HITL approve then publish** loop for Mission Kit adoption and contributor asks. Nothing in this tree posts to a public network by itself.
 
-**Product version in copy:** 5.0.0 (npm `@dadado/agent-kit-cli`, site [missionkit.io](https://missionkit.io)). Docs are indicative; claims must match shipped surfaces.
+**Product version in copy:** newest closed `CHANGELOG.md` version that is live on npm `@dadado/agent-kit-cli` and [missionkit.io](https://missionkit.io) - **5.3.0** as of 2026-08-15. Read it from those surfaces, not from this line. Docs are indicative; claims must match shipped surfaces.
 
 | Piece | Path |
 |-------|------|

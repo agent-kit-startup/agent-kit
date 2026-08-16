@@ -71,4 +71,23 @@ describe("ci.yml private-origin allowlist pin", () => {
     expect(rootNode).toContain("check-public-deny-links.test.mjs");
     expect(rootNode).toContain("verify-cli-dashboard-pack.test.mjs");
   });
+
+  it.skipIf(!ciPresent)("does not run the whole build twice per pull-request push", () => {
+    // push: branches ["**"] plus pull_request duplicated every PR run.
+    const onIdx = body.indexOf("on:");
+    const jobsIdx = body.indexOf("concurrency:");
+    const triggers = body.slice(onIdx, jobsIdx);
+    expect(triggers).toContain("pull_request:");
+    expect(triggers).not.toContain('branches: ["**"]');
+  });
+
+  it.skipIf(!ciPresent)("builds before the guard steps that need packages/cli/dist", () => {
+    // hook-session-start-diagnostic asserts the session-start hook resolves the
+    // CLI through packages/cli/dist rather than reporting degraded mode, so a
+    // Build step ordered after Evidence checks fails it on a clean runner.
+    const buildIdx = body.indexOf("- name: Build");
+    const evidenceIdx = body.indexOf("- name: Evidence checks");
+    expect(buildIdx).toBeGreaterThan(-1);
+    expect(evidenceIdx).toBeGreaterThan(buildIdx);
+  });
 });

@@ -339,14 +339,14 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 | `README.md` | L35 | ### Production-agent layers (L0) | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L95 | Mission Control is a local panel over Agent Kit runtime state. It binds to loopback by default and serves only its own static files. It is … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L109 | Primary sections: Current mission, Flight Log, Checklist, Crew Monitor. More menu: Plans, Activity, Agents, Skills, Commands, Health, Git, Memory, Terminals, Processes, Config… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L119 | [Repository readiness](docs/repository-readiness-onboarding.md) — Install discovery, `/agent-kit-onboard`, and deliverable boundary | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L120 | [Bootstrap](docs/bootstrap.md) — Exactly what lands in your project, and why there's no nested folder | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L121 | [Layers](docs/layers-spec.md) — How the base install, optional packs, and your local files layer together | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L122 | [Domain packs](docs/domain-packs.md) — Optional bundles: clean code, DevOps, testing, and more | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L123 | [Agent Personas](docs/personas-contract.md) — Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](docs/creating-p… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L125 | [Manifest](docs/agent-kit-manifest.md) — The `.cursor/agent-kit.json` file | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L126 | [Contributing](docs/CONTRIBUTING.md) — Working on the kit itself (includes contributor quickstart) | allowlist-synced (`README.md`) |
-| `README.md` | L127 | [Development](docs/DEVELOPMENT.md) — Factory topology, local CLI, and maintainer workflows | allowlist-synced (`README.md`) |
+| `README.md` | L119 | [Repository readiness](repository-readiness-onboarding.md) — Install discovery, `/agent-kit-onboard`, and deliverable boundary | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L120 | [Bootstrap](bootstrap.md) — Exactly what lands in your project, and why there's no nested folder | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L121 | [Layers](layers-spec.md) — How the base install, optional packs, and your local files layer together | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L122 | [Domain packs](domain-packs.md) — Optional bundles: clean code, DevOps, testing, and more | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L123 | [Agent Personas](personas-contract.md) — Mode defaults, `agentPersona` config, hygiene boundary ([create / contribute](creating-personas.md)) | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L125 | [Manifest](agent-kit-manifest.md) — The `.cursor/agent-kit.json` file | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L126 | [Contributing](CONTRIBUTING.md) — Working on the kit itself (includes contributor quickstart) | allowlist-synced (`README.md`) |
+| `README.md` | L127 | [Development](DEVELOPMENT.md) — Factory topology, local CLI, and maintainer workflows | allowlist-synced (`README.md`) |
 | `README.md` | L140 | Want to improve skills, docs, or the CLI? Start at docs/CONTRIBUTING.md… | allowlist-synced (`README.md`) |
 | `docs/DEVELOPMENT.md` | (H1/body) | Factory topology, local CLI loops, public-sync awareness | allowlist-synced (`docs/**`) |
 | `package.json` | 4 | HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; project-aware setup for Cursor, VS Code, and Windsurf. | allowlist-synced (manifest path pattern) |

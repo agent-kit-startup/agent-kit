@@ -7,7 +7,7 @@ category: pm
 
 # ClickUp - Task management (optional stack)
 
-**Not part of the Core Pack.** Install/use only when the repository integrates ClickUp. Aligned with rule [cursor-skills-clickup.mdc](.cursor/rules/cursor-skills-clickup.mdc) (`alwaysApply: false`).
+**Not part of the Core Pack.** Install/use only when the repository integrates ClickUp. Aligned with rule `.cursor/rules/cursor-skills-clickup.mdc` (`alwaysApply: false`).
 
 ## When to Use
 

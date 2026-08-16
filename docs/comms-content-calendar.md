@@ -2,7 +2,7 @@
 
 Living schedule for Mission Kit recap, release, and contributor-ask drafts. Seed copy: [public-launch-announcement.md](public-launch-announcement.md) (keep that file; evolve here).
 
-**SoT for "is it shipped?":** `CHANGELOG.md` closed versions, GitHub Releases on the public repo, and live [missionkit.io](https://missionkit.io). Product version for current claims: **5.0.0**.
+**SoT for "is it shipped?":** `CHANGELOG.md` closed versions, GitHub Releases on the public repo, and live [missionkit.io](https://missionkit.io). Product version for current claims: newest closed `CHANGELOG.md` version, **5.3.0** as of 2026-08-15.
 
 ## How to add a row
 
@@ -31,7 +31,7 @@ Do not schedule Cursor Marketplace submit here. That work is parked.
 ## Claim check (every draft)
 
 - [ ] Mission Kit = product; Agent Kit = CLI/npm/slash/pack; Mission Control = dashboard
-- [ ] Version and features match 5.0.0 shipped docs (getting-started, README, five-layer matrix)
+- [ ] Version and features match the shipped docs for the current release (getting-started, README, five-layer matrix)
 - [ ] HITL / staging→prod confirmation is stated; no "posts itself" or "full autonomy"
 - [ ] PolyForm Noncommercial + `sales@missionkit.io` for commercial use
 - [ ] Public GitHub: `https://github.com/agent-kit-startup/agent-kit`

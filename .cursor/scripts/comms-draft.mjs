@@ -5,14 +5,13 @@
  *   node .cursor/scripts/comms-draft.mjs --kind recap --channel x
  *   node .cursor/scripts/comms-draft.mjs --publish   # always exits 2
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const KINDS = new Set(["recap", "release", "contributor-ask"]);
 const CHANNELS = new Set(["x", "medium", "substack", "hn", "github", "site"]);
-const PUBLISH_REFUSE =
-  "publish refused: comms-draft never posts; operator Ask then human publish";
+const PUBLISH_REFUSE = "publish refused: comms-draft never posts; operator Ask then human publish";
 
 export function utcDay(d = new Date()) {
   return d.toISOString().slice(0, 10);
@@ -67,7 +66,8 @@ export function renderDraft(opts, day) {
   const bodies = {
     recap: `Mission Kit recap (${day})\n\nShipped this cycle: fill from CHANGELOG [Unreleased] that is already in staging.\n\nInstall: npx @dadado/agent-kit-cli@${version} install\nSite: https://missionkit.io\nHITL: production still needs a human yes.\n`,
     release: `Mission Kit ${version} / Agent Kit CLI @${version}\n\nnpx @dadado/agent-kit-cli@${version} install\nhttps://missionkit.io\nPolyForm Noncommercial; commercial: sales@missionkit.io\n`,
-    "contributor-ask": `Help Mission Kit: skills under registry/skills/community/, or agent-kit contribute from a consumer project.\nIssues: https://github.com/agent-kit-startup/agent-kit\nDo not use public issues for vulnerabilities (SECURITY.md).\nCursor Marketplace submit is not this ask.\n`,
+    "contributor-ask":
+      "Help Mission Kit: skills under registry/skills/community/, or agent-kit contribute from a consumer project.\nIssues: https://github.com/agent-kit-startup/agent-kit\nDo not use public issues for vulnerabilities (SECURITY.md).\nCursor Marketplace submit is not this ask.\n",
   };
   const body = redactSecrets(bodies[opts.kind]);
   return {

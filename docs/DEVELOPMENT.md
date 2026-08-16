@@ -15,6 +15,24 @@ Projects that install Agent Kit receive only `.cursor/` + `autogit/` + the manif
 
 **Three layers:** local scratch (HANDOFF/plans, gitignored) · private Git (factory) · public (storefront + registry SoT). Cheat sheet: [repository-boundaries.md](repository-boundaries.md#cheat-sheet-three-layers). Topology phases: [topology-private-public.md](topology-private-public.md).
 
+## Repository layout
+
+Root artifacts that are not self-explanatory, and why they are at the root rather than tucked away:
+
+| Path | What it is |
+| --- | --- |
+| `cursor-handoff` | POSIX shell CLI for the file-based context memory system (`new`, `update`, `status`, `handoff`, `archive`, `resume`, `list-projects`). Extensionless and at the root because consumers invoke it as `./cursor-handoff` and the public sync manifest ships it by that exact path. |
+| `install.md`, `install-prompt.md` | The Port B install contract an agent fetches by raw URL, and the prompt that drives it. Path-stable by design: `README.md` and external instructions link them. |
+| `add-skills.md`, `categories.md`, `registry-schema.md` | Registry authoring contracts referenced from `docs/creating-skills.md` and the registry itself. |
+| `skills-registry.json` | Legacy flat skill index kept for compatibility; `registry/registry.json` is the generated source of truth (`pnpm registry:build`). |
+| `HANDOFF.md.example` | Template a consumer copies to `.cursor/HANDOFF.md` (the real one is gitignored). |
+| `autogit/` | The git staging / production routines the kit commands cite as source of truth. |
+| `_legacy/` | Frozen v2 tree. Historical reference only - never edit, and do not treat its copies of the root files as current. |
+| `dogfood/` | Field reports and the ingest ritual (factory intake), not product code. |
+
+`.cursor/` is the kit itself (commands, rules, skills, agents, plans, memory); `packages/cli` is the
+published CLI; `dashboard/` is the Mission Control runtime; `registry/` is the skill/pack catalog.
+
 ## Local monorepo setup
 
 ```bash
@@ -81,6 +99,12 @@ npm run start:dashboard   # foreground serve only
 
 Published CLI packs `dashboard/**` from 4.8.2 onward; consumers normally run `agent-kit dashboard` without a kit checkout.
 
+### Where Mission Control's tests live
+
+`dashboard/**` has no test runner of its own: the suites for those modules are
+`packages/cli/src/dashboard/*.test.ts`, importing the `.mjs` files directly so there is one
+implementation under test rather than a copy. `dashboard/README.md` documents the layout.
+
 ## Public sync awareness
 
 - Allowlist: `scripts/public-sync.manifest` (positive globs + exclusions).
@@ -107,6 +131,19 @@ Public marketing uses **Mission Kit** / **MissionKit** (missionkit.io hero, READ
 | Legacy `agent.startupkit.com.br`, `landing-agentkit/` | Historical / rollback-only | Qualify when linked |
 
 Storefront README must not link private memory ADRs or dump dual-name legal essays. Private decision record (factory only): `2026-08-06_mission-kit-vs-agent-kit-naming.md` under `.cursor/memory/decisions/`. Public vs maintainer README split: `2026-08-02_public-vs-dev-readme-separation.md` in the same folder.
+
+## Evidence artifacts
+
+`docs/evidence/**` is private (excluded from the public sync manifest) and holds generated ledgers
+plus hand-authored audit records. Which artifact is machine-reproducible, and which one CI actually
+enforces, is not uniform: the matrix lives in `docs/evidence/README.md`. Two rules worth knowing
+before you touch them:
+
+- `evidence:file-ledger:check` is a **local replay** tool, not a CI gate - the census includes the
+  working tree, stashes and ignored-operational files, so it only reproduces on the machine that
+  generated it.
+- `evidence:knowledge-classification` refuses a dirty tree, so a `.cursor/**` change ships as two
+  commits: the change, then the regenerated artifact.
 
 ## Related docs
 

@@ -13,4 +13,4 @@ rules:
 - Follow reference model (e.g.: modelo-guest.md) for new prompts.
 - Naming: prompt-{name}-{context}.md or prompt-principal.md; versioning V1/V2 in subfolders.
 - .system/.user pairs when applicable.
-- Project rule: [cursor-skills-prompts.mdc](.cursor/rules/cursor-skills-prompts.mdc).
+- Project rule: [cursor-skills-prompts.mdc](../rules/cursor-skills-prompts.mdc).

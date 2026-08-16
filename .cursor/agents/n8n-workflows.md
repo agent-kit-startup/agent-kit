@@ -13,4 +13,4 @@ rules:
 
 - Structure: nodes, connections, credentials; webhook → Switch/IF → Execute Workflow → Respond Webhook.
 - Document changes in docs/context/ or docs/n8n-manual-update-*.md when not re-importing.
-- Rules: [cursor-skills-n8n.mdc](.cursor/rules/cursor-skills-n8n.mdc), [cursor-skills-json.mdc](.cursor/rules/cursor-skills-json.mdc).
+- Rules: [cursor-skills-n8n.mdc](../rules/cursor-skills-n8n.mdc), [cursor-skills-json.mdc](../rules/cursor-skills-json.mdc).

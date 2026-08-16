@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Branch pushes are covered by pull_request; listing "**" here as well ran the
+  # whole build twice for every PR push. Keep the direct pushes that have no PR
+  # of their own: the two long-lived branches and release tags.
   push:
-    branches: ["**"]
+    branches: [main, staging]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -11,6 +14,11 @@ on:
         description: "Sync to public repo"
         type: boolean
         default: false
+
+# Superseded PR runs are cancelled; main, staging and tag runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -61,6 +69,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Build before the guard steps: test:root-node includes the session-start
+      # hook diagnostic, which asserts the hook resolves the CLI via
+      # packages/cli/dist instead of falling back to degraded mode.
+      - name: Build
+        run: pnpm build
+
       # Private-origin allowlist (SoT: agent-kit-startup/agent-kit-dev).
       # Fail-safe: forks / renames / second mirrors skip private-only steps.
       # Adding another allowlisted step requires updating the exact-count pin in
@@ -85,6 +99,9 @@ jobs:
           pnpm evidence:codebase-findings:check
           pnpm evidence:risk-hotspots:check
           pnpm evidence:knowledge-classification:check
+          # Guards that shipped with tests but no runner until the 10-cycle audit.
+          pnpm check:guidance-claims
+          pnpm check:memory-index
           pnpm landing:build
           pnpm landing:build:check
           # Test files for root node --test suites. Scan scripts already run
@@ -101,8 +118,6 @@ jobs:
             exit 1
           fi
 
-      - name: Build
-        run: pnpm build
 
   # ── Sync to public mirror (tag or manual trigger) ──
   # Secret PUBLIC_REPO_TOKEN: fine-grained token with public repo Contents,

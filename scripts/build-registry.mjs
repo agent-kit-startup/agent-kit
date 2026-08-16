@@ -5,7 +5,7 @@
  *
  * Usage: node scripts/build-registry.mjs
  */
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 

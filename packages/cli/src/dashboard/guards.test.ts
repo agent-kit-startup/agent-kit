@@ -695,20 +695,36 @@ describe("serve.mjs HTTP auth exemption for share shell", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-    const deadline = Date.now() + 15_000;
+    // Diagnose an early exit instead of spinning until the test times out.
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    let exited: number | null = null;
+    child.on("exit", (code) => {
+      exited = code ?? -1;
+    });
+
+    // Every attempt is bounded and spaced: an accepted-but-unanswered
+    // connection must not consume the whole readiness budget, and a non-ready
+    // status must not spin the event loop the child needs to finish booting.
+    const deadline = Date.now() + 20_000;
     let ready = false;
-    while (Date.now() < deadline) {
+    while (Date.now() < deadline && exited === null) {
       try {
-        const res = await fetch(`http://127.0.0.1:${port}/open.html`);
+        const res = await fetch(`http://127.0.0.1:${port}/open.html`, {
+          signal: AbortSignal.timeout(2_000),
+        });
         if (res.status === 200 || res.status === 401) {
           ready = true;
           break;
         }
       } catch {
-        await new Promise((r) => setTimeout(r, 100));
+        // not listening yet, or the attempt timed out
       }
+      if (!ready) await new Promise((r) => setTimeout(r, 100));
     }
-    expect(ready).toBe(true);
+    expect(ready, `serve.mjs never answered on :${port} (exit=${exited}) ${stderr}`).toBe(true);
 
     try {
       const openHtml = await fetch(`http://127.0.0.1:${port}/open.html`);
@@ -723,7 +739,7 @@ describe("serve.mjs HTTP auth exemption for share shell", () => {
       child.kill("SIGTERM");
       await once(child, "exit").catch(() => undefined);
     }
-  }, 30_000);
+  }, 60_000);
 });
 
 describe("broadcast multi-instance port allocation", () => {

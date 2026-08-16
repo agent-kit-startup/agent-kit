@@ -12,4 +12,4 @@ rules:
 
 - Table scripts: e.g. 001_create_tables.sql, 002_indexes_constraints.sql.
 - DDL in dedicated folders (db/, scripts/, code/) as per project.
-- Conventions: snake_case, IF NOT EXISTS, UUID, TIMESTAMPTZ, COMMENT ON. Rule: [cursor-skills-sql.mdc](.cursor/rules/cursor-skills-sql.mdc).
+- Conventions: snake_case, IF NOT EXISTS, UUID, TIMESTAMPTZ, COMMENT ON. Rule: [cursor-skills-sql.mdc](../rules/cursor-skills-sql.mdc).

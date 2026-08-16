@@ -26,7 +26,7 @@ Thin reuse: short blocks and one ask per message from sibling skill `ux-message-
 - `docs/public-launch-announcement.md`
 - Channel map: `docs/comms-channel-map.md`
 - Calendar: `docs/comms-content-calendar.md`
-- Product version floor: **5.0.0**. Do not write 4.x as current.
+- Product version floor: **5.0.0**; current release is the newest closed `CHANGELOG.md` version (5.3.0 as of 2026-08-15). Do not write 4.x as current.
 
 Forbidden in drafts: full autonomy without HITL; Cursor Marketplace "listed" unless the parked submit plan has actually listed; npm/CLI renamed to Mission Kit; silent posting.
 

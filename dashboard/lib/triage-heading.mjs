@@ -11,8 +11,7 @@
  *   ## Follow-up plan  (also "Followup plan")
  *   ## Residuals plan
  */
-export const TRIAGE_HEADING_RE =
-  /^#{2,6}\s+(?:Triage note|Follow-?up plan|Residuals plan)\b/im;
+export const TRIAGE_HEADING_RE = /^#{2,6}\s+(?:Triage note|Follow-?up plan|Residuals plan)\b/im;
 
 /** True when markdown carries a durable triage heading. */
 export function hasTriageHeading(text) {

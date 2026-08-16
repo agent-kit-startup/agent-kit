@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import {
   type ApplyStats,
@@ -33,15 +33,61 @@ export interface InstallOptions {
   protectedGlobs?: readonly string[];
 }
 
+/** Where a skill's files land in a consumer tree: `.cursor/skills/<category>/<id>/`. */
+export function skillTargetDir(skillPath: string, skillId: string): string {
+  const category = skillPath.includes("/core/") ? "core" : "community";
+  return path.posix.join(".cursor", "skills", category, skillId);
+}
+
+/**
+ * Every file a skill ships, not just `SKILL.md`.
+ *
+ * Skills may carry companion files next to their entry point (checklists,
+ * references, fixtures). Enumerating the source directory keeps those files in
+ * the install/diff set instead of leaving the links in `SKILL.md` dangling in
+ * every consumer tree. `SKILL.md` is required and always comes first; hidden
+ * files are ignored. A missing or unreadable directory yields the `SKILL.md`
+ * pair alone, so callers behave exactly as before on a registry that has none.
+ */
+export async function skillFileTargets(
+  registryRoot: string,
+  skillPath: string,
+  skillId: string,
+): Promise<{ sourceRel: string; targetRel: string }[]> {
+  const targetDir = skillTargetDir(skillPath, skillId);
+  const pair = (rel: string) => ({
+    sourceRel: path.posix.join(skillPath, rel),
+    targetRel: path.posix.join(targetDir, rel),
+  });
+
+  let companions: string[] = [];
+  try {
+    const dirAbs = resolveContained(registryRoot, skillPath);
+    const entries = await readdir(dirAbs, { withFileTypes: true, recursive: true });
+    companions = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => {
+        const parent = path.relative(dirAbs, entry.parentPath ?? dirAbs);
+        return path.join(parent, entry.name).split(path.sep).join("/");
+      })
+      .filter((rel) => rel !== "SKILL.md" && !rel.split("/").some((seg) => seg.startsWith(".")))
+      .sort();
+  } catch {
+    companions = [];
+  }
+
+  return [pair("SKILL.md"), ...companions.map(pair)];
+}
+
 function targetForMember(member: PackMember): { sourceRel: string; targetRel: string } {
   switch (member.kind) {
-    case "skill": {
-      const category = member.source.includes("/core/") ? "core" : "community";
+    case "skill":
+      // Entry point only. Companion files come from skillFileTargets(); callers
+      // that install or diff a skill must use it instead of this single pair.
       return {
         sourceRel: path.posix.join(member.source, "SKILL.md"),
-        targetRel: path.posix.join(".cursor", "skills", category, member.id, "SKILL.md"),
+        targetRel: path.posix.join(skillTargetDir(member.source, member.id), "SKILL.md"),
       };
-    }
     case "rule":
       return {
         sourceRel: member.source,
@@ -96,19 +142,22 @@ export async function installSkill(
   options: InstallOptions = {},
 ): Promise<ApplyStats> {
   const stats = emptyStats();
-  const category = skill.path.includes("/core/") ? "core" : "community";
-  const sourceRel = path.posix.join(skill.path, "SKILL.md");
-  const targetRel = path.posix.join(".cursor", "skills", category, skill.id, "SKILL.md");
   const managedHashes = await loadManagedHashLedger(projectRoot);
-  const outcome = await copyRegistryFile(
+  for (const { sourceRel, targetRel } of await skillFileTargets(
     registryRoot,
-    projectRoot,
-    sourceRel,
-    targetRel,
-    options.protectedGlobs ?? [],
-    { managedHashes, persistManagedHashes: false },
-  );
-  recordOutcome(stats, targetRel, outcome);
+    skill.path,
+    skill.id,
+  )) {
+    const outcome = await copyRegistryFile(
+      registryRoot,
+      projectRoot,
+      sourceRel,
+      targetRel,
+      options.protectedGlobs ?? [],
+      { managedHashes, persistManagedHashes: false },
+    );
+    recordOutcome(stats, targetRel, outcome);
+  }
   await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;
 }
@@ -165,16 +214,21 @@ export async function installPack(
   const copyOpts = { managedHashes, persistManagedHashes: false as const };
 
   for (const member of packManifest.members) {
-    const { sourceRel, targetRel } = targetForMember(member);
-    const outcome = await copyRegistryFile(
-      registryRoot,
-      projectRoot,
-      sourceRel,
-      targetRel,
-      protectedGlobs,
-      copyOpts,
-    );
-    recordOutcome(stats, targetRel, outcome);
+    const pairs =
+      member.kind === "skill"
+        ? await skillFileTargets(registryRoot, member.source, member.id)
+        : [targetForMember(member)];
+    for (const { sourceRel, targetRel } of pairs) {
+      const outcome = await copyRegistryFile(
+        registryRoot,
+        projectRoot,
+        sourceRel,
+        targetRel,
+        protectedGlobs,
+        copyOpts,
+      );
+      recordOutcome(stats, targetRel, outcome);
+    }
   }
   await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;

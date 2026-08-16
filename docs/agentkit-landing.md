@@ -14,7 +14,7 @@ design tool renders.
 
 **Design mirror:** `.cursor/context/landing-missionkit/remote/` (versioned)  
 **Build output:** `.cursor/context/landing-missionkit/dist/` (gitignored, derived)  
-**Decision:** [landing-external-design-source-of-record](../memory/decisions/2026-08-05_landing-external-design-source-of-record.md)  
+**Decision:** `.cursor/memory/decisions/2026-08-05_landing-external-design-source-of-record.md` (private)  
 **Design system:** [docs/design-system.md](design-system.md) (project id, upstream/downstream map, token divergence notes)
 
 ### Constraints
