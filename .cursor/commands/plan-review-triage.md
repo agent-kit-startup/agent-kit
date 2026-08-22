@@ -16,6 +16,7 @@ Supports **multi-path walk**: iterate multiple monitors in blocking-first then d
 - After Claude external plan review completed (monitor file exists under `.cursor/memory/plan-monitor-*.md`)
 - You want to process findings from the monitor and decide next steps
 - **Daily path:** `/run-plan` (exhaustion) and `/run-plan-all` (queue-end) continue into this Ask after wait exit 0. This slash stays HITL SoT; operators should not need to type `done` or paste triage solely to resume. ADR `2026-08-14_main-command-dogfood-audit-routing.md`.
+- **Owed-row adoption:** an explicit path invocation (`/plan-review-triage <path>`) on a monitor whose slug has a **dead** wait-state (`.cursor/context/audit-wait/<slug>.json` `status: "timeout"`/`"soft-fail"`, or `"armed"` with `now >= deadline`) and an **owed** Field Report row for that plan runs this same Step 1-5 walk unchanged, but Step 4's durable heading additionally records the adoption (see Step 4). Gap-aware skip's "no open residuals / clean Outcome" row does **not** apply to an adoption target: a clean adopted monitor still gets the Ask and the durable heading (only "already triaged" or "not a monitor file" may still skip it) — the owed row needs that heading to close. This is the `Adopt existing monitor` HITL label offered by `/run-plan` / `/run-plan-all`'s owed-close path (`.cursor/memory/errors/2026-08-14_audit-owed-ledger-no-close-path.md`); it is never automatic and never rewrites the earlier exit `3`.
 - **Not for mid-plan reviews** - this command expects `completed` work only
 
 ## Usage
@@ -150,7 +151,8 @@ Rules:
 2. **Ack and stop** must write the heading on the monitor. Updating HANDOFF alone is **not** enough: Field Report uses `isReportTriaged`, which looks for a triage heading (or a follow-up plan reference). Without the heading, the row stays untriaged.
 3. Keep HITL: do not invent a choice; do not write the heading before the user picks an option.
 4. Prefer appending once near the end of the file; do not delete prior review evidence.
-5. **Residuals executors (R15):** when closing Still open items from a residuals plan, **append** a `## Closed by residuals plan` section (ids + evidence). Do **not** rewrite or empty the reviewer's `### Still open` table in place. Prefer the monitor already committed when written so edits have history (ADR `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`).
+5. **Owed-row adoption:** when this monitor's slug has a dead wait-state and an owed Field Report row (see "Owed-row adoption" above), append the adoption fact to the same heading — for example `- **Closes owed:** yes (adoption; earlier exit 3 for this slug stays 3)`. Never narrate this as "the timed-out audit completed"; it is "an independent monitor exists and the operator adopted it." Choice `Ack and stop` on an owed row records the row as **acked**, still **unreviewed** (do not write `reviewed` for an Ack close).
+6. **Residuals executors (R15):** when closing Still open items from a residuals plan, **append** a `## Closed by residuals plan` section (ids + evidence). Do **not** rewrite or empty the reviewer's `### Still open` table in place. Prefer the monitor already committed when written so edits have history (ADR `decisions/2026-07-29_plan-monitor-staging-hygiene-r14-r15.md`).
 
 ### Step 5: Execute the choice
 

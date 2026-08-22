@@ -1,4 +1,11 @@
-/** Destructive shell / push-to-main deny-list (CLI SoT; thin beforeShellExecution adapter). */
+/**
+ * Git-workflow / protected-branch deny-list (CLI SoT; thin beforeShellExecution adapter).
+ *
+ * Scope is deliberately git-only (ADR `2026-07-29_cli-invariants-thin-hook-adapters`): the
+ * guard protects human working-tree hunks and protected branches. It is NOT a general
+ * destructive-command guard — `rm -rf /`, `chmod -R 777 /`, `dd …` return `allow`. Do not
+ * describe it as one; widening the scope is a separate, deliberate plan.
+ */
 
 export type ShellPermission = "allow" | "deny";
 

@@ -22,6 +22,7 @@ export const CONSUMER_OVERLAY_PREFIXES = [
   ".cursor/agents/",
   ".cursor/skills/",
   ".cursor/commands/",
+  ".claude/commands/",
 ] as const;
 
 export type ManagedHashLedger = {

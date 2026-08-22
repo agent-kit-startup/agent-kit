@@ -19,7 +19,9 @@ import type {
   RepositoryPurpose,
 } from "../types.js";
 import { ensureDir, fileExists, writeJson } from "../utils/fs.js";
+import { generateClaudeCommandAdapters } from "./claude-command-adapters.js";
 import { generateClaudeKitLoadArtifacts } from "./claude-kit-load.js";
+import { writeClaudeSessionStartHook } from "./claude-session-start-hook.js";
 import { generateVSCodeArtifacts } from "./vscode.js";
 
 export const PERSONALIZATION_CONTRACT_VERSION = 1 as const;
@@ -46,6 +48,13 @@ export interface PersonalizationResult {
   repositoryFingerprint: string;
   items: PersonalizationItem[];
   protectedPaths: string[];
+  /**
+   * Set only when `claudeAdapters` was requested and an existing
+   * `.claude/settings.json` could not be parsed: never silently skipped,
+   * the caller (install epilogue) must print this so the operator can add
+   * the SessionStart hook by hand.
+   */
+  claudeSessionStartInstructions?: string;
 }
 
 const CONTEXT_PATH = ".cursor/project-context.md";
@@ -327,6 +336,16 @@ export async function applyPersonalization(input: {
   registry: RegistryIndex;
   manifest: AgentKitManifest;
   generatorVersion: string;
+  /**
+   * Opt-in only (default install behavior unchanged for Cursor-only
+   * consumers): generates both `.claude/commands/<name>.md` thin pointer
+   * adapters for every installed `.cursor/commands/*.md`, and a SessionStart
+   * hook merged into `.claude/settings.json` (ADR
+   * 2026-08-13_claude-cli-kit-load-bootstrap.md, amended 2026-08-21). One
+   * flag for the whole Claude Code consumer surface, wired to `install
+   * --claude`.
+   */
+  claudeAdapters?: boolean;
 }): Promise<{ result: PersonalizationResult; manifest: AgentKitManifest }> {
   const planned = buildPersonalizationPlan(input.profile, input.report, input.registry);
   const componentResults: PersonalizationItem[] = [];
@@ -414,6 +433,43 @@ export async function applyPersonalization(input: {
     };
   });
 
+  const claudeCommandItems: PersonalizationItem[] = [];
+  let claudeSessionStartInstructions: string | undefined;
+  if (input.claudeAdapters) {
+    const adapterResults = await generateClaudeCommandAdapters(input.rootDir);
+    for (const artifact of adapterResults) {
+      protectedPaths.add(artifact.relativePath);
+      claudeCommandItems.push({
+        kind: "file",
+        id: artifact.relativePath,
+        path: artifact.relativePath,
+        // Overlay statuses (applied/unchanged/refreshed/preserved-customized)
+        // fold onto the shared PersonalizationStatus union: anything written
+        // or already current reads as "applied"; a hand-edited adapter left
+        // alone reads as "skipped-customized" (same meaning as elsewhere in
+        // this file — never silently clobbered).
+        status: artifact.status === "preserved-customized" ? "skipped-customized" : "applied",
+        evidence: profileEvidence,
+      });
+    }
+
+    const hookResult = await writeClaudeSessionStartHook(input.rootDir);
+    protectedPaths.add(hookResult.relativePath);
+    claudeCommandItems.push({
+      kind: "file",
+      id: hookResult.relativePath,
+      path: hookResult.relativePath,
+      // "unavailable" (existing .claude/settings.json unparseable) is a real
+      // PersonalizationStatus value already; every other hook status folds
+      // onto "applied" the same way the command-adapter statuses do above.
+      status: hookResult.status === "unavailable" ? "unavailable" : "applied",
+      evidence: profileEvidence,
+    });
+    if (hookResult.status === "unavailable" && hookResult.instructions) {
+      claudeSessionStartInstructions = hookResult.instructions;
+    }
+  }
+
   const ideDetection = await detectIde(input.rootDir);
   if (ideDetection.ide === "vscode" || ideDetection.ide === "other") {
     const git: GitDetection = {
@@ -462,8 +518,9 @@ export async function applyPersonalization(input: {
     contractVersion: PERSONALIZATION_CONTRACT_VERSION,
     generatorVersion: input.generatorVersion,
     repositoryFingerprint: input.report.repositoryFingerprint,
-    items: [...fileResults, ...claudeItems, ...componentResults],
+    items: [...fileResults, ...claudeItems, ...claudeCommandItems, ...componentResults],
     protectedPaths: [...protectedPaths].sort(),
+    ...(claudeSessionStartInstructions ? { claudeSessionStartInstructions } : {}),
   };
   await writeJson(path.join(input.rootDir, RESULT_PATH), result);
 

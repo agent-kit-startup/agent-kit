@@ -2,7 +2,7 @@
 
 Thin markdown adapters so Claude Code CLI (including a session started in Cursor's terminal) can load Agent Kit / Mission Control context without rediscovering the repository. Cursor agents already receive that context via `sessionStart` and always-apply rules. Claude does not.
 
-**Decision:** ADR `.cursor/memory/decisions/2026-08-13_claude-cli-kit-load-bootstrap.md` (thin auto-load `CLAUDE.md` plus manual `/agent-kit` refresh).
+**Decision:** ADR `.cursor/memory/decisions/2026-08-13_claude-cli-kit-load-bootstrap.md` (thin auto-load `CLAUDE.md` plus manual `/agent-kit` refresh), amended 2026-08-21 to sanction two further opt-in surfaces: a CLI-emitted SessionStart context hook and generated `.claude/commands/*.md` pointer adapters (see `claude-code-consumer-adapters.plan.md`; delivery details for those surfaces live outside this always-on kit-load pack).
 
 This page is the pack contract. The generator in `packages/cli/src/generator/` must emit the snippets below (skip if the target already exists). Docs here are indicative; delivery truth is generator output plus tests.
 
@@ -49,7 +49,7 @@ These lines are part of the generated `CLAUDE.md` so a Claude session does not i
 - Not multi-IDE generator parity (Windsurf `.windsurfrules` / VS Code instructions). That is Action A7 in [cursor-native-audit.md](cursor-native-audit.md).
 - Not opt-in **audits** / external plan review (`docs/external-plan-review.md`, `/plan-external-review`). Session kit-load is not that backend.
 - Not `agent-kit run-plan --backend claude` tick-runner parity (`packages/cli/src/plan-loop/backends.ts`).
-- Not a Claude copy of Cursor hooks (`sessionStart`, `preCompact`, shell/edit/prompt guards). Invariants stay in the CLI; Cursor hooks stay thin adapters.
+- Not a Claude copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`, CLI-owned, fail-open; sanctioned by the 2026-08-21 amendment to ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`, mechanism per ADR `2026-07-29_cli-invariants-thin-hook-adapters.md`). Other Cursor hook types (`preCompact`, shell/edit/prompt guards) stay Cursor-only; `.claude/rules/` mirrors of `.cursor/rules` and `.claude/agents/` generated from the registry stay closed. Invariants stay in the CLI; hooks and adapters both stay thin.
 
 ## Generator wiring
 
@@ -85,7 +85,7 @@ Cursor Ask questions is not available in this CLI. When a command requires a cho
 - Not Action A7 (Windsurf / VS Code generator parity)
 - Not Claude external plan-review audits (`/plan-external-review`)
 - Not `--backend claude` plan-loop ticks
-- Not a copy of Cursor `sessionStart` / other IDE hooks
+- Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`); no `.claude/rules/` mirrors, no `.claude/agents/` generated from the registry
 ```
 
 ## Canonical `.claude/commands/agent-kit.md`
@@ -109,6 +109,29 @@ HITL: numbered-list fallback for Ask questions labels. Never `/git-prod` from th
 
 Non-goals: not audits / `/plan-external-review`, not `--backend claude` ticks, not A7, not Cursor hook clones.
 ```
+
+## Opt-in surfaces: command adapters and the SessionStart hook
+
+Everything above is always-on kit-load. Two more surfaces are **opt-in only** (`install --claude`; default install output is unchanged without the flag) — see `claude-code-consumer-adapters.plan.md` and the 2026-08-21 amendment on ADR `2026-08-13_claude-cli-kit-load-bootstrap.md` for the full decision trail.
+
+### `.claude/commands/<name>.md` pointer adapters
+
+- Generator: `packages/cli/src/generator/claude-command-adapters.ts` (`generateClaudeCommandAdapters`).
+- One adapter per installed `.cursor/commands/*.md` — filename + frontmatter `description:` read from the source, body is a fixed "read the SoT and follow it" pointer plus the same HITL adapter rules as `.claude/commands/agent-kit.md`. No command prose is copied. A command the consumer did not install gets no adapter.
+- Reserved: the `agent-kit` name is always skipped — it is the kit-load refresh command above, not a command adapter.
+- Overlay, not write-once: `.claude/commands/` is a `CONSUMER_OVERLAY_PREFIXES` entry (`lifecycle/overlay.ts`), sharing the managed-hash ledger with `.cursor/agents|skills|commands`. An adapter that still matches its last-managed body refreshes when the source description changes; a hand-edited adapter is preserved, never clobbered. (Write-once was rejected here: unlike `CLAUDE.md`, each adapter mirrors a live source that can change and the installed command set can grow across updates.)
+
+### SessionStart hook (`.claude/settings.json`)
+
+- Generator: `packages/cli/src/generator/claude-session-start-hook.ts` (`writeClaudeSessionStartHook`).
+- Idempotent JSON merge into `.claude/settings.json`, touching only `hooks.SessionStart` — every other key and hook type in the file is preserved untouched. A marker substring in the generated command (`hook session-start --format claude`) makes the entry findable for refresh-in-place and prevents duplicates on re-run.
+- Command line: `. "${CLAUDE_PROJECT_DIR}/.cursor/hooks/agent/resolve-agent-kit.sh" 2>/dev/null && resolve_agent_kit && exec $AGENT_KIT_RESOLVED hook session-start --format claude; printf '%s' '<degraded-mode text>'` — reuses the existing L0 resolver (env override → PATH → `node_modules/.bin/agent-kit` → factory dist fallback) rather than a new `.claude/hooks/` script. `exec` on success replaces the shell process; the trailing `printf` only runs when resolution or exec itself fails, so the command's own exit status is always 0.
+- If an existing `.claude/settings.json` cannot be parsed as JSON, nothing is written — `install` prints the hook entry as copy-paste JSON instead (never guess at repairing a file the kit cannot parse).
+- Not `.claude/settings.local.json`: that file is routinely auto-created by Claude Code itself on the first permission approval and is conventionally gitignored, so a skip-if-exists write there would silently no-op for most real users and would not ship as a team default.
+
+### `agent-kit hook session-start --format claude`
+
+- `packages/cli/src/commands/hook.ts` / `packages/cli/src/generator/format-session-start.ts`. `--format cursor` (default) is byte-identical to today's `{"additional_context": "..."}` JSON; `--format claude` emits the same context as plain stdout text — Claude Code's SessionStart hooks inject plain stdout directly, no JSON wrapper needed, so the consumer command needs no `node -e` unwrapper. Fail-open: any internal error degrades to a short diagnostic in the requested format instead of throwing; exit is always 0.
 
 ## Related
 

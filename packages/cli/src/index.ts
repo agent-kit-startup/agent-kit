@@ -15,6 +15,7 @@ import { installCommand } from "./commands/install.js";
 import { monitorsCommand } from "./commands/monitors.js";
 import { runPlanCommand } from "./commands/run-plan.js";
 import { scanCommand } from "./commands/scan.js";
+import { setupGlobalCommand } from "./commands/setup-global.js";
 import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
 import { validateCommand } from "./commands/validate.js";
@@ -34,6 +35,7 @@ const main = defineCommand({
     scan: scanCommand,
     add: addCommand,
     doctor: doctorCommand,
+    "setup-global": setupGlobalCommand,
     status: statusCommand,
     update: updateCommand,
     "cursor-awareness": cursorAwarenessCommand,

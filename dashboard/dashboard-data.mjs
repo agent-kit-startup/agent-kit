@@ -111,7 +111,7 @@ const SNAPSHOT = {
       dashboardDataVersion: "Semantic version of the data model schema",
       plans: "Active plans from .cursor/plans/*.plan.md with frontmatter parsing",
       system:
-        "System metadata: repoRoot, listen port, handoff state, allowlisted config summary, package info, version, name, contextPacks",
+        "System metadata: repoRoot, listen port, handoff state, allowlisted config summary, package info, version, name, contextPacks, detachedAuditSessions ({count, oldestAgeSeconds}|null; host-wide detached agent-kit-audit-* PTYs)",
       agents: "Agent definitions from .cursor/agents/*.md",
       commands: "Slash commands from .cursor/commands/*.md",
       memory:
@@ -639,6 +639,77 @@ try {
   }
 } catch {
   SNAPSHOT.processes = [];
+}
+
+// 13b. Detached audit-session visibility (plan phase3-visibility).
+// Mirrors the sessionStart hook semantics (packages/cli/src/hooks/session-start.ts):
+// whole agent-kit-audit- namespace (any token, legacy unscoped names included),
+// detached sessions only; attached sessions are operator work and never counted.
+// Fail-open: null when zero sessions or tmux/screen is missing/errors.
+SNAPSHOT.system.detachedAuditSessions = null;
+try {
+  if (withinSnapshotBudget(400)) {
+    const auditAges = [];
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    try {
+      const tmuxOut = execSync(
+        "tmux list-sessions -F '#{session_name} #{session_attached} #{session_created}'",
+        { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
+      );
+      for (const line of tmuxOut.split("\n")) {
+        const m = line.trim().match(/^(\S+)\s+(\d+)\s+(\d+)$/);
+        if (!m) continue;
+        if (!m[1].startsWith("agent-kit-audit-")) continue;
+        if (Number(m[2]) > 0) continue;
+        const created = Number(m[3]);
+        auditAges.push(nowEpoch >= created ? nowEpoch - created : -1);
+      }
+    } catch {
+      // tmux missing or no server: fail-open
+    }
+    try {
+      // `screen -ls` exits 1 while successfully listing, so soften the exit code.
+      const screenOut = execSync("screen -ls || true", {
+        encoding: "utf-8",
+        timeout: 2000,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      // The "N Sockets in <dir>." line trails the session list; socket mtime ~ start time.
+      let sockdir = null;
+      for (const line of screenOut.split("\n")) {
+        const dirMatch = line.match(/^\d+\s+Sockets?\s+in\s+(.+)\.$/);
+        if (dirMatch) sockdir = dirMatch[1];
+      }
+      for (const line of screenOut.split("\n")) {
+        const m = line.match(/^\s+(\d+)\.(\S+)\s+\((.*)\)/);
+        if (!m) continue;
+        if (!m[2].startsWith("agent-kit-audit-")) continue;
+        // "Detached" has a single t before "ached", so it never matches [Aa]ttached.
+        if (/[Aa]ttached/.test(m[3])) continue;
+        let age = -1;
+        if (sockdir) {
+          try {
+            const mtimeMs = statSync(join(sockdir, `${m[1]}.${m[2]}`)).mtimeMs;
+            if (Date.now() >= mtimeMs) age = Math.floor((Date.now() - mtimeMs) / 1000);
+          } catch {
+            // socket not stat-able: age stays unknown, session still counted
+          }
+        }
+        auditAges.push(age);
+      }
+    } catch {
+      // screen missing: fail-open
+    }
+    if (auditAges.length > 0) {
+      const known = auditAges.filter((a) => a >= 0);
+      SNAPSHOT.system.detachedAuditSessions = {
+        count: auditAges.length,
+        oldestAgeSeconds: known.length ? Math.max(...known) : null,
+      };
+    }
+  }
+} catch {
+  SNAPSHOT.system.detachedAuditSessions = null;
 }
 
 // 10. Health checks (originally)

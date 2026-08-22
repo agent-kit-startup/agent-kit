@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -128,6 +128,74 @@ describe("repository personalization", () => {
       }),
     );
     expect(await fileExists(path.join(root, ".cursor/context/personalization.json"))).toBe(true);
+  });
+
+  it("does not generate .claude/commands/*.md adapters by default (opt-in only, byte-identical L0)", async () => {
+    const { root, profile, report } = await preparedNodeRepository();
+    const registry = await loadRegistry(REPOSITORY_ROOT);
+    await mkdir(path.join(root, ".cursor/commands"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor/commands/foo.md"),
+      "---\nname: foo\ndescription: Foo command.\n---\n\nBody.\n",
+      "utf8",
+    );
+
+    const applied = await applyPersonalization({
+      rootDir: root,
+      registryRoot: REPOSITORY_ROOT,
+      profile,
+      report,
+      registry,
+      manifest: buildManifest({ version: "4.4.7" }),
+      generatorVersion: "4.4.7",
+    });
+
+    expect(await fileExists(path.join(root, ".claude/commands/foo.md"))).toBe(false);
+    expect(await fileExists(path.join(root, ".claude/settings.json"))).toBe(false);
+    expect(applied.result.items.some((item) => item.id === ".claude/commands/foo.md")).toBe(false);
+    expect(applied.result.items.some((item) => item.id === ".claude/settings.json")).toBe(false);
+  });
+
+  it("generates .claude/commands/*.md adapters and merges the SessionStart hook when opted in", async () => {
+    const { root, profile, report } = await preparedNodeRepository();
+    const registry = await loadRegistry(REPOSITORY_ROOT);
+    await mkdir(path.join(root, ".cursor/commands"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor/commands/foo.md"),
+      "---\nname: foo\ndescription: Foo command.\n---\n\nBody.\n",
+      "utf8",
+    );
+
+    const applied = await applyPersonalization({
+      rootDir: root,
+      registryRoot: REPOSITORY_ROOT,
+      profile,
+      report,
+      registry,
+      manifest: buildManifest({ version: "4.4.7" }),
+      generatorVersion: "4.4.7",
+      claudeAdapters: true,
+    });
+
+    const adapterPath = path.join(root, ".claude/commands/foo.md");
+    expect(await fileExists(adapterPath)).toBe(true);
+    expect(await readFile(adapterPath, "utf8")).toContain(
+      "Read `.cursor/commands/foo.md` now and follow that contract exactly",
+    );
+    expect(applied.result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ".claude/commands/foo.md", status: "applied" }),
+        expect.objectContaining({ id: ".claude/settings.json", status: "applied" }),
+      ]),
+    );
+    expect(applied.manifest.protected).toEqual(
+      expect.arrayContaining([".claude/commands/foo.md", ".claude/settings.json"]),
+    );
+    const settings = JSON.parse(await readFile(path.join(root, ".claude/settings.json"), "utf8"));
+    expect(settings.hooks.SessionStart[0].hooks[0].command).toContain(
+      "hook session-start --format claude",
+    );
+    expect(applied.result.claudeSessionStartInstructions).toBeUndefined();
   });
 
   it("omits unverified provider and legacy version claims", async () => {

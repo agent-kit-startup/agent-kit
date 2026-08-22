@@ -30,10 +30,14 @@ npx -y @dadado/agent-kit-cli install --yes
 | `EPERM` / `EACCES` on npm cache | User-level cache ownership drift | `npx --cache .npm-cache @dadado/agent-kit-cli install` or `npm cache clean --force` |
 | Exit 255 (no output) | `npx` prompted for confirmation in a non-TTY environment | Use `npx -y @dadado/agent-kit-cli install` for the `npx` prompt; add `--yes` or set `AGENT_KIT_YES=1` for the CLI root prompt |
 | `403 Forbidden` from registry | Auth policy or private scope | `npm login`, check `.npmrc`, or use Port B fallback |
+| `EACCES` on `npm i -g @dadado/agent-kit-cli` | Root-owned npm global prefix (e.g. `/usr/local/lib/node_modules`) | Check first with `agent-kit doctor --json` (`env.npmPrefixWritable`), then run `npx @dadado/agent-kit-cli setup-global` — it relocates the prefix to `~/.npm-global`, fixes `PATH`, and reinstalls |
+| `command not found` after install (or for a bare `agent-kit`) | `npx` is ephemeral; a bare `agent-kit` isn't on `PATH` yet | The install/init epilogue prints this automatically with 3 options; run `npx @dadado/agent-kit-cli setup-global` to fix `PATH`, or keep using `npx @dadado/agent-kit-cli <subcommand>` |
 
 That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (4.8.2 onward) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 **Multi-workspace safety:** the CLI confirms the absolute project root before writing any files (interactive prompt; `--yes` skips the prompt). Each project gets its own `.cursor/` tree and overlay ledger. The shared registry cache (`~/.cache/agent-kit/registry/`) uses a directory lock so parallel installs on the same machine cannot corrupt it.
+
+Before that confirmation, the CLI also runs a **project root guard** - see [Project root guard](#project-root-guard) below.
 
 Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
 
@@ -58,35 +62,89 @@ npx @dadado/agent-kit-cli doctor --json
 npx @dadado/agent-kit-cli doctor --fix-safe
 ```
 
+`doctor` also reports an environment pillar: `env.binOnPath`, `env.npmPrefixWritable` (with prefix detail), `env.nodeVersionOk`, and `env.shellProfile` in `--json`, plus a human "environment:" summary — read-only diagnostics, no writes. See the [`setup-global`](#how-to-invoke-them) fix for a root-owned npm prefix.
+
+### Project root guard
+
+`install` and `update` check that the target directory looks like a project root before writing anything. Three shapes are refused:
+
+| Refused shape | Why |
+|---------------|-----|
+| `/` or your home directory | Never a project root |
+| Neither `.git` nor `.cursor/agent-kit.json` | Nothing marks it as a project yet |
+| Has `.git` **and** two or more immediate child directories that are themselves repositories | Looks like a parent-of-repos folder, so L0 would land one level above the project you meant |
+
+In an interactive terminal a refusal becomes a warning plus a `Proceed anyway?` prompt that defaults to **no**. In non-interactive mode (`--yes`, `CI=true`, `AGENT_KIT_YES=1`, piped stdin) it is final: exit 1, nothing written.
+
+`--force-root` is the explicit bypass:
+
+```bash
+npx @dadado/agent-kit-cli install --force-root
+```
+
+It skips every root check, so confirm the absolute path yourself before using it. `install`, `update`, and `init` all take the same flag. A folder that already has `.cursor/agent-kit.json` is never flagged as a parent-of-repos - you confirmed that root on the first install.
+
+### Starting from an empty folder
+
+A brand-new folder has no `.git` and no manifest, so the guard above stops there by design - L0 in the wrong directory is worse than a refusal. The CLI prints the three sanctioned ways forward; pick one:
+
+| Path | Command | When |
+|------|---------|------|
+| Initialize Git first (**recommended**) | `git init` then re-run the install | You want readiness pillars and the `/git-staging` → `/git-prod` flow to work. Local-only Git is enough - no remote required |
+| Install without Git | `npx @dadado/agent-kit-cli install --force-root` | You are not ready to decide on Git yet |
+| Say yes at the prompt | Run the install in an interactive terminal and answer **yes** to `Proceed anyway?` | Same as `--force-root`, just interactive. The prompt defaults to **no** |
+
+Either of the last two installs L0 into a folder with no Git. That is supported, not a broken state: `/agent-kit-onboard` owns the Git pillar and will offer `Keep repository without Git` / `Initialize local Git` when you run it. The CLI never runs `git init` for you.
+
+`--yes` / `CI` / a piped stdin removes the interactive option, so automation needs `git init` or `--force-root`.
+
 ### After install checklist (personal path)
 
 Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`, `citty`, `kolorist` only). TTY chrome (spinners, tips) is ANSI in the CLI package; do not add `ora`, `figlet`, `chalk`, or `ink`.
 
-1. **Node.js 20+** - required for `npx` / `agent-kit` CLI (`engines` in package manifests).
+1. **Node.js 20+** - required for the CLI (`engines` in package manifests). `npx @dadado/agent-kit-cli <subcommand>` needs nothing else installed; `npm i -g @dadado/agent-kit-cli` is what puts a bare `agent-kit` on your `PATH`.
 2. **Git** - recommended so readiness pillars and `/git-staging` → `/git-prod` work; local-only Git is valid.
 3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `agent-kit dashboard`. Consumer L0 does not copy `dashboard/` into the project. `agent-kit dashboard` resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `agent-kit dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `npx @dadado/agent-kit-cli dashboard` (bare `agent-kit dashboard` only after a global install). Consumer L0 does not copy `dashboard/` into the project. The `dashboard` subcommand resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `npx @dadado/agent-kit-cli dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
-| Command | What it does |
-|---------|-------------|
-| `agent-kit install [profile]` | Install the base kit, run readiness, apply safe local fixes |
-| `agent-kit init` | Compatibility entry that runs the same install and readiness workflow |
-| `agent-kit doctor` | Print or repair repository readiness (`--json`, `--fix-safe`) |
-| `agent-kit add <id>` | Add one skill or pack later |
-| `agent-kit status` | Show install state, readiness summary, and profile origin |
-| `agent-kit update --check` | Notify-only version compare vs public tags (no L0 writes) |
-| `agent-kit cursor-awareness --check` | Opt-in advisory: Cursor changelog vs native-audit inventory (no apply) |
-| `agent-kit update` | Explicit apply: pull latest rules/commands; leaves your own files alone |
-| `agent-kit diff` | Show what changed between what you have and the latest |
-| `agent-kit contribute` | Send an improvement you made locally back upstream |
-| `agent-kit handoff` | Save your progress to `.cursor/HANDOFF.md` |
-| `agent-kit scan` | Just scan the project, don't install |
+### How to invoke them
 
-Optional: `agent-kit add mission-kit-comms` drafts recap/release/contributor copy. It does **not** post. Ask before any public network. Guide: [comms.md](comms.md).
+`npx @dadado/agent-kit-cli install` is **ephemeral**: `npx` downloads the package, runs it, and leaves nothing on your `PATH`. After it finishes, a bare `agent-kit …` is `command not found` unless you install the package globally. Two honest forms:
+
+```bash
+# Keep using npx (nothing installed globally)
+npx @dadado/agent-kit-cli status
+
+# Or install the bin once, then call it bare
+npm i -g @dadado/agent-kit-cli
+agent-kit status
+```
+
+Blocked on the global install by a root-owned npm prefix (`EACCES`)? Run `npx @dadado/agent-kit-cli setup-global` — it self-heals the prefix, fixes `PATH`, and reinstalls; see the troubleshooting table above. `install`/`init` also print this automatically as a 3-option epilogue whenever a bare `agent-kit` isn't on `PATH` yet.
+
+The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-kit-cli` (or with `agent-kit` after a global install). Slash commands (`/agent-kit-onboard`, `/start-project`, …) are IDE chat commands and need neither.
+
+| Subcommand | What it does |
+|------------|-------------|
+| `install [profile]` | Install the base kit, run readiness, apply safe local fixes |
+| `init` | Compatibility entry that runs the same install and readiness workflow |
+| `doctor` | Print or repair repository readiness (`--json`, `--fix-safe`); `--json` includes an `env` pillar (bin-on-PATH, npm prefix writability, Node version, shell profile) |
+| `setup-global` | Self-heal a root-owned npm global prefix: relocate to `~/.npm-global`, fix `PATH`, reinstall globally (`--dry-run`, `--yes`/`-y`) |
+| `add <id>` | Add one skill or pack later |
+| `status` | Show install state, readiness summary, and profile origin |
+| `update --check` | Notify-only version compare vs public tags (no L0 writes) |
+| `cursor-awareness --check` | Opt-in advisory: Cursor changelog vs native-audit inventory (no apply) |
+| `update` | Explicit apply: pull latest rules/commands; leaves your own files alone |
+| `diff` | Show what changed between what you have and the latest |
+| `contribute` | Send an improvement you made locally back upstream |
+| `handoff` | Save your progress to `.cursor/HANDOFF.md` |
+| `scan` | Just scan the project, don't install |
+
+Optional: `add mission-kit-comms` drafts recap/release/contributor copy. It does **not** post. Ask before any public network. Guide: [comms.md](comms.md).
 
 ## A normal day
 
@@ -147,8 +205,8 @@ Details: [external plan review](external-plan-review.md). Routing ADR: `2026-08-
 ### Keeping Mission Kit current (consumers)
 
 - **Opt-in check:** set `updateCheck.enabled: true` in `.cursor/context/config.json` (Mission Control Config can toggle it). SessionStart may then nudge when a newer public release exists; interval is `updateCheck.intervalDays` (default 7).
-- **Manual check:** `agent-kit update --check --json`.
-- **Apply:** run `/update` and confirm with Ask questions (or an explicit terminal `agent-kit update`). Never silent L0 overwrite; `updateApply.auto` defaults to `false`.
+- **Manual check:** `npx @dadado/agent-kit-cli update --check --json`.
+- **Apply:** run `/update` and confirm with Ask questions (or an explicit terminal `npx @dadado/agent-kit-cli update`). Never silent L0 overwrite; `updateApply.auto` defaults to `false`.
 - Not the same as public sync (factory publish) or remote-cache refresh on resolve.
 
 ### Agent Personas
@@ -200,6 +258,16 @@ HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not ava
 
 Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** `agent-kit run-plan --backend claude`, and **not** Action A7 (Windsurf / VS Code generators).
 
+#### Opt-in: slash commands and auto-loaded session context (`--claude`)
+
+The session kit-load above is always on. Two more Claude Code surfaces are **opt-in** (default install output is unchanged without the flag):
+
+```
+npx @dadado/agent-kit-cli install --claude
+```
+
+This generates `.claude/commands/<name>.md` for every `.cursor/commands/*.md` you actually have installed (thin pointers, not copies — each one just tells Claude Code to read the matching `.cursor/commands/` file), and merges a SessionStart hook into `.claude/settings.json` so the same session context Cursor gets from `sessionStart` loads automatically in Claude Code too. Re-running `install --claude` (fresh or with existing files) is idempotent: unedited generated files refresh, files you hand-edited are preserved, and the hook entry is never duplicated. If an existing `.claude/settings.json` cannot be parsed as JSON, install prints the hook entry for you to paste in by hand instead of guessing at the file.
+
 ### Optional external plan review
 
 When `/run-plan` finishes all implementable to-dos, you can get a second-agent check of the shipped work. **Default path when enabled:** `/run-plan` / `/run-plan-all` arm, wait, and continue into `/plan-review-triage`. Artifacts ship with L0; the feature stays opt-in (`enabled: false` by default). Session kit-load (`CLAUDE.md` / `/agent-kit`) is a different surface; see [Claude Code CLI (session kit-load)](#claude-code-cli-session-kit-load).
@@ -234,7 +302,7 @@ Mission Control is a **local, single-developer** observability panel. Treat it a
 
 Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), `.cursor/memory/decisions/2026-08-11_mission-control-broadcast-url-mask.md` (cosmetic Share URL), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
 
-**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `agent-kit dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
+**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `npx @dadado/agent-kit-cli dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
 
 **First failure (no `dashboard/start.mjs`):** the installed CLI is older than 4.8.2 (4.8.0 has no Path C assets; 4.8.1 was never published). Upgrade to 4.8.2+, or point env/sibling at a kit tree. Do not expect Port B alone to place the panel binary in the project.
 

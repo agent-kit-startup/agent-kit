@@ -6,9 +6,14 @@ import { describe, expect, it, vi } from "vitest";
 import { CURSOR_AWARENESS_NUDGE } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
+  type AuditSessionCommandRunner,
   type CursorAwarenessSpawn,
   buildSessionStartAdditionalContext,
   cursorAwarenessSection,
+  detachedAuditSessionsSection,
+  formatSessionAge,
+  parseScreenDetachedAuditSessions,
+  parseTmuxDetachedAuditSessions,
   parseUnprocessedDogfoodItems,
   shouldEmitCursorAwarenessNudge,
 } from "./session-start.js";
@@ -241,6 +246,106 @@ describe("buildSessionStartAdditionalContext", () => {
     );
     const { additional_context } = await buildSessionStartAdditionalContext(root);
     expect(additional_context).not.toContain("## Dogfood inbox");
+  });
+});
+
+describe("detached audit-session visibility (phase3)", () => {
+  const NOW_EPOCH = 1_760_000_000;
+  const NOW_MS = NOW_EPOCH * 1000;
+
+  it("tmux parser: detached namespace-wide only (scoped, legacy, foreign tokens)", () => {
+    const out = [
+      // Detached workspace-scoped: counted.
+      `agent-kit-audit-deadbeef-101 0 ${NOW_EPOCH - 300}`,
+      // Detached legacy unscoped: counted.
+      `agent-kit-audit-1234 0 ${NOW_EPOCH - 7200}`,
+      // Detached foreign token: counted (host-wide namespace).
+      `agent-kit-audit-cafebabe-77 0 ${NOW_EPOCH - 60}`,
+      // Attached audit session: operator work in progress, never counted.
+      `agent-kit-audit-deadbeef-202 1 ${NOW_EPOCH - 9999}`,
+      // Non-audit session: excluded.
+      `main 0 ${NOW_EPOCH - 50}`,
+      "",
+    ].join("\n");
+    const sessions = parseTmuxDetachedAuditSessions(out, NOW_EPOCH);
+    expect(sessions.map((s) => s.name)).toEqual([
+      "agent-kit-audit-deadbeef-101",
+      "agent-kit-audit-1234",
+      "agent-kit-audit-cafebabe-77",
+    ]);
+    expect(sessions.map((s) => s.ageSeconds)).toEqual([300, 7200, 60]);
+  });
+
+  it("screen parser: Detached counted, Attached excluded, socket path resolved", () => {
+    const listing = [
+      "There are screens on:",
+      "\t4242.agent-kit-audit-deadbeef-99\t(Detached)",
+      "\t4243.agent-kit-audit-77\t(Attached)",
+      "\t4244.other-session\t(Detached)",
+      "3 Sockets in /tmp/screens/S-user.",
+      "",
+    ].join("\n");
+    const entries = parseScreenDetachedAuditSessions(listing);
+    // "(Detached)" must not match the [Aa]ttached exclusion (single t before "ached").
+    expect(entries).toEqual([
+      {
+        name: "agent-kit-audit-deadbeef-99",
+        socketPath: "/tmp/screens/S-user/4242.agent-kit-audit-deadbeef-99",
+      },
+    ]);
+  });
+
+  it("formatSessionAge humanizes seconds", () => {
+    expect(formatSessionAge(42)).toBe("42s");
+    expect(formatSessionAge(90)).toBe("1m");
+    expect(formatSessionAge(7200)).toBe("2h");
+    expect(formatSessionAge(180_000)).toBe("2d");
+  });
+
+  it("emits count and oldest age when detached sessions exist", async () => {
+    const runCommand: AuditSessionCommandRunner = async (cmd) =>
+      cmd === "tmux"
+        ? [
+            `agent-kit-audit-deadbeef-101 0 ${NOW_EPOCH - 300}`,
+            `agent-kit-audit-1234 0 ${NOW_EPOCH - 7200}`,
+          ].join("\n")
+        : null;
+    const section = await detachedAuditSessionsSection({ runCommand, now: () => NOW_MS });
+    expect(section).toContain("## Detached audit sessions (host)");
+    expect(section).toContain("2 detached `agent-kit-audit-*` PTY sessions");
+    expect(section).toContain("oldest ~2h");
+  });
+
+  it("reports oldest age unknown when no age is determinable", async () => {
+    const listing = [
+      "There is a screen on:",
+      "\t4242.agent-kit-audit-deadbeef-99\t(Detached)",
+      "1 Socket in /nonexistent-sockdir-for-test.",
+      "",
+    ].join("\n");
+    const runCommand: AuditSessionCommandRunner = async (cmd) =>
+      cmd === "screen" ? listing : null;
+    const section = await detachedAuditSessionsSection({ runCommand, now: () => NOW_MS });
+    expect(section).toContain("1 detached `agent-kit-audit-*` PTY session on");
+    expect(section).toContain("(oldest age unknown)");
+  });
+
+  it("is silent when no audit sessions exist", async () => {
+    const runCommand: AuditSessionCommandRunner = async (cmd) =>
+      cmd === "tmux" ? `main 0 ${NOW_EPOCH - 50}\n` : "No Sockets found in /tmp/screens/S-user.\n";
+    expect(await detachedAuditSessionsSection({ runCommand, now: () => NOW_MS })).toBeNull();
+  });
+
+  it("is silent when both tools are missing (runner yields null)", async () => {
+    const runCommand: AuditSessionCommandRunner = async () => null;
+    expect(await detachedAuditSessionsSection({ runCommand, now: () => NOW_MS })).toBeNull();
+  });
+
+  it("fails open (null) when the runner throws", async () => {
+    const runCommand: AuditSessionCommandRunner = async () => {
+      throw new Error("boom");
+    };
+    expect(await detachedAuditSessionsSection({ runCommand, now: () => NOW_MS })).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
 import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
@@ -419,6 +419,151 @@ export async function cursorAwarenessSection(
   return CURSOR_AWARENESS_NUDGE;
 }
 
+/**
+ * Detached audit-session visibility (plan phase3-visibility).
+ *
+ * Mirrors the launcher's host-scope listing semantics
+ * (.cursor/scripts/plan-external-review.sh `list_audit_sessions host`): the whole
+ * `agent-kit-audit-` namespace (any workspace token, legacy unscoped
+ * `agent-kit-audit-<pid>` names included), detached sessions only — attached
+ * sessions are operator work in progress and are never counted. Implemented
+ * natively (one `tmux list-sessions` + one `screen -ls`, short timeout) instead of
+ * spawning the launcher script. Fail-open: silence on zero sessions, missing
+ * tools, or any error; sessionStart is never broken or blocked by this section.
+ */
+const AUDIT_SESSION_NS_PREFIX = "agent-kit-audit-";
+
+/** Per-command ceiling for the tmux/screen listing shell-outs. */
+export const AUDIT_SESSION_LIST_TIMEOUT_MS = 2_000;
+
+export interface DetachedAuditSession {
+  channel: "tmux" | "screen";
+  name: string;
+  /** Seconds since the session started; -1 when it cannot be determined. */
+  ageSeconds: number;
+}
+
+export type AuditSessionCommandRunner = (cmd: string, args: string[]) => Promise<string | null>;
+
+function runAuditSessionCommand(cmd: string, args: string[]): Promise<string | null> {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, {
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: AUDIT_SESSION_LIST_TIMEOUT_MS,
+      shell: false,
+    });
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    // Tool missing / spawn failure: fail-open (null).
+    child.on("error", () => resolve(null));
+    // `screen -ls` exits 1 while successfully listing, so never gate on the exit code.
+    child.on("close", () => resolve(out));
+  });
+}
+
+/** Parse `tmux list-sessions -F '#{session_name} #{session_attached} #{session_created}'`. */
+export function parseTmuxDetachedAuditSessions(
+  out: string,
+  nowEpochSeconds: number,
+): DetachedAuditSession[] {
+  const sessions: DetachedAuditSession[] = [];
+  for (const line of out.split(/\r?\n/)) {
+    const m = /^(\S+)\s+(\d+)\s+(\d+)$/.exec(line.trim());
+    if (!m) continue;
+    const [, name, attached, created] = m;
+    if (!name || !name.startsWith(AUDIT_SESSION_NS_PREFIX)) continue;
+    if (Number(attached) > 0) continue;
+    const createdEpoch = Number(created);
+    const ageSeconds =
+      Number.isFinite(createdEpoch) && nowEpochSeconds >= createdEpoch
+        ? nowEpochSeconds - createdEpoch
+        : -1;
+    sessions.push({ channel: "tmux", name, ageSeconds });
+  }
+  return sessions;
+}
+
+export interface ScreenAuditSessionEntry {
+  name: string;
+  /** Socket file whose mtime approximates session start; null when the dir is unknown. */
+  socketPath: string | null;
+}
+
+/** Parse `screen -ls` output into detached namespace entries (age comes from socket mtime). */
+export function parseScreenDetachedAuditSessions(listing: string): ScreenAuditSessionEntry[] {
+  const lines = listing.split(/\r?\n/);
+  // The "N Sockets in <dir>." line trails the session list, so resolve it first.
+  let sockdir: string | null = null;
+  for (const line of lines) {
+    const dirMatch = /^\d+\s+Sockets?\s+in\s+(.+)\.$/.exec(line);
+    if (dirMatch?.[1]) sockdir = dirMatch[1];
+  }
+  const entries: ScreenAuditSessionEntry[] = [];
+  for (const line of lines) {
+    const m = /^\s+(\d+)\.(\S+)\s+\((.*)\)/.exec(line);
+    if (!m) continue;
+    const [, pid, name, marker] = m;
+    if (!name || !name.startsWith(AUDIT_SESSION_NS_PREFIX)) continue;
+    // "Detached" has a single t before "ached", so it never matches [Aa]ttached.
+    if (marker && /[Aa]ttached/.test(marker)) continue;
+    entries.push({ name, socketPath: sockdir ? path.join(sockdir, `${pid}.${name}`) : null });
+  }
+  return entries;
+}
+
+export function formatSessionAge(seconds: number): string {
+  if (seconds >= 86_400) return `${Math.floor(seconds / 86_400)}d`;
+  if (seconds >= 3_600) return `${Math.floor(seconds / 3_600)}h`;
+  if (seconds >= 60) return `${Math.floor(seconds / 60)}m`;
+  return `${seconds}s`;
+}
+
+export async function detachedAuditSessionsSection(
+  deps: { runCommand?: AuditSessionCommandRunner; now?: () => number } = {},
+): Promise<string | null> {
+  try {
+    const run = deps.runCommand ?? runAuditSessionCommand;
+    const nowMs = (deps.now ?? Date.now)();
+    const [tmuxOut, screenOut] = await Promise.all([
+      run("tmux", [
+        "list-sessions",
+        "-F",
+        "#{session_name} #{session_attached} #{session_created}",
+      ]),
+      run("screen", ["-ls"]),
+    ]);
+    const sessions: DetachedAuditSession[] = tmuxOut
+      ? parseTmuxDetachedAuditSessions(tmuxOut, Math.floor(nowMs / 1000))
+      : [];
+    if (screenOut) {
+      for (const entry of parseScreenDetachedAuditSessions(screenOut)) {
+        let ageSeconds = -1;
+        if (entry.socketPath) {
+          try {
+            const { mtimeMs } = await stat(entry.socketPath);
+            if (nowMs >= mtimeMs) ageSeconds = Math.floor((nowMs - mtimeMs) / 1000);
+          } catch {
+            // Unknown age; the session is still counted.
+          }
+        }
+        sessions.push({ channel: "screen", name: entry.name, ageSeconds });
+      }
+    }
+    if (sessions.length === 0) return null;
+    const knownAges = sessions.map((s) => s.ageSeconds).filter((a) => a >= 0);
+    const oldest = knownAges.length
+      ? `oldest ~${formatSessionAge(Math.max(...knownAges))}`
+      : "oldest age unknown";
+    const noun = sessions.length === 1 ? "session" : "sessions";
+    return `## Detached audit sessions (host)\n\n${sessions.length} detached \`agent-kit-audit-*\` PTY ${noun} on this host (${oldest}). These are external plan-review terminals: inspect with \`tmux attach -t <name>\` / \`screen -r <name>\`, or let the audit launcher's session GC dispose of them on the next spawn.`;
+  } catch {
+    // Fail-open: visibility must never break sessionStart.
+    return null;
+  }
+}
+
 export async function buildSessionStartAdditionalContext(
   rootDir: string,
   _payload: SessionStartPayload = {},
@@ -442,6 +587,11 @@ export async function buildSessionStartAdditionalContext(
 
   const cursorNudge = await cursorAwarenessSection(root);
   if (cursorNudge) parts.push(cursorNudge);
+
+  // Belt and suspenders on top of the section's own try/catch: this section has no
+  // config gate, so it runs on every sessionStart and must stay fail-open.
+  const auditSessions = await detachedAuditSessionsSection().catch(() => null);
+  if (auditSessions) parts.push(auditSessions);
 
   const formatWarnings = validateHandoffText(handoffFull);
   if (formatWarnings.length) {

@@ -3,12 +3,24 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  NESTED_REPO_AMBIGUITY_THRESHOLD,
   RootRefusedError,
   classifyInstallError,
   confirmProjectRoot,
+  findNestedRepoChildren,
   isNonInteractive,
   validateProjectRoot,
 } from "./terminal.js";
+
+/** A directory with its own `.git` plus `count` immediate child repositories. */
+async function makeParentOfRepos(count: number): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), "ak-parent-"));
+  await mkdir(path.join(dir, ".git"), { recursive: true });
+  for (let i = 0; i < count; i += 1) {
+    await mkdir(path.join(dir, `repo-${i}`, ".git"), { recursive: true });
+  }
+  return dir;
+}
 
 describe("isNonInteractive", () => {
   const originalIsTTY = process.stdin.isTTY;
@@ -60,6 +72,51 @@ describe("isNonInteractive", () => {
 });
 
 describe("classifyInstallError", () => {
+  const npmGlobalEaccesCases: Array<[string, string]> = [
+    [
+      "macOS mkdir on scoped package dir",
+      "EACCES: permission denied, mkdir '/usr/local/lib/node_modules/@dadado'",
+    ],
+    [
+      "macOS access on prefix root",
+      "EACCES: permission denied, access '/usr/local/lib/node_modules'",
+    ],
+    [
+      "Linux mkdir under /usr/lib/node_modules",
+      "EACCES: permission denied, mkdir '/usr/lib/node_modules/@dadado'",
+    ],
+    [
+      "open on package-lock.json inside global prefix",
+      "Error: EACCES: permission denied, open '/usr/local/lib/node_modules/.package-lock.json'",
+    ],
+  ];
+
+  it.each(npmGlobalEaccesCases)("classifies npm global EACCES errors: %s", (_label, message) => {
+    const err = Object.assign(new Error(message), { code: "EACCES" });
+    const hint = classifyInstallError(err);
+    expect(hint.kind).toBe("npm-global-eacces");
+    expect(hint.message).toContain("root-owned npm prefix");
+    expect(hint.recovery).toContain("setup-global");
+  });
+
+  it("classifies npm global EACCES errors by message alone (no .code set)", () => {
+    const hint = classifyInstallError(
+      new Error("EACCES: permission denied, mkdir '/usr/local/lib/node_modules/@dadado'"),
+    );
+    expect(hint.kind).toBe("npm-global-eacces");
+    expect(hint.recovery).toContain("setup-global");
+  });
+
+  it("does not misclassify a generic EACCES error unrelated to node_modules", () => {
+    const err = Object.assign(
+      new Error("EACCES: permission denied, open '/Users/dev/.config/some-tool/config.json'"),
+      { code: "EACCES" },
+    );
+    const hint = classifyInstallError(err);
+    expect(hint.kind).toBe("eperm");
+    expect(hint.recovery).toContain("ownership drift");
+  });
+
   it("classifies EPERM errors", () => {
     const err = Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" });
     const hint = classifyInstallError(err);
@@ -141,6 +198,19 @@ describe("validateProjectRoot", () => {
     if (!result.ok) expect(result.reason).toContain("no .git");
   });
 
+  it("names all three sanctioned start-from-zero paths on an empty folder", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-root-"));
+    const result = await validateProjectRoot(dir);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.recovery).toContain("git init");
+      expect(result.recovery).toContain("--force-root");
+      expect(result.recovery).toContain("Proceed anyway?");
+      // The Git pillar itself stays owned by /agent-kit-onboard.
+      expect(result.recovery).toContain("/agent-kit-onboard");
+    }
+  });
+
   it("accepts a directory with a .git folder", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "ak-root-"));
     await mkdir(path.join(dir, ".git"), { recursive: true });
@@ -152,6 +222,63 @@ describe("validateProjectRoot", () => {
     await mkdir(path.join(dir, ".cursor"), { recursive: true });
     await writeFile(path.join(dir, ".cursor", "agent-kit.json"), "{}", "utf8");
     await expect(validateProjectRoot(dir)).resolves.toEqual({ ok: true });
+  });
+
+  it("accepts a .git root with a single nested child repo (vendored/submodule shape)", async () => {
+    const dir = await makeParentOfRepos(1);
+    await expect(validateProjectRoot(dir)).resolves.toEqual({ ok: true });
+  });
+
+  it("accepts a .git root whose many children are not repositories (monorepo shape)", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-root-"));
+    await mkdir(path.join(dir, ".git"), { recursive: true });
+    for (const name of ["apps", "packages", "docs", "scripts", "tools"]) {
+      await mkdir(path.join(dir, name), { recursive: true });
+    }
+    await expect(validateProjectRoot(dir)).resolves.toEqual({ ok: true });
+  });
+
+  it("refuses a .git root that is a parent of two or more child repositories", async () => {
+    const dir = await makeParentOfRepos(2);
+    const result = await validateProjectRoot(dir);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toContain("parent-of-repos");
+      expect(result.reason).toContain("repo-0");
+      expect(result.reason).toContain("repo-1");
+      expect(result.recovery).toContain("--force-root");
+      expect(result.recovery).toContain("cd into the project you meant");
+    }
+  });
+
+  it("does not re-flag an already-installed root as a parent-of-repos", async () => {
+    const dir = await makeParentOfRepos(3);
+    await mkdir(path.join(dir, ".cursor"), { recursive: true });
+    await writeFile(path.join(dir, ".cursor", "agent-kit.json"), "{}", "utf8");
+    await expect(validateProjectRoot(dir)).resolves.toEqual({ ok: true });
+  });
+
+  it("ignores dot-directories and node_modules when counting nested repos", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "ak-root-"));
+    await mkdir(path.join(dir, ".git"), { recursive: true });
+    for (const name of [".hidden", "node_modules", "vendor"]) {
+      await mkdir(path.join(dir, name, ".git"), { recursive: true });
+    }
+    await expect(validateProjectRoot(dir)).resolves.toEqual({ ok: true });
+  });
+});
+
+describe("findNestedRepoChildren", () => {
+  it("stops counting at the ambiguity threshold", async () => {
+    const dir = await makeParentOfRepos(5);
+    const nested = await findNestedRepoChildren(dir);
+    expect(nested).toHaveLength(NESTED_REPO_AMBIGUITY_THRESHOLD);
+  });
+
+  it("returns an empty list for an unreadable path instead of throwing", async () => {
+    await expect(
+      findNestedRepoChildren(path.join(tmpdir(), "ak-does-not-exist-", String(Date.now()))),
+    ).resolves.toEqual([]);
   });
 });
 
@@ -182,6 +309,40 @@ describe("confirmProjectRoot", () => {
     ).rejects.toThrow(RootRefusedError);
   });
 
+  it("carries the start-from-zero recovery block on the refusal error", async () => {
+    const badDir = await mkdtemp(path.join(tmpdir(), "ak-root-"));
+    const err = await confirmProjectRoot(badDir, {
+      nonInteractive: true,
+      command: "install",
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(RootRefusedError);
+    expect((err as RootRefusedError).recovery).toContain("git init");
+  });
+
+  it("refuses a parent-of-repos root in non-interactive mode", async () => {
+    const parent = await makeParentOfRepos(2);
+    await expect(
+      confirmProjectRoot(parent, { nonInteractive: true, command: "install" }),
+    ).rejects.toThrow(RootRefusedError);
+  });
+
+  it("still installs into a parent-of-repos root when the user proceeds interactively", async () => {
+    const { confirm } = await import("@clack/prompts");
+    vi.mocked(confirm).mockResolvedValueOnce(true);
+    const parent = await makeParentOfRepos(2);
+    await expect(
+      confirmProjectRoot(parent, { nonInteractive: false, command: "install" }),
+    ).resolves.toBe(path.resolve(parent));
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ initialValue: false }));
+  });
+
+  it("bypasses the parent-of-repos guard with forceRoot", async () => {
+    const parent = await makeParentOfRepos(3);
+    await expect(
+      confirmProjectRoot(parent, { nonInteractive: true, command: "install", forceRoot: true }),
+    ).resolves.toBe(path.resolve(parent));
+  });
+
   it("refuses home directory in non-interactive mode", async () => {
     await expect(
       confirmProjectRoot(homedir(), { nonInteractive: true, command: "install" }),
@@ -209,6 +370,18 @@ describe("confirmProjectRoot", () => {
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining(validProject) }),
     );
+  });
+
+  it("accepts an empty no-git folder when the user proceeds interactively", async () => {
+    const { confirm } = await import("@clack/prompts");
+    vi.mocked(confirm).mockResolvedValueOnce(true);
+    const blank = await mkdtemp(path.join(tmpdir(), "ak-root-"));
+    await expect(
+      confirmProjectRoot(blank, { nonInteractive: false, command: "install" }),
+    ).resolves.toBe(path.resolve(blank));
+    // Only the warn prompt runs; the normal "Install Agent Kit in:" confirm
+    // is not asked a second time.
+    expect(confirm).toHaveBeenCalledTimes(1);
   });
 
   it("warns and defaults to refusing an ambiguous directory in interactive mode", async () => {
