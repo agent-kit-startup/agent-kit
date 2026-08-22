@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { type HooksHealthReport, assessHooksHealth } from "../invariants/hooks-health.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
+import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
@@ -13,6 +14,7 @@ export interface DoctorResult {
   report: ReadinessReport;
   safeChanges: SafeReadinessChange[];
   hooks: HooksHealthReport;
+  env: EnvironmentReport;
 }
 
 export async function runDoctor(
@@ -21,13 +23,16 @@ export async function runDoctor(
 ): Promise<DoctorResult> {
   const rootDir = path.resolve(cwd);
   const hooks = await assessHooksHealth(rootDir);
+  // Environment pillar is read-only diagnostics; --fix-safe never runs env
+  // self-heal (that's the future setup-global command), it just reports.
+  const env = await assessEnvironment();
   if (options.fixSafe) {
     const execution = await executeSafeReadinessFixes(rootDir, {
       generatorVersion: KIT_VERSION,
       generatedAt: options.generatedAt,
     });
     await writeReadinessSnapshot(rootDir, execution.after);
-    return { report: execution.after, safeChanges: execution.changes, hooks };
+    return { report: execution.after, safeChanges: execution.changes, hooks, env };
   }
 
   const scan = await runScanner(rootDir);
@@ -36,7 +41,7 @@ export async function runDoctor(
     generatedAt: options.generatedAt,
   });
   await writeReadinessSnapshot(rootDir, report);
-  return { report, safeChanges: [], hooks };
+  return { report, safeChanges: [], hooks, env };
 }
 
 function printDoctorSummary(result: DoctorResult): void {
@@ -61,6 +66,25 @@ function printDoctorSummary(result: DoctorResult): void {
       console.log(`  - ${tip}`);
     }
   }
+
+  console.log("environment:");
+  console.log(`  - bin on PATH (agent-kit): ${result.env.binOnPath ? "ok" : "MISSING"}`);
+  console.log(
+    `  - npm prefix writable: ${result.env.npmPrefixWritable ? "ok" : "BLOCKED"}${
+      result.env.npmPrefix.prefix ? ` (${result.env.npmPrefix.prefix})` : ""
+    }`,
+  );
+  if (!result.env.npmPrefixWritable && result.env.npmPrefix.reason) {
+    console.log(`    - ${result.env.npmPrefix.reason}`);
+  }
+  console.log(
+    `  - node version >= 20: ${result.env.nodeVersionOk ? "ok" : "TOO OLD"} (${result.env.nodeVersion})`,
+  );
+  console.log(
+    `  - shell profile: ${result.env.shellProfile ?? "not detected (zsh/bash only)"}${
+      result.env.shell ? ` (shell: ${result.env.shell})` : ""
+    }`,
+  );
 
   // Check for ALLOW_MAIN_PUSH environment variable
   if (process.env.ALLOW_MAIN_PUSH === "1") {

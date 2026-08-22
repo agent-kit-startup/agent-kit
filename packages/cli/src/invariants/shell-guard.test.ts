@@ -201,3 +201,24 @@ describe("evaluateShellCommand", () => {
     }
   });
 });
+
+describe("SHELL_DENY_RULES scope (git-workflow only, deliberately)", () => {
+  it("is exactly the five git-scoped rules", () => {
+    expect(SHELL_DENY_RULES.map((r) => r.id)).toEqual([
+      "git-checkout-path",
+      "git-restore",
+      "git-reset-hard",
+      "git-clean-fd",
+      "git-push-main",
+    ]);
+  });
+
+  it("allows non-git destructive commands, as the help sentence now says", () => {
+    // ADR 2026-07-29_cli-invariants-thin-hook-adapters: this guard protects human
+    // hunks and protected branches, not the shell's blast radius. If a plan ever
+    // widens the scope, this test and `guard shell --help` must change together.
+    for (const cmd of ["rm -rf /", "rm -rf ~", "chmod -R 777 /", "dd if=/dev/zero of=/dev/sda"]) {
+      expect(evaluateShellCommand(cmd).permission).toBe("allow");
+    }
+  });
+});

@@ -27,7 +27,8 @@ export const guardCommand = defineCommand({
     shell: defineCommand({
       meta: {
         name: "shell",
-        description: "Evaluate a shell command against the destructive deny-list",
+        description:
+          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
       },
       args: {
         json: {

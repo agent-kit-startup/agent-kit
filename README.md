@@ -81,15 +81,19 @@ Short chooser: [Getting started](docs/getting-started.md#which-command-next).
 Mission Control is a local panel over Mission Kit runtime state. It binds to loopback by default and serves only its own static files. It is a cockpit for one workspace, not a hosted multi-tenant control plane.
 
 ```bash
-agent-kit dashboard
-
-# Opt-in LAN broadcast (token-gated)
-agent-kit dashboard-broadcast
+npx @dadado/agent-kit-cli dashboard
 ```
+
+```bash
+# Opt-in LAN broadcast (token-gated)
+npx @dadado/agent-kit-cli dashboard-broadcast
+```
+
+`npx` is ephemeral: it never leaves an `agent-kit` bin on your `PATH`. Run `npm i -g @dadado/agent-kit-cli` once if you prefer the bare `agent-kit dashboard` form.
 
 Open the **printed** URL if the browser did not open (with `PORT` unset, each workspace gets a stable port in `3333–3588`; do not assume `:3333`). In Cursor chat, `/dashboard` starts the same flow.
 
-**If `agent-kit dashboard` says no `dashboard/start.mjs`:** upgrade or pin `@dadado/agent-kit-cli@4.8.2` or newer, or set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`. Install does not copy `dashboard/` into your app tree.
+**If the `dashboard` subcommand says no `dashboard/start.mjs`:** upgrade or pin `@dadado/agent-kit-cli@4.8.2` or newer, or set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`. Install does not copy `dashboard/` into your app tree.
 
 More: [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints) · [consumer configuration](docs/consumer-configuration.md).
 

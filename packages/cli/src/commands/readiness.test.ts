@@ -42,10 +42,15 @@ describe("readiness commands", () => {
 
     const result = await runDoctor(root, { generatedAt: GENERATED_AT });
     const json = JSON.stringify(result);
+    const parsed = JSON.parse(json);
 
     expect(log).not.toHaveBeenCalled();
-    expect(JSON.parse(json).report.generatedAt).toBe(GENERATED_AT);
+    expect(parsed.report.generatedAt).toBe(GENERATED_AT);
     expect(json).not.toContain(root);
+    expect(typeof parsed.env.binOnPath).toBe("boolean");
+    expect(typeof parsed.env.npmPrefixWritable).toBe("boolean");
+    expect(typeof parsed.env.nodeVersionOk).toBe("boolean");
+    expect("shellProfile" in parsed.env).toBe(true);
     log.mockRestore();
   });
 
@@ -58,7 +63,11 @@ describe("readiness commands", () => {
     expect(result.safeChanges.some((change) => change.status === "applied")).toBe(true);
     expect(await fileExists(path.join(root, ".gitignore"))).toBe(true);
     expect(await fileExists(path.join(root, ".git"))).toBe(false);
-  });
+    // --fix-safe never runs env self-heal; it only reports the same
+    // read-only env pillar as the default doctor path.
+    expect(typeof result.env.binOnPath).toBe("boolean");
+    expect(typeof result.env.nodeVersionOk).toBe("boolean");
+  }, 20_000);
 
   it("keeps init as a compatibility wrapper over install", async () => {
     const expected = { projectRoot: "/tmp/example" } as InstallResult;

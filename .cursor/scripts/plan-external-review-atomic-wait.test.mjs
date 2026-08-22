@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -24,6 +32,8 @@ function runBash(room, body) {
     "wait_state_get",
     "wait_state_write",
     "wait_state_clear",
+    "wait_state_expire_if_dead",
+    "gc_wait_state_sweep",
     "wait_state_is_resumable",
     "wait_state_load_or_init",
     "wait_effective_timeout",
@@ -63,6 +73,36 @@ function makeRoom() {
   mkdirSync(join(room, ".cursor/memory"), { recursive: true });
   mkdirSync(join(room, ".cursor/context/audit-wait"), { recursive: true });
   return room;
+}
+
+function writeWaitState(room, slug, state) {
+  writeFileSync(
+    join(room, ".cursor/context/audit-wait", `${slug}.json`),
+    `${JSON.stringify(state, null, 2)}\n`,
+  );
+}
+
+function readWaitState(room, slug) {
+  return JSON.parse(readFileSync(join(room, ".cursor/context/audit-wait", `${slug}.json`), "utf8"));
+}
+
+// Full-binary sandbox for CLI/env-var pure-sweep-mode tests: the launcher resolves ROOT
+// from its own path ($(dirname "$0")/../..), so copying it under a temp room's
+// .cursor/scripts/ makes ROOT resolve to that room instead of the real repo checkout -
+// gc_wait_state_sweep() then only ever touches synthetic files, never the real
+// .cursor/context/audit-wait/*.json state.
+function makeScriptRoom() {
+  const room = mkdtempSync(join(tmpdir(), "ak-gc-cli."));
+  mkdirSync(join(room, ".cursor/scripts"), { recursive: true });
+  mkdirSync(join(room, ".cursor/context/audit-wait"), { recursive: true });
+  mkdirSync(join(room, ".cursor/context/templates"), { recursive: true });
+  // Required by the pre-pure-mode gates: config_enabled is bypassed with --force, but the
+  // template-existence check runs unconditionally before either pure-mode block.
+  writeFileSync(join(room, ".cursor/context/templates/plan-external-review-prompt.md"), "stub\n");
+  const script = join(room, ".cursor/scripts/plan-external-review.sh");
+  writeFileSync(script, SRC);
+  chmodSync(script, 0o755);
+  return { room, script };
 }
 
 test("launcher wait_for_monitors uses persisted state and slice timeout", () => {
@@ -178,4 +218,297 @@ echo "resume=$WAIT_RESUME remaining=$WAIT_REMAINING epoch=$WAIT_ARM_EPOCH effect
   } finally {
     rmSync(room, { recursive: true, force: true });
   }
+});
+
+test("wait_state_expire_if_dead: armed past deadline is expired in place, other fields survive", () => {
+  const room = makeRoom();
+  try {
+    writeWaitState(room, "a", {
+      armEpoch: 900,
+      deadline: 990,
+      remainingBudgetSeconds: 90,
+      backend: "cursor",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const result = runBash(
+      room,
+      `
+wait_state_expire_if_dead "a"
+`,
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(
+      result.stdout,
+      /audits: wait-state expired a \(armed past deadline; dead arm, not live budget\)/,
+    );
+    const state = readWaitState(room, "a");
+    assert.equal(state.status, "timeout");
+    assert.equal(state.remainingBudgetSeconds, 0);
+    assert.equal(state.armEpoch, 900);
+    assert.equal(state.deadline, 990);
+    assert.equal(state.backend, "cursor");
+    assert.equal(state.implementerModel, "auto");
+    assert.equal(state.reviewerModel, "sonnet");
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("wait_state_expire_if_dead: live armed file (now < deadline) is untouched and still resumable", () => {
+  const room = makeRoom();
+  try {
+    writeWaitState(room, "a", {
+      armEpoch: 900,
+      deadline: 2000,
+      remainingBudgetSeconds: 1000,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const before = readWaitState(room, "a");
+    const result = runBash(
+      room,
+      `
+wait_state_expire_if_dead "a"
+if wait_state_is_resumable "a"; then
+  echo "resumable=yes"
+else
+  echo "resumable=no"
+fi
+`,
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.trim(), "resumable=yes");
+    const after = readWaitState(room, "a");
+    assert.deepEqual(after, before);
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("wait_state_expire_if_dead: already-timeout file is not rewritten (no spurious churn)", () => {
+  const room = makeRoom();
+  try {
+    writeWaitState(room, "a", {
+      armEpoch: 100,
+      deadline: 200,
+      remainingBudgetSeconds: 0,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "timeout",
+    });
+    const before = readWaitState(room, "a");
+    const result = runBash(
+      room,
+      `
+wait_state_expire_if_dead "a"
+echo "done"
+`,
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout.trim(), "done");
+    assert.doesNotMatch(result.stdout, /wait-state expired/);
+    const after = readWaitState(room, "a");
+    assert.deepEqual(after, before);
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("wait_state_expire_if_dead: DRY_RUN=1 previews and does not modify the file on disk", () => {
+  const room = makeRoom();
+  try {
+    writeWaitState(room, "a", {
+      armEpoch: 900,
+      deadline: 990,
+      remainingBudgetSeconds: 90,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const before = readWaitState(room, "a");
+    const result = runBash(
+      room,
+      `
+DRY_RUN=1
+wait_state_expire_if_dead "a"
+`,
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /audits: wait-state would expire a/);
+    assert.doesNotMatch(result.stdout, /audits: wait-state expired a /);
+    const after = readWaitState(room, "a");
+    assert.deepEqual(after, before);
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("gc_wait_state_sweep: expires dead armed, skips live armed, skips already-terminal, one line each", () => {
+  const room = makeRoom();
+  try {
+    writeWaitState(room, "live", {
+      armEpoch: 900,
+      deadline: 2000,
+      remainingBudgetSeconds: 1000,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    writeWaitState(room, "dead", {
+      armEpoch: 400,
+      deadline: 500,
+      remainingBudgetSeconds: 100,
+      backend: "cursor",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    writeWaitState(room, "term", {
+      armEpoch: 100,
+      deadline: 200,
+      remainingBudgetSeconds: 0,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "timeout",
+    });
+    const result = runBash(room, "gc_wait_state_sweep");
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(
+      result.stdout,
+      /gc-wait-state skip live \(armed; live budget, not past deadline\)/,
+    );
+    assert.match(result.stdout, /gc-wait-state skip term \(status: timeout; already terminal\)/);
+    assert.match(
+      result.stdout,
+      /wait-state expired dead \(armed past deadline; dead arm, not live budget\)/,
+    );
+    assert.equal(readWaitState(room, "live").status, "armed");
+    assert.equal(readWaitState(room, "term").status, "timeout");
+    const dead = readWaitState(room, "dead");
+    assert.equal(dead.status, "timeout");
+    assert.equal(dead.remainingBudgetSeconds, 0);
+    assert.equal(dead.backend, "cursor");
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("gc_wait_state_sweep: empty audit-wait directory reports no files and exits 0", () => {
+  const room = makeRoom();
+  try {
+    const result = runBash(room, "gc_wait_state_sweep");
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(
+      result.stdout,
+      /gc-wait-state found no \.cursor\/context\/audit-wait\/\*\.json files/,
+    );
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("--gc-wait-state --dry-run (CLI, no plan arg): previews every file, writes nothing, exits 0", () => {
+  const { room, script } = makeScriptRoom();
+  try {
+    writeWaitState(room, "dead", {
+      armEpoch: 1,
+      deadline: 2,
+      remainingBudgetSeconds: 50,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const before = readWaitState(room, "dead");
+    const out = execFileSync("bash", [script, "--force", "--gc-wait-state", "--dry-run"], {
+      cwd: room,
+      encoding: "utf8",
+    });
+    assert.match(
+      out,
+      /audits: gc-wait-state dry-run preview \(no plan argument; no audit will start\)/,
+    );
+    assert.match(out, /wait-state would expire dead/);
+    assert.deepEqual(readWaitState(room, "dead"), before);
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("--gc-wait-state (CLI, no plan arg, no --dry-run): actually expires the dead file on disk", () => {
+  const { room, script } = makeScriptRoom();
+  try {
+    writeWaitState(room, "dead", {
+      armEpoch: 1,
+      deadline: 2,
+      remainingBudgetSeconds: 50,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const out = execFileSync("bash", [script, "--force", "--gc-wait-state"], {
+      cwd: room,
+      encoding: "utf8",
+    });
+    assert.match(out, /audits: gc-wait-state mode \(no plan argument; no audit will start\)/);
+    assert.match(out, /wait-state expired dead/);
+    const after = readWaitState(room, "dead");
+    assert.equal(after.status, "timeout");
+    assert.equal(after.remainingBudgetSeconds, 0);
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("AGENT_KIT_AUDIT_GC_WAIT_STATE=1 (env var, no flag, no plan arg): same pure-sweep exit-0 mode", () => {
+  const { room, script } = makeScriptRoom();
+  try {
+    writeWaitState(room, "dead", {
+      armEpoch: 1,
+      deadline: 2,
+      remainingBudgetSeconds: 50,
+      backend: "claude",
+      implementerModel: "auto",
+      reviewerModel: "sonnet",
+      status: "armed",
+    });
+    const out = execFileSync("bash", [script, "--force"], {
+      cwd: room,
+      encoding: "utf8",
+      env: { ...process.env, AGENT_KIT_AUDIT_GC_WAIT_STATE: "1" },
+    });
+    assert.match(out, /audits: gc-wait-state mode \(no plan argument; no audit will start\)/);
+    assert.match(out, /wait-state expired dead/);
+    assert.equal(readWaitState(room, "dead").status, "timeout");
+  } finally {
+    rmSync(room, { recursive: true, force: true });
+  }
+});
+
+test("--gc-wait-state combined with a plan argument is a documented no-op (locks in current behavior)", () => {
+  // Regression guard for the residual this fixes: the usage synopsis used to promise
+  // `--gc-wait-state [--dry-run] [plan]`, but GC_WAIT_STATE is only ever consulted in the
+  // two zero-PLAN_ARGS pure-exit blocks. Combined with a plan argument the flag parses
+  // without error but never sweeps - this test locks that in so a future change either
+  // fixes it deliberately (and updates this test) or the header comment stays accurate.
+  assert.doesNotMatch(SRC, /gc-wait-state \[--dry-run\] \[plan\]/);
+  const pureModeBlock = SRC.slice(
+    SRC.indexOf('if [[ "$GC_WAIT_STATE" -eq 1 && "$BATCH" -eq 0'),
+    SRC.indexOf('if [[ "$GC_WAIT_STATE" -eq 1 && "$BATCH" -eq 0') + 400,
+  );
+  assert.match(pureModeBlock, /\$\{#PLAN_ARGS\[@\]\}"\s*-eq 0/);
+  assert.equal(
+    (SRC.match(/gc_wait_state_sweep/g) || []).length > 0,
+    true,
+    "gc_wait_state_sweep must still exist and be called somewhere",
+  );
 });

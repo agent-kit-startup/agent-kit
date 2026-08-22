@@ -4270,6 +4270,16 @@ function fmtDate(iso) {
   return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Humanize a duration in seconds (mirrors formatSessionAge in the sessionStart hook).
+function formatDuration(seconds) {
+  const s = Number(seconds);
+  if (!Number.isFinite(s) || s < 0) return 'unknown';
+  if (s >= 86400) return Math.floor(s / 86400) + 'd';
+  if (s >= 3600) return Math.floor(s / 3600) + 'h';
+  if (s >= 60) return Math.floor(s / 60) + 'm';
+  return Math.floor(s) + 's';
+}
+
 // Presentation contract (Phase 2): progress is never an error signal. Any
 // in-flight percentage (0-99) renders the neutral accent; 100% renders green
 // (lifecycle completed with total > 0 implies 100 per the Phase 0 contract).
@@ -8289,6 +8299,14 @@ function renderUnsafe() {
 
   // ===== Processes =====
   const processes = d.processes || [];
+  // Detached audit-session visibility (phase3): host-wide agent-kit-audit-* PTYs.
+  const auditSessions = d.system?.detachedAuditSessions || null;
+  const auditSessionsNote = auditSessions && auditSessions.count > 0
+    ? `
+      <div class="processes-note">
+        <span><strong>${auditSessions.count} detached audit ${auditSessions.count === 1 ? 'session' : 'sessions'}.</strong> Host-wide <code>agent-kit-audit-*</code> plan-review ${auditSessions.count === 1 ? 'PTY is' : 'PTYs are'} still alive (${auditSessions.oldestAgeSeconds != null ? `oldest ~${formatDuration(auditSessions.oldestAgeSeconds)}` : 'oldest age unknown'}). Inspect with <code>tmux attach -t &lt;name&gt;</code> / <code>screen -r &lt;name&gt;</code>, or let the audit launcher's session GC dispose of them on the next spawn.</span>
+      </div>`
+    : '';
   parts.push(`
     <div class="content-section" id="section-processes">
       <div class="section-title">
@@ -8297,7 +8315,7 @@ function renderUnsafe() {
       </div>
       <div class="processes-note">
         <span><strong>Live ps snapshot.</strong> Agent chats spawned inside the IDE do not appear here; the Crew monitor on the Overview tab tracks that activity.</span>
-      </div>
+      </div>${auditSessionsNote}
       ${processes.length === 0
         ? renderEmptyStateCta({
             headline: 'All quiet',

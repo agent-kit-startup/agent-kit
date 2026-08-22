@@ -31,6 +31,7 @@
 #   .cursor/scripts/plan-external-review.sh --wait-monitor [--wait-timeout SECONDS] [plan]
 #   .cursor/scripts/plan-external-review.sh --focus-terminal ...          # rollback: OS window focus
 #   .cursor/scripts/plan-external-review.sh --reap-audit-sessions [--dry-run] [plan]
+#   .cursor/scripts/plan-external-review.sh --gc-wait-state [--dry-run]         # no [plan]: not wired into arming
 #
 # Modes:
 #   autonomous (config mode=autonomous, or --autonomous): spawn interactive Claude in an
@@ -89,10 +90,34 @@
 #   the dispose command; at or above the hard cap it refuses to spawn, prints the dispose
 #   instructions plus the paste fallback, and soft-fails without entering the monitor wait
 #   (no audit starts, Field Report stays owed).
+#   A host-global ceiling additionally counts detached sessions across the WHOLE
+#   agent-kit-audit- namespace (foreign workspace tokens and legacy unscoped
+#   agent-kit-audit-<pid> names included) and refuses to spawn at or above
+#   AGENT_KIT_AUDIT_SESSION_HOST_CAP, printing a per-token breakdown. Disposal stays
+#   owned-only: foreign-token and legacy sessions are never disposed by this process.
 #   Reaping is opt-in (--reap-audit-sessions or AGENT_KIT_AUDIT_REAP=1) and disposes only
 #   detached, workspace-owned sessions whose age is at or above AGENT_KIT_AUDIT_REAP_MIN_AGE.
 #   Attached sessions are never touched, an unknown age counts as too young to reap, and
 #   --dry-run only previews. No pkill, no wildcard kill, nothing outside the owned namespace.
+#   Separately, each detached tmux/screen session THIS launcher spawns self-terminates
+#   after AGENT_KIT_AUDIT_SESSION_MAX_AGE seconds (default 3600; 0 disables), enforced at
+#   spawn inside the session itself, so a session that clears the progress gate cannot
+#   live forever even when no later launcher run happens. Attached sessions and foreign
+#   or legacy sessions are never targeted; emulator channels degrade to advisory.
+#
+# Wait-state hygiene (expire-on-contact, opt-in gc sweep):
+#   Any slug touched by an arm or poll first expires its own dead file: an
+#   .cursor/context/audit-wait/<slug>.json still status "armed" whose deadline has passed
+#   is a dead arm, not live budget, and is rewritten in place to status "timeout" with
+#   remainingBudgetSeconds 0 (armEpoch, deadline, backend, implementerModel, reviewerModel,
+#   and any cloudAgentId/cloudRunId are preserved). This is automatic and always on; it
+#   never invents a new status. --gc-wait-state (or AGENT_KIT_AUDIT_GC_WAIT_STATE=1) is an
+#   opt-in sweep across every .cursor/context/audit-wait/*.json file: expires each dead
+#   armed file, skips a live armed file (deadline not yet past), and skips a file that is
+#   already terminal, printing one line per decision. Alone (no plan argument, not --batch)
+#   it sweeps and exits 0 without starting an audit. --dry-run only previews. Combined with
+#   a plan argument or --batch it is a no-op (not wired into the arming path) - use the
+#   standalone form first, then arm separately.
 #
 # Environment:
 #   AGENT_KIT_AUDIT_PROGRESS_TIMEOUT  progress-gate grace window in seconds (default 60).
@@ -106,10 +131,28 @@
 #                                     workspace-owned sessions (default 20). 0 disables the
 #                                     refusal; a non-integer value prints a tip and falls
 #                                     back to 20.
+#   AGENT_KIT_AUDIT_SESSION_HOST_CAP  refuse to spawn at or above this many detached sessions
+#                                     across the whole agent-kit-audit- namespace (any
+#                                     workspace token, plus legacy unscoped names). Default
+#                                     24: at or above the per-token cap (20) so it cannot
+#                                     shadow it, and below the 26-session pile that collapsed
+#                                     a 16 GB host in the 2026-08-14 incident. 0 disables the
+#                                     refusal; a non-integer value prints a tip and falls
+#                                     back to 24.
+#   AGENT_KIT_AUDIT_SESSION_MAX_AGE   bounded lifetime in seconds for the detached tmux/screen
+#                                     session THIS launcher spawns. Self-terminating at spawn
+#                                     (timeout/gtimeout wrap, else a watchdog subshell inside
+#                                     the session); never depends on a later launcher run.
+#                                     Default 3600, well above --wait-timeout 900. 0 disables;
+#                                     a non-integer value prints a tip and falls back to 3600.
+#                                     Attached and foreign-token sessions are never targeted.
 #   AGENT_KIT_AUDIT_REAP_MIN_AGE      age floor in seconds for opt-in reaping (default 3600).
 #                                     A non-integer value prints a tip and falls back to 3600.
 #   AGENT_KIT_AUDIT_REAP              1/true: same as --reap-audit-sessions (opt-in disposal
 #                                     of detached workspace-owned sessions past the age floor).
+#   AGENT_KIT_AUDIT_GC_WAIT_STATE     1/true: same as --gc-wait-state (opt-in sweep that
+#                                     expires dead armed .cursor/context/audit-wait/*.json
+#                                     files past their deadline to status timeout).
 #   AGENT_KIT_AUDIT_FOCUS_TERMINAL    1/true: rollback to OS Terminal activate / emulator focus.
 #   AGENT_KIT_AUDIT_IMPLEMENTER_MODEL model id that shipped the tick (stamp only; no secrets).
 #   AGENT_KIT_AUDIT_REVIEWER_MODEL    override reviewer model id (default sonnet).
@@ -236,10 +279,22 @@ AUDIT_SESSION_OWNED_PREFIX="${AUDIT_SESSION_NS_PREFIX}${AUDIT_WS_TOKEN}-"
 # Detached workspace-owned sessions: warn at or above WARN, refuse to spawn at or above CAP. 0 disables.
 AUDIT_SESSION_WARN=5
 AUDIT_SESSION_CAP=20
+# Host-global ceiling across the whole agent-kit-audit- namespace (any token + legacy
+# unscoped names). Default 24: at or above the per-token cap (20) so it cannot shadow it,
+# below the 26-session pile of the 2026-08-14 host collapse. 0 disables.
+AUDIT_SESSION_HOST_CAP=24
+# Bounded lifetime (seconds) for the detached tmux/screen session THIS launcher spawns.
+# Enforced at spawn inside the session itself (timeout/gtimeout wrap, else a watchdog
+# subshell), so it never depends on a later launcher run in the same workspace. Default
+# is well above WAIT_TIMEOUT 900 so a healthy wait can finish first. 0 disables.
+AUDIT_SESSION_MAX_AGE=3600
 # Age floor (seconds) for opt-in reaping. Younger sessions are left alone even when reaping is on.
 AUDIT_REAP_MIN_AGE=3600
 # Opt-in destructive disposal (--reap-audit-sessions / AGENT_KIT_AUDIT_REAP). Never the default.
 REAP_SESSIONS=0
+# Opt-in sweep of dead armed audit-wait/*.json files (--gc-wait-state /
+# AGENT_KIT_AUDIT_GC_WAIT_STATE). Never the default; expire-on-contact runs regardless.
+GC_WAIT_STATE=0
 FOCUS_TERMINAL=0
 # Set by launch_background_terminal on success: tmux|screen|macos-terminal|linux-emulator|windows-terminal
 LAUNCH_CHANNEL=""
@@ -260,9 +315,72 @@ is_owned_audit_session() {
   return 1
 }
 
+# 0 when name is in scope: "owned" is the strict workspace-owned match; "host" matches ANY
+# session in the agent-kit-audit- namespace (foreign tokens and legacy unscoped names too).
+# Host scope is count/attribution only - disposal always stays owned.
+audit_session_matches_scope() {
+  local scope="$1"
+  local name="$2"
+  if [[ "$scope" == "host" ]]; then
+    [[ "$name" == "${AUDIT_SESSION_NS_PREFIX}"* ]]
+    return $?
+  fi
+  is_owned_audit_session "$name"
+}
+
 # Build a fresh owned session name for this PID (collision-resistant across workspaces).
 make_audit_session_name() {
   printf '%s%s' "$AUDIT_SESSION_OWNED_PREFIX" "$$"
+}
+
+# Prints the timeout binary to prefer for the bounded session lifetime (timeout, else
+# gtimeout for coreutils-on-macOS installs). Returns 1 when neither exists.
+audit_lifetime_timeout_bin() {
+  if command -v timeout >/dev/null 2>&1; then
+    printf 'timeout'
+    return 0
+  fi
+  if command -v gtimeout >/dev/null 2>&1; then
+    printf 'gtimeout'
+    return 0
+  fi
+  return 1
+}
+
+# Wrap a session shell command so the detached session THIS launcher spawns
+# self-terminates after AUDIT_SESSION_MAX_AGE seconds (bounded lifetime, enforced at
+# spawn inside the session; never depends on a later launcher run). Prefers
+# timeout/gtimeout; falls back to a watchdog subshell that signals only the session's
+# own process group ($$ resolves inside the spawned session, so attached sessions and
+# foreign-token sessions are structurally out of reach). 0 disables (command unchanged).
+# ADR: decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md (lifecycle policy).
+audit_bounded_session_cmd() {
+  local cmd="$1"
+  if [[ "$AUDIT_SESSION_MAX_AGE" -eq 0 ]]; then
+    printf '%s' "$cmd"
+    return 0
+  fi
+  local tbin
+  if tbin="$(audit_lifetime_timeout_bin)"; then
+    printf '%s %s bash -lc %q' "$tbin" "$AUDIT_SESSION_MAX_AGE" "$cmd"
+    return 0
+  fi
+  # Watchdog subshell inside the session. Single-quoted so -$$ reaches the session
+  # literally; kill targets only this session's own process group (fallback: own PID).
+  printf '( sleep %s; kill -TERM -- -$$ >/dev/null 2>&1 || kill -TERM $$ >/dev/null 2>&1 ) & %s' "$AUDIT_SESSION_MAX_AGE" "$cmd"
+}
+
+# One observability line after a bounded multiplexer spawn. Silent when disabled.
+audit_session_lifetime_note() {
+  if [[ "$AUDIT_SESSION_MAX_AGE" -eq 0 ]]; then
+    return 0
+  fi
+  local mech="watchdog"
+  local tbin
+  if tbin="$(audit_lifetime_timeout_bin)"; then
+    mech="$tbin"
+  fi
+  echo "audits: session lifetime bounded to ${AUDIT_SESSION_MAX_AGE}s via ${mech} (AGENT_KIT_AUDIT_SESSION_MAX_AGE; 0 disables)"
 }
 
 if [[ "${AGENT_KIT_AUDIT_FOCUS_TERMINAL:-}" == "1" || "${AGENT_KIT_AUDIT_FOCUS_TERMINAL:-}" == "true" ]]; then
@@ -297,14 +415,20 @@ resolve_int_env() {
 
 AUDIT_SESSION_WARN="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_WARN "$AUDIT_SESSION_WARN")"
 AUDIT_SESSION_CAP="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_CAP "$AUDIT_SESSION_CAP")"
+AUDIT_SESSION_HOST_CAP="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_HOST_CAP "$AUDIT_SESSION_HOST_CAP")"
+AUDIT_SESSION_MAX_AGE="$(resolve_int_env AGENT_KIT_AUDIT_SESSION_MAX_AGE "$AUDIT_SESSION_MAX_AGE")"
 AUDIT_REAP_MIN_AGE="$(resolve_int_env AGENT_KIT_AUDIT_REAP_MIN_AGE "$AUDIT_REAP_MIN_AGE")"
 
 if [[ "${AGENT_KIT_AUDIT_REAP:-}" == "1" || "${AGENT_KIT_AUDIT_REAP:-}" == "true" ]]; then
   REAP_SESSIONS=1
 fi
 
+if [[ "${AGENT_KIT_AUDIT_GC_WAIT_STATE:-}" == "1" || "${AGENT_KIT_AUDIT_GC_WAIT_STATE:-}" == "true" ]]; then
+  GC_WAIT_STATE=1
+fi
+
 usage() {
-  sed -n '2,128p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,181p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -355,6 +479,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --reap-audit-sessions)
       REAP_SESSIONS=1
+      shift
+      ;;
+    --gc-wait-state)
+      GC_WAIT_STATE=1
       shift
       ;;
     --wait-timeout)
@@ -704,27 +832,32 @@ applescript_escape() {
 # ADR: decisions/2026-07-28_audits-headless-terminal-honesty.md
 launch_background_terminal() {
   local shell_cmd="$1"
-  local uname_s session_name
+  local uname_s session_name bounded_cmd
   uname_s="$(uname -s 2>/dev/null || echo unknown)"
   LAUNCH_CHANNEL=""
   LAUNCH_ATTACH_HINT=""
   LAUNCH_SESSION_NAME=""
   session_name="$(make_audit_session_name)"
+  # Bounded lifetime applies only to the detached multiplexer session this launcher
+  # spawns (self-terminating at spawn). Emulator/Terminal channels stay advisory-only.
+  bounded_cmd="$(audit_bounded_session_cmd "$shell_cmd")"
 
   # Prefer detached multiplexers (true headless/inspectable PTY, no OS window focus).
   if [[ "$FOCUS_TERMINAL" -eq 0 ]] && command -v tmux >/dev/null 2>&1; then
-    if tmux new-session -d -s "$session_name" bash -lc "$shell_cmd" >/dev/null 2>&1; then
+    if tmux new-session -d -s "$session_name" bash -lc "$bounded_cmd" >/dev/null 2>&1; then
       LAUNCH_CHANNEL="tmux"
       LAUNCH_ATTACH_HINT="tmux attach -t $session_name"
       LAUNCH_SESSION_NAME="$session_name"
+      audit_session_lifetime_note
       return 0
     fi
   fi
   if [[ "$FOCUS_TERMINAL" -eq 0 ]] && command -v screen >/dev/null 2>&1; then
-    if screen -dmS "$session_name" bash -lc "$shell_cmd" >/dev/null 2>&1; then
+    if screen -dmS "$session_name" bash -lc "$bounded_cmd" >/dev/null 2>&1; then
       LAUNCH_CHANNEL="screen"
       LAUNCH_ATTACH_HINT="screen -r $session_name"
       LAUNCH_SESSION_NAME="$session_name"
+      audit_session_lifetime_note
       return 0
     fi
   fi
@@ -910,11 +1043,15 @@ dispose_launched_session() {
   return 0
 }
 
-# One line per existing workspace-owned session: channel<TAB>name<TAB>state<TAB>age_seconds.
+# One line per matching session: channel<TAB>name<TAB>state<TAB>age_seconds.
+# Optional scope arg: "owned" (default) lists only strict workspace-owned sessions;
+# "host" lists every session in the agent-kit-audit- namespace (foreign tokens and
+# legacy unscoped names included) for host-ceiling counting and attribution only.
 # state is attached|detached; age_seconds is -1 when it cannot be determined (callers must
 # treat unknown age as too young to reap). Prints nothing and succeeds when there is none.
 # ADR: decisions/2026-07-30_audits-pty-progress-gate-zombie-policy.md
 list_audit_sessions() {
+  local scope="${1:-owned}"
   local now
   now="$(date +%s)"
 
@@ -934,8 +1071,8 @@ list_audit_sessions() {
       pid="${BASH_REMATCH[1]}"
       name="${BASH_REMATCH[2]}"
       marker="${BASH_REMATCH[3]}"
-      # Workspace ownership + strict pattern (rejects prefix pollution / foreign tokens).
-      if ! is_owned_audit_session "$name"; then
+      # Scope filter: owned is the strict workspace match; host is the whole namespace.
+      if ! audit_session_matches_scope "$scope" "$name"; then
         continue
       fi
       if [[ "$marker" =~ [Aa]ttached ]]; then
@@ -961,7 +1098,7 @@ list_audit_sessions() {
     tmux_out="$(tmux list-sessions -F '#{session_name} #{session_attached} #{session_created}' 2>/dev/null || true)"
     while read -r t_name t_attached t_created; do
       [[ -z "$t_name" ]] && continue
-      if ! is_owned_audit_session "$t_name"; then
+      if ! audit_session_matches_scope "$scope" "$t_name"; then
         continue
       fi
       if [[ "$t_attached" =~ ^[0-9]+$ && "$t_attached" -gt 0 ]]; then
@@ -980,15 +1117,40 @@ list_audit_sessions() {
   return 0
 }
 
-# Detached kit-owned sessions only: attached sessions are operator work in progress, not pile
-# pressure, and are never disposed.
+# Detached sessions only: attached sessions are operator work in progress, not pile
+# pressure, and are never disposed. Optional scope arg mirrors list_audit_sessions
+# ("owned" default / "host" for the whole agent-kit-audit- namespace).
 count_audit_sessions() {
+  local scope="${1:-owned}"
   local count
-  count="$(list_audit_sessions | awk -F'\t' '$3 == "detached"' | wc -l | tr -d '[:space:]' || true)"
+  count="$(list_audit_sessions "$scope" | awk -F'\t' '$3 == "detached"' | wc -l | tr -d '[:space:]' || true)"
   if ! [[ "$count" =~ ^[0-9]+$ ]]; then
     count=0
   fi
   printf '%s' "$count"
+}
+
+# Per-token breakdown of detached sessions across the whole namespace, one line per token
+# ("<token>: N", legacy unscoped names grouped as "unscoped-legacy"). Attribution only:
+# this invocation never disposes foreign-token or legacy sessions.
+print_host_token_breakdown() {
+  list_audit_sessions host | awk -F'\t' -v own="$AUDIT_WS_TOKEN" '
+    $3 == "detached" {
+      name = $2
+      sub(/^agent-kit-audit-/, "", name)
+      if (name ~ /^[0-9a-f]{8}-[0-9]+$/) {
+        token = substr(name, 1, 8)
+      } else {
+        token = "unscoped-legacy"
+      }
+      counts[token]++
+    }
+    END {
+      for (t in counts) {
+        suffix = (t == own) ? " (this workspace)" : ""
+        printf "  %s: %d%s\n", t, counts[t], suffix
+      }
+    }' | sort
 }
 
 # Operator disposal instructions. Namespace-scoped by design: never a bare quit on an
@@ -1047,6 +1209,47 @@ reap_audit_sessions() {
   return 0
 }
 
+# Opt-in sweep of .cursor/context/audit-wait/*.json (--gc-wait-state /
+# AGENT_KIT_AUDIT_GC_WAIT_STATE=1). Every armed file whose deadline has passed is expired
+# in place by wait_state_expire_if_dead (status -> "timeout", other fields preserved); a
+# live armed file (deadline not yet past) is skipped; a file already in a terminal status
+# is skipped without rewrite. One line per decision. --dry-run previews only (delegated to
+# wait_state_expire_if_dead) and writes nothing. Never invents a status outside the ADR
+# enum (armed | ready | timeout | soft-fail).
+gc_wait_state_sweep() {
+  local dir="$ROOT/$WAIT_STATE_DIR_REL"
+  local file slug status deadline now seen=0
+  if [[ ! -d "$dir" ]]; then
+    echo "audits: gc-wait-state found no ${WAIT_STATE_DIR_REL} directory"
+    return 0
+  fi
+  local files=("$dir"/*.json)
+  if [[ ! -e "${files[0]}" ]]; then
+    echo "audits: gc-wait-state found no ${WAIT_STATE_DIR_REL}/*.json files"
+    return 0
+  fi
+  now="$(date +%s)"
+  for file in "${files[@]}"; do
+    seen=$((seen + 1))
+    slug="$(basename "$file" .json)"
+    status="$(wait_state_get "$slug" status)"
+    if [[ "$status" != "armed" ]]; then
+      echo "audits: gc-wait-state skip $slug (status: ${status:-unknown}; already terminal)"
+      continue
+    fi
+    deadline="$(wait_state_get "$slug" deadline)"
+    if [[ ! "$deadline" =~ ^[1-9][0-9]*$ ]] || [[ "$now" -lt "$deadline" ]]; then
+      echo "audits: gc-wait-state skip $slug (armed; live budget, not past deadline)"
+      continue
+    fi
+    wait_state_expire_if_dead "$slug"
+  done
+  if [[ "$seen" -eq 0 ]]; then
+    echo "audits: gc-wait-state found no ${WAIT_STATE_DIR_REL}/*.json files"
+  fi
+  return 0
+}
+
 # Pre-spawn pressure gate: reap when opted in, then warn or refuse on detached pile size.
 # A refusal never spawns and never enters the monitor wait.
 audit_session_pressure_gate() {
@@ -1055,8 +1258,32 @@ audit_session_pressure_gate() {
     echo "audits: reaping detached ${AUDIT_SESSION_OWNED_PREFIX}* sessions (min-age: ${AUDIT_REAP_MIN_AGE}s)"
     reap_audit_sessions
   fi
-  local count
+  local count host_count
   count="$(count_audit_sessions)"
+  host_count="$(count_audit_sessions host)"
+  # Host ceiling first: it is the stronger condition and spans every workspace token.
+  if [[ "$AUDIT_SESSION_HOST_CAP" -ne 0 && "$host_count" -ge "$AUDIT_SESSION_HOST_CAP" ]]; then
+    cat <<EOF
+
+audits: REFUSING to spawn - detached audit sessions are at the HOST cap.
+  detached ${AUDIT_SESSION_NS_PREFIX}* sessions host-wide: ${host_count}
+  host cap: ${AUDIT_SESSION_HOST_CAP} (AGENT_KIT_AUDIT_SESSION_HOST_CAP; 0 disables)
+  this workspace token: ${AUDIT_WS_TOKEN} (detached owned: ${count})
+Per-token breakdown (detached, namespace-wide):
+EOF
+    print_host_token_breakdown
+    cat <<EOF
+The dispose command below only reaps THIS workspace's share (token ${AUDIT_WS_TOKEN}).
+Foreign-token and unscoped-legacy sessions must be disposed from their own workspace or
+manually (screen -S <name> -X quit / tmux kill-session -t <name>); this invocation never
+disposes them.
+No audit is starting, no monitor will be written by this attempt, and the Field Report
+stays owed. Dispose the pile, then re-arm.
+EOF
+    print_dispose_instructions
+    emit_paste_only "$kind"
+    soft_fail_exit
+  fi
   if [[ "$AUDIT_SESSION_CAP" -ne 0 && "$count" -ge "$AUDIT_SESSION_CAP" ]]; then
     cat <<EOF
 
@@ -1079,10 +1306,13 @@ EOF
 }
 
 # Dry-run view of the pressure gate. Reap preview included when opted in; kills nothing.
+# The "audit-sessions:" line is parsed by the run-plan-all preflight; do not reformat it.
 print_session_pressure_dry_run() {
-  local count
+  local count host_count
   count="$(count_audit_sessions)"
+  host_count="$(count_audit_sessions host)"
   echo "  audit-sessions: ${count} detached owned (warn: ${AUDIT_SESSION_WARN}, cap: ${AUDIT_SESSION_CAP})"
+  echo "  audit-sessions-host: ${host_count} detached namespace-wide (host-cap: ${AUDIT_SESSION_HOST_CAP})"
   echo "  audit-workspace-token: ${AUDIT_WS_TOKEN}"
   echo "  audit-session-prefix: ${AUDIT_SESSION_OWNED_PREFIX}"
   if [[ "$REAP_SESSIONS" -eq 1 ]]; then
@@ -1091,7 +1321,9 @@ print_session_pressure_dry_run() {
   else
     echo "  reap: no (min-age: ${AUDIT_REAP_MIN_AGE}s; owned prefix only)"
   fi
-  if [[ "$AUDIT_SESSION_CAP" -ne 0 && "$count" -ge "$AUDIT_SESSION_CAP" ]]; then
+  if [[ "$AUDIT_SESSION_HOST_CAP" -ne 0 && "$host_count" -ge "$AUDIT_SESSION_HOST_CAP" ]]; then
+    echo "  audit-sessions-gate: would refuse to spawn (host cap reached)"
+  elif [[ "$AUDIT_SESSION_CAP" -ne 0 && "$count" -ge "$AUDIT_SESSION_CAP" ]]; then
     echo "  audit-sessions-gate: would refuse to spawn (cap reached)"
   elif [[ "$AUDIT_SESSION_WARN" -ne 0 && "$count" -ge "$AUDIT_SESSION_WARN" ]]; then
     echo "  audit-sessions-gate: would warn and continue"
@@ -1643,6 +1875,44 @@ wait_state_clear() {
   rm -f "$(wait_state_path "$slug")"
 }
 
+# Expire-on-contact: a wait-state file still "armed" once its deadline has passed is a
+# dead arm, not live budget (nothing else ever writes its expiry). Rewrites status ->
+# "timeout" and remainingBudgetSeconds -> 0 in place, preserving every other field
+# (armEpoch, deadline, backend, implementerModel, reviewerModel, and the optional
+# cloudAgentId / cloudRunId). Deliberately does NOT reuse wait_state_write, which rebuilds
+# the object from WAIT_* globals and would clobber the stamped backend/model/cloud ids.
+# --dry-run (DRY_RUN=1) previews only and writes nothing. No-op when the file is missing,
+# not "armed", or its deadline has not passed.
+wait_state_expire_if_dead() {
+  local slug="$1"
+  local path status deadline now
+  path="$(wait_state_path "$slug")"
+  [[ -f "$path" ]] || return 0
+  status="$(wait_state_get "$slug" status)"
+  [[ "$status" == "armed" ]] || return 0
+  deadline="$(wait_state_get "$slug" deadline)"
+  [[ "$deadline" =~ ^[1-9][0-9]*$ ]] || return 0
+  now="$(date +%s)"
+  [[ "$now" -ge "$deadline" ]] || return 0
+  if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+    echo "audits: wait-state would expire $slug (armed past deadline; dead arm, not live budget; dry-run, not written)"
+    return 0
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "tip: node required to expire audit wait-state at $WAIT_STATE_DIR_REL/${slug}.json" >&2
+    return 1
+  fi
+  node -e '
+    const fs = require("fs");
+    const path = process.argv[1];
+    const j = JSON.parse(fs.readFileSync(path, "utf8"));
+    j.status = "timeout";
+    j.remainingBudgetSeconds = 0;
+    fs.writeFileSync(path, JSON.stringify(j, null, 2) + "\n");
+  ' "$path"
+  echo "audits: wait-state expired $slug (armed past deadline; dead arm, not live budget)"
+}
+
 wait_state_is_resumable() {
   local slug="$1"
   local status deadline remaining now
@@ -1668,6 +1938,7 @@ wait_state_load_or_init() {
   fi
   for p in "${paths[@]}"; do
     slug="$(slug_from_monitor_path "$p")"
+    wait_state_expire_if_dead "$slug"
     if ! wait_state_is_resumable "$slug"; then
       all_resume=0
       break
@@ -2425,6 +2696,8 @@ fi
 
 # Pure disposal mode: --reap-audit-sessions with no plan argument reaps and exits.
 # This avoids coupling cleanup to a new audit spawn. --dry-run previews only.
+# Also runs the --gc-wait-state sweep when both flags are combined, so a combined
+# invocation never silently drops one cleanup for the other.
 if [[ "$REAP_SESSIONS" -eq 1 && "$BATCH" -eq 0 && "${#PLAN_ARGS[@]}" -eq 0 ]]; then
   if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "audits: reap-only dry-run preview (no plan argument; no audit will start)"
@@ -2432,6 +2705,22 @@ if [[ "$REAP_SESSIONS" -eq 1 && "$BATCH" -eq 0 && "${#PLAN_ARGS[@]}" -eq 0 ]]; t
     echo "audits: reap-only mode (no plan argument; no audit will start)"
   fi
   reap_audit_sessions
+  if [[ "$GC_WAIT_STATE" -eq 1 ]]; then
+    gc_wait_state_sweep
+  fi
+  exit 0
+fi
+
+# Pure sweep mode: --gc-wait-state with no plan argument sweeps and exits. Mirrors the
+# reap-only block above: cleanup does not couple to a new audit spawn. --dry-run previews
+# only (delegated through wait_state_expire_if_dead).
+if [[ "$GC_WAIT_STATE" -eq 1 && "$BATCH" -eq 0 && "${#PLAN_ARGS[@]}" -eq 0 ]]; then
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "audits: gc-wait-state dry-run preview (no plan argument; no audit will start)"
+  else
+    echo "audits: gc-wait-state mode (no plan argument; no audit will start)"
+  fi
+  gc_wait_state_sweep
   exit 0
 fi
 

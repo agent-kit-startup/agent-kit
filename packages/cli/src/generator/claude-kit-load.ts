@@ -33,7 +33,7 @@ Cursor Ask questions is not available in this CLI. When a command requires a cho
 - Not Action A7 (Windsurf / VS Code generator parity)
 - Not Claude external plan-review audits (\`/plan-external-review\`)
 - Not \`--backend claude\` plan-loop ticks
-- Not a copy of Cursor \`sessionStart\` / other IDE hooks
+- Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (\`agent-kit hook session-start --format claude\`); no \`.claude/rules/\` mirrors, no \`.claude/agents/\` generated from the registry
 `;
 }
 

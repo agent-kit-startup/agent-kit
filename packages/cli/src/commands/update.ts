@@ -100,6 +100,7 @@ export const updateCommand = defineCommand({
     } catch (err) {
       if (err instanceof RootRefusedError) {
         logger.error(err.message);
+        if (err.recovery) console.error(`\n${err.recovery}\n`);
         process.exitCode = 1;
         return;
       }

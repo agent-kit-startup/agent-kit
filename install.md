@@ -20,13 +20,17 @@ npx @dadado/agent-kit-cli install
 
 Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
+**Project-root guard:** before any write, `install`, `update`, and `init` refuse `/` and the home directory, a folder with neither `.git` nor `.cursor/agent-kit.json`, and a folder that has `.git` but also contains two or more child repositories (parent-of-repos). Interactive terminals get a `Proceed anyway?` prompt defaulting to **no**; `--yes` / CI refuses outright with exit 1 and no files written. `--force-root` is the explicit bypass and skips every root check - confirm the absolute path first. Details: [docs/getting-started.md](docs/getting-started.md#project-root-guard).
+
+**Starting from an empty folder:** an empty directory hits that guard. Three sanctioned paths, all printed by the refusal: `git init` here and re-run (recommended), re-run with `--force-root`, or answer **yes** to the interactive `Proceed anyway?` prompt. Installing without Git is supported - `/agent-kit-onboard` owns the Git pillar afterwards (`Keep repository without Git` / `Initialize local Git`). The CLI never runs `git init` for you. Details: [docs/getting-started.md](docs/getting-started.md#starting-from-an-empty-folder).
+
 Optional L1 packs (separate command):
 
 ```bash
 npx @dadado/agent-kit-cli install --pack clean-code,context-management
 ```
 
-After: `agent-kit status` (or `npx @dadado/agent-kit-cli status`). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from the CLI package, which ships `dashboard/` from 4.8.2 onward, or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or `agent-kit dashboard` reports missing `start.mjs`, the installed CLI predates 4.8.2: upgrade it, or set kit-host env/sibling.
+After: `npx @dadado/agent-kit-cli status`. `npx` is ephemeral - it leaves no `agent-kit` on `PATH`, so keep prefixing subcommands with `npx @dadado/agent-kit-cli` (or run `npm i -g @dadado/agent-kit-cli` once if you want the bare `agent-kit` bin). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from the CLI package, which ships `dashboard/` from 4.8.2 onward, or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or the `dashboard` subcommand reports missing `start.mjs`, the installed CLI predates 4.8.2: upgrade it, or set kit-host env/sibling.
 
 Contributors working from a kit monorepo checkout: use the local CLI examples in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (Working on the kit). Do not paste monorepo `pnpm --filter` commands into a consumer project.
 
@@ -143,7 +147,7 @@ If the agent has the Agent Kit monorepo open as workspace, use those paths. If o
 Default public base URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** for any registry source confirmation:
 Options: `Fetch from public registry` / `Use different registry URL` / `Skip registry for now`
 
-When the operator picks **Use different registry URL**, stop and require an explicit trust decision before fetching. Do not silently substitute an untrusted host. Prefer pinning a known public commit SHA (or tag) in the URL path over floating `main` when the operator needs reproducibility. After copy, run `agent-kit doctor` / `agent-kit status` when the CLI is available so the install can be validated.
+When the operator picks **Use different registry URL**, stop and require an explicit trust decision before fetching. Do not silently substitute an untrusted host. Prefer pinning a known public commit SHA (or tag) in the URL path over floating `main` when the operator needs reproducibility. After copy, run `npx @dadado/agent-kit-cli doctor` / `npx @dadado/agent-kit-cli status` when the CLI is available so the install can be validated.
 
 **Fallback:** if Ask questions tool unavailable, ask the same options in chat as numbered list.
 
@@ -154,7 +158,7 @@ Create if it doesn't exist (adjust `version` / `registry` to current SoT):
 ```json
 {
   "schemaVersion": 1,
-  "version": "5.4.0",
+  "version": "5.3.0",
   "profile": "default",
   "packs": [],
   "skills": [],
@@ -196,7 +200,7 @@ cp .cursor/hooks/pre-commit/check-secrets.sh .git/hooks/  # only if repo flow re
 
 ### 6. Repository readiness onboarding
 
-After L0 files are written, run `agent-kit doctor --json` or `npx @dadado/agent-kit-cli doctor --json` to refresh `.cursor/context/readiness.json`, then run or offer `/agent-kit-onboard`. The command is the sole coordinator for progressive repository preparation. Follow [`.cursor/commands/agent-kit-onboard.md`](.cursor/commands/agent-kit-onboard.md).
+After L0 files are written, run `npx @dadado/agent-kit-cli doctor --json` (bare `agent-kit doctor --json` only after a global `npm i -g @dadado/agent-kit-cli`) to refresh `.cursor/context/readiness.json`, then run or offer `/agent-kit-onboard`. The command is the sole coordinator for progressive repository preparation. Follow [`.cursor/commands/agent-kit-onboard.md`](.cursor/commands/agent-kit-onboard.md).
 
 The first useful message reports current readiness progress, detected facts, safe fixes, and exactly one next action. It does not ask about skins, external review, or a first deliverable before essential readiness passes.
 

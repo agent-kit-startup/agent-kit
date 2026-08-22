@@ -63,7 +63,8 @@ On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `upda
 |---------|---------|
 | `agent-kit install` | Bootstrap L0 (+ optional packs) and write `agent-kit.json` |
 | `agent-kit status` | Show installed kit version and profile |
-| `agent-kit doctor` | Diagnose repository readiness |
+| `agent-kit doctor` | Diagnose repository readiness (`--json` includes an `env` pillar: bin-on-PATH, npm prefix writability, Node version, shell profile) |
+| `agent-kit setup-global` | Self-heal a root-owned npm global prefix (relocate to `~/.npm-global`, fix `PATH`, reinstall) |
 | `agent-kit update` | Re-apply L0/packs/skills from the registry |
 | `agent-kit dashboard` | Start Mission Control for this workspace |
 | `agent-kit add <id>` | Install a skill or L1 pack |

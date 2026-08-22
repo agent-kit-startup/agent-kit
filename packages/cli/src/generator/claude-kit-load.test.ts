@@ -21,6 +21,15 @@ const factoryCommandPath = path.join(REPO_ROOT, AGENT_KIT_COMMAND_REL);
 const factoryKitLoadPresent = existsSync(factoryClaudePath) && existsSync(factoryCommandPath);
 
 describe("generateClaudeKitLoadArtifacts", () => {
+  it("carves out the sanctioned SessionStart adapter without reopening rules/agents mirrors (ADR 2026-08-13, amended 2026-08-21)", () => {
+    const claudeMd = renderClaudeMd();
+    expect(claudeMd).toContain(
+      "Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`)",
+    );
+    expect(claudeMd).toContain("no `.claude/rules/` mirrors");
+    expect(claudeMd).toContain("no `.claude/agents/` generated from the registry");
+  });
+
   it("matches the pack-contract canonical fences", async () => {
     const docs = await readFile(path.join(REPO_ROOT, "docs/claude-cli-kit-load.md"), "utf8");
     expect(docs).toContain(renderClaudeMd().trimEnd());
