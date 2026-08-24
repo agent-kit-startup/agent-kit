@@ -87,3 +87,10 @@ __pycache__/
 # Landing build output — derived from the Claude Design export by
 # `pnpm landing:build`; never edit by hand. See docs/agentkit-landing.md.
 .cursor/context/landing-missionkit/dist/
+
+# Landing promote/rollback release archives — timestamped zips of bytes that
+# were actually deployed to missionkit.io, written by `pnpm landing:promote`
+# / archived pre-promote for `pnpm landing:rollback`. Derived, potentially
+# large (binary assets), and account-specific; not source. See
+# docs/agentkit-landing.md and missionkit-staging-promote.plan.md.
+.cursor/context/landing-missionkit/releases/

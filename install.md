@@ -105,6 +105,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/handoff.md` | idem |
 | `.cursor/commands/summary.md` | idem |
 | `.cursor/commands/dashboard.md` | idem |
+| `.cursor/commands/dashboard-broadcast.md` | idem |
 | `.cursor/commands/git-staging.md` | idem |
 | `.cursor/commands/git-prod.md` | idem |
 | `.cursor/commands/plan-external-review.md` | idem |
@@ -112,6 +113,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/field-report-resolve.md` | idem |
 | `.cursor/commands/dogfood.md` | idem |
 | `.cursor/commands/cursor-update-awareness.md` | idem |
+| `.cursor/commands/update.md` | idem |
 | `.cursor/context/templates/plan.md` | idem |
 | `.cursor/context/templates/context-pack.md` | idem |
 | `.cursor/context/templates/task-brief.md` | idem |

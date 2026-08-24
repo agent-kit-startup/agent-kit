@@ -71,7 +71,7 @@ The plugin root is the **parent of `.cursor-plugin/`** - the repo root. Cursor's
 | `agents` | `.cursor/agents` | 14 subagent definitions |
 | `commands` | `.cursor/commands` | 27 slash commands |
 | `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, and `sessionStart` surfaces the degraded-mode diagnostic (see "Hook resolution boundary" below) |
-| `logo` | `dashboard/logo-marketplace.svg` | 512×512 SVG (1:1), transparent canvas, rounded plate `#0b0e14`, Cursor-skin stroke mark from `logo-cursor.svg` centered (~10% padding). Chrome keeps unplated `logo.svg` (legacy helmet) and `logo-cursor.svg` (16px header). Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced and would be dropped from the public mirror without failing anything. Production copies of the three marks live under `assets/production/` (private; not public-synced) |
+| `logo` | `dashboard/logo-marketplace.svg` | 512×512 SVG (1:1), transparent canvas, rounded plate `#0b0e14`, Cursor-skin stroke mark from `logo-cursor.svg` centered (~10% padding). Chrome keeps unplated `logo.svg` (legacy helmet) and `logo-cursor.svg` (16px header). Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced in general (only `assets/production/*.png` is, for the README screenshots — see readme-public-hero-badges Phase 2); a link/image into any other `assets/` path now fails `check:public-deny-links` instead of silently dropping. Production copies of the three marks live under `assets/production/` (private SVGs; not public-synced, `logo-marketplace.svg` above is generated from the same art at the `dashboard/` path instead) |
 
 #### Hook resolution boundary
 

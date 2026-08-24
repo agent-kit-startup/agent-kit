@@ -1,5 +1,12 @@
 # @dadado/agent-kit-cli
 
+[![npm version of @dadado/agent-kit-cli](https://img.shields.io/npm/v/%40dadado%2Fagent-kit-cli?label=npm&color=0C8DEB)](https://www.npmjs.com/package/@dadado/agent-kit-cli)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](LICENSE)
+[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
+[![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
+
+<img src="https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/dashboard/logo.svg" alt="Mission Kit helmet mark" width="120">
+
 Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, staging-to-prod, memory). It installs local workspace contracts; it is not a hosted control plane or graph workflow runtime.
 
 ## Install

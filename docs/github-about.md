@@ -34,4 +34,12 @@ Legacy `agent.startupkit.com.br` redirects here; do not set it as the GitHub Web
 
 ## Social preview
 
-GitHub uses the **README** or an image under **Settings → General → Social preview**. Keep the README as the main narrative; do not duplicate the About text there.
+Asset: `dashboard/social-preview.png` (1280×640, `dashboard/social-preview.svg` is the vector source) — helmet mark on the Mission Control `#0b0e14` plate, same recipe as `dashboard/logo-marketplace.svg` (Cursor-skin stroke art, centered), plus the "Mission Kit" wordmark. Synced via `dashboard/**` in `scripts/public-sync.manifest`, so it's present on the public mirror after the next promote + sync-public.
+
+**Apply checklist (manual, public repo, after the asset has synced):**
+
+1. `agent-kit-startup/agent-kit` → **Settings → General → Social preview → Edit**.
+2. Upload `dashboard/social-preview.png` from the public mirror tree (PNG/JPG only, GitHub does not accept SVG here — that's why both files exist).
+3. Save. GitHub shows this image for link unfurls (Slack, X/Twitter, Discord, etc.) instead of falling back to the README/avatar.
+
+Keep the README as the main narrative; do not duplicate the About text there.

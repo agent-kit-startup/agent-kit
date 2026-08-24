@@ -156,10 +156,13 @@ describe("canonical L0 inventory", () => {
     expect(sorted(portBPairs)).toEqual(sorted(canonicalPairs));
     expect(canonicalTargets).toEqual(expect.arrayContaining(requiredRuleTargets));
     expect(canonicalTargets).toEqual(expect.arrayContaining(requiredTemplateTargets));
-    // Legacy `onboard` must never reappear. The registry.json L0 list is
-    // hand-curated and can lag behind synced command files on the public mirror,
-    // so assert the legacy command is absent rather than requiring the new one
-    // to be registered (agent-kit-onboard.md presence is covered by the file
+    // Legacy `onboard` must never reappear. This repo generates registry.json's
+    // L0 section from L0_ARTIFACTS on every rebuild (scripts/build-registry.mjs)
+    // and CI enforces that parity via a repo-gated step (private only). The
+    // public mirror's registry.json remains independently maintained and is not
+    // covered by that check, so this portable test still only asserts the
+    // legacy command is absent rather than requiring strict equality, to avoid
+    // breaking public CI (agent-kit-onboard.md presence is covered by the file
     // existence check below).
     expect(
       registry.artifacts.some((artifact) => artifact.path.endsWith("commands/onboard.md")),

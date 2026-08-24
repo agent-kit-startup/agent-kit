@@ -44,9 +44,34 @@ pnpm landing:build:check
 pnpm landing:serve
 # Open http://127.0.0.1:4173/
 
-# 5. Deploy
-# Zip dist/ and deploy via hosting_deployStaticWebsite to missionkit.io
+# 5. Deploy to staging — NEVER production
+pnpm landing:deploy:staging
+# Ensures the `staging` subdomain + DNS record exist, then uploads dist/
+# into staging/ on the same hosting account. Never touches missionkit.io.
+
+# 6. Automated acceptance against the live staging URL
+pnpm landing:verify:staging
+# Headless-Chrome render (not curl): 0 unresolved bindings, #dc-root
+# present, video + iframe present, no request outside the origin (mod the
+# hero badge's img.shields.io exception below).
+
+# 7. HITL — open https://staging.missionkit.io, compare side by side
+#    against the Claude Design canvas, approve explicitly. Nothing below
+#    this line runs on a passing checklist alone.
+
+# 8. Promote (only after explicit approval) — re-deploys the SAME dist/
+#    bytes already validated on staging. Never rebuilds.
+pnpm landing:promote
+
+# Rollback, any time after a promote
+pnpm landing:rollback            # redeploys the immediately previous release
+pnpm landing:rollback <release>  # redeploys a specific archived release
 ```
+
+Every production deploy goes through staging first — there is no script path
+that deploys straight to `missionkit.io`. `landing:promote` is the only script
+that ever writes to the production root; `landing:deploy:staging` refuses (by
+assertion, in code) to write anywhere outside `staging/`.
 
 ### What the build changes (and nothing more)
 
@@ -55,13 +80,42 @@ pnpm landing:serve
 3. Injects a static `<title>`, description, canonical, Open Graph, Twitter Card, and favicon
    into `<head>` for crawlers (dc-runtime moves `<helmet>` into `<head>` at boot, which is
    too late for anything that does not execute JS)
+4. Injects a build-time **changelog box**: the latest public-facing `CHANGELOG.md`
+   release entry, rendered as plain escaped text, into a canvas-provided
+   `<div data-changelog-content></div>` container. No-ops with a logged warning
+   (never fails the build) until the canvas ships that container — see
+   `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT-badge-changelog.md`
+   for the exact contract and the paired hero-eyebrow live-badge change.
+
+### Live vs. build-time exception
+
+Everything the build ships is self-contained by default (proven headless, external
+DNS blocked). One narrow, named exception: the hero release badge is authorized to
+make a live client-side request to `img.shields.io` only (same pattern as the
+`README.md` release badge). No other element — including the changelog box above,
+which is build-time only — gets a live/runtime external request. See ADR
+`decisions/2026-08-05_landing-external-design-source-of-record.md` (2026-08-22
+addendum) for the full reasoning and the confirmed edit route (this repo has no
+owned/shared write access to the canvas; changes go through the hand-off-prompt
+pattern, not a direct canvas edit).
 
 ## Deployment
 
 - **Hosting:** Hostinger web hosting (`u262837109`), addon vhost root `/home/u262837109/domains/missionkit.io/public_html`
-- **DNS:** `@` ALIAS to `missionkit.io.cdn.hstgr.net` (Hostinger CDN)
+- **DNS:** `@` ALIAS to `missionkit.io.cdn.hstgr.net` (Hostinger CDN); `staging` CNAME to the same CDN target (added by `landing:deploy:staging` on first run, idempotent thereafter)
 - **SSL:** Hostinger HTTPS (HTTP/2 200 verified)
-- **Deploy method:** `hosting_deployStaticWebsite` with a zip of `dist/` preserving directory structure
+- **Deploy method (production):** `scripts/promote-landing.mjs` (`pnpm landing:promote`) — zips the already-staging-validated `dist/`, uploads it, then triggers the Hostinger static-site deploy against `domain=missionkit.io`. Same underlying REST call the interactive `hosting_deployStaticWebsite` MCP tool used for the original production deploy, reimplemented as a standalone script (see `scripts/lib/hostinger.mjs`) so it can run outside an MCP session
+- **Deploy method (staging):** `scripts/deploy-landing-staging.mjs` (`pnpm landing:deploy:staging`) — per-file upload into the `staging/` subdomain directory. Deliberately does **not** use the website-level deploy trigger: that endpoint's extraction target is the website root, and a subdomain is not a separate "website" in this API (it does not appear in the `/websites` listing, only under `/subdomains`), so routing staging through it risks overwriting production. Every upload path is asserted to start with `staging/`
+
+### Staging pipeline (missionkit-staging-promote.plan.md)
+
+- **Subdomain:** `staging.missionkit.io`, created via `hosting_createWebsiteSubdomainV1` (`POST .../websites/missionkit.io/subdomains`), directory `staging/` under the same document root as production — not a separate hosting account.
+- **Never indexed.** Staging must not carry `noindex` inside `dist/`'s own bytes: `landing:promote` ships the *exact same* `dist/` bytes already validated on staging, and if those bytes carried a `noindex` meta tag, promoting would noindex production too. Instead, `landing:deploy:staging` writes two generated, staging-only files alongside the upload — `staging/.htaccess` (`Header set X-Robots-Tag "noindex, nofollow"`) and `staging/robots.txt` (`Disallow: /`) — neither is part of `dist/`, neither is ever promoted. This is a deliberate deviation from the plan's literal wording ("toggle in build-landing.mjs"), made to preserve the plan's own higher-priority rule that promote never rebuilds and ships identical bytes.
+- **Residual:** the subdomain directory lives under the same document root as production (`.../public_html/staging/`), so the staged build may also be reachable at `missionkit.io/staging/` in addition to `staging.missionkit.io/`. The `X-Robots-Tag` header covers indexing either way; this is noted, not solved, here.
+- **Acceptance:** `pnpm landing:verify:staging` (`scripts/verify-landing.mjs --url https://staging.missionkit.io/`) — headless Chrome (`--headless=new --dump-dom`, external DNS blocked via `--host-resolver-rules`, same self-containment technique as the original production acceptance gate) asserting `#dc-root`, zero unresolved bindings, a `<video>`, the `mc/dashboard.html` iframe, and no request to a host outside the origin (the hero badge's `img.shields.io` call is the one named live exception; see "Live vs. build-time exception" above).
+- **Promote/rollback safety:** `landing:promote` archives whatever is *currently live* at `missionkit.io` into `.cursor/context/landing-missionkit/releases/<timestamp>/` (zip, gitignored) **before** deploying — fetched over public HTTPS per file (not the Hostinger file-content API, which refuses binary files) so videos/images are captured too. `landing:rollback [release]` redeploys an archived release; with no argument, the immediately previous one. Neither script ever calls `landing:build`.
+- **HITL gate:** Phase 3 of the plan — operator opens `https://staging.missionkit.io`, compares against the Claude Design canvas, approves explicitly. No script promotes on a passing `landing:verify:staging` alone.
+- **Operator-owed first run:** the upload leg (`scripts/lib/hostinger.mjs`'s `uploadFile`) reconstructs an undocumented Hostinger upload sequence (POST pre-create, then a TUS-style `PATCH`) from the vendored `hostinger-api-mcp` package's source, since this sandbox's permission classifier refused every mutating call attempted (subdomain create, adding a vendored dependency) and that refusal was not retried per this repo's worker contract. All read-only calls (website lookup, subdomain listing, DNS zone, file listing) were exercised live against the real account and work as documented; run `pnpm landing:deploy:staging -- --dry-run` first, and have the first real run be operator-attended.
 
 ### Rollback
 

@@ -102,6 +102,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/dashboard.md",
   },
   {
+    source: ".cursor/commands/dashboard-broadcast.md",
+    target: ".cursor/commands/dashboard-broadcast.md",
+  },
+  {
     source: ".cursor/commands/git-staging.md",
     target: ".cursor/commands/git-staging.md",
   },
@@ -128,6 +132,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/commands/cursor-update-awareness.md",
     target: ".cursor/commands/cursor-update-awareness.md",
+  },
+  {
+    source: ".cursor/commands/update.md",
+    target: ".cursor/commands/update.md",
   },
   // Context (templates + example config; private config.json is not L0)
   {

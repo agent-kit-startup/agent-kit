@@ -1,5 +1,14 @@
 # Mission Kit
 
+[![npm version of @dadado/agent-kit-cli](https://img.shields.io/npm/v/%40dadado%2Fagent-kit-cli?label=npm&color=0C8DEB)](https://www.npmjs.com/package/@dadado/agent-kit-cli)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](LICENSE)
+[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
+[![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
+
+<p align="center">
+  <img src="dashboard/logo.svg" alt="Mission Kit helmet mark" width="190">
+</p>
+
 [Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io)
 
 **Development operations built into Cursor and VS Code.**
@@ -34,6 +43,21 @@ Long AI coding sessions fall apart when the context window fills up. Mission Kit
 
 Deep dives: [getting started](docs/getting-started.md), [five-layer claim matrix](docs/five-layer-claim-matrix.md), [external plan review](docs/external-plan-review.md), [domain packs](docs/domain-packs.md), [personas](docs/personas-contract.md).
 
+## Mission Control
+
+A local dashboard over the same workspace state the CLI drives — current mission, checklist, crew activity, and the flight log.
+
+<table>
+<tr>
+<td width="50%">![Mission Control Current mission panel](assets/production/1-mission-control-current-mission.png)</td>
+<td width="50%">![Mission Control Checklist panel](assets/production/2-mission-control-check-list.png)</td>
+</tr>
+<tr>
+<td width="50%">![Mission Control Crew Monitor panel](assets/production/3-mission-control-Crew-Monitor.png)</td>
+<td width="50%">![Mission Control Flight Log panel](assets/production/4-mission-control-flight-log.png)</td>
+</tr>
+</table>
+
 ## Install
 
 ### In Cursor (recommended)
@@ -52,6 +76,20 @@ From your project root:
 
 ```bash
 npx @dadado/agent-kit-cli install
+```
+
+The CLI welcome screen greets you with the same helmet, in ASCII:
+
+```text
+       ____
+    .-'    '-.
+   /  .--.    \
+  |  /    \    |
+  | |  ()  |   |
+  |  \    /    |
+   \  '--'    /
+    '-.____.-'
+   /_/      \_\
 ```
 
 Unpinned `npx` resolves to the latest publish. Pin when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install`.
