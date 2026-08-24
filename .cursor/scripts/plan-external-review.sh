@@ -1731,7 +1731,11 @@ exec_reviewer() {
 
 monitor_wants_advisor() {
   local rel="$1"
-  [[ -f "$ROOT/$rel" ]] && grep -qF "$ADVISOR_ESCALATE_SENTINEL" "$ROOT/$rel"
+  # Anchored: must be a standalone HTML-comment line (per the prompt template's
+  # "exactly one HTML comment line" contract), not just any substring/prose
+  # mention (including negations like "no ...advisor-escalate... needed").
+  local pattern="^[[:space:]]*${ADVISOR_ESCALATE_SENTINEL}[[:space:]]*$"
+  [[ -f "$ROOT/$rel" ]] && grep -qE "$pattern" "$ROOT/$rel"
 }
 
 build_advisor_prompt() {

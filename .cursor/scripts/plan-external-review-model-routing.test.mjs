@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -29,6 +30,31 @@ ${body}
   return spawnSync("bash", ["-c", bash], { encoding: "utf8" });
 }
 
+function extractVarAssignment(name) {
+  const out = spawnSync("grep", ["-m1", `^${name}=`, SCRIPT], { encoding: "utf8" });
+  assert.ok(out.stdout.trim().length > 0, `failed to extract ${name}`);
+  return out.stdout;
+}
+
+// Runs the real monitor_wants_advisor() from the script (plus its
+// ADVISOR_ESCALATE_SENTINEL constant) against a scratch file, mirroring how
+// maybe_run_advisor() gates the opus escalation.
+function monitorWantsAdvisor(root, rel) {
+  const prelude = [
+    extractVarAssignment("ADVISOR_ESCALATE_SENTINEL"),
+    extractFn("monitor_wants_advisor"),
+  ].join("\n");
+  const bash = `
+set -euo pipefail
+ROOT=${JSON.stringify(root)}
+${prelude}
+if monitor_wants_advisor ${JSON.stringify(rel)}; then echo yes; else echo no; fi
+`;
+  const out = spawnSync("bash", ["-c", bash], { encoding: "utf8" });
+  assert.equal(out.status, 0, out.stderr);
+  return out.stdout.trim();
+}
+
 // Historical default at f27910a was Haiku; classifier-capable Sonnet is the post-amendment default.
 test("launcher model routing: classifier-capable reviewer spawn, escalate sentinel, same-model refuse", () => {
   assert.match(SRC, /--reviewer-model/);
@@ -41,6 +67,46 @@ test("launcher model routing: classifier-capable reviewer spawn, escalate sentin
   assert.match(SRC, /enforce_implementer_reviewer_split/);
   assert.match(SRC, /findings-contract against the git delta/);
   assert.match(SRC, /This is not a silent self-review/);
+});
+
+test("monitor_wants_advisor: anchored to a standalone sentinel line, ignores prose/negated mentions", () => {
+  const dir = mkdtempSync(join(tmpdir(), "audits-advisor-sentinel-"));
+  try {
+    const proseFile = "prose-negated.md";
+    writeFileSync(
+      join(dir, proseFile),
+      [
+        "**To-do:** Opus advisor only when monitor marks `<!-- audits-advisor-escalate -->`.",
+        "Neither finding is high/critical severity; no `<!-- audits-advisor-escalate -->` needed.",
+      ].join("\n"),
+    );
+    assert.equal(
+      monitorWantsAdvisor(dir, proseFile),
+      "no",
+      "inline/negated prose mention of the sentinel must not trigger escalation",
+    );
+
+    const genuineFile = "genuine-escalate.md";
+    writeFileSync(
+      join(dir, genuineFile),
+      ["## Advisor", "", "<!-- audits-advisor-escalate -->", ""].join("\n"),
+    );
+    assert.equal(
+      monitorWantsAdvisor(dir, genuineFile),
+      "yes",
+      "a genuine standalone sentinel comment line must trigger escalation",
+    );
+
+    const indentedFile = "genuine-indented.md";
+    writeFileSync(join(dir, indentedFile), "text\n   <!-- audits-advisor-escalate -->   \nmore\n");
+    assert.equal(
+      monitorWantsAdvisor(dir, indentedFile),
+      "yes",
+      "surrounding whitespace on an otherwise-standalone sentinel line must still trigger escalation",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("normalize_model_family collapses vendor aliases", () => {
