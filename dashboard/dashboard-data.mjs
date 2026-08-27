@@ -49,13 +49,33 @@ const MAX_TERMINALS = 20;
 const MAX_PROCESSES = 25;
 const MAX_GIT_GRAPH_LINES = 25;
 const MAX_GIT_GRAPH_LINE_CHARS = 160;
+const MAX_PIPELINE_RUNS = 5;
+const MAX_PIPELINE_NAME_CHARS = 80;
+// Live-measured (2026-08-24, this repo, 8 fresh `gh run list` samples via the
+// exact trimmed command): 3476-6584ms, one earlier ad-hoc sample 7674ms.
+// Prior review sessions (.cursor/memory/plan-monitor-mc-git-tab-visual-tree-and-devops-panel.md)
+// spanned 2.1-9.9s. 3500ms had no headroom at all over that range; 12000ms
+// gives real margin over the observed worst case (~2.1s over the historical
+// 9.9s max, ~4.3s over this session's tight-sample max) while staying well
+// under the 60s outer child-process timeout (serve.mjs DATA_SCRIPT_TIMEOUT_MS).
+const GH_RUN_LIST_TIMEOUT_MS = 12_000;
+const MAX_DEPLOY_TAGS = 5;
+const MAX_DEPLOY_TAG_NAME_CHARS = 64;
+const MAX_CHANGELOG_ITEMS = 4;
+const MAX_CHANGELOG_ITEM_CHARS = 140;
 
 /** Soft wall-clock budget for optional collectors (transcripts, reports, ps). */
 const SNAPSHOT_STARTED_MS = Date.now();
+// Default raised from 12000ms by the same delta GH_RUN_LIST_TIMEOUT_MS grew
+// (3500ms -> 12000ms, +8500ms): collectPipelineRuns() now runs last among the
+// budget-guarded collectors and reserves GH_RUN_LIST_TIMEOUT_MS + 400ms of
+// budget before attempting `gh run list` (see withinSnapshotBudget call
+// there), so the total budget must grow by the same amount the reserve did
+// or the larger timeout can never actually be used.
 const SNAPSHOT_BUDGET_MS = (() => {
   const raw = process.env.AGENT_KIT_DASHBOARD_DATA_BUDGET_MS;
-  const n = raw != null && raw !== "" ? Number(raw) : 12_000;
-  return Number.isFinite(n) && n > 0 ? n : 12_000;
+  const n = raw != null && raw !== "" ? Number(raw) : 20_500;
+  return Number.isFinite(n) && n > 0 ? n : 20_500;
 })();
 function withinSnapshotBudget(reserveMs = 400) {
   return Date.now() - SNAPSHOT_STARTED_MS + reserveMs < SNAPSHOT_BUDGET_MS;
@@ -104,7 +124,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.2.0",
+    version: "1.3.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -117,6 +137,8 @@ const SNAPSHOT = {
       memory:
         "Memory records: error count, decision count, recent decisions, recent parsed errors, error-o-meter stats",
       git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[], promotion flow vs staging/main, graph lines, staging hygiene",
+      devops:
+        "Best-effort DevOps signal: pipeline ({available, runs[], reason?} recent gh run list rows; reason is 'budget' when the shared snapshot budget ran out before gh was attempted, or 'call-failed' when gh was attempted and missing/unauthenticated/timed out/errored; reason is only present when available is false) and deploy ({tags[], changelog} v* git tags + latest CHANGELOG release entry as a 'what shipped recently' proxy, not a live infra poll)",
       terminals:
         "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
       processes:
@@ -127,7 +149,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.3.0",
+  dashboardDataVersion: "1.4.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -246,6 +268,7 @@ const kitCommandPaths = new Set();
 const kitSkillDirs = new Set();
 const kitAgentPaths = new Set();
 const registryFile = join(ROOT, "registry", "registry.json");
+let registryHadCommands = false;
 if (existsSync(registryFile)) {
   try {
     const registry = JSON.parse(readFileSync(registryFile, "utf8"));
@@ -265,8 +288,56 @@ if (existsSync(registryFile)) {
         kitAgentPaths.add(entry.path);
       }
     }
+    registryHadCommands = kitCommandPaths.size > 0;
   } catch {
     // Unreadable registry: degrade to all-editable rather than locking everything.
+  }
+}
+// `registry/registry.json` is a factory-only artifact index — consumer installs
+// never ship it, so the block above always leaves kitCommandPaths empty there and
+// every command reads kitManaged: false even though `update` owns it. Fall back to
+// the locally-tracked kit markers: `.cursor/agent-kit.managed-hashes.json` (already
+// keyed by the same repo-relative path as c.path / a.path) and, as a secondary
+// source, `.cursor/agent-kit.json`'s `protected[]` list (exact paths only; glob
+// entries like `.cursor/plans/**` don't identify individual kit-managed commands so
+// they're skipped). Only engages when the registry is absent or yielded no commands,
+// so factory behavior (registry present + populated) is unchanged.
+if (!registryHadCommands) {
+  const managedHashesFile = join(ROOT, ".cursor", "agent-kit.managed-hashes.json");
+  const agentKitConfigFile = join(ROOT, ".cursor", "agent-kit.json");
+  const fallbackPaths = new Set();
+  if (existsSync(managedHashesFile)) {
+    try {
+      const managed = JSON.parse(readFileSync(managedHashesFile, "utf8"));
+      const hashes = managed?.hashes && typeof managed.hashes === "object" ? managed.hashes : {};
+      for (const path of Object.keys(hashes)) {
+        fallbackPaths.add(path);
+      }
+    } catch {
+      // Unreadable managed-hashes.json: fall through to protected[] (if any).
+    }
+  }
+  if (existsSync(agentKitConfigFile)) {
+    try {
+      const agentKitConfig = JSON.parse(readFileSync(agentKitConfigFile, "utf8"));
+      const protectedList = Array.isArray(agentKitConfig?.protected)
+        ? agentKitConfig.protected
+        : [];
+      for (const entry of protectedList) {
+        if (typeof entry === "string" && !entry.includes("*")) fallbackPaths.add(entry);
+      }
+    } catch {
+      // Unreadable agent-kit.json: managed-hashes.json (if any) still applies.
+    }
+  }
+  for (const path of fallbackPaths) {
+    if (path.startsWith(".cursor/commands/")) {
+      kitCommandPaths.add(path);
+    } else if (path.startsWith(".cursor/agents/")) {
+      kitAgentPaths.add(path);
+    } else if (path.startsWith(".cursor/skills/") && path.endsWith("/SKILL.md")) {
+      kitSkillDirs.add(path.slice(0, -"/SKILL.md".length));
+    }
   }
 }
 for (const c of SNAPSHOT.commands) {
@@ -402,7 +473,12 @@ if (existsSync(memoryDecisionsDir)) {
 try {
   const gitOpts = { cwd: ROOT, encoding: "utf-8", timeout: 5000 };
   const branch = execSync("git rev-parse --abbrev-ref HEAD", gitOpts).trim();
-  const status = execSync("git status --short", gitOpts).trim();
+  // Only strip the trailing newline(s) here — `git status --short` uses
+  // positional XY status columns, so an unstaged-only row starts with a
+  // literal leading space (e.g. " M path"). A full-string .trim() eats that
+  // leading space on line 1 only, shifting parseGitStatusShort's staged /
+  // unstaged read for the first row.
+  const status = execSync("git status --short", gitOpts).replace(/\n+$/, "");
   const lastCommit = execSync("git log -1 --oneline", gitOpts).trim();
   let ahead = 0;
   let behind = 0;
@@ -486,6 +562,128 @@ try {
   SNAPSHOT.git = { error: "unable to read git state" };
   SNAPSHOT._gitRecentLog = [];
 }
+
+// 6b. DevOps: CI/CD pipeline status (best-effort, `gh` CLI) + a "what shipped
+// recently" deploy-activity proxy from v* git tags and the latest CHANGELOG
+// release entry. Both fail soft to an empty/unavailable shape; this snapshot
+// never blocks or errors on either signal, and never claims live
+// infra/hosting monitoring it does not perform.
+function collectPipelineRuns() {
+  // gh run list is a network call, unlike the local-only git collectors
+  // above; the budget reserve must cover its own timeout, not just a nominal
+  // buffer (see .cursor/memory/errors/2026-07-26_mission-control-dashboard-data-timeout.md
+  // for why this file's soft-budget guards exist).
+  if (!withinSnapshotBudget(GH_RUN_LIST_TIMEOUT_MS + 400)) {
+    // `gh` was never even attempted this snapshot — the shared budget ran out
+    // first. Distinguished from a failed/timed-out call below so the UI does
+    // not misattribute this (the dominant real case; see live measurements
+    // in .cursor/memory/plan-monitor-mc-git-tab-visual-tree-and-devops-panel.md
+    // and the residual note this fix landed from) to an auth/install problem.
+    return { available: false, runs: [], reason: "budget" };
+  }
+  try {
+    // Trimmed to the fields renderDevopsPipelineCard() / navDevopsDot actually
+    // read (workflow, status, conclusion, branch, event, createdAt). databaseId
+    // and url are dropped: the pipeline card is display-only with no
+    // paste-destination for a run URL (ADR 2026-07-25 copy-only convention),
+    // so requesting them only adds payload cost without a consumer.
+    const out = execSync(
+      `gh run list --limit ${MAX_PIPELINE_RUNS} --json workflowName,status,conclusion,headBranch,event,createdAt`,
+      { cwd: ROOT, encoding: "utf-8", timeout: GH_RUN_LIST_TIMEOUT_MS },
+    );
+    const rows = JSON.parse(out);
+    if (!Array.isArray(rows)) return { available: false, runs: [], reason: "call-failed" };
+    const runs = rows.slice(0, MAX_PIPELINE_RUNS).map((r) => ({
+      workflow: truncateStr(String(r.workflowName || ""), MAX_PIPELINE_NAME_CHARS),
+      status: String(r.status || ""),
+      conclusion: r.conclusion ? String(r.conclusion) : null,
+      branch: truncateStr(String(r.headBranch || ""), MAX_STRING.branch),
+      event: String(r.event || ""),
+      createdAt: r.createdAt || null,
+    }));
+    return { available: true, runs };
+  } catch {
+    // gh missing, unauthenticated, its own execSync timeout, or non-repo cwd
+    // all read the same to the caller: no pipeline signal for this snapshot.
+    // Not further split (e.g. timeout vs auth) — that would need parsing the
+    // execSync error shape, which is more taxonomy than the empty-state copy
+    // needs; "call-failed" is enough to stop the UI from guessing "auth".
+    return { available: false, runs: [], reason: "call-failed" };
+  }
+}
+
+/** Markdown decoration removed, not converted (mirrors scripts/build-landing.mjs's
+ * stripMdInline): safe against unclosed tokens after the item-length cap below. */
+function stripMdInlineForDeploySignal(s) {
+  return s
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
+/** First non-"Unreleased" `## [x.y.z] - date` entry and a capped bullet list. */
+function parseLatestChangelogEntryForDeploySignal(changelog) {
+  const headerRe = /^## \[([^\]]+)\](?:\s*-\s*(.+))?$/gm;
+  const headers = [...changelog.matchAll(headerRe)];
+  const latest = headers.find((m) => m[1].toLowerCase() !== "unreleased");
+  if (!latest) return null;
+  const start = latest.index + latest[0].length;
+  const next = headers.find((m) => m.index > latest.index);
+  const body = changelog.slice(start, next ? next.index : undefined);
+  const items = [...body.matchAll(/^- (.+)$/gm)]
+    .map((m) => stripMdInlineForDeploySignal(m[1].trim()))
+    .filter(Boolean)
+    .slice(0, MAX_CHANGELOG_ITEMS)
+    .map((line) =>
+      line.length > MAX_CHANGELOG_ITEM_CHARS
+        ? `${line.slice(0, MAX_CHANGELOG_ITEM_CHARS).trimEnd()}…`
+        : line,
+    );
+  return { version: latest[1], date: (latest[2] || "").trim() || null, items };
+}
+
+function collectDeploySignal() {
+  if (!withinSnapshotBudget(400)) return { tags: [], changelog: null };
+  const gitOpts = { cwd: ROOT, encoding: "utf-8", timeout: 5000 };
+  let tags = [];
+  try {
+    // v*-only: an archive/* or other non-release tag under "what shipped
+    // recently" would be exactly the misleading signal this phase avoids.
+    const out = execSync(
+      `git for-each-ref --sort=-creatordate --format='%(refname:short)|%(creatordate:short)' --count=${MAX_DEPLOY_TAGS} 'refs/tags/v*'`,
+      gitOpts,
+    ).trim();
+    tags = out
+      ? out
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => {
+            const [name, date] = line.split("|");
+            return { name: truncateStr(name || "", MAX_DEPLOY_TAG_NAME_CHARS), date: date || null };
+          })
+      : [];
+  } catch {
+    tags = [];
+  }
+
+  let changelog = null;
+  try {
+    const changelogPath = join(ROOT, "CHANGELOG.md");
+    if (existsSync(changelogPath)) {
+      changelog = parseLatestChangelogEntryForDeploySignal(readFileSync(changelogPath, "utf-8"));
+    }
+  } catch {
+    changelog = null;
+  }
+
+  return { tags, changelog };
+}
+
+// SNAPSHOT.devops is assigned near the end of the snapshot build (after the
+// transcripts/reports/ps collectors below), not here — gh run list is a
+// network call that must not run ahead of and starve the local-only
+// budget-guarded collectors that share SNAPSHOT_BUDGET_MS. See the call site
+// right before the missionControl assembly for the ordering rationale.
 
 // 7. Terminals (read from Cursor terminal files)
 const terminalsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
@@ -1141,5 +1339,17 @@ function readPreviousInventory() {
   SNAPSHOT.missionControl = missionControlPublic;
 }
 SNAPSHOT._gitRecentLog = undefined;
+
+// DevOps: CI/CD pipeline status (best-effort, `gh` CLI) + a "what shipped
+// recently" deploy-activity proxy. Deliberately collected last, after every
+// other budget-guarded collector above (processes, detached-audit-sessions,
+// agentPrompts, externalReports, subagentRuns): collectPipelineRuns() makes
+// a network call (gh run list) unlike every other collector in this file, so
+// it must not run ahead of and eat into the shared SNAPSHOT_BUDGET_MS budget
+// that the local-only collectors also need.
+SNAPSHOT.devops = {
+  pipeline: collectPipelineRuns(),
+  deploy: collectDeploySignal(),
+};
 
 process.stdout.write(JSON.stringify(SNAPSHOT, null, 2));

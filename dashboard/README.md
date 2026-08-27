@@ -23,3 +23,20 @@ before it fans out to the workspace packages).
 
 `dashboard.html` is outside Biome's scope; CSS/HTML-only changes are covered by
 `packages/cli/src/dashboard/plugin-ux-validation.test.ts` instead.
+
+## Git tab and DevOps tab
+
+The Git tab (`#git`) keeps the pre-rendered `git log --graph` markdown block and adds a
+second, state-colored visual tree next to it, reusing the `.now-stepper`/`.now-step-marker`
+timeline component built for the Current Mission panel (`renderGitVisualTree` in
+`dashboard.html`, parsing `SNAPSHOT.git.graph`). It is single-lane by design — the markdown
+block keeps the true branch-lane geometry; the stepper trades that for an at-a-glance
+promotion read (HEAD, promoted to `origin/main`/`origin/staging`, or neither).
+
+The DevOps tab (`#devops`) is scoped to CI/CD + deploy signal, separate from the
+local-process-only Processes tab. `dashboard-data.mjs`'s `collectPipelineRuns()` shells to
+`gh run list` (budget-guarded via `withinSnapshotBudget()`, fails soft to an honest
+empty-state when `gh` is unavailable/unauthenticated); `collectDeploySignal()` reads `v*`
+git tags plus the latest non-`Unreleased` `CHANGELOG.md` entry as a best-effort "what
+shipped recently" proxy. Neither collector polls live infra/hosting — the DevOps tab never
+implies monitoring it does not perform.

@@ -12,6 +12,7 @@ import { handoffCommand } from "./commands/handoff.js";
 import { hookCommand } from "./commands/hook.js";
 import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
+import { missionControlCommand } from "./commands/mission-control.js";
 import { monitorsCommand } from "./commands/monitors.js";
 import { runPlanCommand } from "./commands/run-plan.js";
 import { scanCommand } from "./commands/scan.js";
@@ -45,6 +46,7 @@ const main = defineCommand({
     "run-plan": runPlanCommand,
     dashboard: dashboardCommand,
     "dashboard-broadcast": dashboardBroadcastCommand,
+    "mission-control": missionControlCommand,
     hook: hookCommand,
     guard: guardCommand,
     monitors: monitorsCommand,

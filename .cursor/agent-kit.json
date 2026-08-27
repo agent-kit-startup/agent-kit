@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "5.6.0",
+  "version": "5.7.0",
   "protected": [
+    ".claude/commands/agent-kit.md",
     ".cursor/HANDOFF.md",
     ".cursor/agents/test-suites.md",
     ".cursor/context/backups/**",
@@ -15,12 +16,17 @@
     ".cursor/skills/community/cursor-skills-node/SKILL.md",
     ".cursor/skills/core/docs-repo/SKILL.md",
     "AGENTS.md",
+    "CLAUDE.md",
     "templates/CODEOWNERS",
     "templates/gitlab-ci-content.yml",
     "templates/gitlab-ci-docker.yml",
     "templates/gitlab-ci-firebase.yml"
   ],
   "profile": "default",
+  "packs": [
+    "devops",
+    "quality"
+  ],
   "skills": [
     "clean-code",
     "clickup",
@@ -32,19 +38,15 @@
     "sql-postgres",
     "ux-message-flows"
   ],
+  "personalization": {
+    "contractVersion": 1,
+    "generatorVersion": "5.4.0",
+    "origin": "repository-profile",
+    "resultPath": ".cursor/context/personalization.json"
+  },
   "registry": {
     "url": "https://github.com/agent-kit-startup/agent-kit-dev",
     "ref": "staging"
   },
-  "packs": [
-    "devops",
-    "quality"
-  ],
-  "personalization": {
-    "contractVersion": 1,
-    "generatorVersion": "4.5.1",
-    "origin": "repository-profile",
-    "resultPath": ".cursor/context/personalization.json"
-  },
-  "installedAt": "2026-07-25T12:09:19.292Z"
+  "installedAt": "2026-08-20T17:28:41.571Z"
 }

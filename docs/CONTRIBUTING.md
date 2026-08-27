@@ -1,12 +1,10 @@
 # Contributing
 
-**Mission Kit** is the storefront name; contributions land in the **Agent Kit** repository and packaging surfaces (CLI, rules, skills, docs). It is a HITL framework for AI-assisted IDEs. Contributions welcome - from skills to CLI features to docs.
+Thanks for helping. Three kinds of contributions land well here: a skill, a docs fix, a CLI patch.
 
-Consumer install and day-to-day usage live in the root [README](../README.md). Factory topology, local `pnpm --filter` CLI loops, and public-sync awareness live in [DEVELOPMENT.md](DEVELOPMENT.md).
+## Where your PR goes
 
-Participation is covered by the [Code of Conduct](../.github/CODE_OF_CONDUCT.md). Not sure where a question belongs? [SUPPORT.md](../.github/SUPPORT.md). **Never** report a vulnerability in a public issue or PR - use the private channel in [SECURITY.md](../.github/SECURITY.md).
-
-Issue forms live in `.github/ISSUE_TEMPLATE/`; the PR checklist below is mirrored in `.github/PULL_REQUEST_TEMPLATE.md`, which GitHub prefills on every pull request. Maintainers triage open public issues with a factory-only `/public-issue-triage` workflow (not installed to consumer projects); contributors continue to use GitHub issue forms and discussion on the public repository.
+The public repo is `agent-kit`. Open PRs against **`main`**. There is no long-lived `staging` branch on the public repo; that branch topology belongs to the private factory, and you do not need it.
 
 ## Setup
 
@@ -16,25 +14,32 @@ pnpm lint
 pnpm test
 ```
 
-## Contributor quickstart
+Green before you push. Conventional Commits (`feat:`, `fix:`, `docs:`). Small PRs merge faster than big ones.
 
-New to the kit? Here's where things land and how to test before your PR:
+## Contributing a skill
 
-- **Skills:** Community contributions go under `registry/skills/community/<skill-id>/SKILL.md` - see the [new skill vs improving existing](#new-skill-vs-improving-an-existing-one) section below
-- **Core changes:** CLI features, base rules, and templates live in their respective folders (`packages/cli/`, `.cursor/`, etc.)
-- **Test locally:** `pnpm install && pnpm lint && pnpm test` from the repo root
-- **Mission Control pack (Path C):** `@dadado/agent-kit-cli` includes `dashboard/**` in the npm tarball from 4.8.2 onward (synced from repo-root SoT at build/`prepack`). Local pack check: `node scripts/verify-cli-dashboard-pack.mjs`. To confirm a published tag, run `npm pack @dadado/agent-kit-cli@<version>` and inspect the tarball for `package/dashboard/`. Version bump stays `/git-prod` HITL ([npm-publish-checklist.md](npm-publish-checklist.md)).
-- **Factory / monorepo workflows:** [DEVELOPMENT.md](DEVELOPMENT.md) (local CLI install into a test project, factory self-consumer apply loop, Mission Control from a kit tree).
+Skills live at `registry/skills/community/<id>/SKILL.md`. If you work from a project that has the kit installed, `agent-kit contribute` is the return channel: it runs a hygiene gate over your skill and can write it into a local kit checkout with `--write`. It never pushes and never promotes anything. You still open the PR yourself.
 
-See [getting-started.md](getting-started.md) for the consumer workflow after install.
+## What the gate rejects
 
-Optional: `agent-kit add mission-kit-comms` installs the adoption-comms skill (draft recap/release copy with HITL before any public post). Not part of Core Pack. Guide: [comms.md](comms.md).
+- Plans and `HANDOFF.md` in a commit. These are working state, not source.
+- Factory-only CHANGELOG bullets in public-facing sections. Fence them.
+- Claims the code does not back. Docs orient; code proves.
+
+## House rules
+
+- The public README is the consumer storefront. Factory workflow detail belongs in CONTRIBUTING and DEVELOPMENT, not the hero.
+- Production promotion is human-confirmed, always. No PR changes that.
+- When in doubt, open a small PR and ask in it. A rough patch with a clear question beats a polished guess.
+
+Participation is covered by the [Code of Conduct](../.github/CODE_OF_CONDUCT.md). Not sure where a question belongs? [SUPPORT.md](../.github/SUPPORT.md). **Never** report a vulnerability in a public issue or PR - use the private channel in [SECURITY.md](../.github/SECURITY.md).
 
 ## Standards
 
 - Conventional Commits
 - Small, focused PRs
 - Update docs when behavior changes
+- **Changelog:** public surfaces (public GitHub file, GitHub Releases, landing product notes) take consumer and contributor product notes only. Fence factory-only bullets. See [DEVELOPMENT.md](DEVELOPMENT.md#public-changelog).
 - **Base branch by repo:** target `main` for the **public repository** (`agent-kit`); target `staging` for the **private factory repository** (`agent-kit-dev`). The public repository has no long-lived `staging` branch. See [DEVELOPMENT.md](DEVELOPMENT.md) for the factory Git flow.
 - **Cross-repo issue close form:** when a factory (`agent-kit-dev`) PR closes a public issue, use `Closes agent-kit-startup/agent-kit#N` (or the full issue URL). Bare `Closes #N` resolves against the PR's repository and will not close the public issue.
 - **Cursor-native tooling:** prefer Cursor-supported MCP servers, workspace hooks, and the official SDK. Do not add or document parallel agent gateways - see [cursor-3-features.md](cursor-3-features.md#mcp-hooks-e-sdk).

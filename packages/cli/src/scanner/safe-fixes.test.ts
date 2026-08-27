@@ -148,6 +148,30 @@ describe("executeSafeReadinessFixes", () => {
     }
   });
 
+  it("merges kit-owned session/derived ignore patterns without removing custom entries", async () => {
+    const root = await createRepository();
+    await writeFile(
+      path.join(root, ".gitignore"),
+      "node_modules\n.env\n# project files\ncustom.tmp",
+    );
+
+    await execute(root);
+    const gitignore = await readFile(path.join(root, ".gitignore"), "utf8");
+
+    expect(gitignore).toContain("node_modules\n");
+    expect(gitignore).toContain("# project files\n");
+    expect(gitignore).toContain("custom.tmp\n");
+    for (const pattern of [
+      ".cursor/HANDOFF.md",
+      ".cursor/dogfood/",
+      ".cursor/context/readiness.json",
+      ".cursor/context/flight-log.json",
+      ".cursor/context/mission-timing.json",
+    ]) {
+      expect(gitignore.split(/\r?\n/).filter((line) => line === pattern)).toHaveLength(1);
+    }
+  });
+
   it("does not modify protected or project-owned content", async () => {
     const root = await createRepository();
     const protectedFiles = [

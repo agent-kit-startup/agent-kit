@@ -11,7 +11,7 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
 
 1. **Read** the "Prompt: git prod" section in `autogit/gitupdate.md` (when it exists in the project).
 2. Critical validation: no uncommitted local changes; never commit directly to main.
-3. Close the release in the CHANGELOG (move `[Unreleased]` to a dated version) before merging.
+3. Close the release in the CHANGELOG (move `[Unreleased]` to a dated version) before merging. Keep `<!-- changelog-private -->` fences. Public excerpt: `node scripts/public-changelog.mjs --version <X.Y.Z>` (GitHub Release body) and `--blurb` (landing `--notes`).
 4. Show a summary of the changes (diff/log) between staging and main and **ask for explicit confirmation using Ask questions tool** before merging and pushing to main.
    
    Options: `Proceed with production deploy` / `Review changes first` / `Cancel`

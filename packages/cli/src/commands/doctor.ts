@@ -4,7 +4,7 @@ import { type HooksHealthReport, assessHooksHealth } from "../invariants/hooks-h
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
-import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
+import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
@@ -15,11 +15,13 @@ export interface DoctorResult {
   safeChanges: SafeReadinessChange[];
   hooks: HooksHealthReport;
   env: EnvironmentReport;
+  /** Present only when `--refresh-profile` ran: whether the on-disk profile changed. */
+  profileRefreshed?: boolean;
 }
 
 export async function runDoctor(
   cwd: string,
-  options: { fixSafe?: boolean; generatedAt?: string } = {},
+  options: { fixSafe?: boolean; refreshProfile?: boolean; generatedAt?: string } = {},
 ): Promise<DoctorResult> {
   const rootDir = path.resolve(cwd);
   const hooks = await assessHooksHealth(rootDir);
@@ -33,6 +35,20 @@ export async function runDoctor(
     });
     await writeReadinessSnapshot(rootDir, execution.after);
     return { report: execution.after, safeChanges: execution.changes, hooks, env };
+  }
+
+  if (options.refreshProfile) {
+    const refresh = await refreshRepositoryProfile(rootDir, {
+      generatorVersion: KIT_VERSION,
+      generatedAt: options.generatedAt,
+    });
+    const scan = await runScanner(rootDir);
+    const report = createReadinessReport(scan, {
+      generatorVersion: KIT_VERSION,
+      generatedAt: options.generatedAt,
+    });
+    await writeReadinessSnapshot(rootDir, report);
+    return { report, safeChanges: [], hooks, env, profileRefreshed: refresh.changed };
   }
 
   const scan = await runScanner(rootDir);
@@ -54,6 +70,11 @@ function printDoctorSummary(result: DoctorResult): void {
   );
   console.log(`  safe fixes applied: ${fixed}`);
   console.log(`  pending actions: ${pendingActions.length}`);
+  if (result.profileRefreshed !== undefined) {
+    console.log(
+      `  profile refreshed: ${result.profileRefreshed ? "yes (facts changed)" : "no (already current)"}`,
+    );
+  }
   console.log(`hooks: ${result.hooks.status}`);
   if (result.hooks.reasons.length > 0) {
     for (const reason of result.hooks.reasons.slice(0, 5)) {
@@ -120,9 +141,19 @@ export const doctorCommand = defineCommand({
       description: "Apply only local, reversible, merge-safe readiness fixes",
       default: false,
     },
+    "refresh-profile": {
+      type: "boolean",
+      description:
+        "Reconcile .cursor/agent-kit.config.json with current scanner facts: fresh values win on shared keys, unrecognized existing keys are preserved",
+      default: false,
+    },
   },
   async run({ args }) {
-    const run = () => runDoctor(args.cwd, { fixSafe: args["fix-safe"] });
+    const run = () =>
+      runDoctor(args.cwd, {
+        fixSafe: args["fix-safe"],
+        refreshProfile: args["refresh-profile"],
+      });
     const result = args.json ? await run() : await withCliProgress("doctor", run);
     if (args.json) {
       console.log(JSON.stringify(result, null, 2));

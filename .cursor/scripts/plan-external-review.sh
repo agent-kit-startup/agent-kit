@@ -66,6 +66,8 @@
 #     cloud is an opt-in pin only (Cursor Cloud Agents over REST); it is never in the
 #     auto cascade. cursor reviews the working tree; cloud reviews the PUSHED branch.
 #   --reviewer-model NAME: reviewer model id (default sonnet / config reviewerModel).
+#   --prompt-file PATH: repo-relative reviewer prompt markdown. Default remains
+#     .cursor/context/templates/plan-external-review-prompt.md (findings audit).
 #   --advisor-model NAME: escalate-only advisor (default opus / config advisorModel).
 #   --implementer-model NAME: stamp the model that shipped the tick (default auto /
 #     AGENT_KIT_AUDIT_IMPLEMENTER_MODEL). Same-family reviewer is refused.
@@ -184,7 +186,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CONFIG="$ROOT/.cursor/context/config.json"
-TEMPLATE_REL=".cursor/context/templates/plan-external-review-prompt.md"
+DEFAULT_TEMPLATE_REL=".cursor/context/templates/plan-external-review-prompt.md"
+TEMPLATE_REL="$DEFAULT_TEMPLATE_REL"
 HANDOFF_REL=".cursor/HANDOFF.md"
 PLANS_DIR="$ROOT/.cursor/plans"
 LAUNCHER_REL=".cursor/scripts/plan-external-review.sh"
@@ -428,7 +431,7 @@ if [[ "${AGENT_KIT_AUDIT_GC_WAIT_STATE:-}" == "1" || "${AGENT_KIT_AUDIT_GC_WAIT_
 fi
 
 usage() {
-  sed -n '2,181p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,183p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -531,6 +534,14 @@ while [[ $# -gt 0 ]]; do
       fi
       REVIEWER_MODEL="$2"
       REVIEWER_MODEL_EXPLICIT=1
+      shift 2
+      ;;
+    --prompt-file)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --prompt-file requires PATH" >&2
+        exit 2
+      fi
+      TEMPLATE_REL="$2"
       shift 2
       ;;
     --advisor-model)
@@ -2794,6 +2805,9 @@ fi
 if [[ -n "${ADVISOR_MODEL:-}" ]]; then
   INTERACTIVE_FLAGS+=(--advisor-model "$ADVISOR_MODEL")
 fi
+if [[ "$TEMPLATE_REL" != "$DEFAULT_TEMPLATE_REL" ]]; then
+  INTERACTIVE_FLAGS+=(--prompt-file "$TEMPLATE_REL")
+fi
 enforce_implementer_reviewer_split
 
 if [[ "$BATCH" -eq 1 ]]; then
@@ -2834,6 +2848,7 @@ if [[ "$BATCH" -eq 1 ]]; then
   echo "  reviewer-model: ${WAIT_REVIEWER_MODEL:-unresolved}"
   echo "  implementer-model: ${WAIT_IMPLEMENTER_MODEL:-auto}"
   echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
+  echo "  prompt-file: $TEMPLATE_REL"
   echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
   echo "  midBatchAudits: $MID_BATCH_AUDITS"
   echo "  autoRemediate: $AUTO_REMEDIATE"
@@ -2941,6 +2956,7 @@ echo "  reviewer-backend: ${REVIEWER_BACKEND:-unresolved}"
 echo "  reviewer-model: ${WAIT_REVIEWER_MODEL:-unresolved}"
 echo "  implementer-model: ${WAIT_IMPLEMENTER_MODEL:-auto}"
 echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
+echo "  prompt-file: $TEMPLATE_REL"
 echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
 echo "  midBatchAudits: $MID_BATCH_AUDITS"
 echo "  autoRemediate: $AUTO_REMEDIATE"

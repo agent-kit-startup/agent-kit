@@ -71,7 +71,7 @@ export function dashboardProcessTitle(snapshotRoot: string): string {
 
 /** Candidates for dashboard assets shipped beside the CLI package (Path C). */
 export function bundledDashboardCandidates(
-  filename: "start.mjs" | "start-broadcast.mjs",
+  filename: "start.mjs" | "start-broadcast.mjs" | "dashboard-data.mjs",
   moduleUrl: string = import.meta.url,
 ): string[] {
   const here = path.dirname(fileURLToPath(moduleUrl));

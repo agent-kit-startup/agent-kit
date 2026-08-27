@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -174,3 +174,70 @@ echo "$(effective_reviewer_model)"
   assert.equal(cursorNamed.status, 0, cursorNamed.stderr);
   assert.equal(cursorNamed.stdout.trim(), "composer-2.5-fast");
 });
+
+test("launcher --prompt-file overrides TEMPLATE_REL; default remains the findings template", () => {
+  assert.match(
+    SRC,
+    /DEFAULT_TEMPLATE_REL="\.cursor\/context\/templates\/plan-external-review-prompt\.md"/,
+  );
+  assert.match(SRC, /TEMPLATE_REL="\$DEFAULT_TEMPLATE_REL"/);
+  assert.match(SRC, /--prompt-file requires PATH/);
+  assert.match(SRC, /INTERACTIVE_FLAGS\+=\(--prompt-file "\$TEMPLATE_REL"\)/);
+  assert.match(SRC, /echo " {2}prompt-file: \$TEMPLATE_REL"/);
+  const findings = join(repoRoot, ".cursor/context/templates/plan-external-review-prompt.md");
+  assert.equal(existsSync(findings), true, "do not replace the L0 findings template in place");
+  assert.match(readFileSync(findings, "utf8"), /post-hoc evidence-based monitoring/);
+
+  const missingArg = spawnSync("bash", [SCRIPT, "--force", "--prompt-file"], { encoding: "utf8" });
+  assert.equal(missingArg.status, 2);
+  assert.match(missingArg.stderr, /--prompt-file requires PATH/);
+});
+
+const COPY_PLAN = "docs-usage-first-anti-slop-revamp.plan.md";
+const COPY_PROMPT = ".cursor/context/templates/plan-fable-copy-prompt.md";
+
+test(
+  "dry-run prints default prompt-file; override forwards --prompt-file on paste-cmd",
+  {
+    skip:
+      !existsSync(join(repoRoot, ".cursor/plans", COPY_PLAN)) &&
+      "plan file absent (gitignored session state)",
+  },
+  () => {
+    const def = spawnSync(
+      "bash",
+      [SCRIPT, "--force", "--autonomous", "--wait-monitor", "--dry-run", COPY_PLAN],
+      { encoding: "utf8", cwd: repoRoot },
+    );
+    assert.equal(def.status, 0, def.stderr);
+    assert.match(
+      def.stdout,
+      /prompt-file: \.cursor\/context\/templates\/plan-external-review-prompt\.md/,
+    );
+    assert.doesNotMatch(def.stdout, /paste-cmd:.*--prompt-file/);
+
+    const ov = spawnSync(
+      "bash",
+      [
+        SCRIPT,
+        "--force",
+        "--autonomous",
+        "--wait-monitor",
+        "--prompt-file",
+        COPY_PROMPT,
+        "--dry-run",
+        COPY_PLAN,
+      ],
+      { encoding: "utf8", cwd: repoRoot },
+    );
+    assert.equal(ov.status, 0, ov.stderr);
+    assert.match(
+      ov.stdout,
+      /prompt-file: \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/,
+    );
+    assert.match(
+      ov.stdout,
+      /paste-cmd:.*--prompt-file \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/,
+    );
+  },
+);

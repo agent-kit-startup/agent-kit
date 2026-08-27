@@ -1,68 +1,51 @@
 # Getting Started
 
-**Mission Kit** (marketing / [missionkit.io](https://missionkit.io)) ships as **Agent Kit** on install: CLI, npm, and slash commands. The kit keeps your AI coding agent working against a plan and stops you from losing context when a chat gets too long. This guide covers installing it, the commands you get, and how a normal day looks.
+## What you need
 
-## Install
+- Node.js 20+
+- A git repository (recommended; staging and prod routines use it)
+- Cursor, Claude Code, or just a terminal
 
-Run this from your project's root folder:
+## Install the kit
 
 ```bash
+cd your-project
 npx @dadado/agent-kit-cli install
 ```
 
-**Prerequisites:** Node.js 20+ (CLI `engines`). Git is recommended so `/agent-kit-onboard` and the staging→prod flow can complete; Port B can still copy L0 files without the CLI when Node is unavailable.
+Pin with `npx @dadado/agent-kit-cli@x.y.z install` for reproducible setups. In CI or scripts, use `npx -y @dadado/agent-kit-cli install --yes`.
 
-Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
+No Node available? `install.md` documents a manual copy path for the base files without the CLI.
 
-**IDE-agnostic:** works in Cursor, VS Code, and any terminal with Node.js. Claude Code CLI session kit-load (`CLAUDE.md` / `/agent-kit`) is documented under [Claude Code CLI (session kit-load)](#claude-code-cli-session-kit-load). For non-interactive terminals (CI, piped stdin, VS Code output panels without TTY), suppress both `npx`'s own confirmation and the CLI's root prompt:
+## First session in Cursor
 
-```bash
-npx -y @dadado/agent-kit-cli install --yes
-```
+Open the Agent chat and type `/start-project` with your goal. The kit runs a broad intake, writes a plan with to-dos, and stops. You approve the plan, then approve the first unit. Goal text is not execute permission; the kit waits for both gates.
 
-- `npx -y` answers `npx`'s "Ok to proceed?" prompt when the package is not cached.
-- `--yes` (or `AGENT_KIT_YES=1`) skips the CLI's project-root confirmation prompt.
+From there:
 
-**Troubleshooting npm failures:**
+- `/continue-plan` ships exactly one unit and stops.
+- `/run-plan` keeps going until the plan is done or blocked.
+- `/git-staging` lands the work on the staging branch through a PR.
+- `/git-prod` promotes staging to main, and only after an explicit Ask.
 
-| Symptom | Cause | Recovery |
-|---------|-------|----------|
-| `EPERM` / `EACCES` on npm cache | User-level cache ownership drift | `npx --cache .npm-cache @dadado/agent-kit-cli install` or `npm cache clean --force` |
-| Exit 255 (no output) | `npx` prompted for confirmation in a non-TTY environment | Use `npx -y @dadado/agent-kit-cli install` for the `npx` prompt; add `--yes` or set `AGENT_KIT_YES=1` for the CLI root prompt |
-| `403 Forbidden` from registry | Auth policy or private scope | `npm login`, check `.npmrc`, or use Port B fallback |
-| `EACCES` on `npm i -g @dadado/agent-kit-cli` | Root-owned npm global prefix (e.g. `/usr/local/lib/node_modules`) | Check first with `agent-kit doctor --json` (`env.npmPrefixWritable`), then run `npx @dadado/agent-kit-cli setup-global` — it relocates the prefix to `~/.npm-global`, fixes `PATH`, and reinstalls |
-| `command not found` after install (or for a bare `agent-kit`) | `npx` is ephemeral; a bare `agent-kit` isn't on `PATH` yet | The install/init epilogue prints this automatically with 3 options; run `npx @dadado/agent-kit-cli setup-global` to fix `PATH`, or keep using `npx @dadado/agent-kit-cli <subcommand>` |
+## First session in Claude Code
 
-That's the whole install for kit L0. It drops a small set of rules and slash commands into `.cursor/`, a git routine into `autogit/`, and a manifest (`.cursor/agent-kit.json`) that records what was installed so the kit can update itself later without touching your work. Mission Control's `dashboard/` server is **not** copied into your project; the panel runs from the CLI package (4.8.2 onward) or from an agent-kit checkout. See [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+Load the kit with the `--claude` flag during install. You get `CLAUDE.md` and the `/agent-kit` command. Confirmations arrive as numbered lists instead of Cursor's Ask dialogs; reply with the number. `/agent-kit` prints one Mission Control frame (`mission-control --once`) rather than a live loop.
 
-**Multi-workspace safety:** the CLI confirms the absolute project root before writing any files (interactive prompt; `--yes` skips the prompt). Each project gets its own `.cursor/` tree and overlay ledger. The shared registry cache (`~/.cache/agent-kit/registry/`) uses a directory lock so parallel installs on the same machine cannot corrupt it.
+## Watch progress
 
-Before that confirmation, the CLI also runs a **project root guard** - see [Project root guard](#project-root-guard) below.
+Two views of the same state, both named Mission Control:
 
-Want a few extra bundles up front? Add packs (clean code, context tools, and more - see [domain packs](domain-packs.md)):
+- **Terminal TUI:** `npx @dadado/agent-kit-cli mission-control`. Live in a TTY; `--once` for a single frame. It reads the same data as the browser dashboard and does not start an HTTP server.
+- **Browser:** `npx @dadado/agent-kit-cli dashboard` (or `/dashboard` from chat). Binds to `127.0.0.1` by default. To share on your LAN, use `dashboard-broadcast` with its required token.
 
-```bash
-npx @dadado/agent-kit-cli install --pack clean-code,context-management
-```
+The browser dashboard ships inside the CLI package since 4.8.2. The install does not copy a `dashboard/` folder into your project; that is expected.
 
-**Prefer chat install?** Copy-paste the installer brief from the [README](../README.md#install) into Cursor chat. You get exactly the same result. The chat installer uses **Ask questions** for confirmations (clickable options in IDE UI, with chat fallback when tool unavailable), while the CLI uses terminal prompts.
+## What the kit will not do
 
-> Don't clone the Agent Kit repo into your project. Installing writes only the files your project needs - see [bootstrap](bootstrap.md) for the exact layout.
-
-`install` also scans the repository, applies safe local preparation, and writes `.cursor/context/readiness.json`. Guided entry still works through `init`, which reuses the same install and readiness path:
-
-```bash
-npx @dadado/agent-kit-cli init
-```
-
-Diagnose without installing:
-
-```bash
-npx @dadado/agent-kit-cli doctor --json
-npx @dadado/agent-kit-cli doctor --fix-safe
-```
-
-`doctor` also reports an environment pillar: `env.binOnPath`, `env.npmPrefixWritable` (with prefix detail), `env.nodeVersionOk`, and `env.shellProfile` in `--json`, plus a human "environment:" summary — read-only diagnostics, no writes. See the [`setup-global`](#how-to-invoke-them) fix for a root-owned npm prefix.
+- It will not push to production without your explicit confirmation.
+- It will not treat docs as proof. Code, tests, and shipped artifacts are the delivery truth.
+- It will not pretend VS Code or Windsurf are peer surfaces. They get partial generators; Cursor is the primary IDE.
 
 ### Project root guard
 
@@ -107,7 +90,7 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control panel (optional)** - `/dashboard`, `npm run dashboard`, or `npx @dadado/agent-kit-cli dashboard` (bare `agent-kit dashboard` only after a global install). Consumer L0 does not copy `dashboard/` into the project. The `dashboard` subcommand resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `npx @dadado/agent-kit-cli dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control (optional)** - Browser panel: `/dashboard`, `npm run dashboard`, or `npx @dadado/agent-kit-cli dashboard` (bare `agent-kit dashboard` only after a global install). Browser-free TUI: `npx @dadado/agent-kit-cli mission-control` (live view on a TTY) or `mission-control --once` for a one-shot ASCII snapshot (Claude Code `/agent-kit` uses this path). The TUI is a **third surface**; it does not replace the web dashboard. Consumer L0 does not copy `dashboard/` into the project. The `dashboard` subcommand resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `npx @dadado/agent-kit-cli dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
@@ -142,6 +125,7 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `diff` | Show what changed between what you have and the latest |
 | `contribute` | Send an improvement you made locally back upstream |
 | `handoff` | Save your progress to `.cursor/HANDOFF.md` |
+| `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 
 Optional: `add mission-kit-comms` drafts recap/release/contributor copy. It does **not** post. Ask before any public network. Guide: [comms.md](comms.md).
@@ -175,6 +159,8 @@ Operator sequence when you drive each unit (command SoT: [`.cursor/commands/cont
 | Run several plans as one ordered queue | `/run-plan-all` |
 | Commit / MR to `staging` after a manual unit | `/git-staging` |
 | Promote `staging` → `main` | `/git-prod` (explicit confirm only) |
+| Staging plus public-landing preview (product changelog only) | `/kit-staging` |
+| Prod plus public-landing promote (release changelog only) | `/kit-prod` (git-prod Ask, then extra landing Ask) |
 
 Do not re-author Gate A/B or continuous tick contracts here; link L0 commands when you need the full contract.
 
@@ -252,7 +238,7 @@ Install writes a thin root `CLAUDE.md` and `.claude/commands/agent-kit.md` so Cl
 
 1. Start Claude Code in the project root.
 2. `CLAUDE.md` loads automatically. Mid-session refresh: type `/agent-kit`.
-3. Claude should read `.cursor/HANDOFF.md`, `.cursor/project-context.md`, and `.cursor/commands/` instead of a full archaeology pass.
+3. `/agent-kit` prefers `agent-kit mission-control --once` (styled ASCII snapshot of Mission, Flight Log, Checklist, Crew Monitor) and falls back to reading `.cursor/HANDOFF.md`, `.cursor/project-context.md`, and `.cursor/commands/` if the CLI is missing. Do not start a live TUI loop from that slash (Claude Code cannot sustain one across turns).
 
 HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not available). Never `/git-prod` from kit-load.
 
@@ -302,7 +288,7 @@ Mission Control is a **local, single-developer** observability panel. Treat it a
 
 Source of truth: `.cursor/memory/decisions/2026-07-27_mission-control-personal-local-only-posture.md` (default product goal), `.cursor/memory/decisions/2026-07-27_mission-control-opt-in-lan-broadcast.md` (opt-in LAN path), `.cursor/memory/decisions/2026-08-11_mission-control-broadcast-url-mask.md` (cosmetic Share URL), plus `.cursor/memory/decisions/2026-07-24_mission-control-local-only-security.md` and `.cursor/memory/decisions/2026-07-26_mission-control-config-write-allowlist.md` (technical guards).
 
-**Where the panel runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start with `/dashboard`, `npm run dashboard`, `npx @dadado/agent-kit-cli dashboard`, or `node dashboard/start.mjs` (see root README). Several workspaces may run concurrent instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
+**Where Mission Control runs:** Consumer `npx` / `install.md` installs kit L0 (including the `/dashboard` command text) but **does not** copy `dashboard/**` into the app tree. Snapshot root is always the operator workspace. The **browser** UI host is either (1) a published `@dadado/agent-kit-cli` that ships `dashboard/**` (Path C, 4.8.2 onward), or (2) an agent-kit checkout (`MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` / sibling `../agent-kit` / monorepo `dashboard/`). Start the browser panel with `/dashboard`, `npm run dashboard`, `npx @dadado/agent-kit-cli dashboard`, or `node dashboard/start.mjs` (see root README). The **terminal** surface is `npx @dadado/agent-kit-cli mission-control` (live TTY) or `mission-control --once` (one frame); it reuses `dashboard-data.mjs` and does not start the HTTP server. A browser is not required to read Mission, Flight Log, Checklist, or Crew Monitor. Several workspaces may run concurrent browser instances: each gets a stable listen port from its repo root (see printed URL / `system.port`); Mission Control never kills another workspace's listener.
 
 **First failure (no `dashboard/start.mjs`):** the installed CLI is older than 4.8.2 (4.8.0 has no Path C assets; 4.8.1 was never published). Upgrade to 4.8.2+, or point env/sibling at a kit tree. Do not expect Port B alone to place the panel binary in the project.
 
