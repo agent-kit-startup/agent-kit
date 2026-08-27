@@ -323,11 +323,14 @@ Operators in VS Code, Windsurf, or other IDEs that lack Cursor's slash commands 
 
 ### CLI equivalents
 
+A browser is not required to read Mission, Flight Log, Checklist, or Crew Monitor. Use `agent-kit mission-control` (live TTY) or `agent-kit mission-control --once` (one frame). `agent-kit dashboard` remains the browser panel (third surface; not replaced).
+
 | Cursor slash command | CLI / terminal equivalent |
 |---|---|
 | `/agent-kit-onboard` | `agent-kit doctor --json` then `agent-kit doctor --fix-safe` |
 | `/start-project` | Create a plan file in `.cursor/plans/` with to-dos, then resume from HANDOFF |
-| `/dashboard` | `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` |
+| `/dashboard` | `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` (browser panel) |
+| `/agent-kit` (Claude Code) | `agent-kit mission-control --once` (ASCII snapshot; live TUI is `agent-kit mission-control`) |
 
 ### Readiness without slash
 

@@ -69,6 +69,51 @@ describe("readiness commands", () => {
     expect(typeof result.env.nodeVersionOk).toBe("boolean");
   }, 20_000);
 
+  it("is idempotent: refreshing twice in a row is a no-op on the second run", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-refresh-noop-"));
+    await writeFile(path.join(root, "README.md"), "# Consumer\n");
+    await performInstall({ cwd: root, registry: REPOSITORY_ROOT });
+    // Install writes the profile mid-process (before later generator steps
+    // add more files), so the very first refresh legitimately picks up
+    // additional facts; idempotency is about the *second* refresh onward.
+    await runDoctor(root, { refreshProfile: true, generatedAt: GENERATED_AT });
+    const before = await readFile(path.join(root, ".cursor/agent-kit.config.json"), "utf8");
+
+    const result = await runDoctor(root, {
+      refreshProfile: true,
+      generatedAt: "2026-07-25T12:00:00.000Z",
+    });
+    const after = await readFile(path.join(root, ".cursor/agent-kit.config.json"), "utf8");
+
+    expect(result.profileRefreshed).toBe(false);
+    expect(after).toBe(before);
+  }, 20_000);
+
+  it("reconciles a stale profile on demand via doctor --refresh-profile", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-refresh-stale-"));
+    await writeFile(path.join(root, "README.md"), "# Consumer\n");
+    await performInstall({ cwd: root, registry: REPOSITORY_ROOT });
+    const staleProfile = await readFile(path.join(root, ".cursor/agent-kit.config.json"), "utf8");
+
+    // Simulate drift: hand-edit the profile the way an old install-time
+    // snapshot would look, with a git.currentBranch that no longer matches
+    // the repository's real state and no `.git` (local-only repo case).
+    const staleParsed = JSON.parse(staleProfile);
+    staleParsed.git = { ...staleParsed.git, currentBranch: "stale-branch-name" };
+    await writeFile(
+      path.join(root, ".cursor/agent-kit.config.json"),
+      `${JSON.stringify(staleParsed, null, 2)}\n`,
+    );
+
+    const result = await runDoctor(root, { refreshProfile: true, generatedAt: GENERATED_AT });
+    const refreshed = JSON.parse(
+      await readFile(path.join(root, ".cursor/agent-kit.config.json"), "utf8"),
+    );
+
+    expect(result.profileRefreshed).toBe(true);
+    expect(refreshed.git.currentBranch).not.toBe("stale-branch-name");
+  }, 20_000);
+
   it("keeps init as a compatibility wrapper over install", async () => {
     const expected = { projectRoot: "/tmp/example" } as InstallResult;
     const installer = vi.fn(async () => expected);

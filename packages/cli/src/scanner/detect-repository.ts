@@ -55,10 +55,77 @@ export async function detectContext(rootDir: string): Promise<ContextDetection> 
   };
 }
 
+const REPOSITORY_PURPOSE_VALUES: readonly RepositoryPurpose[] = [
+  "application",
+  "library",
+  "monorepo",
+  "documentation",
+  "knowledge",
+  "operations",
+  "automation",
+  "mixed",
+  "unknown",
+];
+
+function isRepositoryPurpose(value: unknown): value is RepositoryPurpose {
+  return (
+    typeof value === "string" && (REPOSITORY_PURPOSE_VALUES as readonly string[]).includes(value)
+  );
+}
+
+interface ProfileConfiguration {
+  purpose?: {
+    value?: unknown;
+    categories?: unknown;
+    evidence?: unknown;
+  };
+}
+
+/**
+ * An operator can confirm a repository's purpose (e.g. via onboarding), which
+ * is persisted to `.cursor/agent-kit.config.json#purpose`. Once confirmed,
+ * that value is the source of truth: it must not be silently reclassified by
+ * directory-name heuristics on the next scan, or onboarding's "confirm
+ * purpose" question has no effect and the readiness gate loops forever.
+ */
+async function readConfirmedPurpose(
+  rootDir: string,
+): Promise<RepositoryPurposeDetection | undefined> {
+  const configuration = await readJson<ProfileConfiguration>(
+    path.join(rootDir, ".cursor", "agent-kit.config.json"),
+  );
+  const configuredPurpose = configuration?.purpose;
+  if (
+    !configuredPurpose ||
+    !isRepositoryPurpose(configuredPurpose.value) ||
+    configuredPurpose.value === "unknown"
+  ) {
+    return undefined;
+  }
+  const categories = Array.isArray(configuredPurpose.categories)
+    ? configuredPurpose.categories.filter(isRepositoryPurpose)
+    : [];
+  const evidence = Array.isArray(configuredPurpose.evidence)
+    ? (configuredPurpose.evidence as DetectionEvidence[])
+    : [];
+  return {
+    value: configuredPurpose.value,
+    categories: categories.length > 0 ? categories : [configuredPurpose.value],
+    confidence: "high",
+    evidence:
+      evidence.length > 0
+        ? evidence
+        : [{ source: "configuration", value: ".cursor/agent-kit.config.json#purpose.value" }],
+  };
+}
+
 export async function detectPurpose(
   rootDir: string,
   stack: StackDetection,
 ): Promise<RepositoryPurposeDetection> {
+  const confirmed = await readConfirmedPurpose(rootDir);
+  if (confirmed) return confirmed;
+
   const entries = await listDirectory(rootDir);
   const lowerEntries = entries.map((entry) => entry.toLowerCase());
   const packageJson = await readJson<{
@@ -151,6 +218,19 @@ export const REQUIRED_SECRET_PATTERNS = [
   "*.pfx",
   "*credentials*.json",
   "*service-account*.json",
+] as const;
+
+// Kit-owned session state and derived snapshots that churn on every
+// `doctor`/Mission Control run. These are separate from
+// REQUIRED_SECRET_PATTERNS so the safety.secrets readiness check keeps its
+// secrets-only semantics; this list only affects what the installer writes
+// into .gitignore.
+export const KIT_OWNED_IGNORE_PATTERNS = [
+  ".cursor/HANDOFF.md",
+  ".cursor/dogfood/",
+  ".cursor/context/readiness.json",
+  ".cursor/context/flight-log.json",
+  ".cursor/context/mission-timing.json",
 ] as const;
 
 export async function detectSafety(

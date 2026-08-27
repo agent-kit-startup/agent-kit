@@ -62,6 +62,7 @@ describe("consumer overlay path detection", () => {
     expect(isConsumerOverlayPath(".cursor/agents/foo.md")).toBe(true);
     expect(isConsumerOverlayPath(".cursor/skills/core/clean-code/SKILL.md")).toBe(true);
     expect(isConsumerOverlayPath(".cursor/commands/start-project.md")).toBe(true);
+    expect(isConsumerOverlayPath(".claude/commands/start-project.md")).toBe(true);
     expect(isConsumerOverlayPath(".cursor/rules/ux-tone.mdc")).toBe(false);
     expect(isConsumerOverlayPath(".cursor/HANDOFF.md")).toBe(false);
   });

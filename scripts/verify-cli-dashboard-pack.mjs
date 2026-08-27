@@ -30,6 +30,7 @@ const cliDir = join(repoRoot, "packages", "cli");
 export const REQUIRED_DASHBOARD = [
   "package/dashboard/start.mjs",
   "package/dashboard/start-broadcast.mjs",
+  "package/dashboard/dashboard-data.mjs",
   "package/dashboard/open.html",
   "package/dashboard/lib/broadcast-share.mjs",
   "package/dashboard/lib/guards.mjs",

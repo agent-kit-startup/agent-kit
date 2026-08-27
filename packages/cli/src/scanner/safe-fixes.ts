@@ -10,7 +10,7 @@ import type {
   ScanResult,
 } from "../types.js";
 import { ensureDir, fileExists, readJson, writeJson } from "../utils/fs.js";
-import { REQUIRED_SECRET_PATTERNS } from "./detect-repository.js";
+import { KIT_OWNED_IGNORE_PATTERNS, REQUIRED_SECRET_PATTERNS } from "./detect-repository.js";
 import { createReadinessReport } from "./readiness.js";
 import { runScanner } from "./scan.js";
 
@@ -192,17 +192,25 @@ function preferenceDefaults(onboarding: OnboardingState, onboarded: unknown): Js
   };
 }
 
-function mergeSecretIgnores(existing: string): string {
+function mergeIgnorePatterns(existing: string, patterns: readonly string[]): string {
   const activeLines = new Set(
     existing
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line && !line.startsWith("#")),
   );
-  const missing = REQUIRED_SECRET_PATTERNS.filter((pattern) => !activeLines.has(pattern));
+  const missing = patterns.filter((pattern) => !activeLines.has(pattern));
   if (missing.length === 0) return existing;
   const prefix = existing.length === 0 ? "" : existing.endsWith("\n") ? existing : `${existing}\n`;
   return `${prefix}${missing.join("\n")}\n`;
+}
+
+function mergeSecretIgnores(existing: string): string {
+  return mergeIgnorePatterns(existing, REQUIRED_SECRET_PATTERNS);
+}
+
+function mergeKitOwnedIgnores(existing: string): string {
+  return mergeIgnorePatterns(existing, KIT_OWNED_IGNORE_PATTERNS);
 }
 
 function recordChange(
@@ -230,6 +238,91 @@ function appliedActions(changes: SafeReadinessChange[]): ReadinessAction[] {
       recommendation: `Applied safe local change to ${change.path}`,
       owner: "system",
     }));
+}
+
+export interface ProfileRefreshOptions {
+  generatorVersion: string;
+  generatedAt?: string;
+}
+
+export interface ProfileRefreshResult {
+  /** False when the reconciled profile is identical to the on-disk one (ignoring the timestamp), so nothing was written. */
+  changed: boolean;
+  profile: RepositoryProfile;
+}
+
+function withoutGeneratedAtForComparison(profile: JsonObject): JsonObject {
+  const { generatedAt: _generatedAt, ...detection } = isObject(profile.detection)
+    ? profile.detection
+    : {};
+  return { ...profile, detection };
+}
+
+/**
+ * Deep-merges `desired` (fresh scanner output) over `existing` (the on-disk
+ * profile): every key `desired` defines wins outright -- including an
+ * `undefined`/cleared value, so a fact that's no longer true (e.g. no
+ * current branch) actually clears instead of leaking the stale value back
+ * in. `mergeMissing` above can't be reused here with swapped arguments: its
+ * `existing ?? defaults` fallback treats a fresh `undefined` as "not set"
+ * and resurrects the stale default, which is exactly the staleness this
+ * function exists to fix. Keys `existing` has that `desired` doesn't (an
+ * operator- or tool-added extra field) are preserved untouched.
+ */
+function reconcileFreshOverExisting(desired: JsonObject, existing: JsonObject): JsonObject {
+  const merged: JsonObject = { ...existing };
+  for (const [key, value] of Object.entries(desired)) {
+    const existingValue = existing[key];
+    merged[key] =
+      isObject(value) && isObject(existingValue)
+        ? reconcileFreshOverExisting(value, existingValue)
+        : value;
+  }
+  return merged;
+}
+
+/**
+ * Reconciles `.cursor/agent-kit.config.json` with the scanner's current
+ * output: fresh, scanner-owned values win on every key both sides define
+ * (so a stale `git.currentBranch`/`stack`/`context` gets corrected), while
+ * any extra keys an operator or another tool added to the profile that the
+ * scanner doesn't know about (e.g. a hand-added `purpose.confirmed` flag)
+ * are preserved. This is the inverse of `executeSafeReadinessFixes`'
+ * merge-missing-only profile write, which intentionally never overwrites an
+ * already-present value (so install-time facts can otherwise go stale
+ * forever).
+ *
+ * A no-op refresh (nothing besides `detection.generatedAt` would change)
+ * skips the write entirely, so repeated refreshes are idempotent rather
+ * than only bumping a timestamp.
+ */
+export async function refreshRepositoryProfile(
+  rootDir: string,
+  options: ProfileRefreshOptions,
+): Promise<ProfileRefreshResult> {
+  const generatedAt = options.generatedAt ?? new Date().toISOString();
+  const scan = await runScanner(rootDir);
+  const report = createReadinessReport(scan, {
+    generatorVersion: options.generatorVersion,
+    generatedAt,
+  });
+  const desiredProfile = createProfile(scan, report, generatedAt) as unknown as JsonObject;
+  const profilePath = path.join(scan.rootDir, PROFILE_RELATIVE_PATH);
+  const existingProfile = (await readJson<JsonObject>(profilePath)) ?? {};
+  // Fresh values win on shared keys (including clearing to undefined);
+  // existing-only keys survive.
+  const reconciled = reconcileFreshOverExisting(desiredProfile, existingProfile);
+
+  const meaningfulChange = !jsonEqual(
+    withoutGeneratedAtForComparison(existingProfile),
+    withoutGeneratedAtForComparison(reconciled),
+  );
+  if (!meaningfulChange) {
+    return { changed: false, profile: existingProfile as unknown as RepositoryProfile };
+  }
+
+  await writeJson(profilePath, reconciled);
+  return { changed: true, profile: reconciled as unknown as RepositoryProfile };
 }
 
 export async function executeSafeReadinessFixes(
@@ -264,18 +357,34 @@ export async function executeSafeReadinessFixes(
   const existingGitignore = (await fileExists(gitignorePath))
     ? await readFile(gitignorePath, "utf8")
     : "";
-  const mergedGitignore = mergeSecretIgnores(existingGitignore);
+  const gitignoreAfterSecrets = mergeSecretIgnores(existingGitignore);
+  const secretsChanged = gitignoreAfterSecrets !== existingGitignore;
+  const mergedGitignore = mergeKitOwnedIgnores(gitignoreAfterSecrets);
   const gitignoreChanged = mergedGitignore !== existingGitignore;
+  const kitOwnedChanged = mergedGitignore !== gitignoreAfterSecrets;
   if (gitignoreChanged && !dryRun) await writeFile(gitignorePath, mergedGitignore, "utf8");
   recordChange(
     changes,
     "merge-secret-ignores",
     gitignoreRelativePath,
-    gitignoreChanged,
+    secretsChanged,
     dryRun,
     relativeEvidence(
       gitignoreRelativePath,
-      gitignoreChanged ? "required secret patterns are missing" : "required patterns are present",
+      secretsChanged ? "required secret patterns are missing" : "required patterns are present",
+    ),
+  );
+  recordChange(
+    changes,
+    "merge-kit-owned-ignores",
+    gitignoreRelativePath,
+    kitOwnedChanged,
+    dryRun,
+    relativeEvidence(
+      gitignoreRelativePath,
+      kitOwnedChanged
+        ? "kit-owned session/derived paths are missing"
+        : "kit-owned session/derived paths are present",
     ),
   );
 

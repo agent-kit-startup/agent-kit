@@ -24,10 +24,17 @@ export const MONITOR_FEED_CAP = 20;
 /** Cap agent_step rows emitted per active plan for the denser Crew feed. */
 export const MONITOR_AGENT_STEP_EMIT_CAP = 12;
 
-/** Cap subagent-run rows emitted per snapshot (fs scan bounds live in dashboard-data.mjs). */
-export const MONITOR_SUBAGENT_EMIT_CAP = 8;
-/** Cap plan_review pointer rows emitted per snapshot. */
-export const MONITOR_PLAN_REVIEW_EMIT_CAP = 4;
+/**
+ * Cap subagent-run and plan_review pointer rows emitted per snapshot (fs scan
+ * bounds for the former live in dashboard-data.mjs). Halved from 8/4 (C-G3,
+ * plan-monitor-crew-monitor-compact-labels-realtime-activity-2026-08-05.md):
+ * at full caps the two kinds sat ahead of `plan_progress` in mergeActivity's
+ * priority concat and could claim 12 of MONITOR_FEED_CAP's 20 slots during a
+ * busy run-plan-all batch, squeezing out plan-progress rows. 4/2 leaves more
+ * headroom without reordering the merge itself.
+ */
+export const MONITOR_SUBAGENT_EMIT_CAP = 4;
+export const MONITOR_PLAN_REVIEW_EMIT_CAP = 2;
 
 /**
  * Monitor hero curated subset over the semantic activity stream.
@@ -2511,7 +2518,7 @@ export function formatPlanReviewActivity(
       label: truncateStr(visible, MAX_SEMANTIC_LABEL),
       labelFull: visible,
       sourcePath: report.path || null,
-      refs: { plan: report.reviewedPlanFile || null, report: report.file, triaged },
+      refs: { plan: planRef, report: report.file, triaged },
     });
   }
   return events;

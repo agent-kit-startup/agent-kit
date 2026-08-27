@@ -111,6 +111,11 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   },
   { source: ".cursor/commands/git-prod.md", target: ".cursor/commands/git-prod.md" },
   {
+    source: ".cursor/commands/kit-staging.md",
+    target: ".cursor/commands/kit-staging.md",
+  },
+  { source: ".cursor/commands/kit-prod.md", target: ".cursor/commands/kit-prod.md" },
+  {
     source: ".cursor/commands/plan-external-review.md",
     target: ".cursor/commands/plan-external-review.md",
   },

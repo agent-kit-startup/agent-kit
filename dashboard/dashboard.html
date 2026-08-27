@@ -1173,6 +1173,45 @@ body.mc-fullscreen .top-tabs-row {
   color: var(--text-secondary);
   margin: 12px 0 6px;
 }
+.git-graph-title:first-child { margin-top: 0; }
+
+/* ===== DevOps ===== */
+/* Row visual language mirrors .git-flow-row (state dot + lane + meta) so the
+ * new tab reads as the same product, not a second component vocabulary. */
+.devops-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.devops-row:last-child { margin-bottom: 0; }
+.devops-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.devops-meta {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+}
+.devops-time {
+  color: var(--text-muted);
+  font-family: var(--mc-font-mono);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.devops-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
 .git-hygiene {
   display: flex;
   align-items: flex-start;
@@ -3644,6 +3683,10 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
           Git
           <span class="dot dot-gray" id="navGitDot" aria-hidden="true"></span>
         </a>
+        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="devops" tabindex="0" onclick="return showSection('devops')" aria-label="DevOps section">
+          DevOps
+          <span class="dot dot-gray" id="navDevopsDot" aria-hidden="true"></span>
+        </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="memory" tabindex="0" onclick="return showSection('memory')" aria-label="Memory section">
           Memory
         </a>
@@ -3819,6 +3862,7 @@ const SECTION_IDS = [
   'commands',
   'health',
   'git',
+  'devops',
   'memory',
   'terminals',
   'processes',
@@ -5430,6 +5474,199 @@ function renderGitGraphCard(git) {
   `;
 }
 
+/** Cap for the visual tree row count (mirrors MAX_GIT_GRAPH_LINES server-side cap, further
+ * bounded here so the stepper stays a glance, not a scroll well). */
+const MAX_GIT_VISUAL_TREE_ROWS = 12;
+
+/**
+ * Parse `git log --graph --oneline --decorate` lines into flattened commit
+ * entries. Connector-only lines (`|`, `/`, `\`, whitespace between lanes)
+ * carry no commit and are skipped — see the plan's "Phase 0 lane-flattening
+ * interpretation" note: this trades true branch-lane geometry (still fully
+ * present in the kept markdown block) for one row per commit.
+ */
+function parseGitGraphCommits(lines) {
+  const commits = [];
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const m = /\*\s*([0-9a-f]{4,40})\s+(?:\(([^)]*)\)\s*)?(.*)$/.exec(line);
+    if (!m) continue;
+    const decoration = (m[2] || '').trim();
+    commits.push({
+      hash: m[1],
+      decoration,
+      subject: (m[3] || '').trim(),
+      isHead: /\bHEAD\b/.test(decoration),
+      isPromoted: /\borigin\/(main|staging)\b/.test(decoration),
+    });
+  }
+  return commits;
+}
+
+/**
+ * Visual companion to the markdown git-graph block: reuses the exact
+ * .now-stepper/.now-step/.now-step-marker timeline primitive (state-colored
+ * markers + connecting line) with one row per parsed commit. Dot/marker
+ * semantics stay locked to the existing Now-panel vocabulary: current/blue =
+ * HEAD, done/green = already promoted to origin/main or origin/staging,
+ * neutral = neither. Degrades to a compact empty-state when the graph has no
+ * parseable commit line (e.g. a shallow clone) while a branch still exists.
+ */
+function renderGitVisualTree(git) {
+  const commits = parseGitGraphCommits(git?.graph);
+  if (!commits.length) {
+    if (!git?.branch) return '';
+    return renderEmptyStateCta({
+      headline: 'No visual tree yet',
+      support: 'The commit graph had no parseable commit line to render.',
+      compact: true,
+      className: 'git-visual-tree-empty',
+    });
+  }
+  const shown = commits.slice(0, MAX_GIT_VISUAL_TREE_ROWS);
+  const rows = shown
+    .map((c) => {
+      const stateClass = c.isHead ? ' now-step-current' : c.isPromoted ? ' now-step-done' : '';
+      const marker = c.isHead ? '●' : c.isPromoted ? '✓' : '○';
+      const label = c.decoration ? escapeHtml(c.decoration) : 'Commit';
+      const text = `<span class="now-todo-id">${escapeHtml(c.hash)}</span>${c.subject ? ` — ${escapeHtml(c.subject)}` : ''}`;
+      return `
+        <li class="now-step${stateClass}">
+          <span class="now-step-marker" aria-hidden="true">${marker}</span>
+          <div class="now-step-body">
+            <span class="now-step-label">${label}</span>
+            <div class="now-step-text">${text}</div>
+          </div>
+        </li>
+      `;
+    })
+    .join('');
+  return `
+    <div class="git-graph-title">Visual tree (${shown.length} of ${commits.length} commit${commits.length !== 1 ? 's' : ''})</div>
+    <ol class="now-stepper git-visual-tree" aria-label="Visual commit tree: state-colored markers by promotion status">
+      ${rows}
+    </ol>
+  `;
+}
+
+/** `in_progress` / `timed_out` -> `In progress` / `Timed out`. */
+function humanizeRunStatus(s) {
+  const raw = String(s || '').trim();
+  if (!raw) return 'Unknown';
+  return raw
+    .split('_')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+/** Dot tone for one `gh run list` row: in-flight states read yellow; a
+ * completed run reads by conclusion (green/red/yellow), never decorative. */
+function pipelineRunTone(run) {
+  if (run.status !== 'completed') return 'yellow';
+  if (run.conclusion === 'success') return 'green';
+  if (['failure', 'cancelled', 'timed_out'].includes(run.conclusion)) return 'red';
+  return 'yellow';
+}
+
+/**
+ * CI/CD pipeline card (Phase 2): recent `gh run list` rows, honest empty-state
+ * when the collector didn't produce runs. Display only, no CTA — a
+ * workflow-run URL has no named paste destination in the copy-only
+ * convention (ADR 2026-07-25), so this card ships without one rather than
+ * inventing a destination.
+ *
+ * Empty-state copy is keyed off `pipeline.reason` rather than one blanket
+ * message: live measurement (2026-08-24, mc-git-tab-devops-pipeline-timeout
+ * residuals) found the dominant real case is the shared snapshot budget
+ * running out before `gh` is even attempted ('budget'), not gh being
+ * missing/unauthenticated — the old unconditional "gh is unavailable or not
+ * authenticated" copy misattributed that case and pointed the operator at
+ * the wrong fix.
+ */
+function renderDevopsPipelineCard(devops) {
+  const pipeline = devops?.pipeline || null;
+  if (!pipeline?.available) {
+    const support = pipeline?.reason === 'budget'
+      ? 'This snapshot ran out of time before checking recent workflow runs — refresh to retry.'
+      : 'Recent workflow runs could not be read this snapshot (gh may be missing, unauthenticated, or the call timed out).';
+    return renderEmptyStateCta({
+      headline: 'No pipeline signal',
+      support,
+      compact: true,
+      className: 'devops-pipeline-empty',
+    });
+  }
+  const runs = pipeline.runs || [];
+  if (!runs.length) {
+    return renderEmptyStateCta({
+      headline: 'No recent runs',
+      support: 'No GitHub Actions workflow runs found for this repository.',
+      compact: true,
+      className: 'devops-pipeline-empty',
+    });
+  }
+  const rows = runs
+    .map((r) => {
+      const tone = pipelineRunTone(r);
+      const label = humanizeRunStatus(r.status === 'completed' ? r.conclusion || 'unknown' : r.status);
+      return `
+        <div class="devops-row">
+          <span class="dot dot-${tone}" aria-hidden="true"></span>
+          <span class="devops-name">${escapeHtml(r.workflow || 'Workflow')}</span>
+          <span class="devops-meta">${escapeHtml(label)} · ${escapeHtml(r.branch || '—')} · ${escapeHtml(r.event || '—')}</span>
+          <span class="devops-time">${escapeHtml(fmtDate(r.createdAt))}</span>
+        </div>
+      `;
+    })
+    .join('');
+  return rows;
+}
+
+/**
+ * Deploy-activity card (Phase 3, best-effort, honest): a "what shipped
+ * recently" proxy from `v*` git tags and the latest non-Unreleased CHANGELOG
+ * entry. Deliberately not a live infra/hosting poll — no fabricated service
+ * tiles for sources this dashboard does not actually reach.
+ */
+function renderDevopsDeployCard(devops) {
+  const deploy = devops?.deploy || null;
+  const tags = deploy?.tags || [];
+  const changelog = deploy?.changelog || null;
+  if (!tags.length && !changelog) {
+    return renderEmptyStateCta({
+      headline: 'No deploy signal yet',
+      support: 'No git release tags (v*) or a parseable CHANGELOG release entry were found. This section reflects what shipped, from tags and CHANGELOG only — it does not poll live infra or hosting.',
+      compact: true,
+      className: 'devops-deploy-empty',
+    });
+  }
+  const changelogRow = changelog
+    ? `
+      <div class="devops-row">
+        <span class="dot dot-green" aria-hidden="true"></span>
+        <span class="devops-name">CHANGELOG ${escapeHtml(changelog.version)}</span>
+        <span class="devops-meta">${escapeHtml((changelog.items || []).join(' · ') || 'Release notes')}</span>
+        <span class="devops-time">${escapeHtml(changelog.date || '—')}</span>
+      </div>
+    `
+    : '';
+  const tagRows = tags
+    .map(
+      (t) => `
+      <div class="devops-row">
+        <span class="dot dot-gray" aria-hidden="true"></span>
+        <span class="devops-name">${escapeHtml(t.name)}</span>
+        <span class="devops-meta">git tag</span>
+        <span class="devops-time">${escapeHtml(t.date || '—')}</span>
+      </div>
+    `,
+    )
+    .join('');
+  return `
+    <div class="devops-note">Best-effort "what shipped recently" from git tags + CHANGELOG — not a live infra/deploy poll.</div>
+    ${changelogRow}${tagRows}
+  `;
+}
+
 /** Staging hygiene: untracked plan-monitor WIP (add-by-name only; ADR 2026-07-29 R14). */
 function renderGitHygieneHint(git) {
   const wip = git?.hygiene?.monitorWip || [];
@@ -6788,7 +7025,7 @@ function nowMetaIconSvg(kind, opts) {
  * features >= 1 unit. Detail that cannot meet the floor is drawn filled
  * (fill="currentColor" stroke="none"), never as a sub-stroke stroked shape.
  * Static path markup only; never concatenate untrusted text into the SVG.
- * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'memory'|'terminals'|'processes'|'config'} kind
+ * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'devops'|'memory'|'terminals'|'processes'|'config'} kind
  * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
  *   decorative false: role=img + aria-label + title for icon-only controls (e.g. more-sections).
  */
@@ -6810,6 +7047,7 @@ function spaceIconSvg(kind, opts) {
     commands: 'Commands',
     health: 'Health',
     git: 'Git',
+    devops: 'DevOps',
     memory: 'Memory',
     terminals: 'Terminals',
     processes: 'Processes',
@@ -6877,6 +7115,12 @@ function spaceIconSvg(kind, opts) {
       '<path d="M10.5 4.5v7a2 2 0 01-2 2h-2"/>' +
       '<path d="M6.5 11.5a2 2 0 100-4 2 2 0 000 4z"/>' +
       '<path d="M10.5 6.5v2"/>',
+    // Linked nodes (devops) — two pipeline-stage circles joined by a short
+    // link; distinct from the Git branch glyph and from the Skills gear.
+    devops:
+      '<circle cx="5" cy="8" r="2.25"/>' +
+      '<circle cx="11" cy="8" r="2.25"/>' +
+      '<path d="M7.25 8h1.5"/>',
     // Chip (memory) — two internal lines 3 units apart; a third line would drop clearance below the stroke floor
     memory:
       '<path d="M4.5 2.5h7a1 1 0 011 1v9a1 1 0 01-1 1h-7a1 1 0 01-1-1v-9a1 1 0 011-1z"/>' +
@@ -7779,6 +8023,24 @@ function renderUnsafe() {
     gitDot.className = 'dot dot-green';
   }
 
+  // DevOps nav dot: state of the most recent pipeline run only (gray = no
+  // signal / gh unavailable, green = latest run succeeded, yellow = latest
+  // run in progress or non-success conclusion other than a hard failure,
+  // red = latest run failed/cancelled/timed out).
+  const devopsDot = document.getElementById('navDevopsDot');
+  const latestRun = (d.devops?.pipeline?.runs || [])[0] || null;
+  if (!latestRun) {
+    devopsDot.className = 'dot dot-gray';
+  } else if (latestRun.status !== 'completed') {
+    devopsDot.className = 'dot dot-yellow';
+  } else if (latestRun.conclusion === 'success') {
+    devopsDot.className = 'dot dot-green';
+  } else if (['failure', 'cancelled', 'timed_out'].includes(latestRun.conclusion)) {
+    devopsDot.className = 'dot dot-red';
+  } else {
+    devopsDot.className = 'dot dot-yellow';
+  }
+
   // Terminals / processes nav items carry count badges only (no decorative dots).
 
   // Build full HTML string once
@@ -8169,7 +8431,29 @@ function renderUnsafe() {
           </div>
         </div>
         ${renderGitGraphCard(d.git)}
+        ${renderGitVisualTree(d.git)}
         ${d.git?.dirty ? renderGitFileList(d.git) : ''}
+      </div>
+    </div>
+  `);
+
+  // ===== DevOps =====
+  // Distinct scope from Processes (local-process-only): CI/CD pipeline status
+  // + a best-effort, honestly-scoped deploy-activity proxy. No fabricated
+  // "service health" widgets for infra this dashboard does not actually poll.
+  const devopsPipelineRuns = d.devops?.pipeline?.runs || [];
+  const devopsRunCount = devopsPipelineRuns.length;
+  parts.push(`
+    <div class="content-section" id="section-devops">
+      <div class="section-title">
+        DevOps
+        <span class="section-subtitle">${devopsRunCount} pipeline run${devopsRunCount !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="card">
+        <div class="git-graph-title">CI/CD pipeline</div>
+        ${renderDevopsPipelineCard(d.devops)}
+        <div class="git-graph-title">Deploy activity</div>
+        ${renderDevopsDeployCard(d.devops)}
       </div>
     </div>
   `);

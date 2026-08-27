@@ -5,6 +5,9 @@
 
 import { cyan, gray, options as koloristOptions } from "kolorist";
 
+/** kolorist SupportLevel.TrueColor — emit 24-bit even when TTY probes say none (CI). */
+const KOLORIST_TRUECOLOR = 3;
+
 /** Helmet outline / primary text: MC `--text-primary` / landing logo stroke. */
 export const HELMET_OUTLINE = "#e2e8f0";
 /** Deep brand blue: landing logo gradient mid. */
@@ -52,6 +55,20 @@ export function shouldUseWelcomeColor(opts: WelcomeRenderOptions = {}): boolean 
   if (opts.color === true) return true;
   const tty = opts.stdoutIsTTY ?? Boolean(process.stdout.isTTY);
   return tty;
+}
+
+/** Run `fn` with kolorist forced on at trueColor support (restores prior options). */
+export function withKoloristColor<T>(fn: () => T): T {
+  const prevEnabled = koloristOptions.enabled;
+  const prevLevel = koloristOptions.supportLevel;
+  koloristOptions.enabled = true;
+  koloristOptions.supportLevel = KOLORIST_TRUECOLOR;
+  try {
+    return fn();
+  } finally {
+    koloristOptions.enabled = prevEnabled;
+    koloristOptions.supportLevel = prevLevel;
+  }
 }
 
 /** Frames and spinners: color gate plus optional reduced-motion. */

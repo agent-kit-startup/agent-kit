@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   BUSY_OUTSIDE_PLAN_FRESH_MS,
@@ -40,6 +43,8 @@ import {
   enrichPlans,
   extractHandoffFieldBlock,
   extractMergeBranch,
+  fieldReportResolveAction,
+  fieldReportTriageAllAction,
   flightLogKindClass,
   formatDeliveryActivity,
   formatGitActivity,
@@ -73,6 +78,13 @@ import {
   resolveDeliveryAttribution,
   withMissionTiming,
 } from "../../../../dashboard/lib/semantic-model.mjs";
+
+const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
+const semanticModelSource = readFileSync(
+  resolve(repoRoot, "dashboard/lib/semantic-model.mjs"),
+  "utf8",
+);
+const dashboardHtmlSource = readFileSync(resolve(repoRoot, "dashboard/dashboard.html"), "utf8");
 
 const samplePlans = [
   {
@@ -3309,5 +3321,52 @@ describe("buildMissionControlView: real-time subagent + review rows", () => {
     const view = buildMissionControlView({ plans: [], handoff: null });
     expect(view.activity.some((e) => e.kind === "subagent")).toBe(false);
     expect(view.activity.some((e) => e.kind === "plan_review")).toBe(false);
+  });
+});
+
+describe("pasteDestination contract (msg-paste-dest-keys)", () => {
+  // dashboard.html is copy-only: it looks up `action.pasteDestination` in its
+  // own PASTE_DESTINATIONS enum (keyed by filePicker / chatInput /
+  // pastChatPicker / terminal) via `action.pasteDestination || 'chatInput'`.
+  // semantic-model.mjs must emit one of those enum keys, never a human-label
+  // string (e.g. "chat input", "past-chat picker") — a label string would
+  // still render (pasteDestinationLabel falls through to the raw value), so
+  // a regression here is silent unless pinned structurally. See
+  // .cursor/memory/plan-monitor-24h-full-review-and-fix-2026-07-25.md
+  // (msg-paste-dest-keys).
+  it("dashboard.html enumerates the same PASTE_DESTINATIONS keys semantic-model.mjs relies on", () => {
+    const enumMatch = dashboardHtmlSource.match(/const PASTE_DESTINATIONS = \{([\s\S]*?)\n\};/);
+    expect(enumMatch, "dashboard.html must define PASTE_DESTINATIONS").not.toBeNull();
+    const keys = Array.from((enumMatch?.[1] ?? "").matchAll(/^\s*(\w+):/gm)).map((m) => m[1]);
+    expect(keys).toEqual(["filePicker", "chatInput", "pastChatPicker", "terminal"]);
+  });
+
+  it("every pasteDestination literal emitted by semantic-model.mjs is a PASTE_DESTINATIONS key, not a human label", () => {
+    const validKeys = new Set(["filePicker", "chatInput", "pastChatPicker", "terminal"]);
+    const literals = Array.from(
+      semanticModelSource.matchAll(/pasteDestination:\s*["']([^"']+)["']/g),
+    ).map((m) => m[1]);
+    // Guard the guard: fail loudly if the source shape changes so this scan
+    // silently stops finding anything, instead of passing vacuously.
+    expect(literals.length).toBeGreaterThan(0);
+    for (const value of literals) {
+      expect(
+        validKeys.has(value),
+        `pasteDestination: "${value}" in semantic-model.mjs is not a PASTE_DESTINATIONS key (${Array.from(validKeys).join(", ")}) — dashboard.html's pasteDestinationLabel() falls through to raw strings, so a human-label value here (e.g. "chat input") would render silently wrong instead of failing.`,
+      ).toBe(true);
+    }
+  });
+
+  it("pins the known emit sites to their expected enum keys", () => {
+    // Belt-and-suspenders on top of the structural scan above: exercise the
+    // actual exported builders so a future refactor that keeps the literal
+    // string but routes it through a different field is still caught.
+    const resolveAction = fieldReportResolveAction("attention:report:widget");
+    expect(resolveAction?.pasteDestination).toBe("chatInput");
+
+    const triageAllAction = fieldReportTriageAllAction([
+      { sourcePath: ".cursor/memory/plan-monitor-widget.md", hasOpenReviewGaps: true },
+    ]);
+    expect(triageAllAction?.pasteDestination).toBe("chatInput");
   });
 });

@@ -16,6 +16,8 @@ Agent Kit treats this flow as the agents' **operational memory**: plan -> handof
 |---------|-------|------------------------------|-----|
 | `git staging` | `/git-staging` | `origin/staging` | Bring local changes to staging (working branch, commit, MR, merge). |
 | `git prod` | `/git-prod` | `origin/main` | Promote approved staging to production. |
+| `kit staging` | `/kit-staging` | `origin/staging` + optional landing staging | Git-staging wrap, then landing staging deploy only when a product changelog or release changed. |
+| `kit prod` | `/kit-prod` | `origin/main` + optional landing promote | Git-prod wrap (same HITL), then landing promote only when this promotion includes a release. Native `/git-prod` does not put the site on the air. |
 
 Legacy projects may name the pre-prod branch `homologacao`, `develop`, etc.; the **two-step pattern** stays the same and the canonical name is `staging`. See the decision in `.cursor/memory/decisions/` (branch naming).
 

@@ -11,37 +11,57 @@
 
 [Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io)
 
-**Development operations built into Cursor and VS Code.**
+**Mission Kit** puts a working spine under your AI coding agent: plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal. The kit writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
 
-Mission Kit 5 is a free, source-available framework under [PolyForm Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0). It adds project management, DevSecOps discipline, and agent orchestration so you can plan, build, review, and ship without leaving the IDE. Install and CLI packages still use the Agent Kit identifiers (`npx @dadado/agent-kit-cli`, `agent-kit`, `/agent-kit-onboard`). Commercial use: [sales@missionkit.io](mailto:sales@missionkit.io).
+Ships as **Agent Kit** on npm (`@dadado/agent-kit-cli`).
 
-Formerly **agent-kit**. Same toolkit, clearer product name.
+## Install
 
-Long AI coding sessions fall apart when the context window fills up. Mission Kit keeps work on a checkable plan, saves where you stopped, and lets any fresh chat pick up cleanly. Confirmations stay human-in-the-loop, not unchecked autonomy.
+From your project root:
 
-## Why you'd want it
+```bash
+npx @dadado/agent-kit-cli install
+```
 
-- **No more lost context.** State travels with the repo; a new chat catches up with one command.
-- **Work against real plans.** To-dos you can watch tick off. Autonomy stays optional and gated.
-- **Built-in DevOps discipline.** Staging-first git flow keeps history clean.
-- **Production needs confirmation.** Staging can run on autopilot; promoting to `main` always asks first.
-- **Learnings that stick.** Resolved errors and decisions stay in the workspace for the next chat. Nothing retrains the model.
-- **Clean history.** Commits and docs describe the software, not chat chatter.
+Node.js 20+. Git is recommended; the staging and prod routines depend on it. Pin a version (`@x.y.z`) when you need a reproducible install. Non-interactive: add `-y` and `--yes`.
 
-## What you get
+`npx` is ephemeral, so bare `agent-kit` will not be on your PATH yet. If you hit `command not found`, run:
 
-| Capability | In practice |
-|------------|-------------|
-| **Plans with human gates** | `/start-project` reviews context, writes a plan, then runs the first unit only after you confirm. |
-| **Resume across chats** | Finish a phase, open a fresh chat, run `/continue-plan`. Native hooks help the agent reload state. |
-| **Manual or continuous run** | Drive one phase at a time (`/continue-plan`), let a plan run to the end (`/run-plan`), or queue several (`/run-plan-all`). |
-| **Staging → production git** | `/git-staging` promotes to `origin/staging`. `/git-prod` reaches `main` only after explicit confirmation. |
-| **Repository readiness** | Install scans the repo and applies safe local fixes. `/agent-kit-onboard` walks remaining decisions before planning. |
-| **Optional external review** | After a plan finishes, arm a second-pass gap check and triage findings. Opt-in via config. |
-| **Skills and packs** | Registry skills and optional packs (clean code, context tools, and more). Update via CLI; contribute upstream with `agent-kit contribute`. |
-| **Mission Control** | Local dashboard over workspace runtime state (loopback by default). |
+```bash
+npx @dadado/agent-kit-cli setup-global
+```
 
-Deep dives: [getting started](docs/getting-started.md), [five-layer claim matrix](docs/five-layer-claim-matrix.md), [external plan review](docs/external-plan-review.md), [domain packs](docs/domain-packs.md), [personas](docs/personas-contract.md).
+or keep prefixing commands with `npx @dadado/agent-kit-cli`.
+
+## Pick your surface
+
+- **Cursor.** The first-class surface. Slash commands land in `.cursor/commands/`: `/start-project`, `/continue-plan`, `/run-plan`, `/git-staging`, `/git-prod`, `/dashboard` and more. Confirmations use Cursor's Ask questions.
+- **Claude Code.** Run the kit-load with `--claude`, then `CLAUDE.md` plus `/agent-kit` give you the same contracts. Confirmations fall back to numbered lists.
+- **Terminal.** `npx @dadado/agent-kit-cli mission-control` renders Mission Control as a live TUI in your terminal. `--once` prints a single frame and exits. Shipped in 5.6.0.
+- **Browser.** `npx @dadado/agent-kit-cli dashboard` serves Mission Control on `127.0.0.1`. LAN sharing is opt-in and token-gated (`dashboard-broadcast`).
+
+Mission Kit is Cursor-first. VS Code and Windsurf get partial config generators, not full parity.
+
+## A normal day
+
+```
+/start-project   describe a goal, approve the plan, approve the first unit
+/continue-plan   confirm the next to-do, ship one unit, stop
+/run-plan        run the active plan to the end or until blocked
+/backlog-add     queue a plan for later without activating it
+/git-staging     branch, PR, merge to staging
+/git-prod        staging to main, only after you say yes
+```
+
+Production promotion is never automatic. The kit asks; you answer.
+
+## License
+
+PolyForm Noncommercial 1.0.0. Commercial licensing: sales@missionkit.io.
+
+## Contribute
+
+Skills, docs fixes, and CLI patches are welcome. Start at `docs/CONTRIBUTING.md`.
 
 ## Mission Control
 
@@ -58,43 +78,6 @@ A local dashboard over the same workspace state the CLI drives — current missi
 </tr>
 </table>
 
-## Install
-
-### In Cursor (recommended)
-
-Open your project in Cursor and paste this into chat:
-
-```
-You are the installer for Agent Kit L0. Confirm the absolute workspace root path via Ask questions before any write operations. If Node.js and npx are available, run `npx @dadado/agent-kit-cli install` in the confirmed root directory. Otherwise, fetch the install contract from https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install.md and follow the Port B instructions. Detect missing Node.js or Git and report either prerequisite. Preserve existing `.cursor/` content. After successful installation, run or offer `/agent-kit-onboard` (SoT: `.cursor/commands/agent-kit-onboard.md`, install.md section 6). Use Ask questions for unresolved readiness choices and confirmations, with chat fallback when unavailable. Do not ask about skins, external review, or a first deliverable before essential readiness passes.
-```
-
-> **Source:** [install-prompt.md](install-prompt.md) · Raw: https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/install-prompt.md
-
-### In the terminal
-
-From your project root:
-
-```bash
-npx @dadado/agent-kit-cli install
-```
-
-The CLI welcome screen greets you with the same helmet, in ASCII:
-
-```text
-       ____
-    .-'    '-.
-   /  .--.    \
-  |  /    \    |
-  | |  ()  |   |
-  |  \    /    |
-   \  '--'    /
-    '-.____.-'
-   /_/      \_\
-```
-
-Unpinned `npx` resolves to the latest publish. Pin when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install`.
-
-That installs slash commands and a small set of rules into the project. Walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
 ## Usage
 
@@ -140,7 +123,6 @@ More: [Getting started - Mission Control](docs/getting-started.md#mission-contro
 | Guide | What's in it |
 |-------|--------------|
 | [Getting started](docs/getting-started.md) | Install, commands, day-to-day workflow |
-| [Five-layer claim matrix](docs/five-layer-claim-matrix.md) | Public positioning (core / optional / planned / unsupported) |
 | [Repository readiness](docs/repository-readiness-onboarding.md) | Install discovery and `/agent-kit-onboard` |
 | [Bootstrap](docs/bootstrap.md) | What lands in your project |
 | [Domain packs](docs/domain-packs.md) | Optional skill packs |

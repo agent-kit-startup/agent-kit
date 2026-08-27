@@ -41,5 +41,6 @@ Do not treat the remote DS as ground truth; always compare against the repo.
 ## References
 
 - [Landing page runbook](agentkit-landing.md)
+- Landing Claude Design / `/design` paste template: `.cursor/context/landing-missionkit/CLAUDE-DESIGN-TEMPLATE.md` (factory private; plain path)
 - Landing source-of-record decision: `.cursor/memory/decisions/2026-08-05_landing-external-design-source-of-record.md` (factory private; not a markdown link, so public sync does not emit a dead URL)
 - Transport closeout monitor: `.cursor/memory/plan-monitor-design-system-transport-claude-design.md` (factory private; plain path, not a link)
