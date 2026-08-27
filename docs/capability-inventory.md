@@ -4,13 +4,13 @@ Mission Kit capability catalog grouped by surface family. Lists every shipped ca
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against the working tree on 2026-08-13): **28** slash commands under `.cursor/commands/` (**27** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 10 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
+Real counts (verified against the working tree on 2026-08-27): **30** slash commands under `.cursor/commands/` (**29** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 10 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
-## Slash commands (.cursor/commands/ - 28)
+## Slash commands (.cursor/commands/ - 30)
 
-Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **27** syncable commands (excluding `/public-issue-triage`). The on-disk factory tree has **28** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`.
+Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **29** syncable commands (excluding `/public-issue-triage`). The on-disk factory tree has **30** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` are L0 wraps of native git commands plus an optional public-landing deploy when a product changelog or release changed.
 
 - `/start-project` - Plan creation with two-gate HITL (broad intake, write confirm, optional Gate B start unit)
 - `/backlog-add` - Enqueue plan under HANDOFF Backlog without activation
@@ -33,6 +33,8 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `/cursor-update-awareness` - Advisory Cursor product-update check (changelog + inventory; HITL conveyor)
 - `/git-staging` - Staging branch promotion with CHANGELOG and MR workflow
 - `/git-prod` - Production promotion from staging with HITL confirmation
+- `/kit-staging` - Git-staging wrap; optional public-landing staging deploy when a product changelog or release changed
+- `/kit-prod` - Git-prod wrap (same HITL); optional public-landing promote when this promotion includes a release
 - `/plan-external-review` - External plan review launcher with audit modes
 - `/plan-review-triage` - Triage choice after external review (residuals/fixes/ack)
 - `/field-report-resolve` - Resolve Field Report findings with structured closure
@@ -317,7 +319,7 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 
 | Path | Anchor | Current literal text | Publication route |
 |------|--------|---------------------|------------------|
-| `README.md` | L5 | Development operations built into Cursor and VS Code. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | L5 | Development operations built into Cursor, with partial VS Code support. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L7 | Mission Kit 5 is a free (personal and non-commercial) source-available framework under PolyForm Noncommercial for plan, build, review, and … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L9 | Long AI coding sessions fall apart when the context window fills up. The kit fixes this with a small operating layer that handles planning,… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L13 | No more lost context. The agent keeps a short state file; new chat, one command, and it's caught up. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
@@ -349,7 +351,7 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 | `README.md` | L127 | [Development](DEVELOPMENT.md) — Factory topology, local CLI, and maintainer workflows | allowlist-synced (`README.md`) |
 | `README.md` | L140 | Want to improve skills, docs, or the CLI? Start at docs/CONTRIBUTING.md… | allowlist-synced (`README.md`) |
 | `docs/DEVELOPMENT.md` | (H1/body) | Factory topology, local CLI loops, public-sync awareness | allowlist-synced (`docs/**`) |
-| `package.json` | 4 | HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; project-aware setup for Cursor, VS Code, and Windsurf. | allowlist-synced (manifest path pattern) |
+| `package.json` | 4 | HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; Cursor-first with partial generators for VS Code and Windsurf. | allowlist-synced (manifest path pattern) |
 | `packages/cli/package.json` | 4 | Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context). | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`) |
 | `packages/cli/README.md` | 3 | Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, staging-to-prod, memory). It installs local workspace contracts; it is not a hosted control plane or graph workflow runtime. | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`); npm pack storefront (`prepublishOnly` → `scripts/verify-cli-dashboard-pack.mjs`) |
 | `packages/cli/src/index.ts` | 24 | HITL framework for AI-assisted IDEs | allowlist-synced (`packages/**` in `scripts/public-sync.manifest`) |

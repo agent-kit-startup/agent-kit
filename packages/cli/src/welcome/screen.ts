@@ -3,15 +3,7 @@
  * Separate from run-plan persona banners under plan-loop/.
  */
 
-import {
-  blue,
-  cyan,
-  gray,
-  options as koloristOptions,
-  lightCyan,
-  trueColor,
-  white,
-} from "kolorist";
+import { blue, cyan, gray, lightCyan, trueColor, white } from "kolorist";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import {
   HELMET_ACCENT,
@@ -23,6 +15,7 @@ import {
   shouldUseVisualMotion,
   shouldUseWelcomeColor,
   tipAt,
+  withKoloristColor,
 } from "./visual-kit.js";
 
 export {
@@ -33,9 +26,6 @@ export {
   shouldUseWelcomeColor,
   type WelcomeRenderOptions,
 };
-
-/** kolorist SupportLevel.TrueColor — needed so trueColor() emits when TTY probes say none (CI). */
-const KOLORIST_TRUECOLOR = 3;
 
 const HELMET_ASCII = [
   "       ____",
@@ -63,20 +53,6 @@ function outlineAnsi(line: string): string {
   return trueColor(r, g, b)(line);
 }
 
-/** Run `fn` with kolorist forced on at trueColor support (restores prior options). */
-function withKoloristColor<T>(fn: () => T): T {
-  const prevEnabled = koloristOptions.enabled;
-  const prevLevel = koloristOptions.supportLevel;
-  koloristOptions.enabled = true;
-  koloristOptions.supportLevel = KOLORIST_TRUECOLOR;
-  try {
-    return fn();
-  } finally {
-    koloristOptions.enabled = prevEnabled;
-    koloristOptions.supportLevel = prevLevel;
-  }
-}
-
 /** True when argv names a citty subcommand (non-flag token), so skip root welcome. */
 export function hasCliSubcommand(rawArgs: string[] | undefined): boolean {
   return Boolean(rawArgs?.some((arg) => !arg.startsWith("-")));
@@ -100,6 +76,7 @@ export const WELCOME_UTILITY_HINTS = [
   { cmd: "agent-kit doctor", hint: "repository readiness" },
   { cmd: "agent-kit status", hint: "installed kit version" },
   { cmd: "agent-kit dashboard", hint: "Mission Control panel" },
+  { cmd: "agent-kit mission-control", hint: "Mission Control TUI" },
   { cmd: "agent-kit init", hint: "guided install entry" },
 ] as const;
 

@@ -43,6 +43,8 @@ agent-kit dashboard
 
 The panel binds to loopback by default, serves its own static files, and snapshots the current workspace. L0 install does **not** copy `dashboard/` into your app; `agent-kit dashboard` resolves the panel from the installed package.
 
+Browser-free: `agent-kit mission-control` is a third surface (ASCII Mission, Flight Log, Checklist, Crew Monitor) that reuses the same snapshot builders without starting the HTTP server. `agent-kit mission-control --once` prints one frame (Claude Code `/agent-kit`). The web dashboard stays shipped.
+
 Older tags before 4.8.2 do not include those assets. Prefer a current pin, or point `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` at an agent-kit checkout that contains `dashboard/`.
 
 ## Bare invoke (welcome)
@@ -73,7 +75,8 @@ On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `upda
 | `agent-kit doctor` | Diagnose repository readiness (`--json` includes an `env` pillar: bin-on-PATH, npm prefix writability, Node version, shell profile) |
 | `agent-kit setup-global` | Self-heal a root-owned npm global prefix (relocate to `~/.npm-global`, fix `PATH`, reinstall) |
 | `agent-kit update` | Re-apply L0/packs/skills from the registry |
-| `agent-kit dashboard` | Start Mission Control for this workspace |
+| `agent-kit dashboard` | Start Mission Control for this workspace (browser panel) |
+| `agent-kit mission-control` | ASCII Mission Control TUI (`--once` for one frame) |
 | `agent-kit add <id>` | Install a skill or L1 pack |
 | `agent-kit run-plan` | Headless continuous plan runner (never promotes to production) |
 

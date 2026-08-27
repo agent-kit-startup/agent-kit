@@ -14,6 +14,10 @@ plan → /handoff → git staging → git prod → memory
 |---------|---------------|----------------------------|-------------|
 | `git staging` | `/git-staging` | `origin/staging` | Updates the staging branch with local changes |
 | `git prod` | `/git-prod` | `origin/main` | Promotes `origin/staging` → `origin/main` (production) after approval |
+| `kit staging` | `/kit-staging` | `origin/staging`, then optional landing staging | Git-staging routine, then landing field update + `landing:deploy:staging` only when a product changelog or release changed |
+| `kit prod` | `/kit-prod` | `origin/main`, then optional landing promote | Git-prod routine (same HITL), then landing field update + `landing:promote` only when this promotion includes a release |
+
+**Bundles vs native:** `/git-staging` and `/git-prod` remain the SoT for git-only work. They do not deploy the public landing. `/kit-staging` and `/kit-prod` wrap those prompts, then may update and deploy the landing when a product changelog or release actually changed (not on every `docs(memory)` monitor commit). Repo-only shipping stays `/git-staging` / `/git-prod`. Command SoT: `.cursor/commands/kit-staging.md`, `.cursor/commands/kit-prod.md`.
 
 In legacy projects the pre-prod branch may be called `homologacao`, `develop`, etc. The **two-step pattern** is fixed; the canonical name in Agent Kit is **`staging`**.
 
@@ -184,6 +188,8 @@ or
 - **`git staging`:** add bullets only in `[Unreleased]`.
 - **`git prod`:** before merging `staging → main`, **close the release** - move everything from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today) or SemVer version and leave `[Unreleased]` empty. Set root and `packages/cli` `package.json` `"version"` to that same SemVer. Never promote with Unreleased full.
 
+**Public excerpt:** keep `<!-- changelog-private -->` fences when closing a release. Public GitHub, GitHub Releases, and the landing product-notes field receive the stripped consumer/contributor notes only (`node scripts/public-changelog.mjs`). Landing stamp uses `--version X.Y.Z --blurb`, never `CHANGELOG.md` as `--notes-file`.
+
 ---
 
 ## ⚠️ Important Warnings
@@ -333,6 +339,18 @@ This section contains the detailed prompts that should be followed when commands
 ### Prompt: git prod
 
 > ### Whenever I type `git prod` in the chat, follow exactly the routine below to promote changes from `origin/staging` to `origin/main` (production):
+
+**Claude CLI lane — known blockers, read once before running (saves retries):** this repo's private `agent-kit-dev` has a `Protect main and staging` ruleset (PR-only on both branches) *plus* the Claude Code auto-mode permission classifier blocks several of the commands below outright. Full detail and recurrence history in `.cursor/memory/errors/2026-08-14_git-prod-private-main-requires-pr.md` and `.cursor/memory/errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md`. The short version:
+
+| Command | Expect it to work? |
+|---|---|
+| `ALLOW_MAIN_PUSH=1 git push origin main` (step 9) | **No.** Blocked by both the classifier and the GitHub ruleset. Don't spend a turn on it — go straight to `gh pr create --base main --head staging`. |
+| Any direct `git push origin staging` (e.g. closing the release) | **No.** Same ruleset covers `staging`. Commit on a fresh branch, PR to `staging` instead. |
+| `gh pr merge` (any repo, any PR — staging→main, feature→staging, public sync) | **No.** The classifier refuses this every time in this lane. One attempt is enough to log; treat the merge as operator-owed immediately rather than retrying. |
+| `gh pr merge` additionally erroring `head branch is not up to date with base branch` | A second, distinct GitHub check — `main` accumulates a merge-commit SHA per past release that `staging` doesn't contain as a direct ancestor (structural, not a content conflict; step 7 always uses a real merge). Surface this explicitly when merging staging→main; the operator may need `--admin` or a UI squash-merge to clear it. |
+| `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
+
+Net effect: budget for exactly two operator-owed merges per `/git-prod` run (staging-close PR, then staging→main PR), plus a third if the public sync PR (step 12) also needs one — everything else in this routine is agent-doable.
 
 #### 1. **CRITICAL Security Validation**  
    - Run `git status -sb` to check modified, staged files and current branch.

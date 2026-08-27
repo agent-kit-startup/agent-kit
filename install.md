@@ -108,6 +108,8 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/dashboard-broadcast.md` | idem |
 | `.cursor/commands/git-staging.md` | idem |
 | `.cursor/commands/git-prod.md` | idem |
+| `.cursor/commands/kit-staging.md` | idem |
+| `.cursor/commands/kit-prod.md` | idem |
 | `.cursor/commands/plan-external-review.md` | idem |
 | `.cursor/commands/plan-review-triage.md` | idem |
 | `.cursor/commands/field-report-resolve.md` | idem |

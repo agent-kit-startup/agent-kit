@@ -2,7 +2,7 @@
 
 Machine fields below must stay as `- **Field:**` bullets (Mission Control parses those). Do not replace Backlog / Parked / Run queue with `##` section headings alone.
 
-**Mid-batch monitor pointers are not durable here.** `.cursor/HANDOFF.md` is gitignored session state. Pointers to sibling monitors must live in the tracked `.cursor/memory/_index.md` Audits row for the watched monitor (R14-paired in the same commit). Cite that row in the plan or monitor notes; do not rely on a HANDOFF line as delivery evidence.
+**Mid-batch monitor pointers are not durable here.** `.cursor/HANDOFF.md` is gitignored session state — `agent-kit install`/`doctor` merges this entry into `.gitignore` (kit-owned ignore patterns; see `packages/cli/src/scanner/detect-repository.ts`). Pointers to sibling monitors must live in the tracked `.cursor/memory/_index.md` Audits row for the watched monitor (R14-paired in the same commit). Cite that row in the plan or monitor notes; do not rely on a HANDOFF line as delivery evidence.
 
 ### HITL provenance (required)
 

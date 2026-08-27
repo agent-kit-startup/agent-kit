@@ -32,7 +32,7 @@ Without arguments, summarize the current chat turn into the topic and body.
 
 1. **Detect lane before writing.**
    - **Factory lane** — this checkout is the canonical `agent-kit-dev` repository (`origin` remote contains `agent-kit-dev`, or `dogfood/` already exists at repo root). Write to `dogfood/cursor_<topic>_<date>.md` and update `dogfood/README.md` Unprocessed index.
-   - **Consumer lane** — any other project with an Agent Kit install (`.cursor/agent-kit.json` exists). Write to `.cursor/dogfood/cursor_<topic>_<date>.md` and a local index. Do **not** track the folder in git; it should already be gitignored by the base install.
+   - **Consumer lane** — any other project with an Agent Kit install (`.cursor/agent-kit.json` exists). Write to `.cursor/dogfood/cursor_<topic>_<date>.md` and a local index. Do **not** track the folder in git; `agent-kit install`/`doctor` gitignores `.cursor/dogfood/` via the kit-owned `.gitignore` merge (run `agent-kit doctor` if an older install predates this and the folder isn't yet ignored).
    - **Unknown lane** — stop and ask the operator which lane to use.
 2. **Hygiene strip (mandatory).** Remove before writing:
    - Consumer workspace names, project names, domain names, or external product names.

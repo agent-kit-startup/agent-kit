@@ -58,7 +58,7 @@ async function loadProfile(rootDir: string): Promise<ProjectProfile | null> {
   }
 }
 
-function buildRoutines(profile: ProjectProfile | null): string[] {
+export function buildRoutines(profile: ProjectProfile | null): string[] {
   const lines: string[] = [];
   const workflow = profile?.git.workflow;
   if (workflow === "homolog-prod") {

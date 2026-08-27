@@ -51,6 +51,8 @@ describe("canonical L0 inventory", () => {
       expect.arrayContaining([
         ".cursor/rules/hitl-ask-questions.mdc",
         ".cursor/commands/agent-kit-onboard.md",
+        ".cursor/commands/kit-staging.md",
+        ".cursor/commands/kit-prod.md",
         ".cursor/context/templates/plan.md",
         ".cursor/context/templates/context-pack.md",
         ".cursor/context/templates/task-brief.md",

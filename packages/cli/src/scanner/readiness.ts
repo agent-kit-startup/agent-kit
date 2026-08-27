@@ -217,11 +217,9 @@ function buildPillars(scan: ScanResult): ReadinessPillarReport[] {
       check(
         "stack.detected",
         "Stack and package manager",
-        scan.stack.language !== "unknown" || scan.purpose.value !== "unknown"
-          ? "ready"
-          : "needs_choice",
+        scan.stack.language !== "unknown" || scan.stack.hasProjectFiles ? "ready" : "needs_choice",
         true,
-        scan.stack.packageManagerEvidence ?? scan.purpose.evidence,
+        scan.stack.packageManagerEvidence ?? [],
       ),
     ]),
     pillar("quality-ci", [

@@ -135,7 +135,21 @@ export async function detectProvider(rootDir: string, remoteUrl?: string): Promi
   };
 }
 
-function inferWorkflow(currentBranch?: string): GitWorkflow {
+/**
+ * Infers the repository's promotion workflow. `hasLocalStaging`/
+ * `hasRemoteStaging` are repo-level facts (does a `staging` branch exist
+ * anywhere in the repo?) and take priority over the currently checked-out
+ * branch name, which is only a session-level fact: an operator can be on
+ * `main` in a repo that otherwise uses staging/prod promotion, and the
+ * workflow classification must not flip depending on which branch happens
+ * to be checked out.
+ */
+export function inferWorkflow(
+  currentBranch: string | undefined,
+  hasLocalStaging: boolean,
+  hasRemoteStaging: boolean,
+): GitWorkflow {
+  if (hasLocalStaging || hasRemoteStaging) return "homolog-prod";
   if (!currentBranch) return "unknown";
   if (currentBranch === "main" || currentBranch === "master") return "feature-pr";
   if (currentBranch.includes("develop") || currentBranch.includes("release")) return "gitflow";
@@ -203,6 +217,10 @@ export async function detectGit(rootDir: string): Promise<GitDetection> {
       : localBranches?.includes("master")
         ? "master"
         : undefined);
+  const hasLocalStaging = localBranches?.includes("staging") ?? false;
+  const hasRemoteStaging =
+    remoteBranches?.some((branch) => branch === "origin/staging" || branch.endsWith("/staging")) ??
+    false;
 
   return {
     provider: provider.provider,
@@ -216,11 +234,8 @@ export async function detectGit(rootDir: string): Promise<GitDetection> {
     currentBranch,
     defaultBranch,
     isDirty: Boolean(status),
-    hasLocalStaging: localBranches?.includes("staging") ?? false,
-    hasRemoteStaging:
-      remoteBranches?.some(
-        (branch) => branch === "origin/staging" || branch.endsWith("/staging"),
-      ) ?? false,
-    workflow: inferWorkflow(currentBranch),
+    hasLocalStaging,
+    hasRemoteStaging,
+    workflow: inferWorkflow(currentBranch, hasLocalStaging, hasRemoteStaging),
   };
 }

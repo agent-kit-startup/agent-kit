@@ -113,6 +113,32 @@ implementation under test rather than a copy. `dashboard/README.md` documents th
 - `.cursor/memory/**` stays private (`!.cursor/memory/**`).
 - Registry SoT is public after Phase B; do not re-add `registry/**` to the private→public allowlist. See [topology-private-public.md](topology-private-public.md).
 
+### Public changelog
+
+The private factory `CHANGELOG.md` may keep a full developer log. Public-sync copies a stripped excerpt: public GitHub `CHANGELOG.md`, GitHub Release notes, and the landing product-notes field must stay consumer and contributor product voice. Never publish CI/CD internals, landing staging/promote plumbing, Hostinger/deploy details, internal ADR chatter, or dogfood-only kit mechanics.
+
+Fence factory-only bullets on their own lines:
+
+```markdown
+<!-- changelog-private -->
+- Hostinger staging hop / landing:promote internals
+<!-- /changelog-private -->
+```
+
+A `### Internal` heading is stripped until the next `##` / `###`. Preview:
+
+```bash
+node scripts/public-changelog.mjs                  # full public markdown
+node scripts/public-changelog.mjs --version 5.6.0  # GitHub Release body (no ## [x.y.z] header)
+node scripts/public-changelog.mjs --version 5.6.0 --blurb
+# short publicNotesBlurb for:
+#   pnpm landing:update-release -- --version 5.6.0 --notes "<blurb>"
+# or --notes-file ./public-release-notes.txt
+# Never pass CHANGELOG.md as --notes-file.
+```
+
+`--json` emits `{ version, date, notes, publicNotesBlurb }`. `notes` is the Keep-a-Changelog section body (GitHub Release). `publicNotesBlurb` is the landing stamp field (heading-free, under 1000 characters).
+
 Release and sync ops: [public-launch.md](public-launch.md), [npm-publish-checklist.md](npm-publish-checklist.md).
 
 ## Mission Kit / Agent Kit / Mission Control naming

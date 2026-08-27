@@ -91,7 +91,7 @@ node scripts/sync-public.mjs --dry-run
 After `git prod` on the private repo, the pipeline automatically:
 
 1. **Creates annotated vX.Y.Z tag** (triggers npm publish + sync-public jobs on **private** `agent-kit-dev`)
-2. **Opens sync PR** with semantic body: Summary + CHANGELOG release notes + source SHA
+2. **Opens sync PR** with semantic body: Summary + public CHANGELOG excerpt (private fences stripped) + source SHA
 3. **Auto-merges PR** after required checks pass (`gh pr merge --auto`)
 
 Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
