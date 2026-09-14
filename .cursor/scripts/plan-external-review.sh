@@ -7,7 +7,8 @@
 # Headless/background PTY: .cursor/memory/decisions/2026-07-28_audits-headless-terminal-honesty.md
 # Hard constraints:
 #   - No Cursor native `stop` hook (see stop-hook-no-hitl-interference)
-#   - Not the full --backend claude tick runner
+#   - Not the run-plan --backend claude tick runner (that backend exists since 2026-09-06, plan major-tom;
+#     audits stay a post-hoc findings monitor, never a tick engine; externalPlanReview.backend is the reviewer key)
 #   - Opt-in via .cursor/context/config.json externalPlanReview.enabled (default false)
 #   - If claude missing: tip + exit 0 (do not fail the plan run); Field Report stays owed
 #   - Never silent agent-shell `claude -p` claimed as a chat audit (honesty invariant)

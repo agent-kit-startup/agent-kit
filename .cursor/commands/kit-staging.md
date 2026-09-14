@@ -13,7 +13,7 @@ Wraps native **git staging**. Does not replace `/git-staging`. Native `/git-stag
 
 Follow the **Prompt: git staging** section in `autogit/gitupdate.md` (same contract as `/git-staging`). Do not copy that routine into this file.
 
-Also honor `.cursor/commands/git-staging.md` (monitor hygiene, lint evidence, Evidence-checks merge gate).
+Also honor `.cursor/commands/git-staging.md` (monitor hygiene, lint evidence, agent signature gate, Evidence-checks merge gate). The agent signature gate is a hard stop: `git log origin/staging..HEAD --format=%B | sh git-hooks/prepare-commit-msg --check -` before push and the same `--check -` on the PR body before merge; exit 1 means fix the message, never merge over it.
 
 ## 2. Decide whether landing work applies
 

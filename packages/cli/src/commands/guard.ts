@@ -18,6 +18,21 @@ async function detectCurrentBranch(): Promise<string | undefined> {
     return undefined;
   }
 }
+
+/** `git remote -v` -> { name: url }, for resolving `git push <remote-name>` targets. */
+async function detectRemotes(): Promise<Record<string, string> | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["remote", "-v"], { encoding: "utf8" });
+    const remotes: Record<string, string> = {};
+    for (const line of stdout.split("\n")) {
+      const m = line.match(/^(\S+)\s+(\S+)\s+\(fetch\)$/);
+      if (m?.[1] && m[2]) remotes[m[1]] = m[2];
+    }
+    return Object.keys(remotes).length > 0 ? remotes : undefined;
+  } catch {
+    return undefined;
+  }
+}
 export const guardCommand = defineCommand({
   meta: {
     name: "guard",
@@ -28,7 +43,7 @@ export const guardCommand = defineCommand({
       meta: {
         name: "shell",
         description:
-          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
+          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod + direct git push/gh pr create|merge against the public repo). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
       },
       args: {
         json: {
@@ -47,8 +62,11 @@ export const guardCommand = defineCommand({
           const payload = await readStdinJson<{ command?: string }>();
           command = typeof payload.command === "string" ? payload.command : "";
         }
-        const currentBranch = await detectCurrentBranch();
-        const result = evaluateShellCommand(command, { currentBranch });
+        const [currentBranch, remotes] = await Promise.all([
+          detectCurrentBranch(),
+          detectRemotes(),
+        ]);
+        const result = evaluateShellCommand(command, { currentBranch, remotes });
         console.log(JSON.stringify(result));
       },
     }),

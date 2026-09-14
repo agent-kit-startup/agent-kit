@@ -75,13 +75,20 @@ describe("printInstallEpilogue", () => {
     });
     const printed = lines.join("\n");
     expect(printed).toContain("1. Keep using npx");
-    expect(printed).toContain("npx @dadado/agent-kit-cli <subcommand>");
+    expect(printed).toContain("npx @dadado/agent-kit-cli@latest <subcommand>");
     expect(printed).toContain("2. Put a bare `agent-kit` on PATH");
-    expect(printed).toContain("npx @dadado/agent-kit-cli setup-global");
+    expect(printed).toContain("npx @dadado/agent-kit-cli@latest setup-global");
+    expect(printed).toContain("npm i -g @dadado/agent-kit-cli@latest");
     expect(printed).toContain("3. Manual steps");
     expect(printed).toContain("docs/getting-started.md");
     // Beginner-first: name the symptom before the choices.
     expect(printed.indexOf("won't work yet")).toBeLessThan(printed.indexOf("1. Keep using npx"));
+  });
+
+  it("wires warnIfRunningCliBehindNpm at the start of install", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const src = await readFile(new URL("./install.ts", import.meta.url), "utf8");
+    expect(src).toMatch(/warnIfRunningCliBehindNpm/);
   });
 
   it("emits no ANSI escape codes when color is disabled (NO_COLOR/CI fallback)", () => {

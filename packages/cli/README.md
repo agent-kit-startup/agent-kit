@@ -14,10 +14,10 @@ Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (ru
 From your project root (Node.js 20+):
 
 ```bash
-npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli@latest install
 ```
 
-Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install:
+Use `@latest` so npx does not reuse a stale cached CLI. Pin a version when you need a reproducible install:
 
 ```bash
 npx @dadado/agent-kit-cli@x.y.z install
@@ -26,7 +26,7 @@ npx @dadado/agent-kit-cli@x.y.z install
 Optional L1 packs:
 
 ```bash
-npx @dadado/agent-kit-cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli@latest install --pack clean-code,context-management
 ```
 
 Install writes L0 kit files under `.cursor/`, plus `autogit/` and `.cursor/agent-kit.json`. It does not copy the Agent Kit monorepo into your project.
@@ -62,7 +62,7 @@ NO_COLOR=1 agent-kit
 # → plain text (no ANSI); also plain when stdout is not a TTY or CI=1
 ```
 
-Subcommands and `agent-kit --version` are unchanged. Chat-only HITL flows (`/start-project`, `/git-staging`, `/git-prod`, `/run-plan-all`, backlog CRUD) are not CLI commands.
+Subcommands and `agent-kit --version` are unchanged. `agent-kit run <slash>` starts those project slashes headless from `.cursor/commands/` (numbered-list HITL). `/git-prod` and `/kit-prod` stay operator-gated and are omitted from that catalog.
 
 On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `update`, `run-plan` ticks) show an in-process ANSI spinner plus a rotating Mission Kit tip. Set `AGENT_KIT_REDUCED_MOTION=1` for static text on a capable TTY. Runtime dependencies stay `@clack/prompts`, `citty`, and `kolorist` (no `ora` / `figlet` / `chalk` / `ink`). Window titles for `agent-kit dashboard` and `agent-kit dashboard-broadcast` use the workspace basename, not the CLI package folder.
 
@@ -78,6 +78,7 @@ On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `upda
 | `agent-kit dashboard` | Start Mission Control for this workspace (browser panel) |
 | `agent-kit mission-control` | ASCII Mission Control TUI (`--once` for one frame) |
 | `agent-kit add <id>` | Install a skill or L1 pack |
+| `agent-kit run <slash>` | One headless session from an L0 slash file (numbered-list HITL; never git-prod) |
 | `agent-kit run-plan` | Headless continuous plan runner (never promotes to production) |
 
 Run `agent-kit --help` or `agent-kit <command> --help` for the full surface.

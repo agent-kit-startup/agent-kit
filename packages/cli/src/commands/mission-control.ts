@@ -65,6 +65,10 @@ export const missionControlCommand = defineCommand({
         write: (chunk) => {
           process.stdout.write(chunk);
         },
+        stdin: process.stdin,
+        exit: (code) => {
+          process.exit(code);
+        },
       },
     });
 

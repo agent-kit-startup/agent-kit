@@ -36,7 +36,7 @@ Never append \`Co-Authored-By: Claude ...\` or \`Claude-Session: https://claude.
 
 - Not Action A7 (Windsurf / VS Code generator parity)
 - Not Claude external plan-review audits (\`/plan-external-review\`)
-- Not \`--backend claude\` plan-loop ticks
+- Not a second tick dialect: \`agent-kit run-plan --backend claude\` runs the same one-tick contract as \`cursor-agent\` (shipped 2026-09-06, plan \`major-tom\` Phase 1 under ADR \`2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13\`; ADR \`2026-09-04_major-tom-autonomous-mode.md\`); never \`/git-prod\` from a headless tick
 - Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (\`agent-kit hook session-start --format claude\`); no \`.claude/rules/\` mirrors, no \`.claude/agents/\` generated from the registry
 `;
 }
@@ -60,7 +60,7 @@ If HANDOFF is missing, say so and point at \`/agent-kit-onboard\` or \`/start-pr
 
 HITL: numbered-list fallback for Ask questions labels. Never \`/git-prod\` from this skill.
 
-Non-goals: not audits / \`/plan-external-review\`, not \`--backend claude\` ticks, not A7, not Cursor hook clones, not a continuous TUI loop.
+Non-goals: not audits / \`/plan-external-review\`, not a second tick dialect (\`run-plan --backend claude\` is the shipped headless tick since 2026-09-06, plan \`major-tom\`), not A7, not Cursor hook clones, not a continuous TUI loop.
 `;
 }
 

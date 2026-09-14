@@ -604,9 +604,9 @@ cmd_install() {
     mkdir -p "$TARGET/.git/hooks"
     cp "$AGENT_KIT/git-hooks/prepare-commit-msg" "$TARGET/.git/hooks/prepare-commit-msg"
     chmod +x "$TARGET/.git/hooks/prepare-commit-msg"
-    echo "  + .git/hooks/prepare-commit-msg (removes Co-authored-by Cursor from commits)"
+    echo "  + .git/hooks/prepare-commit-msg (removes coding-agent signatures and session links from commits)"
   else
-    echo "Prepare-commit-msg (optional): removes 'Co-authored-by: Cursor' from commits:"
+    echo "Prepare-commit-msg (optional): removes coding-agent signatures and session links (Cursor, Claude Code, Copilot, ...) from commits:"
     echo "  cp agent-kit/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg"
   fi
   echo ""

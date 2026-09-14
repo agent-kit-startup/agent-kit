@@ -22,3 +22,6 @@ function loadPackageVersion(): string {
 
 /** Published package version written into agent-kit.json on install/update. */
 export const KIT_VERSION = loadPackageVersion();
+
+/** npm spec of this CLI, used when telling an operator to upgrade the binary. */
+export const KIT_PACKAGE_SPEC = "@dadado/agent-kit-cli";

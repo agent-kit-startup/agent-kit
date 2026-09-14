@@ -11,7 +11,11 @@ import {
 } from "./external-review.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
-import { formatSentinelLine, parseSentinelFromLogFile } from "./sentinel.js";
+import {
+  formatSentinelLine,
+  parseSentinelFromLogFile,
+  parseTickResultStatusFromLogFile,
+} from "./sentinel.js";
 
 export const TICK_PROMPT =
   '/run-plan - single tick from the headless runner (agent-kit run-plan). Read .cursor/HANDOFF.md and the active plan in .cursor/plans/. Mark the next to-do as in_progress in the frontmatter, execute ONLY that to-do, mark completed and update HANDOFF. If there is a commitable diff: run /git-staging without asking for confirmation. NEVER /git-prod. Do NOT re-arm an internal Loop skill - the external runner starts the next agent. End the response with exactly one line: "LOOP_TICK_RESULT: continue" if implementable to-dos remain, or "LOOP_TICK_RESULT: stop - <reason>" (plan exhausted, external blocker, or human decision needed).';
@@ -154,8 +158,25 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         // log may be missing if spawn failed early
       }
 
+      // A stream-json result with is_error names the real cause (auth, gateway,
+      // max-turns) whether the CLI exited 0 or not; without it the tick would
+      // stop as "no sentinel" or "exited with code N" and the cause would sit
+      // only in the log. The log is already redacted, so quoting it is safe.
+      const status = await parseTickResultStatusFromLogFile(logPath);
+      if (status?.isError) {
+        const detail = status.errors[0] ? `: ${status.errors[0].split("\n")[0]}` : "";
+        const msg = `${opts.backend.id} tick failed (${status.subtype ?? "is_error"}${detail}) - stopping. See log: ${relLog}`;
+        if (banners) {
+          banners.tickEnd(status.subtype ?? "is_error");
+          banners.stop(msg);
+        } else {
+          console.log(msg);
+        }
+        break;
+      }
+
       if (agentExit !== 0) {
-        const msg = `${opts.backend.id} exited with code ${agentExit} - stopping. See log: ${logPath}`;
+        const msg = `${opts.backend.id} exited with code ${agentExit} - stopping. See log: ${relLog}`;
         if (banners) {
           banners.tickEnd(`exit ${agentExit}`);
           banners.stop(msg);

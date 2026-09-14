@@ -209,7 +209,7 @@ Top navigation carries the primary sections; the rest are reachable from the Mor
 
 - `pre-commit` - Block direct commits to main/master branches
 - `pre-push` - Block direct pushes to main/master and protect v* tags
-- `prepare-commit-msg` - Remove Co-authored-by trailer from Cursor
+- `prepare-commit-msg` - Remove coding-agent signatures and session links (Cursor, Claude Code, Copilot, peers) from commit messages; `--check` scans a message for the staging/prod gate
 
 ---
 
@@ -288,7 +288,7 @@ CLI dashboard packaging: Mission Control `dashboard/**` ships inside `@dadado/ag
 Comprehensive onboarding system introduced in 4.5.0. `/agent-kit-onboard` namespaced journey with essential/non-essential pillar checks, evidence-based personalization, and merge-safe profile management. CLI doctor integration with hooks health and installation diagnostics.
 
 ### Consumer overlay protection
-Hash-based content preservation system introduced in [Unreleased]. Managed-content ledger (`.cursor/agent-kit.managed-hashes.json`) preserves customized agents/skills/commands during updates while refreshing unedited kit files. L0 overlay golden rule scoped to agent trees.
+Hash-based content preservation system introduced in [Unreleased]. Managed-content ledger (`.cursor/agent-kit.managed-hashes.json`) preserves customized agents/skills/commands/hooks/scripts during updates while refreshing unedited kit files. L0 overlay golden rule scoped to those trees (hooks and scripts joined after a consumer lost a committed widening of the pre-commit secrets hook to a no-op `update`).
 
 ---
 

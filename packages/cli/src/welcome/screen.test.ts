@@ -80,7 +80,7 @@ describe("renderWelcomeScreen", () => {
     expect(out).toContain("HITL");
     expect(out.includes("\u001b")).toBe(false);
     expect(out).toMatch(
-      /Try agent-kit doctor|HITL gates stay|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
+      /Try agent-kit doctor|HITL Ask UI|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
     );
   });
 
@@ -130,10 +130,18 @@ describe("renderGroupedRootHelp", () => {
     expect(text).toContain("DASHBOARD");
     expect(text).toContain("INTEGRITY");
     expect(text).toContain("init");
-    expect(text).toContain("Chat-only HITL");
+    expect(text).toContain("Ask questions is Cursor-only");
+    expect(text).toContain("agent-kit run");
+    expect(text).toContain("`/git-prod` stays operator-gated");
     expect(text).toMatch(
-      /Try agent-kit doctor|HITL gates stay|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
+      /Try agent-kit doctor|HITL Ask UI|never promotes|Mission Control is the dashboard|NO_COLOR and CI|groups SETUP/,
     );
+    expect(CLI_HELP_GROUPS.find((g) => g.id === "mission")?.commands).toEqual([
+      "handoff",
+      "plan-index",
+      "run",
+      "run-plan",
+    ]);
     for (const g of CLI_HELP_GROUPS) {
       expect(g.commands.length).toBeGreaterThan(0);
     }

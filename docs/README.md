@@ -13,6 +13,7 @@
 - [Bootstrap](bootstrap.md) - install without nested `agent-kit/` folder
 - [Repository readiness onboarding](repository-readiness-onboarding.md) - install discovery, guided preparation, and handoff to `/start-project`
 - [Migrate consumer](migrate-consumer.md) - generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
+- [Ubuntu 24.04 bare-metal install](install-ubuntu24-bare-metal.md) - fresh server with no Node.js, non-interactive provisioning in front of the same CLI path
 
 ## Configuration and features
 
@@ -27,7 +28,7 @@
 - [Agent Kit manifest](agent-kit-manifest.md) - `.cursor/agent-kit.json` schema (version, packs, protected L3)
 - [Layers specification](layers-spec.md) - L0–L3 model, precedence, nomenclature
 - [Repository Boundaries](repository-boundaries.md) - three-layer cheat sheet (local / private / public), npm, sync
-- [Cursor 3.0 Features](cursor-3-features.md) - how Mission Kit uses native IDE features
+- [Cursor Native Features](cursor-3-features.md) - how Mission Kit uses native IDE features
 - [Cursor-native audit](cursor-native-audit.md) - hooks.json, plugin, rule modes, VS Code/Windsurf gaps
 
 ## Development

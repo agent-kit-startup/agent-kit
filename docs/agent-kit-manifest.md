@@ -49,7 +49,7 @@ Do **not** protect the whole `.cursor/context/**` tree: kit L0 ships `templates/
 
 Do **not** blanket-protect `.cursor/agents/**`, `.cursor/skills/**`, or `.cursor/commands/**`: that blocks pack and `agent-kit add` installs. User-added basenames in those trees already survive update; kit-owned files with local drift are preserved via the consumer overlay (managed-content hashes in `.cursor/agent-kit.managed-hashes.json`). Prefer distinct basenames or `overrides` for intentional forks; use `diff` / contribute when you want upstream to absorb a local edit. See [layers-spec.md](layers-spec.md) and decision `2026-07-29_consumer-l0-overlay-agents-optional.md`.
 
-Add your project's own domain rules as extra `protected` patterns or `overrides` entries when they live outside the overlay trees.
+Add your project's own domain rules as extra `protected` patterns or `overrides` entries when they live outside the overlay trees (`.cursor/agents/`, `.cursor/skills/`, `.cursor/commands/`, `.cursor/hooks/`, `.cursor/scripts/`). Inside those trees a customized kit file is preserved by the managed-content ledger and named in the apply output; add a single path to `protected` only when it must never refresh (for example a widened `.cursor/hooks/pre-commit/check-secrets.sh`).
 
 ## Example
 

@@ -3,13 +3,17 @@
  * Tokens and motion/color gates come from the visual kit (no parallel palette).
  */
 
-import { gray, trueColor } from "kolorist";
+import { trueColor } from "kolorist";
 import {
   HELMET_ACCENT,
   HELMET_FILL,
   HELMET_OUTLINE,
   LABEL_MUTED,
   SPACE_MARKS,
+  STATUS_ERR,
+  STATUS_INFO,
+  STATUS_OK,
+  STATUS_WARN,
   type WelcomeRenderOptions,
   shouldUseVisualMotion,
   shouldUseWelcomeColor,
@@ -19,11 +23,52 @@ import {
 } from "../welcome/visual-kit.js";
 import type { McTuiView } from "./view.js";
 
-export { HELMET_ACCENT, HELMET_FILL, HELMET_OUTLINE, LABEL_MUTED };
+export {
+  HELMET_ACCENT,
+  HELMET_FILL,
+  HELMET_OUTLINE,
+  LABEL_MUTED,
+  STATUS_ERR,
+  STATUS_INFO,
+  STATUS_OK,
+  STATUS_WARN,
+};
 
 const DEFAULT_COLUMNS = 80;
 const MIN_COLUMNS = 40;
 const INNER_PAD = 2;
+const ESC = "\u001b";
+const ANSI_RE = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
+const STATUS_OK_KEYS = new Set([
+  "executing",
+  "completed",
+  "ok",
+  "run_plan",
+  "success",
+  "done",
+  "started",
+  "merged",
+]);
+const STATUS_WARN_KEYS = new Set([
+  "awaiting",
+  "awaiting_user",
+  "warning",
+  "handoff",
+  "stopped",
+  "residual",
+]);
+const STATUS_ERR_KEYS = new Set(["error", "failed", "fail", "blocked", "incomplete", "fix"]);
+const STATUS_INFO_KEYS = new Set([
+  "backlog",
+  "queued",
+  "parked",
+  "delivery",
+  "memory",
+  "activity",
+  "advice",
+  "prompt",
+]);
 
 export type McTuiRenderOptions = WelcomeRenderOptions & {
   columns?: number;
@@ -42,8 +87,29 @@ function hexPaint(hex: string, text: string, color: boolean): string {
 }
 
 function muted(text: string, color: boolean): string {
-  if (!color) return text;
-  return withKoloristColor(() => gray(text));
+  return hexPaint(LABEL_MUTED, text, color);
+}
+
+function statusTokenHex(token: string): string {
+  const key = token.trim().toLowerCase();
+  if (STATUS_OK_KEYS.has(key)) return STATUS_OK;
+  if (STATUS_WARN_KEYS.has(key)) return STATUS_WARN;
+  if (STATUS_ERR_KEYS.has(key)) return STATUS_ERR;
+  if (STATUS_INFO_KEYS.has(key)) return STATUS_INFO;
+  return HELMET_OUTLINE;
+}
+
+function paintStatus(text: string, color: boolean): string {
+  return hexPaint(statusTokenHex(text), text, color);
+}
+
+function visibleLength(text: string): number {
+  return text.replace(ANSI_RE, "").length;
+}
+
+function clipToVisible(text: string, max: number): string {
+  if (visibleLength(text) <= max) return text;
+  return text.replace(ANSI_RE, "").slice(0, max);
 }
 
 function box(title: string, bodyLines: string[], width: number, color: boolean): string[] {
@@ -54,9 +120,10 @@ function box(title: string, bodyLines: string[], width: number, color: boolean):
   const bottom = `└${"─".repeat(inner)}┘`;
   const paintedTop = hexPaint(HELMET_FILL, top, color);
   const paintedBottom = hexPaint(HELMET_OUTLINE, bottom, color);
+  const max = inner - INNER_PAD;
   const rows = bodyLines.map((line) => {
-    const clipped = line.length > inner - INNER_PAD ? line.slice(0, inner - INNER_PAD) : line;
-    const pad = " ".repeat(Math.max(0, inner - INNER_PAD - clipped.length));
+    const clipped = clipToVisible(line, max);
+    const pad = " ".repeat(Math.max(0, max - visibleLength(clipped)));
     const content = ` ${clipped}${pad} `;
     return `${hexPaint(HELMET_OUTLINE, "│", color)}${content}${hexPaint(HELMET_OUTLINE, "│", color)}`;
   });
@@ -66,6 +133,21 @@ function box(title: string, bodyLines: string[], width: number, color: boolean):
 function lineOrQuiet(text: string | null, fallback: string): string {
   const trimmed = text?.trim();
   return trimmed ? trimmed : fallback;
+}
+
+function labeled(label: string, value: string, color: boolean, valueHex = HELMET_OUTLINE): string {
+  return `${hexPaint(LABEL_MUTED, label, color)}${hexPaint(valueHex, value, color)}`;
+}
+
+function paintNowLine(flight: McTuiView["flightLog"], color: boolean): string {
+  if (!flight.now) {
+    return labeled("NOW  ", "All clear", color, STATUS_OK);
+  }
+  const kind = flight.nowKind?.trim();
+  const prefix = kind
+    ? `${hexPaint(LABEL_MUTED, "NOW ", color)}${hexPaint(statusTokenHex(kind), `(${kind})`, color)}${hexPaint(HELMET_OUTLINE, "  ", color)}`
+    : hexPaint(LABEL_MUTED, "NOW   ", color);
+  return `${prefix}${hexPaint(HELMET_OUTLINE, flight.now, color)}`;
 }
 
 /**
@@ -86,23 +168,28 @@ export function renderMcTui(view: McTuiView, opts: McTuiRenderOptions = {}): str
   );
 
   const missionBody = view.error
-    ? [wrapNarrow(view.error, columns - 4).split("\n")[0] ?? view.error]
+    ? [
+        hexPaint(
+          STATUS_ERR,
+          wrapNarrow(view.error, columns - 4).split("\n")[0] ?? view.error,
+          color,
+        ),
+      ]
     : [
-        `status  ${view.mission.status}${view.mission.mode ? `  ·  ${view.mission.mode}` : ""}`,
-        `plan    ${lineOrQuiet(view.mission.planFile, "none")}`,
-        `todos   ${view.mission.progressLabel}`,
-        `now     ${lineOrQuiet(view.mission.currentTodo, "none")}`,
-        `next    ${lineOrQuiet(view.mission.nextTodo, "none")}`,
+        `${hexPaint(LABEL_MUTED, "status  ", color)}${paintStatus(view.mission.status, color)}${
+          view.mission.mode ? hexPaint(HELMET_OUTLINE, `  ·  ${view.mission.mode}`, color) : ""
+        }`,
+        labeled("plan    ", lineOrQuiet(view.mission.planFile, "none"), color),
+        labeled("todos   ", view.mission.progressLabel, color),
+        labeled("now     ", lineOrQuiet(view.mission.currentTodo, "none"), color),
+        labeled("next    ", lineOrQuiet(view.mission.nextTodo, "none"), color),
       ];
 
-  const nowLabel = view.flightLog.now
-    ? `NOW ${view.flightLog.nowKind ? `(${view.flightLog.nowKind})` : ""}  ${view.flightLog.now}`
-    : "NOW  All clear";
   const flightBody = [
-    nowLabel,
-    ...(view.flightLog.warnings.length > 0 ? view.flightLog.warnings.map((w) => `warn  ${w}`) : []),
+    paintNowLine(view.flightLog, color),
+    ...view.flightLog.warnings.map((w) => labeled("warn  ", w, color, STATUS_WARN)),
     ...(view.flightLog.earlier.length > 0
-      ? view.flightLog.earlier.map((t) => `Earlier  ${t}`)
+      ? view.flightLog.earlier.map((t) => labeled("Earlier  ", t, color))
       : [muted("Earlier  none", color)]),
   ];
 
@@ -111,13 +198,16 @@ export function renderMcTui(view: McTuiView, opts: McTuiRenderOptions = {}): str
       ? [muted("no open plans", color)]
       : view.checklist.map((row) => {
           const todo = row.currentTodo ? `  ·  ${row.currentTodo}` : "";
-          return `${row.file}  ${row.lifecycle}  ${row.progressLabel}${todo}`;
+          return `${hexPaint(HELMET_OUTLINE, `${row.file}  `, color)}${paintStatus(row.lifecycle, color)}${hexPaint(HELMET_OUTLINE, `  ${row.progressLabel}${todo}`, color)}`;
         });
 
   const crewBody =
     view.crewMonitor.length === 0
       ? [muted("quiet", color)]
-      : view.crewMonitor.map((row) => `${row.kind}  ${row.label}`);
+      : view.crewMonitor.map(
+          (row) =>
+            `${paintStatus(row.kind, color)}${hexPaint(HELMET_OUTLINE, `  ${row.label}`, color)}`,
+        );
 
   const panels = [
     ...box("Mission", missionBody, columns, color),

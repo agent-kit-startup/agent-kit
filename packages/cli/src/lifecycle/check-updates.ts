@@ -10,6 +10,7 @@ import {
 } from "../registry/resolve.js";
 import { readJson, writeJson } from "../utils/fs.js";
 import { diffAgainstRegistry, summarizeDiff } from "./diff.js";
+import { KIT_PACKAGE_SPEC, KIT_VERSION } from "./version.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -131,6 +132,30 @@ export async function fetchLatestPublicVersion(
   return pickLatestSemverTag(stdout);
 }
 
+/** npm abbreviated document for `@dadado/agent-kit-cli@latest` (`dist-tags.latest`). */
+export const NPM_CLI_LATEST_URL = "https://registry.npmjs.org/@dadado%2Fagent-kit-cli/latest";
+
+/**
+ * Resolve npm `dist-tags.latest` for this CLI package. Fail-open: returns null
+ * on network/parse errors. Tests inject `latestVersion` and never call this.
+ */
+export async function fetchLatestNpmDistTag(): Promise<string | null> {
+  try {
+    const res = await fetch(NPM_CLI_LATEST_URL, {
+      method: "GET",
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+    const version = (body as { version?: unknown }).version;
+    return typeof version === "string" ? normalizeSemver(version) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function readUpdateCheckPrefs(config: unknown): UpdateCheckPrefs {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     return { ...DEFAULT_UPDATE_CHECK };
@@ -208,7 +233,13 @@ export interface CheckForUpdatesOptions {
   now?: Date;
 }
 
-async function readLocalKitVersion(registryRoot: string): Promise<string | null> {
+/**
+ * Version of the kit checkout at `registryRoot` (the source content), which is
+ * independent of the version of the CLI binary reading it. The apply path
+ * compares the two: a binary older than the source would stamp a manifest
+ * version it cannot actually deliver.
+ */
+export async function readLocalKitVersion(registryRoot: string): Promise<string | null> {
   for (const rel of ["packages/cli/package.json", "package.json"] as const) {
     const data = await readJson<{ version?: unknown }>(path.join(registryRoot, rel));
     if (data && typeof data.version === "string" && data.version.length > 0) {
@@ -468,6 +499,14 @@ export async function checkForUpdates(
     };
   }
   if (cmp < 0) {
+    // `/update` alone cannot reach `latest` when the CLI running it is itself
+    // older: the apply path stamps the manifest with this binary's
+    // KIT_VERSION. Name the binary upgrade first so following this message
+    // verbatim cannot leave the operator on the old version.
+    const cliBehind = compareSemver(KIT_VERSION, latest) < 0;
+    const remedy = cliBehind
+      ? `This CLI is v${KIT_VERSION}, older than v${latest} — upgrade the binary first (\`npm i -g ${KIT_PACKAGE_SPEC}@${latest}\`), then run /update (Ask confirm); /update alone would re-apply v${KIT_VERSION}.`
+      : "Run /update (Ask confirm) to apply; never silent.";
     return {
       status: "update-available",
       installedVersion: installed,
@@ -475,7 +514,7 @@ export async function checkForUpdates(
       registryUrl,
       registryRef,
       applyRecommended: false,
-      message: `Update available: v${installed} → v${latest}. Run /update (Ask confirm) to apply; never silent.`,
+      message: `Update available: v${installed} → v${latest}. ${remedy}`,
     };
   }
   return {
@@ -487,4 +526,169 @@ export async function checkForUpdates(
     applyRecommended: false,
     message: `Installed v${installed} is ahead of latest public v${latest} (dev/local build).`,
   };
+}
+
+export type RunningCliCheckStatus =
+  | "up-to-date"
+  | "behind"
+  | "ahead"
+  | "skipped-disabled"
+  | "skipped-interval"
+  | "error";
+
+export interface RunningCliCheckResult {
+  status: RunningCliCheckStatus;
+  runningVersion: string;
+  latestVersion: string | null;
+  message: string;
+}
+
+export interface CheckRunningCliOptions {
+  /** When true (default at install/doctor), honor updateCheck.enabled + intervalDays. */
+  respectPrefs?: boolean;
+  /** Persist updateCheck.lastCheckedAt after a network check. */
+  stamp?: boolean;
+  /** Injected npm latest (tests). Skips fetch when set. */
+  latestVersion?: string | null;
+  /** Injected fetcher (tests). */
+  fetchLatest?: () => Promise<string | null>;
+}
+
+function runningCliBehindMessage(running: string, latest: string): string {
+  return `Running CLI v${running} is behind npm latest v${latest}. Re-run with npx ${KIT_PACKAGE_SPEC}@latest or npm i -g ${KIT_PACKAGE_SPEC}@${latest}.`;
+}
+
+/**
+ * Compare this process's KIT_VERSION to npm dist-tags.latest.
+ * Independent of agent-kit.json (install may have no manifest yet).
+ * Never applies L0. Reuses updateCheck opt-in + interval so the default is no network.
+ */
+export async function checkRunningCliVsNpmLatest(
+  cwd: string,
+  options: CheckRunningCliOptions = {},
+): Promise<RunningCliCheckResult> {
+  const running = normalizeSemver(KIT_VERSION) ?? KIT_VERSION;
+
+  if (options.respectPrefs) {
+    const config = await loadContextConfig(cwd);
+    const prefs = readUpdateCheckPrefs(config);
+    if (!prefs.enabled) {
+      return {
+        status: "skipped-disabled",
+        runningVersion: running,
+        latestVersion: null,
+        message:
+          "updateCheck.enabled is false (opt-in). Set true in .cursor/context/config.json to nudge.",
+      };
+    }
+    if (!intervalElapsed(prefs.lastCheckedAt, prefs.intervalDays)) {
+      return {
+        status: "skipped-interval",
+        runningVersion: running,
+        latestVersion: null,
+        message: `Within updateCheck.intervalDays (${prefs.intervalDays}); last check ${prefs.lastCheckedAt}.`,
+      };
+    }
+  }
+
+  let latest: string | null;
+  try {
+    if (options.latestVersion !== undefined) {
+      latest = options.latestVersion;
+    } else if (options.fetchLatest) {
+      latest = await options.fetchLatest();
+    } else {
+      latest = await fetchLatestNpmDistTag();
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      status: "error",
+      runningVersion: running,
+      latestVersion: null,
+      message: `Failed to fetch npm latest: ${msg}`,
+    };
+  }
+
+  if (options.stamp) {
+    try {
+      await stampLastCheckedAt(cwd);
+    } catch {
+      // Stamp is best-effort; check result still valid.
+    }
+  }
+
+  if (!latest) {
+    return {
+      status: "error",
+      runningVersion: running,
+      latestVersion: null,
+      message: "No semver on npm dist-tags.latest for @dadado/agent-kit-cli.",
+    };
+  }
+
+  let cmp: number;
+  try {
+    cmp = compareSemver(running, latest);
+  } catch {
+    return {
+      status: "error",
+      runningVersion: running,
+      latestVersion: latest,
+      message: `Invalid semver for compare: "${running}" vs "${latest}"`,
+    };
+  }
+
+  if (cmp === 0) {
+    return {
+      status: "up-to-date",
+      runningVersion: running,
+      latestVersion: latest,
+      message: `Running CLI v${running} matches npm latest v${latest}.`,
+    };
+  }
+  if (cmp < 0) {
+    return {
+      status: "behind",
+      runningVersion: running,
+      latestVersion: latest,
+      message: runningCliBehindMessage(running, latest),
+    };
+  }
+  return {
+    status: "ahead",
+    runningVersion: running,
+    latestVersion: latest,
+    message: `Running CLI v${running} is ahead of npm latest v${latest} (dev/local build).`,
+  };
+}
+
+/**
+ * Install/doctor entry: honor prefs, stamp after a network check, print only when behind.
+ * Fail-open: never throws into the command.
+ */
+export async function warnIfRunningCliBehindNpm(
+  cwd: string,
+  options: CheckRunningCliOptions & { warn?: (message: string) => void } = {},
+): Promise<RunningCliCheckResult> {
+  try {
+    const result = await checkRunningCliVsNpmLatest(cwd, {
+      respectPrefs: options.respectPrefs ?? true,
+      stamp: options.stamp ?? true,
+      latestVersion: options.latestVersion,
+      fetchLatest: options.fetchLatest,
+    });
+    if (result.status === "behind") {
+      (options.warn ?? ((message: string) => console.warn(message)))(result.message);
+    }
+    return result;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      status: "error",
+      runningVersion: normalizeSemver(KIT_VERSION) ?? KIT_VERSION,
+      latestVersion: null,
+      message: msg,
+    };
+  }
 }

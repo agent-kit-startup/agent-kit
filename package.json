@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "5.7.0",
+  "version": "5.8.0",
   "description": "HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; Cursor-first with partial generators for VS Code and Windsurf.",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -36,7 +36,8 @@
     "overlay:hashes:check": "pnpm --dir packages/cli run overlay:hashes:check",
     "check:public-deny-links:test": "node --test scripts/check-public-deny-links.test.mjs",
     "changelog:public": "node scripts/public-changelog.mjs",
-    "test:root-node": "node --test .cursor/scripts/plan-external-review-progress-gate.test.mjs .cursor/scripts/plan-external-review-cloud-backend.test.mjs .cursor/scripts/plan-external-review-atomic-wait.test.mjs .cursor/scripts/plan-external-review-backend-cascade.test.mjs .cursor/scripts/plan-external-review-model-routing.test.mjs .cursor/scripts/comms-draft.test.mjs scripts/check-public-deny-links.test.mjs scripts/check-markdown-links.test.mjs scripts/check-guidance-stale-claims.test.mjs scripts/validate-memory-index.test.mjs scripts/hook-session-start-diagnostic.test.mjs scripts/orchestration-defects-regression.test.mjs scripts/sync-landing.test.mjs scripts/update-landing-release.test.mjs scripts/public-changelog.test.mjs scripts/kit-landing-gate.test.mjs scripts/sync-public-guards.test.mjs scripts/verify-cli-dashboard-pack.test.mjs scripts/git-hooks-pre-commit-composed.test.mjs",
+    "test:root-node": "node --test .cursor/scripts/plan-external-review-progress-gate.test.mjs .cursor/scripts/plan-external-review-cloud-backend.test.mjs .cursor/scripts/plan-external-review-atomic-wait.test.mjs .cursor/scripts/plan-external-review-backend-cascade.test.mjs .cursor/scripts/plan-external-review-model-routing.test.mjs .cursor/scripts/comms-draft.test.mjs scripts/check-public-deny-links.test.mjs scripts/check-markdown-links.test.mjs scripts/check-guidance-stale-claims.test.mjs scripts/validate-memory-index.test.mjs scripts/hook-session-start-diagnostic.test.mjs scripts/orchestration-defects-regression.test.mjs scripts/sync-landing.test.mjs scripts/update-landing-release.test.mjs scripts/public-changelog.test.mjs scripts/kit-landing-gate.test.mjs scripts/sync-public-guards.test.mjs scripts/verify-cli-dashboard-pack.test.mjs scripts/git-hooks-pre-commit-composed.test.mjs scripts/git-hooks-prepare-commit-msg.test.mjs scripts/git-hooks-pre-push.test.mjs",
+    "test:factory-root-node": "node --test scripts/install-ubuntu24-bare-metal.test.mjs",
     "landing:sync": "node scripts/sync-landing.mjs",
     "landing:vendor": "node scripts/sync-landing.mjs",
     "landing:build": "node scripts/build-landing.mjs",

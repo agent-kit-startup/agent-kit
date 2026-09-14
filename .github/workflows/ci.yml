@@ -106,7 +106,11 @@ jobs:
           pnpm landing:build:check
           # Test files for root node --test suites. Scan scripts already run
           # above (deny-links) and on publish-npm (verify-cli-dashboard-pack.mjs).
+          # Factory-only suites (not in public-sync.manifest) stay on
+          # test:factory-root-node so the synced test:root-node path stays
+          # portable after Path C (errors/2026-08-13_public-ci-factory-only-test-files.md).
           pnpm test:root-node
+          pnpm test:factory-root-node
 
       - name: Guard generated CLI dashboard is untracked
         run: |

@@ -14,8 +14,16 @@ export const HELMET_OUTLINE = "#e2e8f0";
 export const HELMET_FILL = "#0C8DEB";
 /** Aqua accent: landing logo gradient late stops. */
 export const HELMET_ACCENT = "#00D0E7";
-/** Muted labels: MC `--text-secondary`. */
+/** Muted labels: MC `--text-secondary` (legacy skin). */
 export const LABEL_MUTED = "#8899aa";
+/** MC `--green` (legacy skin). Status / lifecycle: executing, completed, ok. */
+export const STATUS_OK = "#22c55e";
+/** MC `--yellow` (legacy skin). Status / lifecycle: awaiting, warning. */
+export const STATUS_WARN = "#eab308";
+/** MC `--red` (legacy skin). Status / lifecycle: error, failed. */
+export const STATUS_ERR = "#ef4444";
+/** MC `--cyan` (legacy skin). Status / lifecycle: backlog, queued, delivery. */
+export const STATUS_INFO = "#06b6d4";
 
 /** Braille spinner frames (no ora). */
 export const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const;
@@ -31,7 +39,7 @@ export const SPACE_MARKS = {
 /** Rotating Mission Kit tips. No secrets, tokens, or absolute home paths. */
 export const KIT_TIPS = [
   "Try agent-kit doctor for repository readiness.",
-  "HITL gates stay in Cursor slash commands.",
+  "HITL Ask UI is Cursor-only; agent-kit run uses a numbered list.",
   "/run-plan never promotes to production.",
   "Mission Control is the dashboard, not the CLI name.",
   "NO_COLOR and CI keep this output static.",

@@ -1,11 +1,16 @@
 import { defineCommand } from "citty";
 import { buildManifest, saveManifest } from "../lifecycle/apply.js";
-import { checkForUpdates } from "../lifecycle/check-updates.js";
+import {
+  checkForUpdates,
+  compareSemver,
+  normalizeSemver,
+  readLocalKitVersion,
+} from "../lifecycle/check-updates.js";
 import { seedManagedHashLedger } from "../lifecycle/overlay.js";
 import { logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { syncFromManifest } from "../lifecycle/sync.js";
-import { KIT_VERSION } from "../lifecycle/version.js";
+import { KIT_PACKAGE_SPEC, KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
 import { logger } from "../utils/logger.js";
 import { RootRefusedError, confirmProjectRoot, isNonInteractive } from "../utils/terminal.js";
@@ -48,6 +53,12 @@ export const updateCommand = defineCommand({
       type: "boolean",
       description:
         "Seed the managed-hash ledger from current local overlay files before applying (factory/dogfood only; consumers should not use this)",
+      default: false,
+    },
+    "allow-stale-cli": {
+      type: "boolean",
+      description:
+        "Apply even when this CLI is older than the registry it is syncing from; the manifest is then stamped with this CLI's version, not the registry's (factory/dev only)",
       default: false,
     },
     yes: {
@@ -124,13 +135,63 @@ export const updateCommand = defineCommand({
     try {
       logger.info(`Registry: ${registry.root} (${registry.source})`);
 
+      // The manifest version below is this binary's KIT_VERSION, so an apply
+      // can never deliver a version newer than the CLI running it. Refuse
+      // rather than write a capped manifest and report success -- that is the
+      // shape that makes an operator re-run `update` expecting a bump. The
+      // guard is deliberately not lifted by --yes: non-interactive and hook
+      // paths are exactly where a silent capped write does the most damage.
+      const registryVersionRaw = await readLocalKitVersion(registry.root);
+      const registryVersion = registryVersionRaw ? normalizeSemver(registryVersionRaw) : null;
+      const cliVersion = normalizeSemver(KIT_VERSION);
+      if (!registryVersion) {
+        // Not every registry checkout carries a package.json; that is not a
+        // reason to block an apply.
+        logger.warn(
+          "Could not read a version from the registry checkout - skipping the CLI freshness check.",
+        );
+      } else if (
+        cliVersion &&
+        compareSemver(cliVersion, registryVersion) < 0 &&
+        !args["allow-stale-cli"]
+      ) {
+        logger.error(
+          `This CLI is v${cliVersion}, older than the registry it would apply (v${registryVersion}).`,
+        );
+        console.error(
+          [
+            "",
+            "`agent-kit update` syncs registry content but stamps .cursor/agent-kit.json with the",
+            `version of the CLI running it, so applying now would write v${cliVersion} again, not v${registryVersion}.`,
+            "",
+            "Upgrade the binary first, then re-run:",
+            `  npm i -g ${KIT_PACKAGE_SPEC}@${registryVersion}`,
+            "  agent-kit update",
+            "",
+            `If npm has no ${registryVersion} yet, the release is still mid-publish`,
+            "(content sync and npm publish run in parallel) - retry shortly.",
+            "",
+            "Factory/dev checkouts that intend to apply newer content with an older",
+            "binary can pass --allow-stale-cli.",
+            "",
+          ].join("\n"),
+        );
+        process.exitCode = 1;
+        return;
+      }
+
       const next = buildManifest({
         version: KIT_VERSION,
         profile: existing.profile,
         packs: existing.packs,
         skills: existing.skills,
         protected: existing.protected,
-        personalization: existing.personalization,
+        // Restamp generatorVersion with the CLI that ran this apply so the two
+        // version fields in the manifest stop disagreeing after an update. The
+        // personalization result file itself is not regenerated here.
+        personalization: existing.personalization
+          ? { ...existing.personalization, generatorVersion: KIT_VERSION }
+          : undefined,
         registryUrl: registry.url ?? existing.registry?.url,
         registryRef: registry.ref ?? existing.registry?.ref,
       });
@@ -149,7 +210,13 @@ export const updateCommand = defineCommand({
       );
       await saveManifest(projectRoot, next);
       logApplyStats(stats);
-      logger.success("Update complete (L3 protected paths left untouched).");
+      // State the version actually written: a run that changes no version is a
+      // legitimate outcome, but it must not read the same as one that bumps.
+      const transition =
+        next.version === existing.version
+          ? `unchanged at v${next.version}`
+          : `v${existing.version} → v${next.version}`;
+      logger.success(`Update complete: ${transition} (L3 protected paths left untouched).`);
     } finally {
       await registry.unlock?.();
     }

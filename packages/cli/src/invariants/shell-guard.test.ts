@@ -6,6 +6,8 @@ describe("evaluateShellCommand", () => {
     // Node coerces env values to strings: `= undefined` sets the literal "undefined".
     // biome-ignore lint/performance/noDelete: process.env must be removed, not set to "undefined"
     delete process.env.ALLOW_MAIN_PUSH;
+    // biome-ignore lint/performance/noDelete: process.env must be removed, not set to "undefined"
+    delete process.env.ALLOW_PUBLIC_PUSH;
   });
 
   it("allows benign git status", () => {
@@ -186,6 +188,79 @@ describe("evaluateShellCommand", () => {
     );
   });
 
+  it("denies git push directly targeting the public repo by URL or -R/--repo", () => {
+    const denyForms = [
+      "git push https://github.com/agent-kit-startup/agent-kit.git HEAD:main",
+      "git push git@github.com:agent-kit-startup/agent-kit.git staging",
+      "gh pr create --repo agent-kit-startup/agent-kit --base main --head sync/x",
+      "gh pr merge 12 -R agent-kit-startup/agent-kit --squash",
+    ];
+    for (const cmd of denyForms) {
+      const r = evaluateShellCommand(cmd);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe("public-repo-direct-write");
+    }
+  });
+
+  it("does not confuse the private repo (agent-kit-dev) with the public mirror", () => {
+    const allowForms = [
+      "git push https://github.com/agent-kit-startup/agent-kit-dev.git staging",
+      "gh pr create --repo agent-kit-startup/agent-kit-dev --base staging --head feat/x",
+    ];
+    for (const cmd of allowForms) {
+      expect(evaluateShellCommand(cmd).permission, cmd).toBe("allow");
+    }
+  });
+
+  it("resolves a named remote to the public repo via opts.remotes", () => {
+    const remotes = { public: "https://github.com/agent-kit-startup/agent-kit.git" };
+    const r = evaluateShellCommand("git push public HEAD:main", { remotes });
+    expect(r.permission).toBe("deny");
+    expect(r.rule).toBe("public-repo-direct-write");
+  });
+
+  it("does not treat a generic remote named 'public' as the public repo without a resolved URL", () => {
+    // No opts.remotes provided — a consumer's own "public" remote name must not
+    // false-positive on name alone.
+    expect(evaluateShellCommand("git push public staging").permission).toBe("allow");
+    const remotes = { public: "https://github.com/some-consumer/their-fork.git" };
+    expect(evaluateShellCommand("git push public staging", { remotes }).permission).toBe("allow");
+  });
+
+  it("does not block gh issue operations against the public repo (public-issue-triage's documented flow)", () => {
+    const allowForms = [
+      "gh issue list --repo agent-kit-startup/agent-kit --state open --limit 30",
+      "gh issue comment 5 --repo agent-kit-startup/agent-kit --body hi",
+    ];
+    for (const cmd of allowForms) {
+      expect(evaluateShellCommand(cmd).permission, cmd).toBe("allow");
+    }
+  });
+
+  it("allows a direct public-repo write when ALLOW_PUBLIC_PUSH=1 is inline or in process.env", () => {
+    // Non-main branch dest: isolates the public-repo-write bypass from the
+    // separate git-push-main protection (pushing to the public repo's main
+    // still needs ALLOW_MAIN_PUSH=1 too — the two gates are independent).
+    expect(
+      evaluateShellCommand(
+        "ALLOW_PUBLIC_PUSH=1 git push https://github.com/agent-kit-startup/agent-kit.git sync/x",
+      ).permission,
+    ).toBe("allow");
+    process.env.ALLOW_PUBLIC_PUSH = "1";
+    expect(
+      evaluateShellCommand("gh pr merge 12 -R agent-kit-startup/agent-kit --squash").permission,
+    ).toBe("allow");
+  });
+
+  it("still requires ALLOW_MAIN_PUSH=1 to push to the public repo's main even with ALLOW_PUBLIC_PUSH=1", () => {
+    process.env.ALLOW_PUBLIC_PUSH = "1";
+    const r = evaluateShellCommand(
+      "git push https://github.com/agent-kit-startup/agent-kit.git main",
+    );
+    expect(r.permission).toBe("deny");
+    expect(r.rule).toBe("git-push-main");
+  });
+
   it("exports SHELL_DENY_RULES covering the named deny ids", () => {
     const ids = SHELL_DENY_RULES.map((r) => r.id);
     expect(ids).toEqual([
@@ -193,6 +268,7 @@ describe("evaluateShellCommand", () => {
       "git-restore",
       "git-reset-hard",
       "git-clean-fd",
+      "public-repo-direct-write",
       "git-push-main",
     ]);
     for (const rule of SHELL_DENY_RULES) {
@@ -202,13 +278,17 @@ describe("evaluateShellCommand", () => {
   });
 });
 
-describe("SHELL_DENY_RULES scope (git-workflow only, deliberately)", () => {
-  it("is exactly the five git-scoped rules", () => {
+describe("SHELL_DENY_RULES scope (git-workflow + public-repo-write, deliberately)", () => {
+  it("is exactly the six rules (five git-scoped + the public-repo-write ADR amendment)", () => {
+    // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11 for
+    // agent-signature-leak-guard phase2: widening beyond git-only to also deny
+    // `gh pr create|merge` against the public repo is a deliberate, named exception.
     expect(SHELL_DENY_RULES.map((r) => r.id)).toEqual([
       "git-checkout-path",
       "git-restore",
       "git-reset-hard",
       "git-clean-fd",
+      "public-repo-direct-write",
       "git-push-main",
     ]);
   });

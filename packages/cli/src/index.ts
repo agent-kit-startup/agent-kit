@@ -14,7 +14,9 @@ import { initCommand } from "./commands/init.js";
 import { installCommand } from "./commands/install.js";
 import { missionControlCommand } from "./commands/mission-control.js";
 import { monitorsCommand } from "./commands/monitors.js";
+import { planIndexCommand } from "./commands/plan-index.js";
 import { runPlanCommand } from "./commands/run-plan.js";
+import { runCommand } from "./commands/run.js";
 import { scanCommand } from "./commands/scan.js";
 import { setupGlobalCommand } from "./commands/setup-global.js";
 import { statusCommand } from "./commands/status.js";
@@ -43,6 +45,8 @@ const main = defineCommand({
     diff: diffCommand,
     contribute: contributeCommand,
     handoff: handoffCommand,
+    "plan-index": planIndexCommand,
+    run: runCommand,
     "run-plan": runPlanCommand,
     dashboard: dashboardCommand,
     "dashboard-broadcast": dashboardBroadcastCommand,

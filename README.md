@@ -11,7 +11,7 @@
 
 [Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io)
 
-**Mission Kit** puts a working spine under your AI coding agent: plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal. The kit writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
+**Mission Kit** is the building gear pack for AI coding agent: orchestrated plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal: it writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
 
 Ships as **Agent Kit** on npm (`@dadado/agent-kit-cli`).
 
@@ -20,18 +20,18 @@ Ships as **Agent Kit** on npm (`@dadado/agent-kit-cli`).
 From your project root:
 
 ```bash
-npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli@latest install
 ```
 
-Node.js 20+. Git is recommended; the staging and prod routines depend on it. Pin a version (`@x.y.z`) when you need a reproducible install. Non-interactive: add `-y` and `--yes`.
+Node.js 20+. Git is recommended; the staging and prod routines depend on it. Use `@latest` so npx does not reuse a stale cached CLI. Pin `@x.y.z` when you need a reproducible install. Non-interactive: add `-y` and `--yes`.
 
 `npx` is ephemeral, so bare `agent-kit` will not be on your PATH yet. If you hit `command not found`, run:
 
 ```bash
-npx @dadado/agent-kit-cli setup-global
+npx @dadado/agent-kit-cli@latest setup-global
 ```
 
-or keep prefixing commands with `npx @dadado/agent-kit-cli`.
+or keep prefixing commands with `npx @dadado/agent-kit-cli@latest`.
 
 ## Pick your surface
 

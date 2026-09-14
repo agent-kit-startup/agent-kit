@@ -10,12 +10,12 @@
 
 ```bash
 cd your-project
-npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli@latest install
 ```
 
-Pin with `npx @dadado/agent-kit-cli@x.y.z install` for reproducible setups. In CI or scripts, use `npx -y @dadado/agent-kit-cli install --yes`.
+Use `@latest` so npx does not reuse a stale cached CLI after a new publish. Pin with `npx @dadado/agent-kit-cli@x.y.z install` for reproducible setups. In CI or scripts, use `npx -y @dadado/agent-kit-cli@latest install --yes`. If `npx @dadado/agent-kit-cli --version` is behind `npm view @dadado/agent-kit-cli version`, rerun with `@latest` or clear the npx cache (`npm cache clean --force` / delete the `_npx` cache).
 
-No Node available? `install.md` documents a manual copy path for the base files without the CLI.
+No Node available? `install.md` documents a manual copy path for the base files without the CLI. Provisioning a fresh Ubuntu 24.04 server with no Node.js? [Ubuntu 24.04 bare-metal install](install-ubuntu24-bare-metal.md) adds a Node bootstrap in front of this same command.
 
 ## First session in Cursor
 
@@ -28,15 +28,22 @@ From there:
 - `/git-staging` lands the work on the staging branch through a PR.
 - `/git-prod` promotes staging to main, and only after an explicit Ask.
 
-## First session in Claude Code
+## First session from the terminal
 
-Load the kit with the `--claude` flag during install. You get `CLAUDE.md` and the `/agent-kit` command. Confirmations arrive as numbered lists instead of Cursor's Ask dialogs; reply with the number. `/agent-kit` prints one Mission Control frame (`mission-control --once`) rather than a live loop.
+With `cursor-agent` or `claude` on PATH, start a kit command without opening chat:
+
+```bash
+npx @dadado/agent-kit-cli run backlog-add
+npx @dadado/agent-kit-cli run continue-plan
+```
+
+`--backend auto` (the default) picks the first installed agent CLI. Cursor Ask questions stays Cursor-only; headless confirmations are a numbered list. `agent-kit run git-prod` is refused: `/git-prod` stays operator-gated and is never auto-promoted. `agent-kit run run-plan` wraps the existing one-tick loop. `agent-kit run-plan --backend claude` (or `agent-kit run run-plan --backend claude`) runs that tick loop on Claude Code headless (`claude -p`): same one-to-do tick contract, same `LOOP_TICK_RESULT` sentinel, never `/git-prod`. Flags and env are in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables).
 
 ## Watch progress
 
 Two views of the same state, both named Mission Control:
 
-- **Terminal TUI:** `npx @dadado/agent-kit-cli mission-control`. Live in a TTY; `--once` for a single frame. It reads the same data as the browser dashboard and does not start an HTTP server.
+- **Terminal TUI:** `npx @dadado/agent-kit-cli mission-control`. Live in a TTY (`q` or Ctrl-C quits); `--once` for a single frame. It reads the same data as the browser dashboard and does not start an HTTP server. On a color TTY, field labels use the muted visual-kit token and status values use the dashboard green / yellow / red / cyan tokens; `NO_COLOR`, `CI`, and non-TTY frames stay uncolored.
 - **Browser:** `npx @dadado/agent-kit-cli dashboard` (or `/dashboard` from chat). Binds to `127.0.0.1` by default. To share on your LAN, use `dashboard-broadcast` with its required token.
 
 The browser dashboard ships inside the CLI package since 4.8.2. The install does not copy a `dashboard/` folder into your project; that is expected.
@@ -62,7 +69,7 @@ In an interactive terminal a refusal becomes a warning plus a `Proceed anyway?` 
 `--force-root` is the explicit bypass:
 
 ```bash
-npx @dadado/agent-kit-cli install --force-root
+npx @dadado/agent-kit-cli@latest install --force-root
 ```
 
 It skips every root check, so confirm the absolute path yourself before using it. `install`, `update`, and `init` all take the same flag. A folder that already has `.cursor/agent-kit.json` is never flagged as a parent-of-repos - you confirmed that root on the first install.
@@ -74,7 +81,7 @@ A brand-new folder has no `.git` and no manifest, so the guard above stops there
 | Path | Command | When |
 |------|---------|------|
 | Initialize Git first (**recommended**) | `git init` then re-run the install | You want readiness pillars and the `/git-staging` → `/git-prod` flow to work. Local-only Git is enough - no remote required |
-| Install without Git | `npx @dadado/agent-kit-cli install --force-root` | You are not ready to decide on Git yet |
+| Install without Git | `npx @dadado/agent-kit-cli@latest install --force-root` | You are not ready to decide on Git yet |
 | Say yes at the prompt | Run the install in an interactive terminal and answer **yes** to `Proceed anyway?` | Same as `--force-root`, just interactive. The prompt defaults to **no** |
 
 Either of the last two installs L0 into a folder with no Git. That is supported, not a broken state: `/agent-kit-onboard` owns the Git pillar and will offer `Keep repository without Git` / `Initialize local Git` when you run it. The CLI never runs `git init` for you.
@@ -87,10 +94,10 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 
 1. **Node.js 20+** - required for the CLI (`engines` in package manifests). `npx @dadado/agent-kit-cli <subcommand>` needs nothing else installed; `npm i -g @dadado/agent-kit-cli` is what puts a bare `agent-kit` on your `PATH`.
 2. **Git** - recommended so readiness pillars and `/git-staging` → `/git-prod` work; local-only Git is valid.
-3. **Install** - `npx @dadado/agent-kit-cli install` (or Port B via `install.md`).
+3. **Install** - `npx @dadado/agent-kit-cli@latest install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).
 5. **Kit commands** - e.g. `/start-project` in the consumer project.
-6. **Mission Control (optional)** - Browser panel: `/dashboard`, `npm run dashboard`, or `npx @dadado/agent-kit-cli dashboard` (bare `agent-kit dashboard` only after a global install). Browser-free TUI: `npx @dadado/agent-kit-cli mission-control` (live view on a TTY) or `mission-control --once` for a one-shot ASCII snapshot (Claude Code `/agent-kit` uses this path). The TUI is a **third surface**; it does not replace the web dashboard. Consumer L0 does not copy `dashboard/` into the project. The `dashboard` subcommand resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `npx @dadado/agent-kit-cli dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
+6. **Mission Control (optional)** - Browser panel: `/dashboard`, `npm run dashboard`, or `npx @dadado/agent-kit-cli dashboard` (bare `agent-kit dashboard` only after a global install). Browser-free TUI: `npx @dadado/agent-kit-cli mission-control` (live view on a TTY; `q` or Ctrl-C quits) or `mission-control --once` for a one-shot ASCII snapshot (Claude Code `/agent-kit` uses this path). The TUI is a **third surface**; it does not replace the web dashboard. Consumer L0 does not copy `dashboard/` into the project. The `dashboard` subcommand resolves `dashboard/start.mjs` from the installed package (4.8.2 onward); on older pins use a kit checkout or env/sibling discovery. Loopback only (`127.0.0.1`) by default. Opt-in LAN: `npx @dadado/agent-kit-cli dashboard-broadcast` / `npm run dashboard:broadcast` (token-gated) binds the same per-workspace port allocation as `/dashboard` (`3333-3588` unless `PORT` is set), so it starts **beside** an already-running Mission Control - this workspace's loopback panel, another workspace, or an unidentified listener is skipped and left running, never killed. It prints a Mission Kit **Share** URL (`https://missionkit.io/mc/open.html#…`, BYO HTTPS via `MISSION_CONTROL_SHARE_BASE`; set `off` for LAN-only). The Share URL embeds the live token (same secret handling); soft TTL is advisory (`MISSION_CONTROL_SHARE_TTL_SEC`, `0` = never). Still requires trusted-LAN reachability; not a WAN relay. The slash `/dashboard-broadcast` ships in the **factory** checkout and CLI docs only (not an L0 consumer artifact); consumers use the CLI/npm entrypoints above. CLI/OS opens use one preferred browser (`missionControl.preferredBrowser`, `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`; platform-specific **name**, not a path) or the OS default; slash `/dashboard` opens via IDE browser MCP only (not multi-browser). Posture: [Mission Control production-ship constraints](#mission-control-production-ship-constraints).
 
 ## The commands you get
 
@@ -125,7 +132,7 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `diff` | Show what changed between what you have and the latest |
 | `contribute` | Send an improvement you made locally back upstream |
 | `handoff` | Save your progress to `.cursor/HANDOFF.md` |
-| `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); `--once` prints one frame |
+| `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); live TTY quits with `q` or Ctrl-C; `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 
 Optional: `add mission-kit-comms` drafts recap/release/contributor copy. It does **not** post. Ask before any public network. Guide: [comms.md](comms.md).
@@ -191,8 +198,8 @@ Details: [external plan review](external-plan-review.md). Routing ADR: `2026-08-
 ### Keeping Mission Kit current (consumers)
 
 - **Opt-in check:** set `updateCheck.enabled: true` in `.cursor/context/config.json` (Mission Control Config can toggle it). SessionStart may then nudge when a newer public release exists; interval is `updateCheck.intervalDays` (default 7).
-- **Manual check:** `npx @dadado/agent-kit-cli update --check --json`.
-- **Apply:** run `/update` and confirm with Ask questions (or an explicit terminal `npx @dadado/agent-kit-cli update`). Never silent L0 overwrite; `updateApply.auto` defaults to `false`.
+- **Manual check:** `npx @dadado/agent-kit-cli@latest update --check --json`.
+- **Apply:** upgrade the CLI first if it is behind the target release (`npm i -g @dadado/agent-kit-cli@<latest>`) — `agent-kit update` stamps the manifest with the version of the CLI running it, so a stale binary re-applies the old version. Then run `/update` and confirm with Ask questions (or an explicit terminal `agent-kit update`). An apply whose registry is newer than the binary refuses with the pinned remedy. Never silent L0 overwrite; `updateApply.auto` defaults to `false`.
 - Not the same as public sync (factory publish) or remote-cache refresh on resolve.
 
 ### Agent Personas
@@ -208,7 +215,7 @@ For the full list of consumer-configurable knobs (session config, dashboard skin
 - **`/hotfix`** - for a **narrow urgent** change (icons, copy, one CSS token): confirm → write a mini plan → run the same `/run-plan` tick contract continuously. Prefer `/start-project` when scope is ambiguous or multi-domain. Full spec: [`.cursor/commands/hotfix.md`](../.cursor/commands/hotfix.md).
   - **Model / quota tip:** prefer a named model (Claude Opus, Sonnet 4.6, Composer 2.5 Fast) over Auto for long continuous runs. Auto and named models may use separate quota buckets; Auto can fall back after a limit and lose Ask questions. If you stay on Auto, set `interTickCooldownMs` to **15000** in Mission Control **Config** or `.cursor/context/config.json` (default stays `0` so named-model runs are not slowed). After an API-limit hard stop, do not expect the next tick to auto-resume until you confirm recovery. Do not throttle Mission Control refresh to "save" Agent quota (dashboard is local-only). When authoring plans, **split** docs-only close-out to-dos from product `read_scope` ticks so more Auto ticks qualify for inline-first ([plan-routine §6](../autogit/plan-routine.md#6-context-budget-per-to-do-optional)).
 
-  > **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
+  > **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan --backend cursor-agent|claude` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
 
 - **`/run-plan-all`** - run **multiple plans** as one ordered, deduplicated queue. Use it when Gate-A backlog plans have piled up, scopes overlap, or you want batch throughput instead of activating `/run-plan` plan by plan. Full command spec: [`.cursor/commands/run-plan-all.md`](../.cursor/commands/run-plan-all.md). Operator detail below; modes overview also in [plan-routine.md](../autogit/plan-routine.md) and the root [README](../README.md).
 
@@ -242,14 +249,14 @@ Install writes a thin root `CLAUDE.md` and `.claude/commands/agent-kit.md` so Cl
 
 HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not available). Never `/git-prod` from kit-load.
 
-Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** `agent-kit run-plan --backend claude`, and **not** Action A7 (Windsurf / VS Code generators).
+Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** the headless tick loop (`agent-kit run-plan --backend claude`, shipped 2026-09-06 as plan `major-tom` Phase 1 — see the [consumer-configuration.md](consumer-configuration.md) CLI table), and **not** Action A7 (Windsurf / VS Code generators).
 
 #### Opt-in: slash commands and auto-loaded session context (`--claude`)
 
 The session kit-load above is always on. Two more Claude Code surfaces are **opt-in** (default install output is unchanged without the flag):
 
 ```
-npx @dadado/agent-kit-cli install --claude
+npx @dadado/agent-kit-cli@latest install --claude
 ```
 
 This generates `.claude/commands/<name>.md` for every `.cursor/commands/*.md` you actually have installed (thin pointers, not copies — each one just tells Claude Code to read the matching `.cursor/commands/` file), and merges a SessionStart hook into `.claude/settings.json` so the same session context Cursor gets from `sessionStart` loads automatically in Claude Code too. Re-running `install --claude` (fresh or with existing files) is idempotent: unedited generated files refresh, files you hand-edited are preserved, and the hook entry is never duplicated. If an existing `.claude/settings.json` cannot be parsed as JSON, install prints the hook entry for you to paste in by hand instead of guessing at the file.
@@ -260,7 +267,7 @@ When `/run-plan` finishes all implementable to-dos, you can get a second-agent c
 
 1. **Enable it:** set `"externalPlanReview": { "enabled": true, "offerOnExhausted": true }` in `.cursor/context/config.json` (see `config.example.json`), or accept the exhaustion Ask when a single `/run-plan` finishes (or once when a `/run-plan-all` queue exhausts)
 2. **Chat path:** when enabled (`mode: autonomous`), `/run-plan` / `/run-plan-all` arm `--force --autonomous --wait-monitor` (background/inspectable PTY). Paste (`--paste-only`) is the fallback when spawn is unavailable. Never a silent agent-shell `claude -p`.
-3. **Headless / CI:** `agent-kit run-plan` may arm the launcher with `--force` (`claude -p`) in the runner shell
+3. **Headless / CI:** `agent-kit run-plan` may arm the launcher with `--force` (`claude -p`) in the runner shell. This is the audits **reviewer** (`externalPlanReview.backend`), not the tick **implementer** (`--backend`): when ticks run with `agent-kit run-plan --backend claude`, a reviewer pinned to `claude` (or `auto` resolving to Claude) is the honest same-model skip and the Field Report stays owed; use `backend: "auto"` (cascades to Cursor Agent), `"cursor"`, or `"cloud"`
 4. **Exhaustion Ask:** if not enabled and `offerOnExhausted` is not `false`, chat must Ask `Run review now` / `Always enable automatic` / `Not now`. `Not now` is per-session only (no persist)
 5. **Manual:** `/plan-external-review` anytime after a plan is done
 6. **Triage:** after Claude writes a monitor file, use `/plan-review-triage` with explicit path(s). Prefer **Ack and stop** or **Fix nits only** when residuals are nits/process-only or closeout depth is already capped; **Write residuals plan** runs Broad Intake (including Unprocessed dogfood) then backlog write-confirm and must not spawn unbounded `close-*` chains (ADR `decisions/2026-08-11_plan-audit-residuals-termination.md`). Unprocessed dogfood Broad Intake bucket membership is SoT in ADR `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md` (not the termination policy). Mission Control **Flight Log** is Gaps + operator Warnings with palette-by-type notification chrome (natural Gaps voice; wipe Earlier on new flight; exact `none` for OK, not `none.…` as a yellow debit). When Gaps and Warnings are empty, it may show bounded untriaged review rows (per-row Copy triage / path); it does not host **Review all** / **Resolve all**. Chat `/plan-review-triage` remains HITL SoT
@@ -270,7 +277,7 @@ Claude Code on PATH is optional. If disabled or `claude` is missing, the kit con
 
 ### Security considerations
 
-**Plan execution runs with sandbox disabled:** The continuous plan execution (`/run-plan`) uses `cursor-agent --sandbox disabled` to access filesystem operations, git commands, and project tools. This is required for the agent to implement code changes and commit to staging. Maintainers should review plan to-dos and registry skills before enabling continuous execution, as these function as direct agent instructions.
+**Plan execution runs with sandbox disabled:** The continuous plan execution (`/run-plan`) uses `cursor-agent --sandbox disabled` to access filesystem operations, git commands, and project tools. This is required for the agent to implement code changes and commit to staging. The `claude` backend (`agent-kit run-plan --backend claude`) has the same footprint: `claude -p` starts read-only, so the backend passes `--dangerously-skip-permissions --permission-prompts none` (bypass everything, deny anything that would still prompt) so the tick can edit files and run git / package-manager commands; a tick with no such mode would have every write denied. `agent-kit run <slash> --backend claude` spawns catalog slashes with the same flags. Requirements: `claude >= 2.1.259` and the `.claude/commands/run-plan.md` adapter (`agent-kit install --claude`); both are checked before spawn. Optional caps: `AGENT_KIT_CLAUDE_MAX_TURNS` / `AGENT_KIT_CLAUDE_MAX_BUDGET_USD` (no default). Gateway routing uses `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` from the runner environment; both are redacted from tick logs, tips and errors, including the gateway host and encoded token forms (exact contract in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables)). Maintainers should review plan to-dos and registry skills before enabling continuous execution on either backend, as these function as direct agent instructions.
 
 ### Mission Control production-ship constraints
 

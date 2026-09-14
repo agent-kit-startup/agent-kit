@@ -208,9 +208,10 @@ describe("checkCursorUpdateAwareness", () => {
 
   it("walks up from nested cwd to find inventory", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "cursor-awareness-walk-"));
+    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     writeInventory(
       root,
-      "Living audit; last refreshed **2026-07-19**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n",
+      `Living audit; last refreshed **${recentDate}**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n`,
     );
     mkdirSync(path.join(root, ".git"), { recursive: true });
     const nested = path.join(root, "packages", "cli");

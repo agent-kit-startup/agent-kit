@@ -19,7 +19,7 @@ Orchestrate multiple plans as an ordered, deduplicated execution queue. The agen
 
 ## Precondition
 
-- A set of eligible plans exists under `.cursor/plans/` — at least one with `pending` or `in_progress` to-dos in its frontmatter.
+- A set of eligible plans exists in the pending-only index (`.cursor/context/plan-index.json`) plus HANDOFF — at least one with `pending` or `in_progress` to-dos. Do not glob `.cursor/plans/*.plan.md`.
 - The eligibility contract is defined by `.cursor/memory/decisions/2026-07-26_run-plan-all-queue-contract.md`:
   - **Included by default:** active plan with implementable to-dos; backlog plans with pending to-dos and Gate A done (or no Gate pending).
   - **Excluded by default:** exhausted/all-completed, cancelled, closed plans; plans awaiting Gate B without opt-in.
@@ -46,7 +46,8 @@ Before asking the user for confirmation, the agent performs a **read-only** synt
 | **Recent commits** | `git log --first-parent --no-merges -10`; `git diff staging...HEAD --stat` | Catch work-in-progress that overlaps with candidate plans; flag conflicts |
 | **CHANGELOG** | `CHANGELOG.md` `[Unreleased]` section + latest release notes | Catch scope already delivered or contradicted in releases |
 | **HANDOFF** | `.cursor/HANDOFF.md` active plan, queue cursor (if resuming), backlog/parked lists | Preserve current execution position; the active HANDOFF plan keeps priority unless reordered |
-| **Candidate plans** | Frontmatter (`todos`, `status`) + body (goal, constraints, acceptance, phases) for each eligible plan | Full inventory of pending work; detect overlap by comparing file paths, goal statements, and phase descriptions |
+| **Candidate plans** | Pending-only index + named plan files from HANDOFF | `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md`; then named single-file reads of those basenames. ADR `decisions/2026-07-26_command-orchestration-delegation-pattern.md` |
+| **In-flight vs Gate-A Backlog** | On **start and resume**, read Gate-A Backlog **plan bodies** against the in-flight plan (HANDOFF active plan and each queued plan). Titles and basenames are not enough | Detect **adjustment-class hard drift**: analog/adjustment to the in-flight plan even when Queue status is `blocked` |
 
 ### Outputs (surfaced at the confirm Ask only)
 
@@ -74,6 +75,20 @@ Before asking the user for confirmation, the agent performs a **read-only** synt
 - **Contradiction:** plan A assumes architecture state X, plan B changes X → conflict; user decides order.
 - **Independent default:** no collisions or edges → independent; order by remaining heuristics.
 
+### Adjustment-class hard drift (start and resume)
+
+On **start** and **resume**, the PO pass must read Gate-A Backlog plan bodies against the in-flight plan (active HANDOFF plan and each item in `- **Run queue:**`). Do not inventory Backlog titles or basenames only.
+
+If a backlog plan is an analog or adjustment to that in-flight plan, treat it as **hard drift** even when Queue status is `blocked`. Same-theme adjustment **wins over freeze**. Signals (reuse the overlap map above, plus judgment):
+
+- same files or globs as the in-flight plan
+- same ADRs
+- the backlog body says it reads, amends, or depends on the in-flight plan
+- scope subset or overlap
+- it blocks or informs the current HITL (for example a blocked checkout or missing URL)
+
+Mechanical "any new Backlog row" is **necessary but not sufficient**. A new Backlog plan that does not collide with the in-flight theme is still material drift when it has pending work and is not in the stored Run queue (ADR `2026-07-26_run-plan-all-queue-contract.md`). An adjustment-class match is hard drift even if the stored queue files still exist and status is `blocked`. Do not silently resume a frozen queue that omits that plan. Exact Ask labels: [Start vs resume](#start-vs-resume-stored-queue).
+
 ### Delegation pattern
 
 This step is delegated to a **Task(explore) subagent** using the reusable worker prompt template at `.cursor/context/templates/command-worker-prompt.md`. Follow the same pattern as `/start-project` Step 1 (see [Broad Intake Review delegation](../commands/start-project.md#step-1-broad-intake-review-delegated)).
@@ -81,19 +96,40 @@ This step is delegated to a **Task(explore) subagent** using the reusable worker
 1. **Fill the template** — set these parameters:
    - **Repo:** `[absolute repo path]`
    - **Command:** `/run-plan-all`
-   - **Task description:** "Scan recent merges (git log --first-parent --merges -20), recent commits (git log --first-parent --no-merges -10; git diff staging...HEAD --stat), CHANGELOG.md [Unreleased] + latest release, HANDOFF, and every eligible candidate plan (frontmatter + body) under .cursor/plans/. Return a structured PO synthesis report: logical execution order, overlap/dependency map, consolidation proposals, and coherence notes. See the Inputs table in the command for the full specification."
-   - **read_scope:** `[".cursor/plans/*.plan.md", ".cursor/HANDOFF.md", "CHANGELOG.md", ".cursor/memory/decisions/"]` (plus workspace-level git log/diff). Unprocessed dogfood is owned by the Confirm Queue preflight below; do not put dogfood paths on this explore worker.
+   - **Task description:** "Scan recent merges (git log --first-parent --merges -20), recent commits (git log --first-parent --no-merges -10; git diff staging...HEAD --stat), CHANGELOG.md [Unreleased] + latest release, then read `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md` (index + HANDOFF only). Candidate plans are the HANDOFF-named set; named single-file reads of those basenames remain OK. Do not glob `.cursor/plans/*.plan.md`. On start and resume, read Gate-A Backlog plan bodies against the in-flight (active/queued) plan and flag adjustment-class hard drift (same files, same ADRs, reads this plan, subset/overlap, blocks or informs current HITL) even when Queue status is blocked. Same-theme adjustment wins over freeze. Mechanical any-new-backlog is necessary but not sufficient. Do not return kind: resume. Do not omit eligible-not-queued or adjustment-class Backlog. Return a structured PO synthesis report: logical execution order, overlap/dependency map (including adjustment-class flags), consolidation proposals, and coherence notes. See the Inputs table in the command for the full specification. Delegation stays (ADR 2026-07-26_command-orchestration-delegation-pattern.md)."
+   - **read_scope:** `[".cursor/context/plan-index.json", ".cursor/HANDOFF.md", "CHANGELOG.md", ".cursor/memory/decisions/"]` (plus workspace-level git log/diff). Unprocessed dogfood is owned by the Confirm Queue preflight below; do not put dogfood paths on this explore worker. Named single-file reads of a known basename remain OK.
    - **worker_contract:** "structured PO synthesis report: ordered plan list, overlap/dependency annotations, consolidation proposals, coherence notes, plus staging-ready (lint)"
    - **max_ticks:** 2
    - **worker_type:** explore
 
 2. **Dispatch** a Task subagent with `subagent_type: explore`.
 
-3. **Read the worker summary** — the main window uses the synthesis report to present the 6-way confirm Ask (see [Confirm Queue](#confirm-queue-ask-questions)). Do not dump raw diffs or logs.
+3. **Read the worker summary** — the main window uses the synthesis report to present the 6-way confirm Ask on a fresh queue, or the 3-way start/resume Ask when a stored queue has material drift (see [Start vs resume](#start-vs-resume-stored-queue)). Do not dump raw diffs or logs. If the worker omits eligible-not-queued or adjustment-class Backlog, or returns `kind: resume`, treat the report as incomplete: re-dispatch once or run PO inline. That resume shape is not a supported worker contract.
 
 **Fallback:** If Task dispatch is unavailable, run the PO synthesis inline (same as pre-delegation behavior).
 
 **References:** Reusable worker prompt template at `.cursor/context/templates/command-worker-prompt.md`. Delegation routing table at `autogit/plan-routine.md` section 9 (Commands refactored).
+
+## Start vs resume (stored queue)
+
+When the operator runs `/run-plan-all` and HANDOFF already has `Mode: run-plan-all` plus a non-empty `- **Run queue:**`:
+
+1. Run the same Unprocessed / audit preflights as a fresh start (Confirm Queue preflight).
+2. Run the PO in-flight vs Gate-A Backlog body read ([Adjustment-class hard drift](#adjustment-class-hard-drift-start-and-resume)).
+3. **No material drift:** resume the frozen queue. Dispatch the next plan as a Task. Do not re-synthesize. Do not scramble the approved order. Do not auto-append Backlog into Run queue.
+4. **Material drift:** do not silently resume. **Ask questions** (one question; chat numbered-list fallback) with labels exactly:
+
+| Option | Behavior |
+|--------|----------|
+| `Resume frozen queue` | Keep stored Run queue, cursor, status, and outcomes. Leave eligible-not-queued Backlog off the queue. Dispatch the next queued Task only when Queue status still allows execution. |
+| `Insert new backlog` | Revise the proposal to include eligible-not-queued and adjustment-class Backlog. Do not silent-append a default slot. Show the revised order, then continue into the 6-way confirm. `/backlog-add` must not have rewritten the live queue. |
+| `Re-synthesize` | Ignore freeze. Run full PO synthesis and the 6-way confirm as a fresh queue. |
+
+Skipped or cancelled Ask means **stop** (same as no yes). No CLI `eligiblePlans` scanner. No silent auto-append of Backlog into Run queue.
+
+**Explore / PO workers:** `kind: resume` is **not** a supported worker contract. Do not accept a worker return that skips this Ask or the 6-way confirm by claiming resume while omitting eligible-not-queued Backlog or adjustment-class plans.
+
+This 3-way Ask is in addition to the 6-way confirm on a true fresh synthesis (no stored queue, or after `Re-synthesize`).
 
 ## Confirm Queue (Ask questions)
 
@@ -262,9 +298,9 @@ Do not dispatch the next plan when:
 When the orchestrator main window is near its context limit (heuristic: message count, tool calls, token estimate):
 
 1. **Persist the queue** — write HANDOFF with full approved queue order + current `Queue cursor` + all `Queue outcomes` so far. The queue is **not** re-synthesized on resume.
-2. **Stop and instruct** — tell the user to open a **new conversation** and paste `/run-plan-all`. The new agent reads HANDOFF, validates queue files still exist (no material drift), and **resumes by dispatching the next plan as a Task** (does not implement in-window).
+2. **Stop and instruct** — tell the user to open a **new conversation** and paste `/run-plan-all`. The new agent reads HANDOFF, validates queue files still exist, runs the PO in-flight vs Backlog body read (adjustment-class hard drift), and **resumes by dispatching the next plan as a Task** only when there is no material drift (does not implement in-window).
 
-On resume, validate both plan file existence and status against the stored queue. Material drift (plan deleted, status changed from pending to something else) requires a new synthesis and confirmation rather than silent reorder.
+On resume, validate plan file existence and status against the stored queue **and** run the PO body-read against Gate-A Backlog (see [Adjustment-class hard drift](#adjustment-class-hard-drift-start-and-resume)). Material drift includes: a queued plan deleted or status-invalidated; Gate-A Backlog with pending or in_progress work not in `- **Run queue:**`; adjustment-class analog to the in-flight plan (wins over freeze, including when Queue status is `blocked`). Those cases require the 3-way Ask in [Start vs resume](#start-vs-resume-stored-queue), not silent resume or silent reorder. Freeze-on-resume stays correct for context-pressure when none of those hold.
 
 ## HANDOFF Persistence
 
@@ -302,6 +338,7 @@ User: "stop" / "stop the run" → do not schedule the next plan; HANDOFF with cu
 
 - `/git-prod` **never** from this command, any execution path
 - The confirm queue Ask is a mandatory HITL gate (6 options, no silent default)
+- Stored-queue start/resume with material drift uses the 3-way Ask (`Resume frozen queue` / `Insert new backlog` / `Re-synthesize`); no silent skip of eligible-not-queued or adjustment-class Backlog
 - After confirmation, each plan runs in a **Task** subagent; the orchestrator does not implement to-dos in-window
 - Missing/malformed Task summary requires an Ask before advancing the cursor
 - Risk gates (PII, secrets, ambiguous scope) remain per-plan within `/run-plan`'s own tick contract (inside the Task)
@@ -333,12 +370,13 @@ Agent: [Merges plan-d into plan-a, archives plan-d]
 ...mid-queue...
 Agent: Context near limit. Persisting queue position 2 (plan-c).
        HANDOFF: Mode run-plan-all, Queue cursor 2, outcomes {plan-a: completed, plan-b: completed}
-       Open a new conversation and paste '/run-plan-all'. Resume dispatches Task for plan-c (no in-window implement).
+       Open a new conversation and paste '/run-plan-all'. If no material drift, resume dispatches Task for plan-c. If Backlog-not-queued or adjustment-class drift, Ask Resume frozen queue / Insert new backlog / Re-synthesize (no in-window implement).
 ```
 
 ## Troubleshooting
 
 - **"No eligible plans found"** — check that at least one plan has `pending`/`in_progress` to-dos. Gate-B-only plans require `Include Gate-B plans` opt-in at confirm time.
 - **"Queue file missing on resume"** — a plan was deleted outside the queue. Run a new synthesis: the agent will detect the gap and propose a corrected order.
+- **"Blocked queue plus new Backlog"** — freeze is not a silent skip. PO must read the new Backlog body against the in-flight plan. Adjustment-class match is hard drift; any eligible-not-queued Backlog is material drift. Ask `Resume frozen queue` / `Insert new backlog` / `Re-synthesize`. Do not auto-append into Run queue. Do not accept explore `kind: resume` that omits those plans.
 - **"Consolidation proposal rejected"** — no state is changed. The queue runs in the proposed order with all original plan files intact.
 - **"HANDOFF Mode is run-plan-all but queue is empty"** — the queue finished and no new synthesis was requested. Suggest `/run-plan-all` again if there are new eligible plans.

@@ -43,13 +43,13 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
 3. **Read the Context Pack** (if it exists) under `.cursor/context/current/`.
 
 4. **Plan selection (if multiple resumable plans):**
-   When multiple resumable plans exist, delegate the plan scanning to a **Task(explore) subagent** using the worker prompt template at `.cursor/context/templates/command-worker-prompt.md`.
+   When multiple resumable plans exist, delegate the plan scanning to a **Task(explore) subagent** using the worker prompt template at `.cursor/context/templates/command-worker-prompt.md`. Delegation stays (ADR `decisions/2026-07-26_command-orchestration-delegation-pattern.md`); the Plans bucket is **index + HANDOFF only**. Do not glob `.cursor/plans/*.plan.md`. Named single-file reads of a known basename remain OK.
 
    1. **Fill the template** — set these parameters:
       - **Repo:** `[absolute repo path]`
       - **Command:** `/continue-plan`
-      - **Task description:** "Scan all plan files in `.cursor/plans/` and return a list of resumable plans (those with pending to-dos). Include plan name, current phase, and pending to-do ids."
-      - **read_scope:** `[".cursor/plans/*.plan.md"]`
+      - **Task description:** "Read `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md` (index + HANDOFF only). Return resumable plans from the pending-only index (active / backlog / parked / pending). Do not glob `.cursor/plans/*.plan.md`. Named single-file reads of a known basename remain OK."
+      - **read_scope:** `[".cursor/context/plan-index.json", ".cursor/HANDOFF.md"]`
       - **worker_contract:** "list of resumable plans: name, current phase, pending to-do ids"
       - **max_ticks:** 1
 
@@ -62,7 +62,7 @@ Resume a plan from the last handoff. Confirm the next unit, then execute **only 
       
       Options: read from worker summary: `[plan-name-1.plan.md]` / `[plan-name-2.plan.md]` / `Create new plan instead`
    
-   **Fallback:** If Task dispatch is unavailable, scan plans inline (same as pre-delegation behavior) and use **Ask questions** tool to pick which plan to resume. Fallback to chat if Ask questions unavailable.
+   **Fallback:** If Task dispatch is unavailable, read index + HANDOFF inline (same contract; do not glob) and use **Ask questions** tool to pick which plan to resume. Fallback to chat if Ask questions unavailable.
 
 5. **Pre-unit monitor skim (advisory):** before the confirmation Ask, skim `.cursor/memory/plan-monitor-<chosen-plan-slug>.md` (and theme-matched `plan-review-*` if present) for Still open / untriaged / GAP lines. Mention material residuals once in the confirmation prompt. Do **not** block resume solely on Review debt; Field Report and `/plan-review-triage` remain attention/HITL SoT (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
 

@@ -1,4 +1,4 @@
-# Cursor 3.0 Features - How Mission Kit Uses Them
+# Cursor Native Features - How Mission Kit Uses Them
 
 Mission Kit helps develop without losing context and uses native Cursor features as **complement**, not replacement. Install and CLI identifiers stay Agent Kit (`agent-kit`, `@dadado/agent-kit-cli`).
 
@@ -17,6 +17,7 @@ File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continu
 | `/worktree` | Isolated git worktree | For risky changes without dirtying the working tree |
 | `/best-of-n` | Compare approaches side by side | For architecture decisions |
 | Plans | Native Cursor plans | Mission Kit generates plans with todos in frontmatter; HANDOFF references active plan |
+| Projects (beta, 2026-09-10) | Cloud-hosted coordinator agent that plans and delegates to implementing subagents, keeps synced project files across cloud/local machines, and can watch a Slack channel, run on a schedule, or follow PRs | No kit integration; Cursor-native surface the operator may use directly. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change — HANDOFF/plans stay the continuity SoT, `BackendId` stays `cursor-agent`/`claude` only, Mission Control stays local-only/copy-only, hooks stay thin adapters. See [`docs/research/cursor-projects-study.md`](research/cursor-projects-study.md) for the primary-source study and open unknowns. |
 
 ## MCP, hooks and SDK
 
