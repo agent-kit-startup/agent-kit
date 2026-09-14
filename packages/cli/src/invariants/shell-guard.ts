@@ -22,6 +22,12 @@ export interface ShellGuardResult {
 export interface ShellGuardOptions {
   /** Current git branch (abbrev-ref). Used for bare / HEAD pushes. */
   currentBranch?: string | null;
+  /**
+   * Map of git remote name -> URL (e.g. from `git remote -v`). Used to resolve
+   * `git push <remote-name> ...` to a URL for the public-repo-direct-write rule
+   * when the public repo isn't named directly on the command line.
+   */
+  remotes?: Record<string, string> | null;
 }
 
 const CITE = "agent-kit guard shell (ADR 2026-07-29_cli-invariants-thin-hook-adapters)";
@@ -123,6 +129,49 @@ function isAuthorizedProdMainPush(head: string): boolean {
 export function segmentAllowsMainPush(segment: string): boolean {
   if (!segmentHasAllowMainPushEnv(segment)) return false;
   return isAuthorizedProdMainPush(stripLeadingEnvAssignments(segment));
+}
+
+/**
+ * Matches the public mirror repo slug (agent-kit-startup/agent-kit) in a `-R`/
+ * `--repo` value, a bare https/ssh URL, or a git remote URL — never the private
+ * `agent-kit-startup/agent-kit-dev` (negative lookahead excludes `-dev` and any
+ * other `[\w-]` continuation, so `.git` / `#123` suffixes still match).
+ */
+const PUBLIC_REPO_RE = /agent-kit-startup\/agent-kit(?![\w-])/i;
+
+/** True when ALLOW_PUBLIC_PUSH=1 is set inline on the segment or in process.env. */
+function segmentHasAllowPublicPushEnv(segment: string): boolean {
+  if (process.env.ALLOW_PUBLIC_PUSH === "1") return true;
+  const leading = segment.match(/^(?:\w+=\S+\s+)*/)?.[0] ?? "";
+  return /(?:^|\s)ALLOW_PUBLIC_PUSH=1(?:\s|$)/.test(leading);
+}
+
+/**
+ * True when a `git push` head targets the public repo, either by an explicit
+ * slug/URL on the command line or by a remote name resolved via `opts.remotes`
+ * (from `git remote -v`). Generic remote names (e.g. a consumer's own `public`
+ * remote) are never matched by name alone — only a resolved URL counts.
+ */
+function pushTargetsPublicRepo(head: string, remotes?: Record<string, string> | null): boolean {
+  if (!/^(?:[\w./-]+\/)?git\s+push\b/.test(head)) return false;
+  if (PUBLIC_REPO_RE.test(head)) return true;
+  if (!remotes) return false;
+  const after = head.replace(/^(?:[\w./-]+\/)?git\s+push\b/, "").trim();
+  const remoteToken = after.split(/\s+/).find((t) => t && !t.startsWith("-"));
+  if (!remoteToken) return false;
+  const url = remotes[remoteToken];
+  return typeof url === "string" && PUBLIC_REPO_RE.test(url);
+}
+
+/**
+ * `gh pr create` / `gh pr merge` explicitly targeting the public repo
+ * (`-R`/`--repo agent-kit-startup/agent-kit` or a bare URL). Deliberately
+ * narrow: `gh issue *` (public-issue-triage's documented flow) and `gh api`
+ * are not covered here — see the ADR amendment for the named gaps.
+ */
+function ghTargetsPublicRepo(head: string): boolean {
+  if (!/^(?:[\w./-]+\/)?gh\s+pr\s+(?:create|merge)\b/.test(head)) return false;
+  return PUBLIC_REPO_RE.test(head);
 }
 
 function anyHeadMatches(command: string, re: RegExp): boolean {
@@ -234,6 +283,17 @@ export const SHELL_DENY_RULES: Array<{
           /^(?:[\w./-]+\/)?git\s+clean\b/.test(head) &&
           /(?:^|\s)-(?:[a-z]*f[a-z]*d|[a-z]*d[a-z]*f)(?:\s|$)/.test(head),
       ),
+  },
+  {
+    id: "public-repo-direct-write",
+    description:
+      "agents ship to the public repo only via scripts/sync-public.mjs (CI); no direct git push / gh pr create|merge against it",
+    test: (cmd, opts) =>
+      shellSegments(cmd).some((segment) => {
+        if (segmentHasAllowPublicPushEnv(segment)) return false;
+        const head = stripLeadingEnvAssignments(segment);
+        return pushTargetsPublicRepo(head, opts?.remotes) || ghTargetsPublicRepo(head);
+      }),
   },
   {
     id: "git-push-main",

@@ -27,7 +27,7 @@ pnpm --filter @dadado/agent-kit-cli start -- install \
 .cursor/commands/YOUR_PROJECT-only.md
 ```
 
-User-added agents/skills/commands with distinct basenames do not need blanket `protected` globs (consumer overlay preserves them and customized kit-owned overlay files). Prefer committing `.cursor/agent-kit.managed-hashes.json` with the project so the ledger survives clone. Avoid `.cursor/agents/**` / `.cursor/skills/**` / `.cursor/commands/**` blankets that block pack install.
+User-added agents/skills/commands/hooks/scripts with distinct basenames do not need blanket `protected` globs (consumer overlay preserves them and customized kit-owned overlay files, the pre-commit secrets hook included). Prefer committing `.cursor/agent-kit.managed-hashes.json` with the project so the ledger survives clone. Avoid `.cursor/agents/**` / `.cursor/skills/**` / `.cursor/commands/**` / `.cursor/hooks/**` / `.cursor/scripts/**` blankets that block pack install; a single-path `protected` entry is the right tool when one file must never refresh.
 
 4. **Add registry skills** the project already used:
 

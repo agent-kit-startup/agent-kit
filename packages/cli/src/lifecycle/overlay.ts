@@ -1,13 +1,20 @@
 /**
- * Consumer overlay for agents / skills / commands.
+ * Consumer overlay for agents / skills / commands / hooks / scripts.
  *
  * User-added basenames (never targeted by L0/pack/skill apply) already survive
  * update. Kit-owned paths under these trees use a managed-content hash ledger:
  * local hash matching the last install refreshes; divergence preserves the
  * local file (preserved-customized) instead of silent clobber.
  *
- * Do not blanket-protect `.cursor/agents/**` (or skills/commands): that blocks
- * pack / `agent-kit add` installs.
+ * `.cursor/hooks/` and `.cursor/scripts/` joined the overlay after a consumer
+ * lost a committed widening of the pre-commit secrets hook to a no-op
+ * `update` that printed only `+ path`: a security control narrowed with no
+ * word that a customization was dropped. The same ledger now covers them.
+ *
+ * Do not blanket-protect `.cursor/agents/**` (or skills/commands/hooks/scripts):
+ * that blocks pack / `agent-kit add` installs and forfeits upstream fixes for
+ * the whole tree. Pin a single path in `protected` when one file must never
+ * refresh.
  */
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
@@ -23,6 +30,8 @@ export const CONSUMER_OVERLAY_PREFIXES = [
   ".cursor/skills/",
   ".cursor/commands/",
   ".claude/commands/",
+  ".cursor/hooks/",
+  ".cursor/scripts/",
 ] as const;
 
 export type ManagedHashLedger = {

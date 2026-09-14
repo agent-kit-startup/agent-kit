@@ -64,6 +64,22 @@ Other local CLI commands follow the same pattern:
 pnpm --filter @dadado/agent-kit-cli start -- status --cwd /path/to/your-project
 ```
 
+### Ubuntu 24.04 bare-metal install helper
+
+`scripts/install-ubuntu24-bare-metal.sh` automates the consumer recipe in [install-ubuntu24-bare-metal.md](install-ubuntu24-bare-metal.md) for provisioning a fresh Ubuntu 24.04 box with no Node.js and no terminal attached. It lives in the factory checkout only: it is not in `scripts/public-sync.manifest` and not in the npm tarball, so consumers follow the manual recipe and maintainers run the helper on their own hosts.
+
+```bash
+scripts/install-ubuntu24-bare-metal.sh --version x.y.z --target-dir /srv/your-project
+```
+
+What it does, in order: installs Node via the NodeSource setup script unattended (`sudo` unless already root), `git init`s an empty target directory so the project-root guard never needs an interactive answer, then runs `npx --yes @dadado/agent-kit-cli@<version> install --yes` with `npm_config_cache` pointed at a kit-managed directory (`--cache-dir`, `AGENT_KIT_NPM_CACHE_DIR`, default `~/.cache/agent-kit/npm-cache`, never `~/.npm/_cacache`). `--version` is required and always pinned; the helper never resolves `@latest`. The NodeSource line is separate from the CLI floor: a box with any Node 20+ on `PATH` skips the bootstrap, a box without one gets `22.x` by default (`--node-major <N>` or `AGENT_KIT_NODE_BOOTSTRAP_MAJOR`, refused below 20). Other flags: `--skip-node-bootstrap` (fail instead of bootstrapping when no Node 20+ is on `PATH`), `--dry-run` (prints every action, makes no network call, no `git init`, no `npx`), `--help`.
+
+Exit codes: `0` installed; `1` usage error or Node bootstrap failure; `2` the npm-cache `EPERM` ownership-drift signature; `3` the swallowed non-interactive prompt that would otherwise surface as a bare `255`. Codes `2` and `3` print the recovery steps and the Port B pointer; an unrecognized failure propagates the raw npx status. The two signatures are the ones recorded in the kit's error memory for the 2026-08-02 non-interactive install failure.
+
+The helper is built for a non-TTY run (cloud-init, `bash -c` over SSH), where both npx and the CLI switch to non-interactive mode on their own because stdin is not a terminal. It still passes `--yes` to both (npx's before the package, the CLI's after `install`), so the same invocation behaves identically from an interactive SSH session: no "Ok to proceed?" from npx, no install wizard from the CLI.
+
+Tests: `pnpm test:factory-root-node` (arg parsing, dry-run guard and bootstrap-line logic, failure classification through the `--classify-failure` hook and a fake `npx` on `PATH`; no live box required, private-origin CI only). Validated on a real Ubuntu 24.04 host on 2026-09-12: the helper's dry-run and real run both completed clean (exit 0), `status` confirmed the install afterward. One caveat: the target host already had Node >=20 present via nvm, so the run took the "already satisfies >=20, skipping bootstrap" branch — the NodeSource unattended-install branch itself is still unexercised end-to-end. Full record in the plan file's Phase 3 hardware-validation section. Open decision: whether to publish the helper through `scripts/public-sync.manifest` so consumers can fetch it from the mirror (then this path becomes a link and the consumer page can point at it).
+
 ### Factory self-consumer (local apply loop)
 
 A factory checkout can act as its own consumer to validate L0 changes before a public release. This is distinct from the public consumer update-check and from the public sync mirror.
@@ -177,3 +193,4 @@ before you touch them:
 - [repository-boundaries.md](repository-boundaries.md) - local / private / public / npm
 - [topology-private-public.md](topology-private-public.md) - Phase A/B/C
 - [contribute-upstream.md](contribute-upstream.md) - `agent-kit contribute` from a consumer
+- [install-ubuntu24-bare-metal.md](install-ubuntu24-bare-metal.md) - consumer recipe the factory-only bare-metal helper automates

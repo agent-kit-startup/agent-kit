@@ -99,6 +99,25 @@ describe("classifyInstallError", () => {
     expect(hint.recovery).toContain("setup-global");
   });
 
+  it("pins recovery npx/npm copy to @latest", () => {
+    const eacces = classifyInstallError(
+      Object.assign(
+        new Error("EACCES: permission denied, mkdir '/usr/local/lib/node_modules/@dadado'"),
+        { code: "EACCES" },
+      ),
+    );
+    expect(eacces.recovery).toContain("npx @dadado/agent-kit-cli@latest setup-global");
+    expect(eacces.recovery).toContain("npm i -g @dadado/agent-kit-cli@latest");
+    const eperm = classifyInstallError(
+      Object.assign(new Error("EPERM: operation not permitted"), { code: "EPERM" }),
+    );
+    expect(eperm.recovery).toContain("npx @dadado/agent-kit-cli@latest install");
+    const net = classifyInstallError(
+      Object.assign(new Error("getaddrinfo ENOTFOUND registry.npmjs.org"), { code: "ENOTFOUND" }),
+    );
+    expect(net.recovery).toContain("npx @dadado/agent-kit-cli@latest install");
+  });
+
   it("classifies npm global EACCES errors by message alone (no .code set)", () => {
     const hint = classifyInstallError(
       new Error("EACCES: permission denied, mkdir '/usr/local/lib/node_modules/@dadado'"),

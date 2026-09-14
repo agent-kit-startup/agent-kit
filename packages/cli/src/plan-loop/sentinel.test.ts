@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { parseSentinelFromLog } from "./sentinel.js";
+import { parseSentinelFromLog, parseTickResultStatus } from "./sentinel.js";
+
+describe("parseTickResultStatus", () => {
+  it("returns null without a result event (plain text, cursor-agent, early death)", () => {
+    expect(parseTickResultStatus("LOOP_TICK_RESULT: continue\n")).toBeNull();
+    expect(parseTickResultStatus('{"type":"assistant","message":{"content":[]}}')).toBeNull();
+    expect(parseTickResultStatus("")).toBeNull();
+  });
+
+  it("reads is_error, subtype and errors from the last result event", () => {
+    const log = [
+      '{"type":"system","subtype":"init"}',
+      '{"type":"result","subtype":"success","is_error":false,"result":"LOOP_TICK_RESULT: continue"}',
+    ].join("\n");
+    expect(parseTickResultStatus(log)).toEqual({ isError: false, subtype: "success", errors: [] });
+
+    const failed = [
+      '{"type":"result","subtype":"error_max_turns","is_error":true,"errors":["Reached max turns (25)"],"num_turns":25}',
+    ].join("\n");
+    expect(parseTickResultStatus(failed)).toEqual({
+      isError: true,
+      subtype: "error_max_turns",
+      errors: ["Reached max turns (25)"],
+    });
+
+    const auth =
+      '{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["401 Unauthorized"]}';
+    expect(parseTickResultStatus(auth)?.errors).toEqual(["401 Unauthorized"]);
+  });
+});
 
 describe("parseSentinelFromLog", () => {
   it("parses continue from plain text", () => {

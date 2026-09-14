@@ -210,8 +210,8 @@ export function classifyInstallError(err: unknown): InstallErrorHint {
       recovery: [
         "npm's global install prefix (e.g. /usr/local/lib/node_modules) is owned by root, so global installs fail.",
         "Recovery options:",
-        "  1. Run: npx @dadado/agent-kit-cli setup-global (relocates npm's prefix to a folder you own, fixes PATH, reinstalls)",
-        '  2. Manual fix: mkdir -p ~/.npm-global && npm config set prefix "~/.npm-global" && export PATH="~/.npm-global/bin:$PATH" (add to your shell profile) && npm i -g @dadado/agent-kit-cli',
+        "  1. Run: npx @dadado/agent-kit-cli@latest setup-global (relocates npm's prefix to a folder you own, fixes PATH, reinstalls)",
+        '  2. Manual fix: mkdir -p ~/.npm-global && npm config set prefix "~/.npm-global" && export PATH="~/.npm-global/bin:$PATH" (add to your shell profile) && npm i -g @dadado/agent-kit-cli@latest',
         "  3. Use Port B fallback: drag install.md into the Cursor chat",
       ].join("\n"),
     };
@@ -224,8 +224,8 @@ export function classifyInstallError(err: unknown): InstallErrorHint {
       recovery: [
         "The npm cache may have ownership drift (root-written files in a user dir).",
         "Recovery options:",
-        "  1. npx --cache .npm-cache @dadado/agent-kit-cli install",
-        "  2. npm cache clean --force && npx @dadado/agent-kit-cli install",
+        "  1. npx --cache .npm-cache @dadado/agent-kit-cli@latest install",
+        "  2. npm cache clean --force && npx @dadado/agent-kit-cli@latest install",
         "  3. Use Port B fallback: drag install.md into the Cursor chat",
       ].join("\n"),
     };
@@ -257,7 +257,7 @@ export function classifyInstallError(err: unknown): InstallErrorHint {
         "Could not reach the registry or git remote.",
         "Recovery options:",
         "  1. Check network/proxy/VPN settings",
-        "  2. Retry: npx @dadado/agent-kit-cli install",
+        "  2. Retry: npx @dadado/agent-kit-cli@latest install",
         "  3. Use --registry <local-path> if you have a local checkout",
       ].join("\n"),
     };

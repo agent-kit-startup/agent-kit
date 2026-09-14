@@ -1,6 +1,6 @@
 # What a Mission Kit install puts in your project
 
-When you install via the Agent Kit CLI (`npx @dadado/agent-kit-cli install`), it does not copy the kit repository into your project. It writes just the files your project needs: a few rules and commands under `.cursor/`, a git routine under `autogit/`, and a small manifest that tracks what was installed. This page shows exactly what lands where and why.
+When you install via the Agent Kit CLI (`npx @dadado/agent-kit-cli@latest install`), it does not copy the kit repository into your project. It writes just the files your project needs: a few rules and commands under `.cursor/`, a git routine under `autogit/`, and a small manifest that tracks what was installed. This page shows exactly what lands where and why.
 
 ## The layout you get
 
@@ -38,13 +38,13 @@ If you copy `.cursor/hooks/agent/*.sh` by hand (chat / Port B install), run `chm
 From your project's root:
 
 ```bash
-npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli@latest install
 ```
 
 With optional packs:
 
 ```bash
-npx @dadado/agent-kit-cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli@latest install --pack clean-code,context-management
 ```
 
 What `install` does:
@@ -65,7 +65,7 @@ The kit can update itself against the same source without ever touching your pla
 |---------|------|
 | `agent-kit add <id>` | Add a pack or skill |
 | `agent-kit update --check` | **Notify only:** compare installed version to the latest public release tag (no L0 writes) |
-| `agent-kit update` | Explicit apply: refresh installed rules/commands; skips protected files; preserves customized agents/skills/commands overlay |
+| `agent-kit update` | Explicit apply: refresh installed rules/commands; skips protected files; preserves customized agents/skills/commands/hooks/scripts overlay and names each preserved file |
 | `agent-kit diff` | Show what's changed vs the latest |
 | `agent-kit status` | Version, installed packs, readiness summary |
 | `agent-kit doctor` | Refresh or repair repository readiness |

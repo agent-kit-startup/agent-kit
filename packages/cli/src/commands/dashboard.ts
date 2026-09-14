@@ -167,6 +167,7 @@ export function resolveDashboardSnapshotRoot(cwd: string): string {
     const top = execFileSync("git", ["-C", abs, "rev-parse", "--show-toplevel"], {
       encoding: "utf8",
       timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     if (top) return path.resolve(top);
   } catch {

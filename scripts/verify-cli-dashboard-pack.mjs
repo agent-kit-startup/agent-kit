@@ -35,6 +35,10 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/lib/broadcast-share.mjs",
   "package/dashboard/lib/guards.mjs",
   "package/dashboard/lib/open-browser.mjs",
+  "package/dashboard/lib/semantic-model.mjs",
+  "package/dashboard/lib/terminal-snapshot.mjs",
+  "package/dashboard/lib/triage-heading.mjs",
+  "package/dashboard/lib/live-refresh.mjs",
 ];
 
 /** Case-insensitive README path under an extracted pack root. */

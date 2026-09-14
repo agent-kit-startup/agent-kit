@@ -58,11 +58,16 @@ describe("KNOWN_SHIPPED_OVERLAY_HASHES coverage", () => {
 });
 
 describe("consumer overlay path detection", () => {
-  it("matches agents, skills, and commands only", () => {
+  it("matches agents, skills, commands, hooks, and scripts only", () => {
     expect(isConsumerOverlayPath(".cursor/agents/foo.md")).toBe(true);
     expect(isConsumerOverlayPath(".cursor/skills/core/clean-code/SKILL.md")).toBe(true);
     expect(isConsumerOverlayPath(".cursor/commands/start-project.md")).toBe(true);
     expect(isConsumerOverlayPath(".claude/commands/start-project.md")).toBe(true);
+    expect(isConsumerOverlayPath(".cursor/hooks/pre-commit/check-secrets.sh")).toBe(true);
+    expect(isConsumerOverlayPath(".cursor/hooks/agent/session-start.sh")).toBe(true);
+    expect(isConsumerOverlayPath(".cursor/scripts/plan-external-review.sh")).toBe(true);
+    // `.cursor/hooks.json` is a sibling file, not inside the hooks tree.
+    expect(isConsumerOverlayPath(".cursor/hooks.json")).toBe(false);
     expect(isConsumerOverlayPath(".cursor/rules/ux-tone.mdc")).toBe(false);
     expect(isConsumerOverlayPath(".cursor/HANDOFF.md")).toBe(false);
   });

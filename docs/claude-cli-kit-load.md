@@ -48,7 +48,7 @@ These lines are part of the generated `CLAUDE.md` so a Claude session does not i
 
 - Not multi-IDE generator parity (Windsurf `.windsurfrules` / VS Code instructions). That is Action A7 in [cursor-native-audit.md](cursor-native-audit.md).
 - Not opt-in **audits** / external plan review (`docs/external-plan-review.md`, `/plan-external-review`). Session kit-load is not that backend.
-- Not `agent-kit run-plan --backend claude` tick-runner parity (`packages/cli/src/plan-loop/backends.ts`).
+- Not a second tick dialect. `agent-kit run-plan --backend claude` is implemented since 2026-09-06 (plan `major-tom` Phase 1, fulfilling ADR `2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13`; `packages/cli/src/plan-loop/backends.ts`) and runs the same one-tick contract as `cursor-agent`; session kit-load is still not that runner. Keep this line consistent with the emitted bullet in the canonical `CLAUDE.md` block below.
 - Not a Claude copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`, CLI-owned, fail-open; sanctioned by the 2026-08-21 amendment to ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`, mechanism per ADR `2026-07-29_cli-invariants-thin-hook-adapters.md`). Other Cursor hook types (`preCompact`, shell/edit/prompt guards) stay Cursor-only; `.claude/rules/` mirrors of `.cursor/rules` and `.claude/agents/` generated from the registry stay closed. Invariants stay in the CLI; hooks and adapters both stay thin.
 
 ## Generator wiring
@@ -88,7 +88,7 @@ Never append `Co-Authored-By: Claude ...` or `Claude-Session: https://claude.ai/
 
 - Not Action A7 (Windsurf / VS Code generator parity)
 - Not Claude external plan-review audits (`/plan-external-review`)
-- Not `--backend claude` plan-loop ticks
+- Not a second tick dialect: `agent-kit run-plan --backend claude` runs the same one-tick contract as `cursor-agent` (shipped 2026-09-06, plan `major-tom` Phase 1 under ADR `2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13`; ADR `2026-09-04_major-tom-autonomous-mode.md`); never `/git-prod` from a headless tick
 - Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`); no `.claude/rules/` mirrors, no `.claude/agents/` generated from the registry
 ```
 
@@ -113,7 +113,7 @@ If HANDOFF is missing, say so and point at `/agent-kit-onboard` or `/start-proje
 
 HITL: numbered-list fallback for Ask questions labels. Never `/git-prod` from this skill.
 
-Non-goals: not audits / `/plan-external-review`, not `--backend claude` ticks, not A7, not Cursor hook clones, not a continuous TUI loop.
+Non-goals: not audits / `/plan-external-review`, not a second tick dialect (`run-plan --backend claude` is the shipped headless tick since 2026-09-06, plan `major-tom`), not A7, not Cursor hook clones, not a continuous TUI loop.
 ```
 
 ## Opt-in surfaces: command adapters and the SessionStart hook

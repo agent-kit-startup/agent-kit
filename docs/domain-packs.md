@@ -11,7 +11,7 @@ npx @dadado/agent-kit-cli add clean-code
 Or list the packs you want when you first install:
 
 ```bash
-npx @dadado/agent-kit-cli install --pack clean-code,cybersec,context-management
+npx @dadado/agent-kit-cli@latest install --pack clean-code,cybersec,context-management
 ```
 
 ## Available packs

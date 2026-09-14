@@ -146,7 +146,9 @@ git remote -v
 We follow the [Semantic Versioning](https://semver.org/) standard:
 - **MAJOR** (X.0.0): Incompatible changes
 - **MINOR** (0.X.0): New backward-compatible features
-- **PATCH** (0.0.X): Bug fixes
+- **PATCH** (0.0.X): Bug fixes, post-tag CI / Path C portability, and consumer fixes that must republish as a new npm tarball
+
+**Hold vs next patch:** after a published `vX.Y.Z`, CI-unblock or fixture commits may keep the four manifests on `X.Y.Z` (**hold**) when the existing tarball does not need to change (step 12.5). Cut the **next patch** (`X.Y.(Z+1)`) and a new annotated tag when npm, Path C install, or the public Release must carry the fix. Never force-move a pushed `v*`. 5.x history that shipped only `x.y.0` after `v5.2.1` is practice, not a second cadence. Factory ADR: `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`. Marketplace / skill-catalog semver is a different layer (`docs/CONTRIBUTING.md`).
 
 ### Conventional Commits
 
@@ -312,11 +314,13 @@ This section contains the detailed prompts that should be followed when commands
    - If CHANGELOG.md was updated, mention it in the commit: `git commit -m "feat: add new agent\n\nUpdate CHANGELOG.md with new version"`
 
 #### 8. **Publish branch**  
+   - **Agent signature gate (hard stop, before the push):** run `git log origin/staging..HEAD --format=%B | sh git-hooks/prepare-commit-msg --check -`. Exit 0 prints `ok`; exit 1 lists the commit-message lines that carry a coding-agent signature or session link (`Co-Authored-By: Claude ... <noreply@anthropic.com>`, `Claude-Session: https://claude.ai/code/...`, Cursor / Copilot / Codex / Devin trailers, `🤖 Generated with <agent>`, agent session URLs; `sh git-hooks/prepare-commit-msg --list` prints the rules). On exit 1 **stop**, reword the commit(s) on the working branch (`git commit --amend`, or `git rebase -i` for older ones) and re-run until it prints `ok`. Exit 2 (missing hook file, grep failure) is red, not a pass. Never push over a red scan and never use `--no-verify` to get past it. A squash merge copies every branch commit message into the `staging` commit, so a trailer on any branch commit would otherwise reach `staging` and then `main`. ADR `.cursor/memory/decisions/2026-09-11_agent-signature-guard-strip-hook-check-gate.md`.
    - Run `git push -u origin update/<...>` or `git push -u origin feature/<...>` to send the branch to remote.
 
 #### 9. **Open and merge Merge Request / Pull Request**  
    - **GitLab:** Create the MR with `glab mr create --title "<title>" --description "<description>" --target-branch staging`. Then run `glab mr merge <number>` to merge. If it fails due to authentication, provide the manual creation link and await instructions.
    - **GitHub:** Create the PR with `gh pr create --title "<title>" --body "<description>" --base staging`. **Always pass `--base staging`** (default base is often `main`; never merge staging work straight to `main`). Then run `gh pr merge <number>` (or the returned number). If it fails due to authentication, provide the manual creation link and await instructions.
+   - **Agent signature gate on the PR body (hard stop, before merge):** run `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -` (GitLab: `glab mr view <N> -F json | jq -r .description | sh git-hooks/prepare-commit-msg --check -`). Exit 1 lists the offending body lines: **stop**, `gh pr edit <N> --body "<clean body>"`, re-run until `ok`. The PR body becomes part of the squash commit on some GitHub settings, so it is scanned like a commit message. Same exit-code contract as step 8; same shape as the Evidence-checks gate below.
    - **Evidence-checks merge gate (before merge / Gaps-none):** run `gh pr checks <N>` and confirm `build` (including the **Evidence checks** step) is green. Do **not** merge while required checks are pending or failing. If Evidence checks fail (`knowledge-classification.json` stale or missing `_index` targets), regenerate/fix and re-push before merge; do not write HANDOFF `- **Gaps:** none` over red. Optional operator follow-up: require `build` as a branch-protection check on `staging` (not a silent workflow edit). ADR: `.cursor/memory/decisions/2026-08-01_evidence-checks-merge-gate.md`.
 
 #### 10. **Cleanup and final update**  
@@ -389,6 +393,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
    - Run `git fetch origin main` to fetch remote main branch.
    - Run `git log origin/main..origin/staging --oneline` to list commits in `origin/staging` but not in `origin/main`.
    - Run `git diff origin/main..origin/staging --stat` to see a summary of changes.
+   - **Agent signature gate (hard stop):** run `git log origin/main..origin/staging --format=%B | sh git-hooks/prepare-commit-msg --check -`. Exit 0 prints `ok`. Exit 1 lists commit-message lines in the promotion delta that carry a coding-agent signature or session link: **stop** before the confirmation; the fix goes through `git staging` (reword on a working branch, PR to `staging`), then restart this routine. Exit 2 (missing hook file, grep failure) is red, not a pass. Never merge, push, or tag over a red scan. Same list as step 8 of `git staging`; ADR `.cursor/memory/decisions/2026-09-11_agent-signature-guard-strip-hook-check-gate.md`.
    - **Present the user with a detailed summary of changes that will be promoted to production and request explicit confirmation before proceeding.**
 
 #### 6. **Update local main**  
@@ -408,6 +413,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
        - If mixed changes, prioritize most significant: `Merge origin/staging: New events API + updated docs`
      - **Tip**: Use commit prefixes (feat, fix, docs, etc.) to identify predominant change type.
    - Run `git merge --no-ff origin/staging -m "<generated message>"` to merge preserving history.
+   - The generated merge message must itself pass the gate: `printf '%s\n' "<generated message>" | sh git-hooks/prepare-commit-msg --check -` (no trailer, no session link). When this lane promotes through a staging→main PR instead (`gh pr create --base main --head staging`, see the blockers table above), scan that PR body before the operator merge: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`; exit 1 means `gh pr edit <N> --body` first.
    - If there are conflicts, stop and inform the user for manual resolution.
 
 #### 8. **Validate merge**  
@@ -431,7 +437,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
    - **Effect**: Annotated vX.Y.Z tags trigger CI `publish-npm` job (when `NPM_TOKEN` configured) and `sync-public` workflow (when `PUBLIC_REPO_TOKEN` configured).
    - **Immutable tags — never force-move `v*`:**
      - Do **not** `git push --force` (or delete-and-recreate in place) an existing `vX.Y.Z` that already pointed at another SHA. Consumers and mirrors may have resolved the old tip.
-     - If tag CI fails after the first push: fix on a new commit, bump to the next patch (or hold), cut a **new** annotated tag on the fixed commit, push that new tag. Do not rewrite history of a published `v*`.
+     - If tag CI fails after the first push: fix on a new commit. **Hold** (keep manifests on the tagged SemVer, no new tag) when the existing npm tarball can stay. **Next patch** plus a **new** annotated tag when npm / Path C / public Release must carry the fix. Do not rewrite history of a published `v*`. Same fork as [Semantic Versioning](#semantic-versioning) and ADR `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`.
      - If the tag was never pushed remotely and only exists locally on a bad tip: delete the **local** tag (`git tag -d vX.Y.Z`) and recreate on the fixed commit, then push once.
      - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` blocks force-update/delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1` (see `git-hooks/pre-push`).
 
@@ -466,7 +472,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
    | Public GitHub Release | `gh release list -R <public>` shows `vX.Y.Z` as Latest (not a stale older release) |
    | Scoped-install Path C smoke (manual or CI) | Install `@dadado/agent-kit-cli@X.Y.Z` into a blank folder under `node_modules/@dadado/…` (no kit checkout) and confirm `agent-kit dashboard` reaches HTTP 200 on loopback; required after Path C / detach-start changes |
 
-   **Post-tag `main` commits:** After a `vX.Y.Z` tag ships, CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z`. That is allowed only when documented in the promote notes / HANDOFF (tag and npm tarball describe the tagged commit, not necessarily later `main`). Realign with the next SemVer when product fixes (for example Path C) must reach npm; never force-move the existing `v*` tag.
+   **Post-tag `main` commits:** After a `vX.Y.Z` tag ships, CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z` (**hold**). That is allowed only when documented in the promote notes / HANDOFF (tag and npm tarball describe the tagged commit, not necessarily later `main`). Realign with the **next patch** when product fixes (for example Path C) must reach npm; never force-move the existing `v*` tag. See [Semantic Versioning](#semantic-versioning).
 
    If `sync-public` failed, the sync PR is still open, or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
 

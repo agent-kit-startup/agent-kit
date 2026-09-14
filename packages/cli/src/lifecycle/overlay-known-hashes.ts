@@ -163,4 +163,42 @@ export const KNOWN_SHIPPED_OVERLAY_HASHES: ReadonlySet<string> = new Set([
   "543e6596e7ce9f3ce4de642f1ea7e5d437d553fa28c0d56eb0f244ec8526ce17",
   "71c6d1cce604c4a275db7c9a5c48f1753604bf35e083be054511ebc91f4977e6",
   "8d0fd61bcbb9e035dea3a8b9f298a48c226bb28785923cb07e1154cf084934ad",
+  "1d489cea7648a73b4fee12dbadc592700024272d0f1562378e1b1e8ed2bbeffe",
+  "246216002ee4c98ee4daf1402c531fc2788bb2dc1656d5517844da0ab674c086",
+  "9dea9e262e096c9cde32dfd1d1c2d832114018f8768679320b5dba9d442ebaa8",
+  "ec78c2d6cae7b1120a88bc8a2e4796e1525b894c4c44e653770ef2807ba0080c",
+  "221ebfef9a7b94f4d10ab21d13be073426405bb7d8550e89bc04935a43494284",
+  "78dc088900961ef37419d050ac7f5b499f8dbcc1ec663ef923dbac892e236d32",
+  "379f565e3321bb89c51d04ad9b2f939d8e0a4758b0b6950ad98b19c5963d091f",
+  "b65c495e70ced29711e0b213a9eb5333b5446e7f5393ad2a461b373dfb60f53c", // .cursor/commands/run-plan-all.md PO adjustment-class hard drift
+  "b0058c7516917079514696e5a4e25250b3f5542145557d4bb94761c48e1f5ffe", // .cursor/commands/run-plan-all.md start/resume 3-way Ask
+  "19562f3079fe27380b947742107dd693f5cf606188f468203f0a481b2668e9c7",
+  "3bdad79bd9e25ca127b85a8e5f659db6334cf11903e2ad163d053a94d5efe4f2",
+  "48a6c5e9a9a07ed7ee11ef31b6895be3176f727ac9a7665959d87a97de89da0b",
+  "4aaff4b1d51c3627e353458aa4d733736666dc2c3f8b7711b9677131eed7cefb",
+  "6bc92f215031c0f9702b39cf7cee2076928a0516c4a756c603c730bd0878eca3",
+  "8a6b53d5702431af97a9dfcbc97c47b9bf562561c40e2b09f7271a19998a8d06",
+  "949d8c97a7c2cdad133ab9e28b9c2955157fee988125f4e94f0659d10a24ea0d",
+  "96a77a9d75de9985d967f030626d779677db18f54a5966f5df1d770557c87190",
+  "cdef696f85a7e594289ec604918aad8122c4d03cfd3991dc28a114e853190186",
+  "e10ec219a3bfa6cea556f9cf0c1905ae35a578fc329c9476808faf9084b62d01",
+  // Hooks and scripts joined the overlay after v5.7.0; bodies shipped at released
+  // tags are listed so an unedited older consumer copy still refreshes instead of
+  // being preserved as customized.
+  "196f18aac06c4dc82f937bc147d00f44177aea1a3c0bdeb661d5d81cfd84523e", // .cursor/scripts/plan-external-review.sh as shipped in v5.3.0–v5.4.0
+  "ca7698db9747f8b2333d7f9f0ed2de72b0f029ee8b1d6dcf3e54e52cff6dbf3c", // .cursor/scripts/plan-external-review.sh as shipped in v5.5.0
+  "fd621d8a5fe64f9dde94c62dd7a3402602e1d92d9c5b80fde60660532a1a06d3", // .cursor/scripts/plan-external-review.sh as shipped in v5.6.0
+  "901471bdf9dedb5d87659dade4102b56794f480617ab534d3f86d18a291be443", // .cursor/scripts/plan-external-review.sh as shipped in v5.7.0
+  // .cursor/scripts/comms-draft.mjs is not an L0 artifact today (never written to a
+  // consumer); listed so a copy at any released tag refreshes if it joins the overlay.
+  "9f44b146b88d6bad2f27ddf03b7241223e63d5785f4bfc5fe3fba2e5208286f3", // .cursor/scripts/comms-draft.mjs as shipped in v5.3.0
+  "f9377bc3547b6202267745905337e7b4562fb8cb5949198401b89fa5ff99c628", // .cursor/scripts/comms-draft.mjs as shipped in v5.4.0–v5.7.0
+  "434d3c01e60a3ce5247b990486d251b9ddba66f3cdf0cf6da84b8b3a030b41e4",
+  "b5f6bbbb9ae839989dccf1758ebf2d08c826295be820c1c41e0b7914dd34481d",
+  "c18004ccafe021fcef38b0a567e2701aeaa6d7d890f43684b7317b5e6428a31b",
+  "e093af1f2c8f3bdf6dfa6ab92586ab84b1df180a8b77718b884a0f6f91bd53c4",
+  "3a88df22375f90a3a6743f50d9a01129e0373f4ca8dff03fb744c1de3c149409",
+  "481a9994ccecaa611173f9ef91a1dbe7458d89758c6a6b5e7c3bbbbf460888ce",
+  "691d91fd1e9032b6f9315f29348d4473201917da257258afd74eb954298d8d71",
+  "ab0808b7dbc333e523b87b126bb655353cde2574db30d849cc9c9037843bef8c",
 ]);

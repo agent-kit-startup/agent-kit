@@ -1,6 +1,7 @@
 import path from "node:path";
 import { defineCommand } from "citty";
 import { type HooksHealthReport, assessHooksHealth } from "../invariants/hooks-health.js";
+import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
@@ -8,6 +9,7 @@ import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
+import { logger } from "../utils/logger.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
 
 export interface DoctorResult {
@@ -149,6 +151,9 @@ export const doctorCommand = defineCommand({
     },
   },
   async run({ args }) {
+    if (!args.json) {
+      await warnIfRunningCliBehindNpm(args.cwd, { warn: (message) => logger.warn(message) });
+    }
     const run = () =>
       runDoctor(args.cwd, {
         fixSafe: args["fix-safe"],

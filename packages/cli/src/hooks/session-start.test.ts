@@ -133,6 +133,8 @@ describe("buildSessionStartAdditionalContext", () => {
     expect(additional_context).not.toContain("No handoff file yet");
     // Hard rules preamble is always first.
     expect(additional_context.indexOf("## Current HANDOFF.md")).toBeGreaterThan(0);
+    expect(additional_context).toContain("## Pending plans (index)");
+    expect(additional_context).toContain("- active: `sample.plan.md`");
   });
 
   it("notes missing HANDOFF when absent", async () => {

@@ -10,6 +10,12 @@ When the user requests **creating a new plan** (or the agent is in planner mode 
 
 ---
 
+## 0. Product-context reasoning (when applicable)
+
+When operator-provided source material mixes personal operations with product intent, run the **product-context reasoning stage** before proposing the plan. Single-scan the source, split product facts from personal/PII, and persist a hygiene-stripped extract to `docs/product-context/` (tracked, inheritable project voice, no PII, no chat metalanguage). Point the plan at the extract; later ticks read the extract, not the session origin. Do not commit raw attachments. No interview loop (ADR `decisions/2026-08-24_boostprompt-discovery-reject-adapt-concepts-thin-adapter.md`). Full contract: `.cursor/context/templates/plan.md` ("Product-context reasoning stage"). Skip when no mixed source exists.
+
+---
+
 ## 1. Create the plan with to-dos
 
 - **Always include to-dos** in the plan frontmatter (array with `id`, `content`, `status`).

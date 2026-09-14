@@ -1,8 +1,138 @@
 #!/bin/sh
-# Remove Co-authored-by trailer added by Cursor from commit message.
-# Install: cp agent-kit/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+# Agent signature guard (prepare-commit-msg).
+#
+# Strips coding-agent commit signatures and session links from the commit
+# message before it is recorded: Claude Code `Co-Authored-By: Claude ...` and
+# `Claude-Session: https://claude.ai/code/...` trailers, the Cursor co-author
+# trailer, Copilot / Codex / Gemini / Devin / Aider and peer trailers,
+# "Generated with <agent>" / "Made with <agent>" signature lines, and agent
+# session URLs. Human `Co-authored-by:` trailers are kept (matching is on
+# agent names and agent mail domains, never on the trailer key alone).
+#
+# Modes:
+#   <msg-file> [source] [sha]  git hook mode (default): strip matching lines in
+#                              place, print what was removed on stderr, exit 0.
+#   --check [file|-]           scan a message (file, or stdin with `-`): exit 1
+#                              and list the offending lines, no writes. This is
+#                              the /git-staging and /git-prod routine gate (before
+#                              push, before merge); also fine to run by hand.
+#   --list                     print the pattern list (one POSIX ERE per line,
+#                              matched case-insensitively).
+#
+# The pattern list is embedded so a single-file install stays self-contained:
+#   cp git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+# Gate example (outgoing commits + PR body):
+#   git log origin/staging..HEAD --format=%B | sh git-hooks/prepare-commit-msg --check -
+#
+# Portability: POSIX sh, `grep -E -i` only (BSD grep on macOS, GNU grep on
+# Linux); no \b, \s, \d, no bashisms. Extend the list here, in one place.
+
+# One pattern per line. `#` lines and blank lines are ignored.
+agent_signature_patterns() {
+  sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' <<'EOF'
+# 1. Co-author trailers with an agent mail domain (Claude Code, Cursor, Copilot, Codex, Devin, Amp).
+^co-authored-by:.*<([^>]*@(anthropic\.com|cursor\.com|openai\.com|devin\.ai|cognition\.ai|ampcode\.com)|[^>]*copilot@users\.noreply\.github\.com)>
+# 2. Co-author trailers naming an agent product. Bare human first names are not matched (Claude, Devin, Jules): a person can carry them; the real agent trailers are caught by their mail domain in rule 1 or by a product qualifier here.
+^co-authored-by: *(claude code|claude (opus|sonnet|haiku|fable)|cursor( agent)?|cursoragent|github copilot|copilot|codex|chatgpt|openai codex|gemini( code assist)?|google-labs-jules|devin ai|devin-ai|aider|windsurf|cline|roo code|amp|kiro|openhands|goose)( |<|\[|$)
+# 3. Session trailers.
+^(claude|cursor|codex|copilot|devin|amp|agent)-session(-id|-url)?:
+# 4. Agent session URLs anywhere on the line.
+https?://(www\.)?(claude\.ai/code/|cursor\.com/agents|chatgpt\.com/codex|app\.devin\.ai/sessions|ampcode\.com/threads|github\.com/copilot/agents)
+# 5. Signature lines ("🤖 Generated with [Claude Code](...)", "Made with Cursor", "Co-authored with Copilot"): anchored to the line start (emoji / bullet prefix allowed) and the agent name must follow the verb directly, so prose such as "regenerated with the fixture" or "auto-created by Claude Code" is untouched.
+^[^[:alpha:]]*(co-)?(generated|made|created|written|authored|assisted) (with|by|using) \[?(claude( code)?|cursor|github copilot|copilot|codex|chatgpt|gemini|jules|devin|aider|windsurf|cline|roo code|amp|kiro|openhands|goose)( |\]|\)|:|,|\.|$)
+EOF
+}
+
+usage() {
+  cat <<'EOF' >&2
+usage: prepare-commit-msg <msg-file> [source] [sha]   (git hook mode: strip in place)
+       prepare-commit-msg --check [file|-]           (scan; exit 1 on a match, no writes)
+       prepare-commit-msg --list                     (print the pattern list)
+EOF
+}
+
+tmpdir=
+cleanup() {
+  if [ -n "$tmpdir" ]; then
+    rm -rf "$tmpdir"
+  fi
+}
+trap cleanup EXIT
+
+make_tmpdir() {
+  tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t agent-signature)
+  [ -n "$tmpdir" ] && [ -d "$tmpdir" ] || {
+    echo "prepare-commit-msg: could not create a temp dir; message left untouched" >&2
+    exit 0
+  }
+}
+
+case "${1:-}" in
+  --list)
+    agent_signature_patterns
+    exit 0
+    ;;
+  --help|-h)
+    usage
+    exit 0
+    ;;
+  --check)
+    src="${2:--}"
+    make_tmpdir
+    patterns="$tmpdir/patterns"
+    agent_signature_patterns > "$patterns"
+    input="$tmpdir/input"
+    if [ "$src" = "-" ]; then
+      cat > "$input"
+    else
+      if [ ! -f "$src" ]; then
+        echo "prepare-commit-msg --check: no such file: $src" >&2
+        exit 2
+      fi
+      cat -- "$src" > "$input"
+    fi
+    matches=$(grep -n -i -E -f "$patterns" -- "$input")
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      echo "BLOCKED: agent signature or session link in the commit message / PR body:" >&2
+      printf '%s\n' "$matches" | sed 's/^/  line /' >&2
+      echo "Remove the line(s) before pushing to staging or main (git commit --amend, git rebase -i, or edit the PR body)." >&2
+      echo "Patterns: sh git-hooks/prepare-commit-msg --list. Strip on every commit: install this hook (git-hooks/README.md)." >&2
+      exit 1
+    fi
+    if [ "$rc" -ne 1 ]; then
+      echo "prepare-commit-msg --check: grep failed (rc=$rc)" >&2
+      exit 2
+    fi
+    echo "prepare-commit-msg --check: ok (no agent signature or session link)"
+    exit 0
+    ;;
+  "")
+    exit 0
+    ;;
+esac
+
+# Git hook mode.
 COMMIT_MSG_FILE=$1
-if [ -f "$COMMIT_MSG_FILE" ]; then
-  grep -v '^Co-authored-by: Cursor <cursoragent@cursor\.com>' "$COMMIT_MSG_FILE" > "${COMMIT_MSG_FILE}.tmp" && mv "${COMMIT_MSG_FILE}.tmp" "$COMMIT_MSG_FILE"
+[ -f "$COMMIT_MSG_FILE" ] || exit 0
+
+make_tmpdir
+patterns="$tmpdir/patterns"
+agent_signature_patterns > "$patterns"
+
+removed=$(grep -i -E -f "$patterns" -- "$COMMIT_MSG_FILE")
+[ -n "$removed" ] || exit 0
+
+grep -v -i -E -f "$patterns" -- "$COMMIT_MSG_FILE" > "$tmpdir/stripped"
+rc=$?
+# grep -v exits 1 when no line survives (every line was a signature): still a valid,
+# now empty, message that git will refuse as usual. Only rc >= 2 is an error.
+if [ "$rc" -gt 1 ]; then
+  echo "prepare-commit-msg: grep failed (rc=$rc); message left untouched" >&2
+  exit 0
 fi
+cat "$tmpdir/stripped" > "$COMMIT_MSG_FILE"
+count=$(printf '%s\n' "$removed" | wc -l | tr -d ' ')
+echo "prepare-commit-msg: removed $count agent-signature line(s) from the commit message:" >&2
+printf '%s\n' "$removed" | sed 's/^/  - /' >&2
 exit 0

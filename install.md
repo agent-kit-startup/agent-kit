@@ -10,15 +10,15 @@
 
 ## Preference: CLI
 
-**Prerequisites:** Node.js 20+ for the CLI. Git is recommended for readiness and the staging→prod flow.
+**Prerequisites:** Node.js 20+ for the CLI. Git is recommended for readiness and the staging→prod flow. Fresh Ubuntu 24.04 server with no Node.js at all: [docs/install-ubuntu24-bare-metal.md](docs/install-ubuntu24-bare-metal.md) puts a Node bootstrap in front of this same CLI path.
 
 If Node.js is available, in the **consumer project root**:
 
 ```bash
-npx @dadado/agent-kit-cli install
+npx @dadado/agent-kit-cli@latest install
 ```
 
-Unpinned `npx` resolves to the latest publish. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
+Use `@latest` so npx does not reuse a stale cached CLI. Pin a version when you need a reproducible install: `npx @dadado/agent-kit-cli@x.y.z install` (replace `x.y.z` with a version from npm).
 
 **Project-root guard:** before any write, `install`, `update`, and `init` refuse `/` and the home directory, a folder with neither `.git` nor `.cursor/agent-kit.json`, and a folder that has `.git` but also contains two or more child repositories (parent-of-repos). Interactive terminals get a `Proceed anyway?` prompt defaulting to **no**; `--yes` / CI refuses outright with exit 1 and no files written. `--force-root` is the explicit bypass and skips every root check - confirm the absolute path first. Details: [docs/getting-started.md](docs/getting-started.md#project-root-guard).
 
@@ -27,7 +27,7 @@ Unpinned `npx` resolves to the latest publish. Pin a version when you need a rep
 Optional L1 packs (separate command):
 
 ```bash
-npx @dadado/agent-kit-cli install --pack clean-code,context-management
+npx @dadado/agent-kit-cli@latest install --pack clean-code,context-management
 ```
 
 After: `npx @dadado/agent-kit-cli status`. `npx` is ephemeral - it leaves no `agent-kit` on `PATH`, so keep prefixing subcommands with `npx @dadado/agent-kit-cli` (or run `npm i -g @dadado/agent-kit-cli` once if you want the bare `agent-kit` bin). Kit L0 does **not** copy Mission Control's `dashboard/` tree into the project. The panel runs from the CLI package, which ships `dashboard/` from 4.8.2 onward, or from an agent-kit checkout (see [Getting started - Mission Control](docs/getting-started.md#mission-control-production-ship-constraints)). If `/dashboard` or the `dashboard` subcommand reports missing `start.mjs`, the installed CLI predates 4.8.2: upgrade it, or set kit-host env/sibling.
@@ -38,7 +38,7 @@ If CLI runs successfully, skip to **Onboarding** below.
 
 ## Port B: install via chat (no CLI)
 
-Entry path: either the user drags `install.md` into chat, or they paste the agent brief from [install-prompt.md](install-prompt.md) which points to this contract. Before any file writes, confirm the absolute workspace root path using **Ask questions** tool (fallback to chat if unavailable). Prefer running `npx @dadado/agent-kit-cli install` when Node.js/npx are available; use the file sync below only when CLI is not available.
+Entry path: either the user drags `install.md` into chat, or they paste the agent brief from [install-prompt.md](install-prompt.md) which points to this contract. Before any file writes, confirm the absolute workspace root path using **Ask questions** tool (fallback to chat if unavailable). Prefer running `npx @dadado/agent-kit-cli@latest install` when Node.js/npx are available; use the file sync below only when CLI is not available.
 
 > **Multi-workspace safety:** the Port B chat install performs the same root-confirm duty as the CLI's `confirmProjectRoot`. The Ask above is the Port B equivalent of that guard: confirm the workspace root before any L0 write. The shared registry cache is locked during CLI installs/updates, and each workspace keeps its own `.cursor/` tree plus its own Mission Control listen port.
 
@@ -146,7 +146,7 @@ chmod +x .cursor/hooks/agent/*.sh .cursor/hooks/pre-commit/check-secrets.sh
 
 Managed `agent-kit install` / `update` already preserves the executable bit via `copyFile`.
 
-If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, prefer **Port A** (`npx @dadado/agent-kit-cli install`) so files come from the integrity-checked npm package. Port B raw fetches have **no package checksum**: treat them as a fallback only.
+If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, prefer **Port A** (`npx @dadado/agent-kit-cli@latest install`) so files come from the integrity-checked npm package. Port B raw fetches have **no package checksum**: treat them as a fallback only.
 
 Default public base URL: `https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/` + each file path. Use **Ask questions** for any registry source confirmation:
 Options: `Fetch from public registry` / `Use different registry URL` / `Skip registry for now`

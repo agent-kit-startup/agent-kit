@@ -92,6 +92,22 @@ describe("resolveDashboardSnapshotRoot", () => {
     expect(resolveDashboardSnapshotRoot(root)).toBe(root);
   });
 
+  it("resolves a non-git cwd without printing git fatal on stderr", () => {
+    const root = mkdtempSync(join(tmpdir(), "ak-snap-nogit-"));
+    const chunks: string[] = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown, ...rest: unknown[]) => {
+      chunks.push(String(chunk));
+      return orig(chunk as never, ...(rest as []));
+    }) as typeof process.stderr.write;
+    try {
+      expect(resolveDashboardSnapshotRoot(root)).toBe(root);
+      expect(chunks.join("")).not.toMatch(/fatal:|not a git repository/i);
+    } finally {
+      process.stderr.write = orig;
+    }
+  });
+
   it("prefers the nearest Agent Kit install over a parent git toplevel", () => {
     const mono = mkdtempSync(join(tmpdir(), "ak-mono-"));
     // Create a parent git tree so rev-parse would climb above the package.

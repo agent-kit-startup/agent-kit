@@ -1,7 +1,8 @@
 import path from "node:path";
 import { defineCommand } from "citty";
 import type { AgentBackend } from "../plan-loop/backends.js";
-import { getBackend, listBackendIds } from "../plan-loop/backends.js";
+import { getBackend } from "../plan-loop/backends.js";
+import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 
@@ -33,7 +34,7 @@ export const runPlanCommand = defineCommand({
     },
     backend: {
       type: "string",
-      description: `Agent backend (${listBackendIds().join(" | ")}; default: cursor-agent)`,
+      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: cursor-agent)`,
       default: "cursor-agent",
     },
     "dry-run": {
@@ -58,7 +59,18 @@ export const runPlanCommand = defineCommand({
 
     let backend: AgentBackend;
     try {
-      backend = getBackend(String(args.backend));
+      const requested = String(args.backend);
+      if (requested === "auto") {
+        const detected = await detectAgentBackend("auto");
+        if (!detected.ok) {
+          logger.error(detected.message);
+          process.exitCode = 1;
+          return;
+        }
+        backend = getBackend(detected.id);
+      } else {
+        backend = getBackend(requested);
+      }
     } catch (err) {
       logger.error(String(err));
       process.exitCode = 1;

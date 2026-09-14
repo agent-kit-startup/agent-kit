@@ -3,6 +3,7 @@ import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
 import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
+import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
 import {
   CURSOR_AWARENESS_NUDGE,
   DOGFOOD_INBOX_HINT,
@@ -609,7 +610,19 @@ export async function buildSessionStartAdditionalContext(
     );
   }
 
+  const pendingPlans = await pendingPlansSection(root);
+  if (pendingPlans) parts.push(pendingPlans);
+
   return { additional_context: parts.join("\n\n") };
+}
+
+async function pendingPlansSection(root: string): Promise<string | null> {
+  try {
+    const index = await writePlanIndex(root);
+    return formatPlanIndexSection(index);
+  } catch {
+    return null;
+  }
 }
 
 export function resolveSessionRoot(payload: SessionStartPayload, cwd = process.cwd()): string {

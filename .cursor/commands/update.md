@@ -55,11 +55,30 @@ agent-kit update --check [--json] [--respect-prefs] [--stamp]
    - If same → nothing to do (report and stop)
    - If latest < current → warn about dev version and stop
 
-4. **Show what will update (diff):**
-   - Run `npx @dadado/agent-kit-cli diff --url https://github.com/agent-kit-startup/agent-kit --ref main` (or the latest tag ref)
+4. **Upgrade the CLI binary first (required before any apply):**
+   - `agent-kit update` stamps `.cursor/agent-kit.json` with the version of the
+     **CLI executing it**, so an apply can never deliver a version newer than
+     the installed binary. Applying with a stale CLI silently re-writes the old
+     version and still reports success.
+   - Check the running binary: `agent-kit --version` (globally installed) or
+     `npx @dadado/agent-kit-cli@latest --version`.
+   - If a globally installed CLI is older than the target release, upgrade it
+     **pinned to that release** before applying:
+     ```bash
+     npm i -g @dadado/agent-kit-cli@<latest>
+     ```
+   - Never apply through an **unpinned** `npx @dadado/agent-kit-cli` — npx can
+     reuse a stale cached build and reintroduce the same capping. Always
+     `@latest` or an explicit `@x.y.z`.
+   - The CLI enforces this: an apply whose registry is newer than the binary
+     refuses with exit 1 and prints the pinned `npm i -g` remedy.
+     `--yes` does **not** bypass it; `--allow-stale-cli` is factory/dev only.
+
+5. **Show what will update (diff):**
+   - Run `npx @dadado/agent-kit-cli@latest diff --url https://github.com/agent-kit-startup/agent-kit --ref main` (or the latest tag ref)
    - Show the summary: drift, missing-local, missing-registry, protected counts
 
-5. **Confirm via Ask questions:**
+6. **Confirm via Ask questions:**
    ```
    Agent Kit update: v{CURRENT} → v{LATEST}
    Drift: N files | Missing: N files | Protected: N files
@@ -67,16 +86,20 @@ agent-kit update --check [--json] [--respect-prefs] [--stamp]
    ```
    Options: `Apply update` / `Skip this version` / `Show detailed diff first`
 
-6. **On confirmation, run the update:**
+7. **On confirmation, run the update:**
    ```bash
-   npx @dadado/agent-kit-cli update --url https://github.com/agent-kit-startup/agent-kit --ref main
+   # globally installed CLI, upgraded in step 4:
+   agent-kit update --url https://github.com/agent-kit-startup/agent-kit --ref main
+   # or, without a global install (never unpinned):
+   npx @dadado/agent-kit-cli@latest update --url https://github.com/agent-kit-startup/agent-kit --ref main
    ```
    - This will sync from the public repo's `main` branch
    - Protected paths are automatically respected by the CLI
    - The manifest's `registry.ref` will be updated to `main`
    - Bare CLI `update` without Ask is an **explicit operator** terminal invoke, not a hook or cron path
 
-7. **Report results:**
+8. **Report results:**
+   - Show the version transition the CLI printed (`vX → vY`, or `unchanged at vX`) — this is the check that the apply was not capped by a stale binary
    - Show what was added/updated/removed
    - Show what was protected (skipped)
    - Update `.cursor/HANDOFF.md` with the update event if the repo has an active plan

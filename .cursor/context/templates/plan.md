@@ -69,6 +69,24 @@ When a plan watches another monitor mid-batch (e.g. a residual closeout referenc
 - In the plan body or monitor notes, cite the `_index.md` row rather than a HANDOFF line.
 - Do not write acceptance criteria that depend on a gitignored HANDOFF line as evidence.
 
+### Product-context reasoning stage
+
+When `/start-project`, `/backlog-add`, or `/run-plan` (first tick) encounters operator-provided source material that mixes personal operations with product intent, run a **single-scan product-context reasoning stage** before proposing or writing the plan:
+
+1. **Ingest** the source (attachment, cited document, or inline payload). Chat citation alone is not intake; a paraphrase in the plan body alone is not a durable extract.
+2. **Split personal vs product.** Identify product facts (positioning, stack, licensing) and separate them from personal operations (consulting rates, family, PII, org politics, people's names, client-specific IDs).
+3. **Persist a hygiene-stripped extract** to a tracked path under `docs/product-context/` (not gitignored `.cursor/plans/assets/` or session-local `.cursor/context/current/`). The extract is written in inheritable project voice per `docs-professional-standard`: no people, no PII, no chat metalanguage, no session-specific references.
+4. **Point the plan** at the extract path (a relative link in the plan body, not a HANDOFF line).
+5. **Later ticks read the extract**, not the session origin or a chat paraphrase. The extract is the durable SoT for product context used during planning and execution.
+
+**Single-scan only.** Do not graft a multi-question interview loop onto intake (ADR `decisions/2026-08-24_boostprompt-discovery-reject-adapt-concepts-thin-adapter.md`). The existing Broad Intake Review + Ask questions gates remain the bounded HITL surface.
+
+**Do not commit raw operator attachments.** Hygiene-strip first; the extract replaces the raw file for git purposes. If the source is no longer on disk, use product facts already captured in the plan's Broad Intake table (seed the extract from those, not from memory).
+
+**When no mixed source exists:** skip the stage. Pure-code or pure-docs plans without operator product context do not require an extract.
+
+Closes the parked use case in `decisions/2026-08-13_plan-intake-persist-originals.md`.
+
 ### Ledger regeneration boundary
 
 Do not confuse "a companion plan owns the stale-ledger residual" with "ledger regeneration is forbidden here." The knowledge-classification evidence gate resolves Audits targets against git-tracked files, so any change that introduces or reclassifies a tracked `.cursor/memory/**` file must regenerate `docs/evidence/knowledge-classification.json` in the same commit. Regeneration is required for the technical necessity of tracking new files; it is only forbidden as a duplicate residual-cleanup to-do when another plan has already committed to that specific stale-ledger residual. ADR: `decisions/2026-08-08_ledger-regen-policy.md`.

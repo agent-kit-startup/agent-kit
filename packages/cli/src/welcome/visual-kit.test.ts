@@ -1,11 +1,19 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   HELMET_ACCENT,
   HELMET_FILL,
   HELMET_OUTLINE,
   KIT_TIPS,
+  LABEL_MUTED,
   SPACE_MARKS,
   SPINNER_FRAMES,
+  STATUS_ERR,
+  STATUS_INFO,
+  STATUS_OK,
+  STATUS_WARN,
   TtySpinner,
   renderProgressLine,
   shouldUseVisualMotion,
@@ -15,6 +23,8 @@ import {
   withCliProgress,
   wrapNarrow,
 } from "./visual-kit.js";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 function clearEnv(key: string): void {
   Reflect.deleteProperty(process.env, key);
@@ -80,6 +90,28 @@ describe("visual-kit catalog", () => {
     expect(HELMET_OUTLINE).toBe("#e2e8f0");
     expect(HELMET_FILL).toBe("#0C8DEB");
     expect(HELMET_ACCENT).toBe("#00D0E7");
+  });
+
+  it("maps LABEL_MUTED and STATUS_* to dashboard legacy-skin hexes", () => {
+    expect(LABEL_MUTED).toBe("#8899aa");
+    expect(STATUS_OK).toBe("#22c55e");
+    expect(STATUS_WARN).toBe("#eab308");
+    expect(STATUS_ERR).toBe("#ef4444");
+    expect(STATUS_INFO).toBe("#06b6d4");
+
+    const html = readFileSync(path.resolve(repoRoot, "dashboard/dashboard.html"), "utf8");
+    const block = html.match(
+      /:root,\s*\nhtml\[data-dashboard-skin="legacy"\]\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    expect(block).toBeTruthy();
+    const hex = (name: string): string | undefined =>
+      block?.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+    expect(LABEL_MUTED).toBe(hex("text-secondary"));
+    expect(HELMET_OUTLINE).toBe(hex("text-primary"));
+    expect(STATUS_OK).toBe(hex("green"));
+    expect(STATUS_WARN).toBe(hex("yellow"));
+    expect(STATUS_ERR).toBe(hex("red"));
+    expect(STATUS_INFO).toBe(hex("cyan"));
   });
 
   it("exposes spinner frames and small marks without a full helmet reprint", () => {

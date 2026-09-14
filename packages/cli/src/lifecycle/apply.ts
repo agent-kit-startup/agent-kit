@@ -67,7 +67,7 @@ export interface CopyRegistryOptions {
 
 /**
  * Copy a file from registry root → project root, skipping L3 protected paths.
- * Consumer overlay paths (agents/skills/commands) preserve local customizations
+ * Consumer overlay paths (agents/skills/commands/hooks/scripts) preserve local customizations
  * when the local hash diverges from the managed ledger (or, when the ledger is
  * absent, when local content is not a known shipped kit hash); unedited kit
  * files refresh.

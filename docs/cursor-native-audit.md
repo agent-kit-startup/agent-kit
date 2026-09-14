@@ -1,8 +1,8 @@
 # Cursor-native audit - Agent Kit harness
 
-Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-08-12** (inventory cwd harden + Action A4/A5/A7 refresh).
+Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-09-12** (Cursor Projects study/ADR; A6/A7 status lines re-verified true at HEAD, unchanged by Projects).
 
-**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. Version-prose and Marketplace packaging were refreshed on 2026-08-05; only the live submission stays on the Marketplace plan (publisher HITL). See [cursor-update-awareness.md](cursor-update-awareness.md).
+**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. Version-prose and Marketplace packaging were refreshed on 2026-08-05; only the live submission stays on the Marketplace plan (publisher HITL). **Does not detect Projects:** the check's `gaps` output only re-surfaces action items already marked Open in this inventory and a bare changelog-version-number delta — it has no feature-keyword diff step, so it did not flag Cursor Projects (shipped 2026-09-10) as a new inventory gap on its own; verified 2026-09-12 (`agent-kit cursor-awareness --check --json` returned only `open-action-A7` and a `changelog-baseline` info note). See [cursor-update-awareness.md](cursor-update-awareness.md) and [`docs/research/cursor-projects-study.md`](research/cursor-projects-study.md) §1.
 
 ## Summary
 
@@ -15,9 +15,10 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | `.cursor/hooks/` (shell) | Present | Git pre-commit + edit validators; not wired to Cursor agent events |
 | `.cursor/hooks.json` | **Present (L0)** | 5 events (`sessionStart`, `preCompact`, `beforeShellExecution`, `afterFileEdit`, `beforeSubmitPrompt`); no `stop` hook |
 | `.cursor-plugin/plugin.json` | Present | Marketplace-ready at **5.2.1**, aligned with product; declares explicit component paths |
-| `git-hooks/prepare-commit-msg` | Present | Strips Cursor co-author trailer |
+| `git-hooks/prepare-commit-msg` | Present | Strips coding-agent signatures and session links (Cursor, Claude Code, Copilot, peers); `--check` mode for the staging/prod gate |
 | `AGENTS.md` (dogfood) | **Present** | Root cross-IDE contract; points at `.cursor/project-context.md` |
 | `mcp.json` | Absent | No project-level MCP config in core |
+| Cursor Projects (beta, 2026-09-10) | Not integrated (Cursor-native only) | Cloud coordinator + subagents, synced project files, Slack/schedule/PR subscriptions. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change. See [cursor-3-features.md](cursor-3-features.md) and [research/cursor-projects-study.md](research/cursor-projects-study.md) |
 
 ---
 
@@ -132,7 +133,7 @@ Shell git hooks and native hooks serve different layers: git hooks = commit time
 
 | File | Purpose |
 |------|---------|
-| `git-hooks/prepare-commit-msg` | Remove `Co-authored-by: Cursor` from commit messages |
+| `git-hooks/prepare-commit-msg` | Remove coding-agent co-author trailers, session-link trailers and "Generated with <agent>" lines from commit messages (Cursor, Claude Code, Copilot, peers); human co-authors kept |
 
 Separate from `.cursor/hooks/`; optional hygiene for teams that reject bot co-authorship.
 
@@ -243,7 +244,8 @@ Acceptable for private SoT until Phase B registry cutover defines minimum dogfoo
 
 ## References
 
-- [Cursor 3.0 Features](cursor-3-features.md)
+- [Cursor Native Features](cursor-3-features.md)
 - [Cursor update awareness](cursor-update-awareness.md)
 - [Coherence inventory](coherence-inventory.md)
+- [Cursor Projects study](research/cursor-projects-study.md); ADR `2026-09-12_cursor-projects-thin-adapter.md`
 - Decision: structural harness vs stack (maintainers' decision log, private repo)

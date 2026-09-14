@@ -20,9 +20,12 @@ export function logApplyStats(stats: ApplyStats): void {
   }
   if (stats.preservedCustomized.length > 0) {
     logger.warn(
-      `Preserved customized overlay (agents/skills/commands); run diff / contribute to sync upstream: ${stats.preservedCustomized.length}`,
+      `Preserved customized overlay (agents/skills/commands/hooks/scripts); local body kept, kit body not applied: ${stats.preservedCustomized.length}`,
     );
     for (const p of stats.preservedCustomized) logger.info(`  ! ${p}`);
+    logger.info(
+      "  Run `agent-kit diff` to see the kit body; send the change upstream (`agent-kit contribute` for agents/skills/commands/hooks, a factory PR for scripts); or add the path to `protected` in .cursor/agent-kit.json to keep it pinned on purpose.",
+    );
   }
   if (stats.skippedProtected.length > 0) {
     logger.warn(`Skipped protected (L3): ${stats.skippedProtected.length}`);

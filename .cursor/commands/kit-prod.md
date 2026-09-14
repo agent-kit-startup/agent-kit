@@ -23,7 +23,7 @@ Options: `Proceed with production deploy` / `Review changes first` / `Cancel`
 
 `Review changes first`: stop after the summary; wait for a later confirm.
 
-`Proceed with production deploy`: continue the git-prod routine (close release, merge, authorized main push, tag, public sync, post-prod verification).
+`Proceed with production deploy`: continue the git-prod routine (close release, agent signature gate, merge, authorized main push, tag, public sync, post-prod verification). The agent signature gate is a hard stop before merge: `git log origin/main..origin/staging --format=%B | sh git-hooks/prepare-commit-msg --check -` (and the staging→main PR body when one exists); exit 1 means the fix goes through `/git-staging` first, never merge over it.
 
 ## 2. Decide whether landing work applies
 

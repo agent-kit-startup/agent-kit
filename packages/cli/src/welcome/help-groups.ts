@@ -26,7 +26,7 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
   {
     id: "mission",
     title: "MISSION",
-    commands: ["handoff", "run-plan"],
+    commands: ["handoff", "plan-index", "run", "run-plan"],
   },
   {
     id: "dashboard",
@@ -109,7 +109,7 @@ export async function renderGroupedRootHelp<T extends ArgsDef = ArgsDef>(
   lines.push(
     g(`Use \`${name} <command> --help\` for more information about a command.`),
     g(
-      "Chat-only HITL (start-project, backlog, git-staging/prod, run-plan-all) is not a CLI surface.",
+      "Ask questions is Cursor-only. Use `agent-kit run <slash>` for headless numbered-list HITL. `/git-prod` stays operator-gated.",
     ),
     g(`${tipMark} ${tip}`),
     "",

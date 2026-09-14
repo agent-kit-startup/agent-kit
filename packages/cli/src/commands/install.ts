@@ -3,6 +3,7 @@ import { defineCommand } from "citty";
 import { bold, cyan, green, options as koloristOptions } from "kolorist";
 import { applyPersonalization, readRepositoryProfile } from "../generator/personalization.js";
 import { type ApplyStats, buildManifest, saveManifest } from "../lifecycle/apply.js";
+import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
 import { logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
@@ -141,10 +142,10 @@ export function printInstallEpilogue(
     'found". Pick one:',
     "",
     "  1. Keep using npx — works right now, no action needed",
-    "     npx @dadado/agent-kit-cli <subcommand>",
+    "     npx @dadado/agent-kit-cli@latest <subcommand>",
     "",
     "  2. Put a bare `agent-kit` on PATH",
-    "     npx @dadado/agent-kit-cli setup-global",
+    "     npx @dadado/agent-kit-cli@latest setup-global",
     "     (fixes a root-owned npm prefix if that's the blocker, or just installs)",
     "",
     "  3. Manual steps",
@@ -152,7 +153,7 @@ export function printInstallEpilogue(
     "       mkdir -p ~/.npm-global",
     '       npm config set prefix "~/.npm-global"',
     '       export PATH="~/.npm-global/bin:$PATH"',
-    "       npm i -g @dadado/agent-kit-cli",
+    "       npm i -g @dadado/agent-kit-cli@latest",
   ];
 
   print(color ? paint(cyan, divider) : divider);
@@ -298,6 +299,7 @@ export const installCommand = defineCommand({
       throw err;
     }
     logger.info(`Installing into: ${projectRoot}`);
+    await warnIfRunningCliBehindNpm(projectRoot, { warn: (message) => logger.warn(message) });
 
     const packs = parsePackList(args.pack);
     for (const id of packs) {

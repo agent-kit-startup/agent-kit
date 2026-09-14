@@ -2,6 +2,9 @@
 # Block direct pushes to the production branch (main/master) on any remote.
 # main is promoted only via `git prod` (merge from staging). Feature/staging pushes are fine.
 # Also block force-updating or deleting published v* tags (immutability).
+# Also block any direct push to the public mirror repo (agent-kit-startup/agent-kit,
+# not -dev): agents ship product changes there only via scripts/sync-public.mjs
+# (CI-driven private->public sync), never a direct push from this checkout.
 # Install: cp git-hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 #
 # Authorized prod push (from the `git prod` routine):
@@ -10,10 +13,34 @@
 # Authorized tag rewrite (emergency only; prefer a new patch tag):
 #   ALLOW_TAG_FORCE=1 git push --force origin vX.Y.Z
 #
-# WARNING: `git push --no-verify` skips this entire hook (branch + tag immutability).
-# Prefer ALLOW_MAIN_PUSH=1 / ALLOW_TAG_FORCE=1 so only the intended gate is bypassed.
+# Authorized direct push to the public mirror (rare; human-verified only —
+# a human maintainer's own push from a different checkout is unaffected,
+# this hook only runs where it's installed):
+#   ALLOW_PUBLIC_PUSH=1 git push <public-remote> ...
+#
+# WARNING: `git push --no-verify` skips this entire hook (branch + tag immutability
+# + the public-mirror block). Prefer ALLOW_MAIN_PUSH=1 / ALLOW_TAG_FORCE=1 /
+# ALLOW_PUBLIC_PUSH=1 so only the intended gate is bypassed.
 # Never use --no-verify for routine work; it can corrupt published v* tags.
 #
+# Git invokes pre-push as: pre-push <remote-name> <remote-url>; refs stream on stdin.
+remote_name="$1"
+remote_url="$2"
+
+case "$remote_url" in
+  *agent-kit-startup/agent-kit|*agent-kit-startup/agent-kit.git)
+    if [ "${ALLOW_PUBLIC_PUSH:-}" = "1" ]; then
+      echo "pre-push: ALLOW_PUBLIC_PUSH=1 - allowing direct push to public mirror (${remote_url})." >&2
+    else
+      echo "BLOCKED: direct push to the public mirror repo (${remote_url})." >&2
+      echo "Agents ship product changes only via scripts/sync-public.mjs (CI-driven private->public sync)." >&2
+      echo "This is a local guard only, not server-side enforcement on the public repo." >&2
+      echo "Authorized override (human-verified only): ALLOW_PUBLIC_PUSH=1 git push ${remote_name} ..." >&2
+      exit 1
+    fi
+    ;;
+esac
+
 # Git feeds pre-push lines on stdin: <local ref> <local sha> <remote ref> <remote sha>
 zero=0000000000000000000000000000000000000000
 while read -r local_ref local_sha remote_ref remote_sha; do
