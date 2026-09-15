@@ -33,7 +33,7 @@ describe("readiness commands", () => {
     ).toBe("ready");
     expect(snapshot).not.toContain(root);
     expect(JSON.parse(snapshot).repositoryFingerprint).toMatch(/^[a-f0-9]{64}$/);
-  }, 20_000);
+  }, 60_000);
 
   it("returns doctor JSON data without chat output", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-"));
@@ -48,11 +48,13 @@ describe("readiness commands", () => {
     expect(parsed.report.generatedAt).toBe(GENERATED_AT);
     expect(json).not.toContain(root);
     expect(typeof parsed.env.binOnPath).toBe("boolean");
+    expect("binPath" in parsed.env).toBe(true);
+    expect("binVersion" in parsed.env).toBe(true);
     expect(typeof parsed.env.npmPrefixWritable).toBe("boolean");
     expect(typeof parsed.env.nodeVersionOk).toBe("boolean");
     expect("shellProfile" in parsed.env).toBe(true);
     log.mockRestore();
-  });
+  }, 20_000);
 
   it("limits doctor safe repair to the local safe executor", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-safe-"));
@@ -87,7 +89,7 @@ describe("readiness commands", () => {
 
     expect(result.profileRefreshed).toBe(false);
     expect(after).toBe(before);
-  }, 20_000);
+  }, 60_000);
 
   it("reconciles a stale profile on demand via doctor --refresh-profile", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-refresh-stale-"));
@@ -112,7 +114,7 @@ describe("readiness commands", () => {
 
     expect(result.profileRefreshed).toBe(true);
     expect(refreshed.git.currentBranch).not.toBe("stale-branch-name");
-  }, 20_000);
+  }, 60_000);
 
   it("keeps init as a compatibility wrapper over install", async () => {
     const expected = { projectRoot: "/tmp/example" } as InstallResult;

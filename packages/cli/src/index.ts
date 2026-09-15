@@ -16,15 +16,20 @@ import { missionControlCommand } from "./commands/mission-control.js";
 import { monitorsCommand } from "./commands/monitors.js";
 import { planIndexCommand } from "./commands/plan-index.js";
 import { runPlanCommand } from "./commands/run-plan.js";
-import { runCommand } from "./commands/run.js";
+import { runCommand, runPlanAllCommand } from "./commands/run.js";
 import { scanCommand } from "./commands/scan.js";
 import { setupGlobalCommand } from "./commands/setup-global.js";
 import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
 import { validateCommand } from "./commands/validate.js";
 import { KIT_VERSION } from "./lifecycle/version.js";
+import { rewriteRootArgvToRun } from "./plan-loop/dispatch.js";
 import { renderGroupedRootHelp } from "./welcome/help-groups.js";
 import { hasCliSubcommand, printWelcomeScreen } from "./welcome/screen.js";
+
+const rewrittenArgv = rewriteRootArgvToRun(process.argv.slice(2));
+process.argv.length = 2;
+process.argv.push(...rewrittenArgv);
 
 const main = defineCommand({
   meta: {
@@ -48,6 +53,7 @@ const main = defineCommand({
     "plan-index": planIndexCommand,
     run: runCommand,
     "run-plan": runPlanCommand,
+    "run-plan-all": runPlanAllCommand,
     dashboard: dashboardCommand,
     "dashboard-broadcast": dashboardBroadcastCommand,
     "mission-control": missionControlCommand,

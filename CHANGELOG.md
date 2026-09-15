@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.9.0] - 2026-09-15
+
+### Fixed
+
+- **`npx install` / `update` no longer send you to a stale PATH `agent-kit`.** A global or pnpm shim at an older version (the binary that prints `agent-kit v5.7.0` after `npx @latest install`) used to be treated as "on PATH, run it directly". `init`/`update` from that binary then re-stamped the overlay. Install, init and update now compare PATH's `package.json` to this CLI, print the pinned `npx -y @dadado/agent-kit-cli@<this-version>` form, and on an interactive TTY with a writable npm prefix run `npm i -g` at that pin. `setup-global` no longer exits "nothing to fix" when the prefix is writable but PATH is missing or old. `status` names overlay/PATH drift and the same pin.
+- **`agent-kit run-plan-all` is a terminal command.** Welcome and docs treated the queue as chat-only. `agent-kit run-plan-all`, `agent-kit run run-plan-all`, and `agent-kit /run-plan-all` dispatch `.cursor/commands/run-plan-all.md` (numbered-list HITL; not the `run-plan` tick loop). Typing `/run-plan-all` in zsh is a filesystem path. `/git-prod` and `/kit-prod` stay operator-gated.
+
 ## [5.8.0] - 2026-09-14
 
 ### Added

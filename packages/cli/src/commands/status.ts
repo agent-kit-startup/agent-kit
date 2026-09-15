@@ -1,8 +1,10 @@
 import path from "node:path";
 import { defineCommand } from "citty";
+import { npxPinned, pathCliStatus } from "../lifecycle/path-cli.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { MANIFEST_RELATIVE_PATH, loadAgentKitManifest } from "../manifest/index.js";
+import { assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { runScanner } from "../scanner/scan.js";
 import type { DetectionEvidence, RepositoryProfile } from "../types.js";
@@ -46,12 +48,13 @@ export const statusCommand = defineCommand({
   },
   async run({ args }) {
     const rootDir = path.resolve(args.cwd);
-    const [manifest, rawProfile, scan] = await Promise.all([
+    const [manifest, rawProfile, scan, env] = await Promise.all([
       loadAgentKitManifest(rootDir),
       readJson<RepositoryProfile | Record<string, unknown>>(
         path.join(rootDir, ".cursor", "agent-kit.config.json"),
       ),
       runScanner(rootDir),
+      assessEnvironment(),
     ]);
     const readiness = createReadinessReport(scan, { generatorVersion: KIT_VERSION });
     const profile = profileStatus(rawProfile);
@@ -89,6 +92,17 @@ export const statusCommand = defineCommand({
         `  registry:   ${manifest.registry?.url ?? "(default)"} @ ${manifest.registry?.ref ?? "(default)"}`,
       );
       if (manifest.installedAt) console.log(`  installed at: ${manifest.installedAt}`);
+      if (manifest.version !== KIT_VERSION) {
+        console.log(
+          `  overlay:    this CLI is v${KIT_VERSION}; apply with the same binary, not a stale PATH hit:`,
+        );
+        console.log(`              ${npxPinned(KIT_VERSION, "update")}`);
+      }
+      const pathStatus = pathCliStatus(env, KIT_VERSION);
+      if (pathStatus === "behind" || pathStatus === "unknown") {
+        console.log(`  PATH bin:   v${env.binVersion ?? "unknown"} at ${env.binPath}`);
+        console.log("              bare `agent-kit update` will re-stamp that older version");
+      }
     }
 
     console.log("Repository readiness");

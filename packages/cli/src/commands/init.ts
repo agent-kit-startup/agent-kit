@@ -1,5 +1,6 @@
 import { intro, outro } from "@clack/prompts";
 import { defineCommand } from "citty";
+import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { assessEnvironment } from "../readiness/env-checks.js";
 import { logger } from "../utils/logger.js";
@@ -84,14 +85,13 @@ export const initCommand = defineCommand({
       logger.success(`L0 and readiness prepared in ${result.projectRoot}`);
       const nextStep = nextStepAfterInstall(pending);
       const env = await assessEnvironment();
-      // npx is ephemeral: never point the operator at a bare `agent-kit` here
-      // unless the environment probe confirms one is already on PATH.
+      const sync = await syncPathCliToRuntime({ runtimeVersion: KIT_VERSION, env });
+      for (const line of sync.lines) console.log(line);
+      printInstallEpilogue(sync.env, { runtimeVersion: KIT_VERSION });
       if (!nonInteractive) {
-        printInstallEpilogue(env);
         outro(nextStep);
       } else {
         logger.info(nextStep);
-        printInstallEpilogue(env);
       }
     } catch (err) {
       const hint = classifyInstallError(err);

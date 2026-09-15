@@ -4,11 +4,12 @@ import { bold, cyan, green, options as koloristOptions } from "kolorist";
 import { applyPersonalization, readRepositoryProfile } from "../generator/personalization.js";
 import { type ApplyStats, buildManifest, saveManifest } from "../lifecycle/apply.js";
 import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
+import { npxPinned, pathCliStatus, syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
 import { logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { installL0, syncFromManifest } from "../lifecycle/sync.js";
-import { KIT_VERSION } from "../lifecycle/version.js";
+import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import { DOMAIN_PACK_IDS, loadAgentKitManifest } from "../manifest/index.js";
 import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
 import { loadRegistry } from "../registry/client.js";
@@ -86,6 +87,7 @@ export interface InstallEpilogueOptions {
   color?: boolean;
   /** Injectable sink for tests; defaults to console.log. */
   print?: (line: string) => void;
+  runtimeVersion?: string;
 }
 
 /**
@@ -112,15 +114,9 @@ function paint(fn: (s: string | number) => string, text: string): string {
 /**
  * The post-install "what now" epilogue for the CLI invocation form.
  *
- * `npx` is ephemeral: right after `npx @dadado/agent-kit-cli install` a bare
- * `agent-kit` is not on PATH, so a beginner who tries one next hits
- * "command not found". This names that symptom up front and offers three
- * numbered choices (keep using npx / fix PATH via setup-global / manual
- * steps) instead of silently repeating the npx form.
- *
- * When `env.binOnPath` is already true (global install, or a machine where
- * the bin already resolves), the choices above are noise — this prints one
- * short positive line instead.
+ * `npx` is ephemeral. A PATH hit is not enough: a stale global or pnpm shim
+ * will re-stamp the old overlay if the operator follows "run agent-kit directly".
+ * Only a PATH binary at this CLI's version is safe to recommend.
  */
 export function printInstallEpilogue(
   env: EnvironmentReport,
@@ -128,9 +124,17 @@ export function printInstallEpilogue(
 ): void {
   const print = options.print ?? ((line: string) => console.log(line));
   const color = options.color ?? shouldUseWelcomeColor();
+  const runtimeVersion = options.runtimeVersion ?? KIT_VERSION;
+  const status = pathCliStatus(env, runtimeVersion);
 
-  if (env.binOnPath) {
-    const line = "`agent-kit` is on PATH — run it directly, e.g. `agent-kit doctor`.";
+  if (status === "current") {
+    const line = `PATH \`agent-kit\` is v${env.binVersion ?? runtimeVersion}. Run it directly, e.g. \`agent-kit doctor\`.`;
+    print(color ? paint(green, line) : line);
+    return;
+  }
+
+  if (status === "behind" || status === "unknown") {
+    const line = `Keep using ${npxPinned(runtimeVersion, "<subcommand>")} until PATH is v${runtimeVersion}.`;
     print(color ? paint(green, line) : line);
     return;
   }
@@ -141,11 +145,11 @@ export function printInstallEpilogue(
     'If you try `agent-kit <subcommand>` next, you will see "command not',
     'found". Pick one:',
     "",
-    "  1. Keep using npx — works right now, no action needed",
-    "     npx @dadado/agent-kit-cli@latest <subcommand>",
+    "  1. Keep using npx (works right now, no action needed)",
+    `     ${npxPinned(runtimeVersion, "<subcommand>")}`,
     "",
     "  2. Put a bare `agent-kit` on PATH",
-    "     npx @dadado/agent-kit-cli@latest setup-global",
+    `     ${npxPinned(runtimeVersion, "setup-global")}`,
     "     (fixes a root-owned npm prefix if that's the blocker, or just installs)",
     "",
     "  3. Manual steps",
@@ -153,7 +157,7 @@ export function printInstallEpilogue(
     "       mkdir -p ~/.npm-global",
     '       npm config set prefix "~/.npm-global"',
     '       export PATH="~/.npm-global/bin:$PATH"',
-    "       npm i -g @dadado/agent-kit-cli@latest",
+    `       npm i -g ${pinnedCliSpec(runtimeVersion)}`,
   ];
 
   print(color ? paint(cyan, divider) : divider);
@@ -166,7 +170,9 @@ export function printInstallEpilogue(
 async function printPostInstallSummary(result: InstallResult): Promise<void> {
   printReadinessNarrative(result);
   const env = await assessEnvironment();
-  printInstallEpilogue(env);
+  const sync = await syncPathCliToRuntime({ runtimeVersion: KIT_VERSION, env });
+  for (const line of sync.lines) console.log(line);
+  printInstallEpilogue(sync.env, { runtimeVersion: KIT_VERSION });
 }
 
 export async function performInstall(options: InstallOptions): Promise<InstallResult> {
@@ -299,6 +305,7 @@ export const installCommand = defineCommand({
       throw err;
     }
     logger.info(`Installing into: ${projectRoot}`);
+    logger.info(`CLI v${KIT_VERSION}`);
     await warnIfRunningCliBehindNpm(projectRoot, { warn: (message) => logger.warn(message) });
 
     const packs = parsePackList(args.pack);

@@ -227,6 +227,8 @@ describe("assessEnvironment", () => {
 
     expect(report).toMatchObject({
       binOnPath: false,
+      binPath: null,
+      binVersion: null,
       nodeVersionOk: true,
       shellProfile: path.join("/home/carlos", ".zshrc"),
     });
@@ -235,6 +237,8 @@ describe("assessEnvironment", () => {
     expect(() => JSON.stringify(report)).not.toThrow();
     const parsed = JSON.parse(JSON.stringify(report));
     expect(parsed).toHaveProperty("binOnPath");
+    expect(parsed).toHaveProperty("binPath");
+    expect(parsed).toHaveProperty("binVersion");
     expect(parsed).toHaveProperty("npmPrefixWritable");
     expect(parsed).toHaveProperty("nodeVersionOk");
     expect(parsed).toHaveProperty("shellProfile");

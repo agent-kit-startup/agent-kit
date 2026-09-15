@@ -100,6 +100,45 @@ describe("executeRun", () => {
     expect(result.exitCode).toBe(1);
     expect(result.error).toContain("operator-gated");
     expect(result.error).toContain("Never auto /git-prod");
+
+    const kit = await executeRun({
+      slash: "kit-prod",
+      cwd: "/tmp",
+      backend: "auto",
+      dryRun: true,
+      maxTicks: 10,
+      sleepSeconds: 5,
+      whichFn: whichCursor,
+    });
+    expect(kit.exitCode).toBe(1);
+    expect(kit.error).toContain("operator-gated");
+  });
+
+  it("dry-run for run-plan-all dispatches the L0 file, not the tick loop", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-run-all-"));
+    const dir = path.join(root, ".cursor", "commands");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "run-plan-all.md"),
+      "---\nname: run-plan-all\n---\n\nQueue several plans.\n",
+      "utf8",
+    );
+    const result = await executeRun({
+      slash: "run-plan-all",
+      cwd: root,
+      backend: "auto",
+      dryRun: true,
+      maxTicks: 10,
+      sleepSeconds: 5,
+      whichFn: whichCursor,
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Slash: run-plan-all");
+    expect(result.stdout).toContain("Queue several plans.");
+    expect(result.stdout).toContain(
+      `Command file: ${path.join(".cursor", "commands", "run-plan-all.md")}`,
+    );
+    expect(result.stdout).not.toContain("alias agent-kit run-plan");
   });
 
   it("aliases run-plan dry-run on whichever backend detect resolves, claude included", async () => {

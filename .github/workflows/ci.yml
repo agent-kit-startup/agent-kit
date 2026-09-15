@@ -14,6 +14,14 @@ on:
         description: "Sync to public repo"
         type: boolean
         default: false
+      sync_landing:
+        description: "Stamp and promote missionkit.io from public Release Latest"
+        type: boolean
+        default: false
+      landing_version:
+        description: "X.Y.Z when sync_landing runs on a branch (tag ref supplies it)"
+        type: string
+        default: ""
 
 # Superseded PR runs are cancelled; main, staging and tag runs always finish.
 concurrency:
@@ -224,3 +232,44 @@ jobs:
           pnpm --filter @dadado/agent-kit-cli publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── Stamp + promote missionkit.io from public GitHub Release Latest ──
+  # Private-origin allowlist only (same SoT as sync-public / publish-npm).
+  # Adding another allowlisted site (this job `if` counts) requires updating the
+  # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
+  # Secret HOSTINGER_API_TOKEN: fail loud when unset on tag/manual landing sync.
+  # Staging hop is required: deploy:staging, field-check, then promote the same dist/.
+  # Does not merge the public sync PR. Does not replace /git-prod.
+  sync-landing:
+    needs: build
+    if: >-
+      github.repository == 'agent-kit-startup/agent-kit-dev'
+      && (startsWith(github.ref, 'refs/tags/v')
+          || (github.event_name == 'workflow_dispatch'
+              && github.event.inputs.sync_landing == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Sync landing from public Release Latest
+        run: |
+          if [ -z "$HOSTINGER_API_TOKEN" ]; then
+            echo "::error::HOSTINGER_API_TOKEN is not configured. Tag and manual landing sync require this secret; missionkit.io was not updated."
+            exit 1
+          fi
+          if [ -n "${{ github.event.inputs.landing_version }}" ]; then
+            export LANDING_RELEASE_VERSION="${{ github.event.inputs.landing_version }}"
+          fi
+          node scripts/sync-landing-release.mjs
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_LANDING_LATEST_ATTEMPTS: "24"
+          PUBLIC_LANDING_LATEST_DELAY_MS: "15000"
