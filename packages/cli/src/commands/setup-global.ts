@@ -39,6 +39,8 @@ import path from "node:path";
 import { confirm, isCancel } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { cyan, green, yellow } from "kolorist";
+import { pathCliStatus } from "../lifecycle/path-cli.js";
+import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import {
   type AssessEnvironmentOptions,
   type EnvironmentReport,
@@ -48,7 +50,6 @@ import { classifyInstallError, isNonInteractive } from "../utils/terminal.js";
 
 export const NPM_GLOBAL_DIR_NAME = ".npm-global";
 export const SETUP_GLOBAL_MARKER = "# agent-kit setup-global";
-export const DEFAULT_PACKAGE_SPEC = "@dadado/agent-kit-cli";
 
 export type SetupGlobalStepId = "set-prefix" | "append-path" | "npm-install" | "verify";
 
@@ -87,7 +88,7 @@ export function planSetupGlobalSteps(
   options: PlanSetupGlobalOptions = {},
 ): SetupGlobalPlan {
   const homeDir = options.homeDir ?? homedir();
-  const packageSpec = options.packageSpec ?? DEFAULT_PACKAGE_SPEC;
+  const packageSpec = options.packageSpec ?? pinnedCliSpec();
   const npmGlobalDir = path.join(homeDir, NPM_GLOBAL_DIR_NAME);
   const npmGlobalBin = path.join(npmGlobalDir, "bin");
   const npmrcPath = path.join(homeDir, ".npmrc");
@@ -299,10 +300,48 @@ export async function runSetupGlobal(
   const env = await assessEnvironmentImpl(options);
   const plan = planSetupGlobalSteps(env, { homeDir, packageSpec: options.packageSpec });
 
+  if (plan.alreadyWritable && pathCliStatus(env, KIT_VERSION) === "current") {
+    printHeader(env, print);
+    print(green("npm's global prefix is writable and PATH `agent-kit` matches this CLI."));
+    return { exitCode: 0, mutated: false, outcome: "already-ok", env, plan };
+  }
+
   if (plan.alreadyWritable) {
     printHeader(env, print);
-    print(green("npm's global prefix is already writable — nothing to fix."));
-    return { exitCode: 0, mutated: false, outcome: "already-ok", env, plan };
+    print(
+      `PATH \`agent-kit\` is ${env.binVersion ? `v${env.binVersion}` : "missing or unreadable"}; this CLI is v${KIT_VERSION}.`,
+    );
+    print(`Prefix is writable. Next step is only: npm i -g ${plan.packageSpec}`);
+    if (options.dryRun) {
+      print("Dry run: no changes.");
+      print(`  npm i -g ${plan.packageSpec}`);
+      return { exitCode: 0, mutated: false, outcome: "dry-run", env, plan };
+    }
+    const nonInteractiveWritable = options.nonInteractive ?? isNonInteractive();
+    if (nonInteractiveWritable) {
+      print("No changes made. Run this yourself:");
+      print(`  npm i -g ${plan.packageSpec}`);
+      print("  hash -r");
+      print("  agent-kit --version");
+      return { exitCode: 0, mutated: false, outcome: "manual-instructions", env, plan };
+    }
+    const confirmStep = options.confirmImpl ?? defaultConfirmImpl;
+    const npmInstall = options.npmInstallImpl ?? defaultNpmInstallImpl;
+    const proceedInstall = await confirmStep(`Run: npm i -g ${plan.packageSpec}?`);
+    if (!proceedInstall) {
+      print(yellow("Cancelled: no changes made."));
+      return { exitCode: 1, mutated: false, outcome: "cancelled", env, plan };
+    }
+    const installResult = await npmInstall(plan.packageSpec);
+    if (!installResult.ok) {
+      const hint = classifyInstallError(installResult.error);
+      print(`  npm install failed: ${hint.message}`);
+      print(hint.recovery);
+      return { exitCode: 1, mutated: false, outcome: "error", env, plan };
+    }
+    print(green(`  done: ${plan.packageSpec} installed globally.`));
+    print("  If this shell still shows the old version: hash -r (or open a new terminal).");
+    return { exitCode: 0, mutated: true, outcome: "completed", env, plan };
   }
 
   if (options.dryRun) {

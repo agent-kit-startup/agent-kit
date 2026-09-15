@@ -35,9 +35,10 @@ With `cursor-agent` or `claude` on PATH, start a kit command without opening cha
 ```bash
 npx @dadado/agent-kit-cli run backlog-add
 npx @dadado/agent-kit-cli run continue-plan
+npx @dadado/agent-kit-cli run-plan-all
 ```
 
-`--backend auto` (the default) picks the first installed agent CLI. Cursor Ask questions stays Cursor-only; headless confirmations are a numbered list. `agent-kit run git-prod` is refused: `/git-prod` stays operator-gated and is never auto-promoted. `agent-kit run run-plan` wraps the existing one-tick loop. `agent-kit run-plan --backend claude` (or `agent-kit run run-plan --backend claude`) runs that tick loop on Claude Code headless (`claude -p`): same one-to-do tick contract, same `LOOP_TICK_RESULT` sentinel, never `/git-prod`. Flags and env are in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables).
+`--backend auto` (the default) picks the first installed agent CLI. Cursor Ask questions stays Cursor-only; headless confirmations are a numbered list. `agent-kit run git-prod` is refused: `/git-prod` stays operator-gated and is never auto-promoted. `agent-kit run run-plan` wraps the existing one-tick loop. `agent-kit run-plan-all` (same as `agent-kit run run-plan-all`) dispatches `.cursor/commands/run-plan-all.md`, not that tick loop. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all`. `agent-kit run-plan --backend claude` (or `agent-kit run run-plan --backend claude`) runs that tick loop on Claude Code headless (`claude -p`): same one-to-do tick contract, same `LOOP_TICK_RESULT` sentinel, never `/git-prod`. Flags and env are in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables).
 
 ## Watch progress
 
@@ -106,17 +107,20 @@ Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`
 `npx @dadado/agent-kit-cli install` is **ephemeral**: `npx` downloads the package, runs it, and leaves nothing on your `PATH`. After it finishes, a bare `agent-kit …` is `command not found` unless you install the package globally. Two honest forms:
 
 ```bash
-# Keep using npx (nothing installed globally)
-npx @dadado/agent-kit-cli status
+# Keep using npx (nothing installed globally). Pin so a cache cannot serve an old CLI.
+npx -y @dadado/agent-kit-cli@latest status
 
-# Or install the bin once, then call it bare
-npm i -g @dadado/agent-kit-cli
-agent-kit status
+# Or install the bin once, then call it bare (pin the version you just ran)
+npm i -g @dadado/agent-kit-cli@latest
+hash -r
+agent-kit --version
 ```
 
-Blocked on the global install by a root-owned npm prefix (`EACCES`)? Run `npx @dadado/agent-kit-cli setup-global` — it self-heals the prefix, fixes `PATH`, and reinstalls; see the troubleshooting table above. `install`/`init` also print this automatically as a 3-option epilogue whenever a bare `agent-kit` isn't on `PATH` yet.
+`npx` and PATH are two different binaries. If `npx -y @dadado/agent-kit-cli@latest --version` is 5.8.0 but `agent-kit` prints 5.7.0, do not run `agent-kit update` or `init`: that PATH hit re-stamps 5.7.0. Keep the npx pin, or run `npx -y @dadado/agent-kit-cli@latest setup-global`. Install/update print this split and, on an interactive TTY with a writable npm prefix, try `npm i -g` at the running version. `hash -r` clears a zsh hashed path.
 
-The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-kit-cli` (or with `agent-kit` after a global install). Slash commands (`/agent-kit-onboard`, `/start-project`, …) are IDE chat commands and need neither.
+Blocked on the global install by a root-owned npm prefix (`EACCES`)? Run `npx -y @dadado/agent-kit-cli@latest setup-global`: it self-heals the prefix, fixes `PATH`, and reinstalls. `install`/`init` also print this automatically when a current `agent-kit` is not on `PATH`.
+
+The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-kit-cli` (or with `agent-kit` after a global install). Most slash commands (`/agent-kit-onboard`, `/start-project`, …) are IDE chat commands and need neither. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all` (or `agent-kit run run-plan-all`).
 
 | Subcommand | What it does |
 |------------|-------------|
@@ -132,6 +136,9 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `diff` | Show what changed between what you have and the latest |
 | `contribute` | Send an improvement you made locally back upstream |
 | `handoff` | Save your progress to `.cursor/HANDOFF.md` |
+| `run <slash>` | One headless session from an L0 slash file (numbered-list HITL; never git-prod) |
+| `run-plan` | Headless continuous plan runner (tick loop; never git-prod) |
+| `run-plan-all` | Headless `/run-plan-all` queue from the L0 file (same as `run run-plan-all`; never git-prod) |
 | `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); live TTY quits with `q` or Ctrl-C; `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 

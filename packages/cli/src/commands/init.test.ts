@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import type { EnvironmentReport } from "../readiness/env-checks.js";
 import { RootRefusedError } from "../utils/terminal.js";
 import { initCommand } from "./init.js";
@@ -35,6 +36,8 @@ vi.mock("./install.js", async (importOriginal) => {
 function makeEnvReport(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport {
   return {
     binOnPath: false,
+    binPath: null,
+    binVersion: null,
     npmPrefixWritable: true,
     npmPrefix: { prefix: "/usr/local", writable: true, source: "heuristic" },
     nodeVersionOk: true,
@@ -112,10 +115,9 @@ describe("initCommand project-root guard", () => {
       await runInit("/tmp/confirmed-project");
       expect(mockAssessEnvironment).toHaveBeenCalled();
       const printed = consoleLogSpy.mock.calls.map((call) => String(call[0])).join("\n");
-      expect(printed).toContain("npx @dadado/agent-kit-cli@latest setup-global");
-      // The "keep using npx" option must recommend npx, never a bare bin.
+      expect(printed).toContain(`npx -y ${pinnedCliSpec(KIT_VERSION)} setup-global`);
       expect(printed).toContain("1. Keep using npx");
-      expect(printed).toContain("npx @dadado/agent-kit-cli@latest <subcommand>");
+      expect(printed).toContain(`npx -y ${pinnedCliSpec(KIT_VERSION)} <subcommand>`);
     } finally {
       consoleLogSpy.mockRestore();
     }

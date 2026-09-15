@@ -25,3 +25,8 @@ export const KIT_VERSION = loadPackageVersion();
 
 /** npm spec of this CLI, used when telling an operator to upgrade the binary. */
 export const KIT_PACKAGE_SPEC = "@dadado/agent-kit-cli";
+
+/** Pin a publish to this exact version. Unpinned specs reuse a stale npx/global bin. */
+export function pinnedCliSpec(version: string = KIT_VERSION): string {
+  return `${KIT_PACKAGE_SPEC}@${version}`;
+}

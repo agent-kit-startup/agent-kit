@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import type { EnvironmentReport } from "../readiness/env-checks.js";
 import { RootRefusedError } from "../utils/terminal.js";
 import { installCommand, nextStepAfterInstall, printInstallEpilogue } from "./install.js";
@@ -6,6 +7,8 @@ import { installCommand, nextStepAfterInstall, printInstallEpilogue } from "./in
 function makeEnvReport(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport {
   return {
     binOnPath: false,
+    binPath: null,
+    binVersion: null,
     npmPrefixWritable: true,
     npmPrefix: { prefix: "/usr/local", writable: true, source: "heuristic" },
     nodeVersionOk: true,
@@ -55,16 +58,43 @@ describe("post-install next-step copy", () => {
 });
 
 describe("printInstallEpilogue", () => {
-  it("prints a short positive line and skips the numbered options when the bin is already on PATH", () => {
+  it("prints a short positive line and skips the numbered options when PATH matches this CLI", () => {
     const lines: string[] = [];
-    printInstallEpilogue(makeEnvReport({ binOnPath: true }), {
-      color: false,
-      print: (line) => lines.push(line),
-    });
+    printInstallEpilogue(
+      makeEnvReport({
+        binOnPath: true,
+        binPath: "/usr/local/bin/agent-kit",
+        binVersion: KIT_VERSION,
+      }),
+      {
+        color: false,
+        print: (line) => lines.push(line),
+      },
+    );
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("agent-kit");
     expect(lines[0]).toContain("PATH");
+    expect(lines[0]).toContain(`v${KIT_VERSION}`);
     expect(lines.join("\n")).not.toContain("setup-global");
+  });
+
+  it("does not tell the operator to run a stale PATH binary", () => {
+    const lines: string[] = [];
+    printInstallEpilogue(
+      makeEnvReport({
+        binOnPath: true,
+        binPath: "/Users/macos/Library/pnpm/agent-kit",
+        binVersion: "5.7.0",
+      }),
+      {
+        color: false,
+        runtimeVersion: "5.8.0",
+        print: (line) => lines.push(line),
+      },
+    );
+    const printed = lines.join("\n");
+    expect(printed).toContain("npx -y @dadado/agent-kit-cli@5.8.0");
+    expect(printed).not.toContain("Run it directly");
   });
 
   it("prints all 3 numbered options, mentioning setup-global, when the bin is not on PATH", () => {
@@ -75,13 +105,12 @@ describe("printInstallEpilogue", () => {
     });
     const printed = lines.join("\n");
     expect(printed).toContain("1. Keep using npx");
-    expect(printed).toContain("npx @dadado/agent-kit-cli@latest <subcommand>");
+    expect(printed).toContain(`npx -y ${pinnedCliSpec(KIT_VERSION)} <subcommand>`);
     expect(printed).toContain("2. Put a bare `agent-kit` on PATH");
-    expect(printed).toContain("npx @dadado/agent-kit-cli@latest setup-global");
-    expect(printed).toContain("npm i -g @dadado/agent-kit-cli@latest");
+    expect(printed).toContain(`npx -y ${pinnedCliSpec(KIT_VERSION)} setup-global`);
+    expect(printed).toContain(`npm i -g ${pinnedCliSpec(KIT_VERSION)}`);
     expect(printed).toContain("3. Manual steps");
     expect(printed).toContain("docs/getting-started.md");
-    // Beginner-first: name the symptom before the choices.
     expect(printed.indexOf("won't work yet")).toBeLessThan(printed.indexOf("1. Keep using npx"));
   });
 

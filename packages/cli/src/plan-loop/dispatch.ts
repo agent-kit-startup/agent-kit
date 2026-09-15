@@ -29,6 +29,9 @@ export const RUN_CATALOG = [
 
 export type RunCatalogSlash = (typeof RUN_CATALOG)[number];
 
+/** Citty names that already implement a catalog slash (do not rewrite to `run`). */
+export const FIRST_CLASS_SLASH_COMMANDS = ["run-plan", "run-plan-all"] as const;
+
 /** Omitted from auto-yes. Operator-gated slashes; never CLI --force promote. */
 export const RUN_PROMOTE_BLOCKED = ["git-prod", "kit-prod"] as const;
 
@@ -44,6 +47,32 @@ export function classifySlash(name: string): SlashClass {
   if (n === "run-plan") return "run-plan";
   if ((RUN_CATALOG as readonly string[]).includes(n)) return "catalog";
   return "unknown";
+}
+
+/**
+ * Map `agent-kit /run-plan-all` (and other catalog slashes) onto citty subcommands.
+ * Bare `/run-plan-all` in zsh is a filesystem path; this only sees argv after `agent-kit`.
+ */
+export function rewriteRootArgvToRun(argv: string[]): string[] {
+  const idx = argv.findIndex((arg) => arg.length > 0 && !arg.startsWith("-"));
+  if (idx < 0) return argv;
+  const token = argv[idx];
+  if (!token || token === "run") return argv;
+
+  const kind = classifySlash(token);
+  if (kind === "unknown") return argv;
+
+  const slash = normalizeSlashName(token);
+  if ((FIRST_CLASS_SLASH_COMMANDS as readonly string[]).includes(slash)) {
+    if (token === slash) return argv;
+    const next = [...argv];
+    next[idx] = slash;
+    return next;
+  }
+
+  const next = [...argv];
+  next.splice(idx, 1, "run", slash);
+  return next;
 }
 
 export function commandMarkdownPath(root: string, name: string): string {

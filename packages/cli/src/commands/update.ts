@@ -7,6 +7,7 @@ import {
   readLocalKitVersion,
 } from "../lifecycle/check-updates.js";
 import { seedManagedHashLedger } from "../lifecycle/overlay.js";
+import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { syncFromManifest } from "../lifecycle/sync.js";
@@ -217,6 +218,8 @@ export const updateCommand = defineCommand({
           ? `unchanged at v${next.version}`
           : `v${existing.version} → v${next.version}`;
       logger.success(`Update complete: ${transition} (L3 protected paths left untouched).`);
+      const sync = await syncPathCliToRuntime({ runtimeVersion: KIT_VERSION });
+      for (const line of sync.lines) console.log(line);
     } finally {
       await registry.unlock?.();
     }

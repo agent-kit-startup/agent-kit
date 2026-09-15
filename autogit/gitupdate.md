@@ -17,7 +17,7 @@ plan → /handoff → git staging → git prod → memory
 | `kit staging` | `/kit-staging` | `origin/staging`, then optional landing staging | Git-staging routine, then landing field update + `landing:deploy:staging` only when a product changelog or release changed |
 | `kit prod` | `/kit-prod` | `origin/main`, then optional landing promote | Git-prod routine (same HITL), then landing field update + `landing:promote` only when this promotion includes a release |
 
-**Bundles vs native:** `/git-staging` and `/git-prod` remain the SoT for git-only work. They do not deploy the public landing. `/kit-staging` and `/kit-prod` wrap those prompts, then may update and deploy the landing when a product changelog or release actually changed (not on every `docs(memory)` monitor commit). Repo-only shipping stays `/git-staging` / `/git-prod`. Command SoT: `.cursor/commands/kit-staging.md`, `.cursor/commands/kit-prod.md`.
+**Bundles vs native:** `/git-staging` and `/git-prod` remain the SoT for git-only work. They do not deploy the public landing. `/kit-staging` and `/kit-prod` wrap those prompts. After a public GitHub Release Latest is cut, private tag CI job `sync-landing` stamps missionkit.io (public excerpt blurb), deploys staging, then promotes the same `dist/` bytes. Fail-closed if Latest is missing or live fields stay stale. `/kit-prod` does not Ask `Promote landing to production` for that path. Design-canvas visual deploys still use `/kit-staging` HITL. Repo-only shipping stays `/git-staging` / `/git-prod`. Command SoT: `.cursor/commands/kit-staging.md`, `.cursor/commands/kit-prod.md`.
 
 In legacy projects the pre-prod branch may be called `homologacao`, `develop`, etc. The **two-step pattern** is fixed; the canonical name in Agent Kit is **`staging`**.
 

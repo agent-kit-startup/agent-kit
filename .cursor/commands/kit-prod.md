@@ -45,9 +45,11 @@ Run `node scripts/kit-landing-gate.mjs --mode prod`. Same rules if the script is
 
 Repo-only production stays native `/git-prod`.
 
-## 3. Landing HITL (extra confirm)
+## 3. Landing after git prod
 
-Ask questions. This Ask is **in addition to** the git-prod Ask, not a replacement. Fallback: numbered list, wait; skip or cancel means stop.
+Release-field sync (version pill + public notes) is private tag CI job `sync-landing`: public excerpt blurb, stamp, staging hop, promote the same `dist/`. Fail-closed if public Release Latest does not match or live HTML stays stale. Do not Ask `Promote landing to production` when that job will run.
+
+Ask remains for Design-canvas / visual landing deploys, or when `sync-landing` is skipped (no `HOSTINGER_API_TOKEN`). This Ask is **in addition to** the git-prod Ask. Fallback: numbered list, wait; skip or cancel means stop.
 
 Options:
 
@@ -59,7 +61,7 @@ Options:
 
 `Skip landing (repo only)`: stop. Report skipped.
 
-`Promote landing to production`: continue.
+`Promote landing to production`: continue (staging hop still required; never rebuild on promote).
 
 ## 4. Surgical update + promote (this monorepo)
 
@@ -86,7 +88,7 @@ pnpm landing:update-release -- --version <X.Y.Z> --notes "$NOTES" --dry-run
 
 Version is the closed release / `stamp.version`. Optional `--dry-run` first.
 3. **Build.** `pnpm landing:build` so `dist/` matches the stamp. This is the field-update step, not promote.
-4. **Promote.** `pnpm landing:promote`. The promote script itself must not rebuild (existing invariant). Do not use `landing:deploy:staging` as a substitute for promote.
+4. **Staging hop, then promote.** `pnpm landing:deploy:staging`, confirm staging HTML has the version pill, then `pnpm landing:promote` (same `dist/`; the promote script itself must not rebuild). Do not use `landing:deploy:staging` as a substitute for promote.
 5. Update `.cursor/HANDOFF.md` ("promoted to production"; landing URL if promoted).
 
 Never run the landing half from `/run-plan` or `/run-plan-all`. Those commands must not steal `/git-prod` HITL.

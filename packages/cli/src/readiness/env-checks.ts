@@ -33,6 +33,13 @@ export interface NpmPrefixReport {
 export interface EnvironmentReport {
   /** True when a bare `agent-kit` resolves on PATH. */
   binOnPath: boolean;
+  /** Absolute path of the first PATH hit, or null when missing. */
+  binPath: string | null;
+  /**
+   * Semver of that PATH binary from its package.json (never by executing it).
+   * Null when the bin is missing or the version could not be read.
+   */
+  binVersion: string | null;
   /** True when the active npm global prefix is writable by the current user. */
   npmPrefixWritable: boolean;
   /** Detail behind `npmPrefixWritable` (prefix path, reason when not writable). */
@@ -68,14 +75,92 @@ export interface AssessEnvironmentOptions {
   readFileImpl?: (filePath: string) => Promise<string>;
 }
 
-/** True when a bare `binName` resolves to an executable on PATH. */
-export async function checkBinOnPath(
+const CLI_PACKAGE_JSON_REL = path.join(
+  "lib",
+  "node_modules",
+  "@dadado",
+  "agent-kit-cli",
+  "package.json",
+);
+
+/** Shim targets: quotes/spaces stay outside the match so `@scope` paths still hit. */
+const DIST_INDEX_RE = /(?:\$\{basedir\}|\$basedir)?[^'"\s;]*dist\/index\.js/g;
+
+/** Pull dist/index.js targets out of an npm/pnpm bin shim (no execute). */
+export function extractDistIndexFromBinScript(contents: string): string[] {
+  const found: string[] = [];
+  DIST_INDEX_RE.lastIndex = 0;
+  for (const match of contents.matchAll(DIST_INDEX_RE)) {
+    const raw = match[0]?.trim();
+    if (raw) found.push(raw.replace(/\\/g, "/"));
+  }
+  return found;
+}
+
+function expandBinDirVars(raw: string, binDir: string): string {
+  return raw.replace(/\$\{basedir\}/g, binDir).replace(/\$basedir/g, binDir);
+}
+
+function packageJsonFromDistIndex(distIndex: string): string {
+  return path.join(path.dirname(distIndex), "..", "package.json");
+}
+
+function parsePackageVersion(contents: string): string | null {
+  try {
+    const parsed = JSON.parse(contents) as { version?: unknown };
+    return typeof parsed.version === "string" && parsed.version.length > 0 ? parsed.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the CLI version that a PATH `agent-kit` would run, without executing it.
+ * Spawning the bin loads the whole CLI graph and can stall; the shim always
+ * points at dist/index.js next to package.json.
+ */
+export async function readBinVersion(
+  binPath: string,
+  options: Pick<AssessEnvironmentOptions, "readFileImpl"> = {},
+): Promise<string | null> {
+  const readFileImpl = options.readFileImpl ?? ((filePath: string) => readFile(filePath, "utf8"));
+  const binDir = path.dirname(binPath);
+  const candidates = [
+    path.join(binDir, "..", CLI_PACKAGE_JSON_REL),
+    path.join(binDir, "..", "node_modules", "@dadado", "agent-kit-cli", "package.json"),
+  ];
+  try {
+    const contents = await readFileImpl(binPath);
+    for (const raw of extractDistIndexFromBinScript(contents)) {
+      const distIndex = path.resolve(binDir, expandBinDirVars(raw, binDir));
+      candidates.push(packageJsonFromDistIndex(distIndex));
+    }
+  } catch {
+    // Binary or unreadable shim; still try the npm-global layout candidates.
+  }
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    try {
+      const version = parsePackageVersion(await readFileImpl(resolved));
+      if (version) return version;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return null;
+}
+
+/** Absolute path of the first PATH hit for `binName`, or null. */
+export async function resolveBinOnPath(
   binName: string,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-): Promise<boolean> {
+): Promise<string | null> {
   const pathVar = env.PATH ?? env.Path ?? "";
-  if (!pathVar) return false;
+  if (!pathVar) return null;
   const dirs = pathVar.split(path.delimiter).filter(Boolean);
   const candidates =
     platform === "win32"
@@ -83,17 +168,27 @@ export async function checkBinOnPath(
       : [binName];
   for (const dir of dirs) {
     for (const candidate of candidates) {
+      const abs = path.join(dir, candidate);
       try {
         // Windows access() X_OK is unreliable; existence (F_OK, the default
         // mode) is the practical signal there. POSIX checks executability.
-        await access(path.join(dir, candidate), platform === "win32" ? undefined : constants.X_OK);
-        return true;
+        await access(abs, platform === "win32" ? undefined : constants.X_OK);
+        return abs;
       } catch {
         // Not found here; keep scanning remaining PATH entries.
       }
     }
   }
-  return false;
+  return null;
+}
+
+/** True when a bare `binName` resolves to an executable on PATH. */
+export async function checkBinOnPath(
+  binName: string,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): Promise<boolean> {
+  return (await resolveBinOnPath(binName, env, platform)) != null;
 }
 
 /** True when the Node major version parsed from `nodeVersion` is >= minMajor. */
@@ -246,8 +341,8 @@ export async function assessEnvironment(
   const homeDir = options.homeDir ?? homedir();
   const binName = options.binName ?? "agent-kit";
 
-  const [binOnPath, npmPrefix] = await Promise.all([
-    checkBinOnPath(binName, env, platform).catch(() => false),
+  const [binPath, npmPrefix] = await Promise.all([
+    resolveBinOnPath(binName, env, platform).catch(() => null),
     checkNpmPrefixWritable(options).catch(
       (): NpmPrefixReport => ({
         prefix: null,
@@ -256,9 +351,12 @@ export async function assessEnvironment(
       }),
     ),
   ]);
+  const binVersion = binPath ? await readBinVersion(binPath, options).catch(() => null) : null;
 
   return {
-    binOnPath,
+    binOnPath: binPath != null,
+    binPath,
+    binVersion,
     npmPrefixWritable: npmPrefix.writable,
     npmPrefix,
     nodeVersionOk: isNodeVersionOk(nodeVersion),

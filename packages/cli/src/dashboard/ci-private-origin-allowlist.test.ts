@@ -40,17 +40,18 @@ describe("ci.yml private-origin allowlist pin", () => {
   );
 
   it.skipIf(!ciPresent)(
-    "keeps private-only build steps on the same allowlist (exactly six sites, no denylist)",
+    "keeps private-only build steps on the same allowlist (exactly seven sites, no denylist)",
     () => {
       expect(body).toContain("Authority graph parity");
       expect(body).toContain("Public-deny-link guard");
       expect(body).toContain("Evidence checks");
       expect(body).toContain("Registry catalog parity");
-      // Exactly six allowlist sites today: 4 build steps + sync-public + publish-npm.
+      expect(body).toContain("sync-landing:");
+      // Exactly seven allowlist sites today: 4 build steps + sync-public + publish-npm + sync-landing.
       // Maintenance: changing this count requires matching comments at every counted
-      // site in .github/workflows/ci.yml (build private-only steps, sync-public, publish-npm).
+      // site in .github/workflows/ci.yml (build private-only steps, sync-public, publish-npm, sync-landing).
       const matches = body.match(/github\.repository\s*==\s*'agent-kit-startup\/agent-kit-dev'/g);
-      expect(matches?.length).toBe(6);
+      expect(matches?.length).toBe(7);
       expect(body).not.toMatch(denylistRe);
     },
   );

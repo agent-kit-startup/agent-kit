@@ -77,6 +77,8 @@ describe("renderWelcomeScreen", () => {
     expect(out).toContain("@dadado/agent-kit-cli");
     expect(out).toContain("agent-kit doctor");
     expect(out).toContain("agent-kit dashboard");
+    expect(out).toContain("agent-kit run-plan-all");
+    expect(out).toContain("Cursor chat: /run-plan-all");
     expect(out).toContain("HITL");
     expect(out.includes("\u001b")).toBe(false);
     expect(out).toMatch(
@@ -122,6 +124,9 @@ describe("renderGroupedRootHelp", () => {
         handoff: defineCommand({ meta: { name: "handoff", description: "Handoff help" } }),
         dashboard: defineCommand({ meta: { name: "dashboard", description: "Dash help" } }),
         validate: defineCommand({ meta: { name: "validate", description: "Val help" } }),
+        "run-plan-all": defineCommand({
+          meta: { name: "run-plan-all", description: "Queue help" },
+        }),
       },
     });
     const text = await renderGroupedRootHelp(cmd);
@@ -131,6 +136,7 @@ describe("renderGroupedRootHelp", () => {
     expect(text).toContain("INTEGRITY");
     expect(text).toContain("init");
     expect(text).toContain("Ask questions is Cursor-only");
+    expect(text).toContain("agent-kit run-plan-all");
     expect(text).toContain("agent-kit run");
     expect(text).toContain("`/git-prod` stays operator-gated");
     expect(text).toMatch(
@@ -141,6 +147,7 @@ describe("renderGroupedRootHelp", () => {
       "plan-index",
       "run",
       "run-plan",
+      "run-plan-all",
     ]);
     for (const g of CLI_HELP_GROUPS) {
       expect(g.commands.length).toBeGreaterThan(0);

@@ -136,6 +136,81 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   }
 }
 
+const runDispatchArgs = {
+  cwd: {
+    type: "string" as const,
+    description: "Project root (default: current directory)",
+    default: process.cwd(),
+  },
+  backend: {
+    type: "string" as const,
+    description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto)`,
+    default: "auto",
+  },
+  model: {
+    type: "string" as const,
+    description: "Optional model id passed to the agent CLI",
+    default: "",
+  },
+  "dry-run": {
+    type: "boolean" as const,
+    description: "Print the resolved backend and prompt, then exit without starting an agent",
+    default: false,
+  },
+  "max-ticks": {
+    type: "string" as const,
+    description: "For run-plan alias only: maximum ticks (default: 10)",
+    default: "10",
+  },
+  sleep: {
+    type: "string" as const,
+    description: "For run-plan alias only: seconds between ticks (default: 5)",
+    default: "5",
+  },
+};
+
+export async function runSlashCli(
+  slash: string,
+  args: {
+    cwd: string;
+    backend: string;
+    model?: string;
+    "dry-run": boolean;
+    "max-ticks": string;
+    sleep: string;
+  },
+): Promise<void> {
+  const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
+  const sleepSeconds = Number.parseFloat(String(args.sleep));
+  if (!Number.isFinite(maxTicks) || maxTicks < 1) {
+    logger.error("--max-ticks must be a positive integer");
+    process.exitCode = 1;
+    return;
+  }
+  if (!Number.isFinite(sleepSeconds) || sleepSeconds < 0) {
+    logger.error("--sleep must be a non-negative number");
+    process.exitCode = 1;
+    return;
+  }
+
+  const result = await executeRun({
+    slash,
+    cwd: String(args.cwd),
+    backend: String(args.backend),
+    model: args.model ? String(args.model) : undefined,
+    dryRun: Boolean(args["dry-run"]),
+    maxTicks,
+    sleepSeconds,
+  });
+  if (result.stdout) {
+    console.log(result.stdout);
+  }
+  if (result.error) {
+    logger.error(result.error);
+  }
+  process.exitCode = result.exitCode;
+}
+
 export const runCommand = defineCommand({
   meta: {
     name: "run",
@@ -145,69 +220,24 @@ export const runCommand = defineCommand({
   args: {
     slash: {
       type: "positional",
-      description: "Slash name (e.g. backlog-add, run-plan, continue-plan)",
+      description: "Slash name (e.g. run-plan-all, backlog-add, continue-plan)",
       required: true,
     },
-    cwd: {
-      type: "string",
-      description: "Project root (default: current directory)",
-      default: process.cwd(),
-    },
-    backend: {
-      type: "string",
-      description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto)`,
-      default: "auto",
-    },
-    model: {
-      type: "string",
-      description: "Optional model id passed to the agent CLI",
-      default: "",
-    },
-    "dry-run": {
-      type: "boolean",
-      description: "Print the resolved backend and prompt, then exit without starting an agent",
-      default: false,
-    },
-    "max-ticks": {
-      type: "string",
-      description: "For run-plan alias only: maximum ticks (default: 10)",
-      default: "10",
-    },
-    sleep: {
-      type: "string",
-      description: "For run-plan alias only: seconds between ticks (default: 5)",
-      default: "5",
-    },
+    ...runDispatchArgs,
   },
   async run({ args }) {
-    const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
-    const sleepSeconds = Number.parseFloat(String(args.sleep));
-    if (!Number.isFinite(maxTicks) || maxTicks < 1) {
-      logger.error("--max-ticks must be a positive integer");
-      process.exitCode = 1;
-      return;
-    }
-    if (!Number.isFinite(sleepSeconds) || sleepSeconds < 0) {
-      logger.error("--sleep must be a non-negative number");
-      process.exitCode = 1;
-      return;
-    }
+    await runSlashCli(String(args.slash ?? ""), args);
+  },
+});
 
-    const result = await executeRun({
-      slash: String(args.slash ?? ""),
-      cwd: String(args.cwd),
-      backend: String(args.backend),
-      model: args.model ? String(args.model) : undefined,
-      dryRun: Boolean(args["dry-run"]),
-      maxTicks,
-      sleepSeconds,
-    });
-    if (result.stdout) {
-      console.log(result.stdout);
-    }
-    if (result.error) {
-      logger.error(result.error);
-    }
-    process.exitCode = result.exitCode;
+export const runPlanAllCommand = defineCommand({
+  meta: {
+    name: "run-plan-all",
+    description:
+      "Headless /run-plan-all queue from the L0 file. Numbered-list HITL. Never git-prod.",
+  },
+  args: runDispatchArgs,
+  async run({ args }) {
+    await runSlashCli("run-plan-all", args);
   },
 });

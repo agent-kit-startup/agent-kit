@@ -91,7 +91,10 @@ function printDoctorSummary(result: DoctorResult): void {
   }
 
   console.log("environment:");
-  console.log(`  - bin on PATH (agent-kit): ${result.env.binOnPath ? "ok" : "MISSING"}`);
+  const pathLabel = result.env.binOnPath
+    ? `ok (v${result.env.binVersion ?? "unknown"} at ${result.env.binPath})`
+    : "MISSING";
+  console.log(`  - bin on PATH (agent-kit): ${pathLabel}`);
   console.log(
     `  - npm prefix writable: ${result.env.npmPrefixWritable ? "ok" : "BLOCKED"}${
       result.env.npmPrefix.prefix ? ` (${result.env.npmPrefix.prefix})` : ""

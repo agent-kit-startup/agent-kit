@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import type { EnvironmentReport } from "../readiness/env-checks.js";
 import {
   type NpmInstallOutcome,
@@ -12,6 +13,8 @@ import {
 function makeEnv(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport {
   return {
     binOnPath: false,
+    binPath: null,
+    binVersion: null,
     npmPrefixWritable: false,
     npmPrefix: {
       prefix: "/usr/local",
@@ -107,8 +110,8 @@ describe("planSetupGlobalSteps", () => {
   });
 });
 
-describe("runSetupGlobal: already-writable short-circuit", () => {
-  it("exits 0 with no prompts and no fs/npm calls when the prefix is already writable", async () => {
+describe("runSetupGlobal: already-writable prefix", () => {
+  it("exits 0 with no prompts when prefix is writable and PATH already matches this CLI", async () => {
     const { print, lines } = collectingPrint();
     const { fs, calls } = makeFakeFs();
     const confirmImpl = vi.fn();
@@ -119,7 +122,14 @@ describe("runSetupGlobal: already-writable short-circuit", () => {
       fsImpl: fs,
       confirmImpl,
       npmInstallImpl,
-      assessEnvironmentImpl: async () => makeEnv({ npmPrefixWritable: true }),
+      assessEnvironmentImpl: async () =>
+        makeEnv({
+          npmPrefixWritable: true,
+          npmPrefix: { prefix: "/usr/local", writable: true, source: "heuristic" },
+          binOnPath: true,
+          binPath: "/usr/local/bin/agent-kit",
+          binVersion: KIT_VERSION,
+        }),
     });
 
     expect(result.outcome).toBe("already-ok");
@@ -129,7 +139,29 @@ describe("runSetupGlobal: already-writable short-circuit", () => {
     expect(npmInstallImpl).not.toHaveBeenCalled();
     expect(calls.mkdir).toHaveLength(0);
     expect(calls.writeFile).toHaveLength(0);
-    expect(lines.join("\n")).toMatch(/nothing to fix/i);
+    expect(lines.join("\n")).toMatch(/matches this CLI/i);
+  });
+
+  it("prints a pinned npm i -g when prefix is writable but PATH is missing (non-interactive)", async () => {
+    const { print, lines } = collectingPrint();
+    const npmInstallImpl = vi.fn();
+
+    const result = await runSetupGlobal({
+      print,
+      npmInstallImpl,
+      nonInteractive: true,
+      assessEnvironmentImpl: async () =>
+        makeEnv({
+          npmPrefixWritable: true,
+          npmPrefix: { prefix: "/usr/local", writable: true, source: "heuristic" },
+        }),
+    });
+
+    expect(result.outcome).toBe("manual-instructions");
+    expect(result.mutated).toBe(false);
+    expect(npmInstallImpl).not.toHaveBeenCalled();
+    expect(lines.join("\n")).toContain(`npm i -g ${pinnedCliSpec(KIT_VERSION)}`);
+    expect(lines.join("\n")).not.toMatch(/nothing to fix/i);
   });
 });
 
@@ -220,7 +252,7 @@ describe("runSetupGlobal: interactive full run", () => {
     expect(files.get("/home/tester/.npmrc")).toContain("prefix = ~/.npm-global");
     expect(calls.appendFile).toContain("/home/tester/.zshrc");
     expect(files.get("/home/tester/.zshrc")).toContain("# agent-kit setup-global");
-    expect(npmInstallImpl).toHaveBeenCalledWith("@dadado/agent-kit-cli");
+    expect(npmInstallImpl).toHaveBeenCalledWith(pinnedCliSpec(KIT_VERSION));
   });
 
   it("stops without mutating further steps when a confirm is declined", async () => {

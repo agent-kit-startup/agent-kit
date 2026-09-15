@@ -103,7 +103,7 @@ export function renderWelcomeScreen(opts: WelcomeRenderOptions = {}): string {
     })(),
     "",
     muted(
-      "Chat HITL (start-project, git-staging/prod, run-plan-all) stays in Cursor slash commands.",
+      "Terminal: agent-kit run-plan-all (same as agent-kit run run-plan-all). Cursor chat: /run-plan-all.",
     ),
     muted(
       `${shouldUseVisualMotion(opts) ? SPACE_MARKS.star : SPACE_MARKS.tick} ${tipAt(

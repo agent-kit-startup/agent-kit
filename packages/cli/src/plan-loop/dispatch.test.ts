@@ -15,6 +15,7 @@ import {
   normalizeSlashName,
   promoteBlockedMessage,
   readCommandFile,
+  rewriteRootArgvToRun,
   runHeadlessDispatch,
   unknownSlashMessage,
 } from "./dispatch.js";
@@ -67,6 +68,45 @@ describe("slash catalog", () => {
     expect(msg).toContain("/git-prod");
     expect(msg).toContain("Never auto /git-prod");
     expect(unknownSlashMessage("hotfix")).toContain("Catalog:");
+  });
+});
+
+describe("rewriteRootArgvToRun", () => {
+  it("keeps first-class citty names and strips a leading slash", () => {
+    expect(rewriteRootArgvToRun(["run-plan-all"])).toEqual(["run-plan-all"]);
+    expect(rewriteRootArgvToRun(["/run-plan-all"])).toEqual(["run-plan-all"]);
+    expect(rewriteRootArgvToRun(["/run-plan-all", "--dry-run"])).toEqual([
+      "run-plan-all",
+      "--dry-run",
+    ]);
+    expect(rewriteRootArgvToRun(["run-plan"])).toEqual(["run-plan"]);
+    expect(rewriteRootArgvToRun(["/run-plan", "--backend", "claude"])).toEqual([
+      "run-plan",
+      "--backend",
+      "claude",
+    ]);
+  });
+
+  it("maps other catalog slashes onto agent-kit run and leaves run <slash> alone", () => {
+    expect(rewriteRootArgvToRun(["run", "run-plan-all"])).toEqual(["run", "run-plan-all"]);
+    expect(rewriteRootArgvToRun(["/continue-plan"])).toEqual(["run", "continue-plan"]);
+    expect(rewriteRootArgvToRun(["backlog-add", "--dry-run"])).toEqual([
+      "run",
+      "backlog-add",
+      "--dry-run",
+    ]);
+  });
+
+  it("rewrites promote-blocked slashes onto run so executeRun can refuse", () => {
+    expect(rewriteRootArgvToRun(["/git-prod"])).toEqual(["run", "git-prod"]);
+    expect(rewriteRootArgvToRun(["kit-prod"])).toEqual(["run", "kit-prod"]);
+  });
+
+  it("leaves unknown tokens and flag-only argv unchanged", () => {
+    expect(rewriteRootArgvToRun(["status"])).toEqual(["status"]);
+    expect(rewriteRootArgvToRun(["hotfix"])).toEqual(["hotfix"]);
+    expect(rewriteRootArgvToRun(["--help"])).toEqual(["--help"]);
+    expect(rewriteRootArgvToRun([])).toEqual([]);
   });
 });
 
