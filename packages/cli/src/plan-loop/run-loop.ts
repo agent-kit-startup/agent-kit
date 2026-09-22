@@ -1,14 +1,16 @@
 import { mkdir, readFile, rm, unlink } from "node:fs/promises";
 import path from "node:path";
+import { shouldUseLiveTui, withLiveTui } from "../mission-control/live-run.js";
 import { fileExists } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
-import { withCliProgress } from "../welcome/visual-kit.js";
+import { TtySpinner, shouldUseVisualMotion, withCliProgress } from "../welcome/visual-kit.js";
 import type { AgentBackend } from "./backends.js";
 import {
   armExternalPlanReview,
   isPlanExhaustedReason,
   shouldArmExternalPlanReview,
 } from "./external-review.js";
+import { formatHitlSummary } from "./hitl-relay.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
 import {
@@ -27,6 +29,55 @@ export interface RunPlanLoopOptions {
   model?: string;
   dryRun: boolean;
   backend: AgentBackend;
+  /** `--no-hitl`: a gate inside a tick stops the loop (exit 4) instead of prompting. */
+  noHitl?: boolean;
+  /** `--plain`: status lines instead of the Mission Control live view on a TTY. */
+  plain?: boolean;
+}
+
+/**
+ * Run one tick under the TTY spinner, pausing it while the relay prompts the
+ * operator so the numbered list is not repainted over. No motion: plain call.
+ */
+async function runTickWithSpinner(
+  label: string,
+  backend: AgentBackend,
+  opts: Parameters<AgentBackend["run"]>[0],
+  plain: boolean,
+): Promise<Awaited<ReturnType<AgentBackend["run"]>>> {
+  if (shouldUseLiveTui({ plain })) {
+    return withLiveTui(
+      {
+        root: opts.workspace,
+        backend: backend.id,
+        logPath: opts.logPath,
+        noHitl: opts.hitl?.policy === "off",
+      },
+      (seams) =>
+        backend.run({
+          ...opts,
+          hitl: seams.hitl,
+          render: seams.render,
+          onSpawn: seams.onSpawn,
+          log: seams.log,
+        }),
+    );
+  }
+  if (!shouldUseVisualMotion()) return backend.run(opts);
+  const spinner = new TtySpinner({ motion: true });
+  spinner.start(label);
+  try {
+    return await backend.run({
+      ...opts,
+      hitl: {
+        ...opts.hitl,
+        onPromptStart: () => spinner.stop(),
+        onPromptEnd: () => spinner.start(label),
+      },
+    });
+  } finally {
+    spinner.stop();
+  }
 }
 
 function stamp(): string {
@@ -93,6 +144,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     let tick = 0;
     let stopReason: string | undefined;
     let planExhausted = false;
+    let exitCode = 0;
 
     while (true) {
       tick += 1;
@@ -130,19 +182,41 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       else console.log(tickLine);
 
       let agentExit = 0;
+      let hitlStop: { message: string; exitCode: number } | undefined;
       try {
-        const result = await withCliProgress(`tick ${tick}`, () =>
-          opts.backend.run({
+        const result = await runTickWithSpinner(
+          `tick ${tick}`,
+          opts.backend,
+          {
             workspace: opts.root,
             prompt: TICK_PROMPT,
             model: opts.model,
             logPath,
-          }),
+            hitl: { policy: opts.noHitl ? "off" : "prompt" },
+          },
+          opts.plain === true,
         );
         agentExit = result.exitCode;
+        for (const line of formatHitlSummary(result.hitl)) console.log(line);
+        hitlStop = result.hitl?.stop;
       } catch (err) {
         logger.error(String(err));
         return 1;
+      }
+
+      // A tick that ended at a gate with no reply is a stop, not a tick
+      // without sentinel: the operator (or --no-hitl) decided, and the record
+      // above says so. Never a default answer.
+      if (hitlStop) {
+        const msg = `${opts.backend.id} tick ended at a HITL gate without a reply - stopping. See log: ${relLog}`;
+        if (banners) {
+          banners.tickEnd("hitl stop");
+          banners.stop(msg);
+        } else {
+          console.log(msg);
+        }
+        exitCode = hitlStop.exitCode;
+        break;
       }
 
       try {
@@ -240,7 +314,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       await armExternalPlanReview(opts.root);
     }
 
-    return 0;
+    return exitCode;
   } finally {
     process.off("SIGINT", onSigInt);
   }

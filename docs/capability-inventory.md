@@ -4,13 +4,13 @@ Mission Kit capability catalog grouped by surface family. Lists every shipped ca
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against the working tree on 2026-08-27): **30** slash commands under `.cursor/commands/` (**29** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 10 skills, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
+Real counts (verified against the working tree on 2026-09-17): **31** slash commands under `.cursor/commands/` (**30** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 11 skills listed below, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
-## Slash commands (.cursor/commands/ - 30)
+## Slash commands (.cursor/commands/ - 31)
 
-Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **29** syncable commands (excluding `/public-issue-triage`). The on-disk factory tree has **30** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` are L0 wraps of native git commands plus an optional public-landing deploy when a product changelog or release changed.
+Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **28** syncable commands (excluding `/public-issue-triage`, `/kit-staging`, and `/kit-prod`). The on-disk factory tree has **31** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` remain factory files (landing wraps of native git); they are not consumer L0. `/qa` is consumer L0 (command plus core skill; no new L0 agent).
 
 - `/start-project` - Plan creation with two-gate HITL (broad intake, write confirm, optional Gate B start unit)
 - `/backlog-add` - Enqueue plan under HANDOFF Backlog without activation
@@ -31,10 +31,11 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `/tips` - UX helper tips for Agent Kit usage
 - `/update` - Consumer-mode layer update from public registry
 - `/cursor-update-awareness` - Advisory Cursor product-update check (changelog + inventory; HITL conveyor)
+- `/qa` - Test a release, reproduce a bug, or verify CHANGELOG feat/fix/chore claims against install journey, tests, and hygiene (no silent product fix; no new L0 agent)
 - `/git-staging` - Staging branch promotion with CHANGELOG and MR workflow
 - `/git-prod` - Production promotion from staging with HITL confirmation
-- `/kit-staging` - Git-staging wrap; optional public-landing staging deploy when a product changelog or release changed
-- `/kit-prod` - Git-prod wrap (same HITL); optional public-landing promote when this promotion includes a release
+- `/kit-staging` - Factory file (not consumer L0): git-staging wrap; optional public-landing staging deploy when a product changelog or release changed
+- `/kit-prod` - Factory file (not consumer L0): git-prod wrap (same HITL); optional public-landing promote when this promotion includes a release
 - `/plan-external-review` - External plan review launcher with audit modes
 - `/plan-review-triage` - Triage choice after external review (residuals/fixes/ack)
 - `/field-report-resolve` - Resolve Field Report findings with structured closure
@@ -55,7 +56,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `ux-tone.mdc` - Chat tone guidelines with persona chrome support
 - `agent-output-hygiene.mdc` - Chat vs repository content separation
 - `docs-professional-standard.mdc` - Project documentation voice and inheritance standard
-- `memory-loop.mdc` - Cross-chat learning persistence in .cursor/memory/
+- `memory-loop.mdc` - Cross-chat learning persistence in per-checkout `.cursor/memory/` (not a hosted control plane, fleet HANDOFF board, or host AgentStore; orchestration stays per-repository, 2026-09-15). L1 memory consolidation remains a candidate, not shipped.
 - `hitl-ask-questions.mdc` - Human-in-the-loop confirmations via Ask questions tool
 - `git-secrets-safety.mdc` - Git commit safety with secrets validation
 
@@ -97,11 +98,12 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 
 ---
 
-## Skills (.cursor/skills/ - 10)
+## Skills (.cursor/skills/ - 11)
 
-### Core skills (2)
+### Core skills (3)
 - `clean-code` - AI code slop removal and clean patterns
 - `docs-repo` - Repository documentation with professional standard
+- `qa` - Playbook for `/qa`: claim matrix, install journey, tests, hygiene (invoke via `/qa`; do not auto-load)
 
 ### Community skills (8)
 - `clickup` - ClickUp task management via MCP
@@ -290,16 +292,19 @@ Comprehensive onboarding system introduced in 4.5.0. `/agent-kit-onboard` namesp
 ### Consumer overlay protection
 Hash-based content preservation system introduced in [Unreleased]. Managed-content ledger (`.cursor/agent-kit.managed-hashes.json`) preserves customized agents/skills/commands/hooks/scripts during updates while refreshing unedited kit files. L0 overlay golden rule scoped to those trees (hooks and scripts joined after a consumer lost a committed widening of the pre-commit secrets hook to a no-op `update`).
 
+### Contract read budgets and lazy layers
+Size-pinned contract files introduced in [Unreleased]. Numeric bytes/lines/longest-line budgets per file class (consumer-L0 command, one-hop skill page, `SKILL.md`, `alwaysApply` rule, globs-lazy rule, `.claude` command adapter, template), enforced by `packages/cli/src/docs/size-budgets.test.ts` rather than stated only in prose. `.cursor/skills/core/hitl-gates/procedures.md` (was one 988-line, 104 KB file shared by four commands) split into one one-hop page per command; six over-budget consumer-L0 commands (`plan-review-triage`, `plan-external-review`, `agent-kit-onboard`, `field-report-resolve`, `backlog-add`, `dashboard-broadcast`) moved procedural detail into new skill pages the same way. `cursor-plan-handoff.mdc` and `context-guardian.mdc` no longer restate the SessionStart-injected session hard rules or the `/run-plan` tick contract in full. `.cursor/HANDOFF.md` gained a growth contract (200 lines / 2,000-char longest line) and `agent-kit handoff --prune` to enforce it. See `docs/layers-spec.md` "Read budgets and laziness" and `decisions/2026-09-20_contract-read-budget-and-laziness.md`.
+
 ---
 
 ## Total verified counts
 
 | Surface | Estimated | Actual | Notes |
 |---------|-----------|--------|-------|
-| Slash commands | 25 | 26 | +1 from `/dogfood` |
+| Slash commands | 25 | 31 | +`/dogfood`, later L0 slashes including `/qa` |
 | Rules | 25 | 25 | Matches estimate |
 | Named agents | 13 | 13 | Matches estimate |
-| Skills | 9 | 9 | Matches estimate |
+| Skills | 9 | 11 | +`mission-kit-comms`, `/qa` playbook |
 | Cursor-native hooks | - | 5 | Not estimated |
 | Git hooks | - | 3 | Not estimated |
 | CLI commands | 13 | 18 | Higher than estimate |

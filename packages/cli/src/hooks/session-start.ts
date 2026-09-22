@@ -4,6 +4,7 @@ import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
 import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
+import { HANDOFF_EXCERPT_MAX_BYTES, capHandoffExcerpt } from "./handoff-excerpt.js";
 import {
   CURSOR_AWARENESS_NUDGE,
   DOGFOOD_INBOX_HINT,
@@ -18,15 +19,6 @@ export const CURSOR_AWARENESS_SPAWN_TIMEOUT_MS = CHANGELOG_FETCH_TIMEOUT_MS + 3_
 
 export interface SessionStartPayload {
   workspace_roots?: string[];
-}
-
-async function readTextLimited(filePath: string, limit = 60): Promise<string> {
-  try {
-    const lines = (await readFile(filePath, "utf8")).split(/\r?\n/);
-    return lines.slice(0, limit).join("\n").trim();
-  } catch {
-    return "";
-  }
 }
 
 async function readFull(filePath: string): Promise<string> {
@@ -572,7 +564,7 @@ export async function buildSessionStartAdditionalContext(
   const root = path.resolve(rootDir);
   const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
   const handoffFull = await readFull(handoffPath);
-  const handoff = await readTextLimited(handoffPath);
+  const handoff = capHandoffExcerpt(handoffFull);
   const parts: string[] = [HARD_RULES];
 
   if (await l0Present(root)) {
@@ -602,8 +594,12 @@ export async function buildSessionStartAdditionalContext(
     );
   }
 
-  if (handoff) {
-    parts.push(`## Current HANDOFF.md (excerpt)\n\n${handoff}`);
+  if (handoff.text) {
+    const capped = handoff.truncatedLines > 0 || handoff.droppedLines > 0;
+    const note = capped
+      ? `\n\n_Excerpt capped at ${Math.round(HANDOFF_EXCERPT_MAX_BYTES / 1024)} KB (${handoff.truncatedLines} lines truncated, ${handoff.droppedLines} dropped); read \`.cursor/HANDOFF.md\` for the full entries._`
+      : "";
+    parts.push(`## Current HANDOFF.md (excerpt)\n\n${handoff.text}${note}`);
   } else {
     parts.push(
       "## HANDOFF.md\n\nNo handoff file yet. If starting work, create a plan with to-dos first (`/start-project`).",

@@ -69,7 +69,7 @@ The plugin root is the **parent of `.cursor-plugin/`** - the repo root. Cursor's
 | `rules` | `.cursor/rules` | 25 `.mdc`; 10 `alwaysApply: true` structural, the rest glob-gated per stack |
 | `skills` | `.cursor/skills/core` | **Core only.** Discovery matches direct children holding a `SKILL.md`, so `.cursor/skills` (whose children are `core/` and `community/`) would find nothing. Pointing at `core/` also encodes the thesis: stack skills stay on `agent-kit add` |
 | `agents` | `.cursor/agents` | 14 subagent definitions |
-| `commands` | `.cursor/commands` | 27 slash commands |
+| `commands` | `.cursor/commands` | 28 consumer/L0 slash commands (factory tree has 31 files; `/public-issue-triage`, `/kit-staging`, and `/kit-prod` are not consumer L0) |
 | `hooks` | `.cursor/hooks.json` | Thin adapters; every one is fail-open, and `sessionStart` surfaces the degraded-mode diagnostic (see "Hook resolution boundary" below) |
 | `logo` | `dashboard/logo-marketplace.svg` | 512×512 SVG (1:1), transparent canvas, rounded plate `#0b0e14`, Cursor-skin stroke mark from `logo-cursor.svg` centered (~10% padding). Chrome keeps unplated `logo.svg` (legacy helmet) and `logo-cursor.svg` (16px header). Must sit on a path inside `scripts/public-sync.manifest`. `assets/**` is **not** synced in general (only `assets/production/*.png` is, for the README screenshots — see readme-public-hero-badges Phase 2); a link/image into any other `assets/` path now fails `check:public-deny-links` instead of silently dropping. Production copies of the three marks live under `assets/production/` (private SVGs; not public-synced, `logo-marketplace.svg` above is generated from the same art at the `dashboard/` path instead) |
 
@@ -112,6 +112,10 @@ node -e "console.log(JSON.stringify(require('./registry/registry.json').skills,n
 ```
 
 Future nicety (not required for this to-do): `agent-kit search <query>` over `registry.json`.
+
+## Community incentive extension (paper)
+
+Featured listing, Verified Author badge, and a pre-committed 85/15 paid-listing term (0% under a lifetime threshold) live in factory product-context paper. That paper does not mark the marketplace gate green.
 
 ## Acceptance (`f7-marketplace`)
 

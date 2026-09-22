@@ -28,19 +28,33 @@ export type McTuiLoopHooks = {
   now?: () => number;
   stdin?: McTuiStdin;
   exit?: (code: number) => void;
+  /**
+   * First look at every raw-mode key chunk. Return true when consumed (the
+   * quit key is then not checked). Lets the live run route keys to an input
+   * line while a gate is open.
+   */
+  onKey?: (chunk: string | Buffer) => boolean;
+  /** Replaces `exit(0)` on the quit key: the loop stops, then this runs. */
+  onQuit?: (key: "q" | "Ctrl-C") => void;
 };
 
 export type McTuiLoopHandle = {
   stop: () => void;
+  /** Paint a frame now (a keystroke, a gate opening) instead of waiting for the interval. */
+  repaint: () => Promise<void>;
 };
 
-function isQuitKey(chunk: string | Buffer): boolean {
+function quitKeyOf(chunk: string | Buffer): "q" | "Ctrl-C" | null {
   const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
-  return text === "q" || text === "Q" || text === "\x03";
+  if (text === "q" || text === "Q") return "q";
+  if (text === "\x03") return "Ctrl-C";
+  return null;
 }
 
-export async function runMcTuiLoop(opts: {
-  loadView: () => Promise<McTuiView>;
+export async function runMcTuiLoop<V = McTuiView>(opts: {
+  loadView: () => Promise<V>;
+  /** Frame renderer for the loaded view (default: the four-panel snapshot). */
+  render?: (view: V, renderOpts: McTuiRenderOptions) => string;
   once?: boolean;
   stdoutIsTTY?: boolean;
   env?: NodeJS.ProcessEnv;
@@ -48,6 +62,9 @@ export async function runMcTuiLoop(opts: {
   renderOpts?: McTuiRenderOptions;
   hooks: McTuiLoopHooks;
 }): Promise<McTuiLoopHandle | null> {
+  const render =
+    opts.render ??
+    ((view: V, renderOpts: McTuiRenderOptions) => renderMcTui(view as McTuiView, renderOpts));
   const live = shouldLiveRefresh({
     once: opts.once,
     stdoutIsTTY: opts.stdoutIsTTY,
@@ -55,13 +72,17 @@ export async function runMcTuiLoop(opts: {
   });
   let frameIndex = 0;
   let inFlight = false;
+  let stopped = false;
 
+  // A paint that was collecting when stop() ran must not write: the caller
+  // prints its summary right after stop() and a late clear would wipe it.
   const paint = async (clear: boolean) => {
-    if (inFlight) return;
+    if (inFlight || stopped) return;
     inFlight = true;
     try {
       const view = await opts.loadView();
-      const frame = renderMcTui(view, {
+      if (stopped) return;
+      const frame = render(view, {
         ...opts.renderOpts,
         stdoutIsTTY: opts.stdoutIsTTY,
         frameIndex,
@@ -69,6 +90,7 @@ export async function runMcTuiLoop(opts: {
       frameIndex += 1;
       opts.hooks.write(clear ? `${CLEAR_HOME}${frame}\n` : `${frame}\n`);
     } catch (err) {
+      if (stopped) return;
       const message = err instanceof Error ? err.message : String(err);
       const frame = renderMcTui(buildMcTuiView(null, message), {
         ...opts.renderOpts,
@@ -102,7 +124,6 @@ export async function runMcTuiLoop(opts: {
   const stdin = opts.hooks.stdin;
   const attachQuit = Boolean(stdin?.isTTY);
   let quitListener: ((chunk: string | Buffer) => void) | undefined;
-  let stopped = false;
 
   const restoreStdin = () => {
     if (!stdin || !attachQuit) return;
@@ -130,13 +151,23 @@ export async function runMcTuiLoop(opts: {
     stdin.setRawMode?.(true);
     stdin.resume?.();
     quitListener = (chunk) => {
-      if (!isQuitKey(chunk)) return;
+      if (stopped) return;
+      if (opts.hooks.onKey?.(chunk)) return;
+      const key = quitKeyOf(chunk);
+      if (!key) return;
       stop();
+      if (opts.hooks.onQuit) {
+        opts.hooks.onQuit(key);
+        return;
+      }
       const exitFn = opts.hooks.exit ?? ((code: number) => process.exit(code));
       exitFn(0);
     };
     stdin.on("data", quitListener);
   }
 
-  return { stop };
+  return {
+    stop,
+    repaint: () => (stopped ? Promise.resolve() : paint(true)),
+  };
 }

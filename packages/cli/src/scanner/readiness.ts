@@ -223,23 +223,35 @@ function buildPillars(scan: ScanResult): ReadinessPillarReport[] {
       ),
     ]),
     pillar("quality-ci", [
-      check(
-        "quality.validation",
-        "Tests and validation",
-        scan.quality.hasTests || scan.quality.validationCommands.length > 0 ? "ready" : "manual",
-        false,
-        scan.infra.ciFiles.map((value) => ({ source: "file", value })),
-        scan.quality.hasTests || scan.quality.validationCommands.length > 0
-          ? []
-          : [
-              action(
-                "document-validation",
-                "manual",
-                "Document a repeatable repository validation command",
-                "user",
-              ),
-            ],
-      ),
+      (() => {
+        const hasValidation =
+          scan.quality.hasTests ||
+          scan.quality.validationCommands.length > 0 ||
+          scan.quality.ciRunCommands.length > 0;
+        return check(
+          "quality.validation",
+          "Tests and validation",
+          hasValidation ? "ready" : "manual",
+          false,
+          [
+            ...scan.infra.ciFiles.map((value) => ({ source: "file" as const, value })),
+            ...scan.quality.ciRunCommands.map((value) => ({
+              source: "file" as const,
+              value: `ci:${value}`,
+            })),
+          ],
+          hasValidation
+            ? []
+            : [
+                action(
+                  "document-validation",
+                  "manual",
+                  "Document a repeatable repository validation command",
+                  "user",
+                ),
+              ],
+        );
+      })(),
     ]),
     pillar("deploy-infrastructure", [
       check(

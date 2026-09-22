@@ -143,4 +143,63 @@ describe("runScanner", () => {
       ),
     ).toBe(true);
   });
+
+  it("stops defaulting purpose to documentation for a Dart core/ + Flutter app/ monorepo (dogfood 2026-09-15)", async () => {
+    // dogfood/cursor_stack_detection_no_dart_flutter_subdir_override_2026_09_15.md:
+    // no root manifest, packages one level down, only docs at the root — the
+    // exact shape that used to land purpose on "documentation" and
+    // stack.detected on essential needs_choice with no action.
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-dart-flutter-monorepo-"));
+    await mkdir(path.join(root, "core"));
+    await mkdir(path.join(root, "app"));
+    await mkdir(path.join(root, "docs"));
+    await writeFile(path.join(root, "core", "pubspec.yaml"), "name: core\n");
+    await writeFile(
+      path.join(root, "app", "pubspec.yaml"),
+      ["name: app", "dependencies:", "  flutter:", "    sdk: flutter", ""].join("\n"),
+    );
+    await writeFile(path.join(root, "README.md"), "# sample\n");
+    await writeFile(path.join(root, "BACKLOG.md"), "# backlog\n");
+
+    const result = await runScanner(root);
+    const report = createReadinessReport(result, {
+      generatorVersion: "test",
+      generatedAt: "2026-09-20T12:00:00.000Z",
+    });
+    const stackCheck = report.pillars
+      .find((item) => item.pillar === "stack-tooling")
+      ?.checks.find((item) => item.id === "stack.detected");
+
+    expect(result.stack.language).toBe("dart");
+    expect(result.stack.hasProjectFiles).toBe(true);
+    // Before the fix this landed on "documentation" (root only had docs/ +
+    // README/BACKLOG) instead of "application".
+    expect(result.purpose.value).not.toBe("documentation");
+    expect(stackCheck?.status).toBe("ready");
+  });
+
+  it("reads a CI run: step as validation evidence when the scanner found no stack commands (defect 5)", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-ci-validation-evidence-"));
+    // pyproject.toml alone yields zero stack.testCommands / validationCommands
+    // today (see detect-stack.ts's python branch), so without CI evidence
+    // this repo's quality.validation would stay "manual" despite full CI.
+    await writeFile(path.join(root, "pyproject.toml"), "[project]\nname = 'sample'\n");
+    await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
+    await writeFile(
+      path.join(root, ".github", "workflows", "ci.yml"),
+      ["on: push", "jobs:", "  test:", "    steps:", "      - run: pytest", ""].join("\n"),
+    );
+    const result = await runScanner(root);
+    const report = createReadinessReport(result, {
+      generatorVersion: "test",
+      generatedAt: "2026-09-20T12:00:00.000Z",
+    });
+    const validationCheck = report.pillars
+      .find((item) => item.pillar === "quality-ci")
+      ?.checks.find((item) => item.id === "quality.validation");
+
+    expect(result.quality.testCommands).toEqual([]);
+    expect(result.quality.ciRunCommands).toContain("pytest");
+    expect(validationCheck?.status).toBe("ready");
+  });
 });

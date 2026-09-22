@@ -16,8 +16,16 @@ File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continu
 | Agents Window | Multiple agents in parallel | Each agent reads HANDOFF before acting; shared state is in file |
 | `/worktree` | Isolated git worktree | For risky changes without dirtying the working tree |
 | `/best-of-n` | Compare approaches side by side | For architecture decisions |
-| Plans | Native Cursor plans | Mission Kit generates plans with todos in frontmatter; HANDOFF references active plan |
-| Projects (beta, 2026-09-10) | Cloud-hosted coordinator agent that plans and delegates to implementing subagents, keeps synced project files across cloud/local machines, and can watch a Slack channel, run on a schedule, or follow PRs | No kit integration; Cursor-native surface the operator may use directly. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change — HANDOFF/plans stay the continuity SoT, `BackendId` stays `cursor-agent`/`claude` only, Mission Control stays local-only/copy-only, hooks stay thin adapters. See [`docs/research/cursor-projects-study.md`](research/cursor-projects-study.md) for the primary-source study and open unknowns. |
+| Plans (Plan Mode) | Native Cursor plans in the host UI | Kit `.cursor/plans/*.plan.md` stay SoT for Gate A/B. Host Plan Mode does not replace those gates. If a native plan already exists, copy it into `.cursor/plans/` then run Gate A (ADR `2026-09-15_kit-plans-sot-over-host-plan-mode.md`). HANDOFF names the active kit plan. |
+| Projects (beta, 2026-09-10) | Cloud-hosted coordinator agent that plans and delegates to implementing subagents, keeps synced project files across cloud/local machines, and can watch a Slack channel, run on a schedule, or follow PRs | No kit integration; Cursor-native surface the operator may use directly. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change. HANDOFF/plans stay the continuity SoT, `BackendId` stays `cursor-agent`/`claude` only, Mission Control stays local-only/copy-only, hooks stay thin adapters. See [`docs/research/cursor-projects-study.md`](research/cursor-projects-study.md). |
+| Custom modes | Pin a skill as an always-on chat mode | Cursor-native. Kit `agentPersona` stays chat chrome only. |
+| `/goal` | Long-lived native objective until complete | Does not replace kit plan to-dos, Gate A/B, or `/run-plan`. |
+| `/loop` | Recurring native check-ins | Distinct from kit `/run-plan` ticks. No kit `/loop` slash. |
+| Steering | Follow-up waits for the next tool call (Send now / double Enter) | IDE input UX. No kit hook. |
+| Origin | Origin Code Hosting / Origin Repos: Bring your GitHub repos, Pull requests, Agents in every repo, App extensions for Cursor repos. Includes start from scratch, without a repo; turn it into a real repo, whenever you want; a live preview, right in the browser; and publish your work | Not the kit git spine (`/git-staging` → staging → `/git-prod`). |
+| Self-hosted machines | My Machines, team pools, dynamic pool scheduling, run on your sandboxes, computer use on Linux and Mac | Operator infra. Cloud Agents stay the opt-in audits reviewer only. |
+| Subagents on their own machines | Isolated cloud VMs per subagent | Cursor cloud. Kit Task stays local IDE. |
+| Automations | Desktop scheduled-agent UI (Cloud Agent subscriptions: PR / Slack thread / schedule) | Cursor-cloud automation. Kit scheduling withdrawn. |
 
 ## MCP, hooks and SDK
 
@@ -27,7 +35,7 @@ For extensions and automation, use what Cursor itself offers:
 
 - **MCP** - servers supported by Cursor (ex.: official integrations or documented in ecosystem; in IDE, prefer what comes enabled or project `mcp.json` for stable tools).
 - **Hooks** - agent events in workspace (see `create-hook` skill in your Cursor installation, if applicable).
-- **Cursor Cloud Agents / `@cursor/sdk`** - agents and flows outside the IDE. The kit uses this in exactly **one** place: the opt-in `externalPlanReview.backend: "cloud"` audits reviewer, driven over the Cloud Agents REST API (`https://api.cursor.com`) so the kit keeps zero runtime dependencies. See [`external-plan-review.md`](external-plan-review.md#cloud-agents-backend-backend-cloud) and ADR `2026-08-14_cursor-cloud-agents-sdk-audits-backend.md`.
+- **Cursor Cloud Agents / `@cursor/sdk`** - agents and flows outside the IDE. Cloud Agents and Cursor Harness improvements (subscriptions, custom modes, `/goal`, steering) stay Cursor-native. The kit uses Cloud Agents in exactly **one** place: the opt-in `externalPlanReview.backend: "cloud"` audits reviewer, driven over the Cloud Agents REST API (`https://api.cursor.com`) so the kit keeps zero runtime dependencies. See [`external-plan-review.md`](external-plan-review.md#cloud-agents-backend-backend-cloud) and ADR `2026-08-14_cursor-cloud-agents-sdk-audits-backend.md`.
   - The SDK itself (`@cursor/sdk`, Node 22.13+; `cursor-sdk` for Python) is **not** a kit dependency. Scripting it directly outside the kit is supported and documented, not a gap: `Agent.prompt` (one-shot), `Agent.create` + `agent.send` (durable/stream), `Agent.resume` (re-attach by `bc-` id). Always set `local` or `cloud` explicitly.
   - `CURSOR_API_KEY` is a secret: environment or gitignored `.env` only, empty placeholder in `.env.example`, never committed or logged.
   - Kit-load (`CLAUDE.md` / `/agent-kit`), audits, and `agent-kit run-plan --backend` stay three separate surfaces. Cloud Agents are not a plan-loop tick backend.

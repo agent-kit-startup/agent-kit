@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { defineCommand } from "citty";
 import { readStdinJson } from "../hooks/read-stdin-json.js";
+import { checkHandoffGrowth } from "../invariants/handoff-prune.js";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
 import { validatePlanFrontmatterText } from "../invariants/plan-schema.js";
 
@@ -71,7 +72,13 @@ export const validateCommand = defineCommand({
           console.log(JSON.stringify({ ok: true, warnings: [], note: "file missing" }));
           return;
         }
-        const warnings = validateHandoffText(content);
+        const warnings = [
+          ...validateHandoffText(content),
+          ...checkHandoffGrowth(content).map((w) => ({
+            ...w,
+            cite: "agent-kit handoff --prune (see .cursor/context/templates/handoff.md)",
+          })),
+        ];
         console.log(JSON.stringify({ ok: warnings.length === 0, warnings }));
       },
     }),
@@ -119,12 +126,15 @@ export const validateCommand = defineCommand({
         }
         const { filePath, content } = resolved;
         if (isHandoffPath(filePath)) {
-          const warnings = validateHandoffText(content);
+          const warnings = [
+            ...validateHandoffText(content).map((w) => w.message),
+            ...checkHandoffGrowth(content).map((w) => w.message),
+          ];
           if (!warnings.length) {
             console.log(JSON.stringify({}));
             return;
           }
-          const msg = warnings.map((w) => w.message).join(" ");
+          const msg = warnings.join(" ");
           console.log(
             JSON.stringify({
               user_message: msg,

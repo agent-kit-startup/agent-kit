@@ -27,6 +27,18 @@ const planReviewTriageCmd = readFileSync(
   "utf8",
 );
 
+// Steps 1-6 (triage-heading rules, the Write-residuals Ask, etc.) moved here
+// in Phase 2 of contract-read-budget-lazy-layers-2026-09-19 to fit the
+// command's size budget; the command keeps Goal, Usage, Hard stops, and
+// the exact Ask questions requirement.
+const planReviewTriageProcedure = readFileSync(
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../../.cursor/skills/core/plan-review-triage/procedure.md",
+  ),
+  "utf8",
+);
+
 // Synthetic report bodies only, shaped after the real
 // `.cursor/memory/plan-monitor-*.md` headers and headings.
 function reportBody(planFile: string, extra = "") {
@@ -188,15 +200,15 @@ describe("extractFindingsSummary", () => {
 
 describe("/plan-review-triage triage heading contract", () => {
   it("requires a durable triage heading for every outcome including Ack and stop", () => {
-    expect(planReviewTriageCmd).toContain("Persist a durable triage heading");
-    expect(planReviewTriageCmd).toContain("## Triage note");
-    expect(planReviewTriageCmd).toMatch(/Ack and stop[\s\S]*must write the heading/i);
+    expect(planReviewTriageProcedure).toContain("Persist a durable triage heading");
+    expect(planReviewTriageProcedure).toContain("## Triage note");
+    expect(planReviewTriageProcedure).toMatch(/Ack and stop[\s\S]*must write the heading/i);
     expect(planReviewTriageCmd).toContain("Never skip the triage heading");
   });
 
   it("requires Broad Intake before Write residuals propose + write-confirm", () => {
     expect(planReviewTriageCmd).toContain("Never skip Broad Intake");
-    expect(planReviewTriageCmd).toMatch(
+    expect(planReviewTriageProcedure).toMatch(
       /Broad Intake[\s\S]*Write plan to backlog[\s\S]*Modify proposal first[\s\S]*Cancel/i,
     );
   });
