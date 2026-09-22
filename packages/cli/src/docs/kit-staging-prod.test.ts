@@ -11,11 +11,12 @@ function readRel(rel: string): string {
 }
 
 describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
-  it("registers both commands as L0 overlay artifacts", () => {
+  it("drops both commands from consumer L0 and keeps factory files", () => {
     const targets = L0_ARTIFACTS.map((a) => a.target);
-    expect(targets).toEqual(
-      expect.arrayContaining([".cursor/commands/kit-staging.md", ".cursor/commands/kit-prod.md"]),
-    );
+    expect(targets).not.toContain(".cursor/commands/kit-staging.md");
+    expect(targets).not.toContain(".cursor/commands/kit-prod.md");
+    expect(existsSync(resolve(repoRoot, ".cursor/commands/kit-staging.md"))).toBe(true);
+    expect(existsSync(resolve(repoRoot, ".cursor/commands/kit-prod.md"))).toBe(true);
   });
 
   it("keeps native git-staging and git-prod git-only (no landing deploy)", () => {
@@ -23,7 +24,7 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       const body = readRel(rel);
       expect(body).not.toMatch(/landing:promote/);
       expect(body).not.toMatch(/landing:deploy:staging/);
-      expect(body).not.toMatch(/\/kit-staging|\/kit-prod/);
+      expect(body).toMatch(/Factory landing wrap \(not consumer L0\)/);
     }
   });
 

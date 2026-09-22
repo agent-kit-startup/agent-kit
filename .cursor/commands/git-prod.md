@@ -7,6 +7,8 @@ description: Promote origin/staging to origin/main following the git prod routin
 
 Follow the **git prod** routine to promote `origin/staging` to `origin/main` (production):
 
+Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This command stays git-only.
+
 **Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in and used only when the kit repo wants it.
 
 1. **Read** the "Prompt: git prod" section in `autogit/gitupdate.md` (when it exists in the project).
@@ -18,8 +20,10 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
    
    **Advisory (does not replace confirmation):** if Blocking untriaged `.cursor/memory/plan-monitor-*.md` match themes in the staging→main delta, mention them once in the summary. Never steal this Ask; Field Report / `/plan-review-triage` stay attention/HITL SoT.
    
-   **Fallback:** if Ask questions tool unavailable, ask for explicit confirmation in chat.
-5. **Agent signature gate (hard stop, before merge to main):** after the confirmation and before any merge or push, scan everything that would reach `main`: `git log origin/main..origin/staging --format=%B | sh git-hooks/prepare-commit-msg --check -`. When the promotion goes through a staging→main PR (the Claude CLI lane in `autogit/gitupdate.md`), also scan its body before merge: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`. Exit 0 prints `ok`. Exit 1 lists the offending lines: **stop**; the fix lands on `staging` through `/git-staging` (reword the commit on a working branch, or `gh pr edit <N> --body`), then re-run this step from the top. Exit 2 (missing hook file, grep failure) is red, not a pass. Never merge, push, or tag over a red scan. Same shape as the Evidence-checks gate in `/git-staging`; pattern list: `sh git-hooks/prepare-commit-msg --list`. ADR: `2026-09-11_agent-signature-guard-strip-hook-check-gate`.
+   **Fallback (path 1):** if Ask questions is missing, say so once, print the same three labels as a numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call.
+5. **Agent signature gate (hard stop, before merge to main):** after the confirmation and before any merge or push, scan everything that would reach `main`: `git log origin/main..origin/staging --format=%B | sh git-hooks/prepare-commit-msg --check -`.
+   When the promotion goes through a staging→main PR (the Claude CLI lane in `autogit/gitupdate.md`), also scan its body before merge: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`.
+   Exit 0 prints `ok`. Exit 1 lists the offending lines: **stop**; the fix lands on `staging` through `/git-staging` (reword the commit on a working branch, or `gh pr edit <N> --body`), then re-run this step from the top. Exit 2 (missing hook file, grep failure) is red, not a pass. Never merge, push, or tag over a red scan. Same shape as the Evidence-checks gate in `/git-staging`; pattern list: `sh git-hooks/prepare-commit-msg --list`. ADR: `2026-09-11_agent-signature-guard-strip-hook-check-gate`.
 6. Run merge to main, then push with the authorized inline form only:
 
    `ALLOW_MAIN_PUSH=1 git push origin main`

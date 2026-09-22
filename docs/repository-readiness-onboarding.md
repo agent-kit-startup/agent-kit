@@ -340,6 +340,19 @@ A browser is not required to read Mission, Flight Log, Checklist, or Crew Monito
 4. Resolve decisions by editing config files directly (`.cursor/context/config.json`, `.cursor/agent-kit.config.json`).
 5. Re-run `agent-kit doctor --json` until all essentials pass.
 
+### `doctor` write paths (which flag touches which file)
+
+The three `doctor` modes write different files; picking the wrong one for a given fix is the source of a stale-looking repository even after running `doctor`
+(dogfood/cursor_stack_detection_no_dart_flutter_subdir_override_2026_09_15.md, defect 6):
+
+| Invocation | Writes | Does not write |
+|---|---|---|
+| `agent-kit doctor --json` (no flag) | `.cursor/context/readiness.json` only | `.cursor/agent-kit.config.json`, `.cursor/context/config.json#onboarding`, `.cursor/project-context.md` |
+| `agent-kit doctor --refresh-profile --json` | `.cursor/agent-kit.config.json` (fresh scanner facts reconciled onto the existing profile) and `.cursor/context/readiness.json` | `.cursor/context/config.json#onboarding` (does **not** reconcile onboarding status), `.cursor/project-context.md` |
+| `agent-kit doctor --fix-safe --json` | `.cursor/agent-kit.config.json` (profile), `.cursor/context/config.json` (`onboarding` status/checks/deferrals reconciled, plus safe `.gitignore` merges and other local repairs), and `.cursor/context/readiness.json` | `.cursor/project-context.md` |
+
+`.cursor/project-context.md` is written only by `applyPersonalization`, which runs during `install.md` (initial install), never by any `doctor` mode and — despite regenerating other install-time artifacts — not by `agent-kit update` either (`update.ts` explicitly keeps the existing `personalization` manifest entry and does not regenerate the file). A confirmed purpose or stack change made through `doctor --fix-safe` does not refresh `.cursor/project-context.md`; there is currently no command that re-derives it after install. To resolve an `onboarding.status` stuck at `in_progress` after fixing the underlying readiness check, `--fix-safe` is the mode that actually re-derives it; `--refresh-profile` alone leaves it untouched.
+
 ### VS Code Copilot integration
 
 When the IDE profile is `vscode` or `other`, the install/personalization flow generates:

@@ -106,12 +106,17 @@ function createOnboardingState(
   );
   const unresolvedEssential = report.pillars
     .flatMap((pillar) => pillar.checks)
-    .some(
-      (check) =>
-        check.essential &&
-        check.status !== "ready" &&
-        (check.status === "blocked" || !validDeferredCheckIds.has(check.id)),
-    );
+    .some((check) => {
+      if (!check.essential || check.status === "ready") return false;
+      if (check.status === "blocked") return true;
+      if (!validDeferredCheckIds.has(check.id)) return true;
+      // Essential + deferred: only a last-resort deferral (the scanner has no
+      // concrete action for this check) completes it. An essential check with
+      // an actual action must still take that action, never defer around it.
+      // ADR decisions/2026-07-28_onboarding-completion-nonessential-deferral.md,
+      // Amend 2026-09-20 (dogfood/cursor_stack_detection_no_dart_flutter_subdir_override_2026_09_15.md, defect 4).
+      return check.actions.length > 0;
+    });
   return {
     contractVersion: 1,
     status: unresolvedEssential ? "in_progress" : "completed",

@@ -53,6 +53,14 @@ describe("renderClaudeCommandAdapter", () => {
     expect(out).not.toContain("Body.");
   });
 
+  it("tells the numbered-list fallback to emit the HITL_GATE sentinel and to cite HITL_REPLY", () => {
+    const out = renderClaudeCommandAdapter({ name: "foo", description: "Does the thing." });
+    expect(out).toContain("`HITL_GATE: <ask-id> | <label 1> | <label 2> | ...`");
+    expect(out).toContain("immediately followed by the same labels as one numbered list");
+    expect(out).toContain("`HITL_REPLY: <ask-id> | operator reply <n> | <label>`");
+    expect(out).toContain(".cursor/skills/core/hitl-gates/SKILL.md");
+  });
+
   it.skipIf(!factoryAdaptersPresent)(
     "matches every factory dogfood .claude/commands/*.md byte-for-byte",
     async () => {

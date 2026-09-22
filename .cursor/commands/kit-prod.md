@@ -17,7 +17,7 @@ Before merge or push to `main`, Ask questions with the **same** git-prod labels.
 
 Options: `Proceed with production deploy` / `Review changes first` / `Cancel`
 
-**Fallback:** if Ask questions is unavailable, present the same labels as one numbered list and wait.
+**Fallback (path 1):** if Ask questions is missing, say so once, print the same labels as one numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Wait.
 
 `Cancel` or skipped: stop. No merge, no landing.
 
@@ -49,7 +49,7 @@ Repo-only production stays native `/git-prod`.
 
 Release-field sync (version pill + public notes) is private tag CI job `sync-landing`: public excerpt blurb, stamp, staging hop, promote the same `dist/`. Fail-closed if public Release Latest does not match or live HTML stays stale. Do not Ask `Promote landing to production` when that job will run.
 
-Ask remains for Design-canvas / visual landing deploys, or when `sync-landing` is skipped (no `HOSTINGER_API_TOKEN`). This Ask is **in addition to** the git-prod Ask. Fallback: numbered list, wait; skip or cancel means stop.
+Landing Ask is post-default (after git prod, and only when needed). Ask remains for Design-canvas / visual landing deploys, or when `sync-landing` is skipped (no `HOSTINGER_API_TOKEN`). This Ask is **in addition to** the git-prod Ask. Fallback is **path 1**: numbered list, wait; skip or cancel means stop. Do not invent a fake tool call.
 
 Options:
 

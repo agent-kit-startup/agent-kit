@@ -11,7 +11,7 @@ Opt-in advisory for Cursor product updates (releases, changelog entries, new MCP
 | No Field Reports | `fieldReportRecommended` is always `false` |
 | Conveyor | Confirmed gaps → Ask → `/backlog-add` or `/dogfood` (lane-aware) |
 | Separate from kit update | Kit self-release uses `updateCheck` / `/update` (ADR `2026-07-27_consumer-autoupdate-check-opt-in.md`) |
-| Native-audit prose | Native-audit plugin version tracks `.cursor-plugin/plugin.json` (**5.3.0** as of 2026-08-15). Live Marketplace submission stays on `submit-cursor-marketplace` (publisher HITL) |
+| Native-audit prose | Native-audit plugin version tracks `.cursor-plugin/plugin.json` (**5.9.0** as of 2026-09-15, same pin as `KIT_VERSION` / root and CLI `package.json`). Live Marketplace listing stays publisher HITL and may lag the repo pin. |
 
 ## Detection source
 
@@ -19,7 +19,7 @@ ADR: `.cursor/memory/decisions/2026-08-01_cursor-update-detection-source.md`
 
 1. **Primary:** fetch Cursor changelog (`https://cursor.com/changelog`, overridable via `cursorUpdateCheck.changelogUrl`)
 2. **Delivery:** sessionStart nudge when opt-in is enabled (same pattern as kit `updateCheck`)
-3. **Inventory:** diff open Action items and refresh staleness in `docs/cursor-native-audit.md`; validate `docs/cursor-3-features.md` presence
+3. **Inventory:** diff open Action items and refresh staleness in `docs/cursor-native-audit.md`; validate `docs/cursor-3-features.md` presence; compare changelog headings and slash commands to those two files (feature-keyword digest). A named changelog surface absent from both files is an advisory gap. The check never rewrites the inventory.
 4. **Readiness:** may store last-seen Cursor product version later; not the probe today (`ide: cursor` only)
 
 ## CLI

@@ -116,6 +116,13 @@ export interface InfraDetection {
   ciFiles: string[];
   infrastructureFiles: string[];
   deploymentFiles: string[];
+  /**
+   * `run:` step commands parsed out of GitHub Actions workflow YAML
+   * (regex-only, no yaml dependency). Evidence for `quality.validation`
+   * when the scanner's own stack detection found no test/validation
+   * commands but CI already runs a repeatable check.
+   */
+  ciRunCommands: string[];
 }
 
 export interface ServicesDetection {
@@ -155,6 +162,8 @@ export interface QualityDetection {
   validationCommands: string[];
   ci: CiPlatform;
   hasTests: boolean;
+  /** CI `run:` step commands (see `InfraDetection.ciRunCommands`), evidence only. */
+  ciRunCommands: string[];
 }
 
 export interface ScanResult {

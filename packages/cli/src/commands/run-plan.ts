@@ -3,6 +3,7 @@ import { defineCommand } from "citty";
 import type { AgentBackend } from "../plan-loop/backends.js";
 import { getBackend } from "../plan-loop/backends.js";
 import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js";
+import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 
@@ -40,6 +41,17 @@ export const runPlanCommand = defineCommand({
     "dry-run": {
       type: "boolean",
       description: "Print the tick prompt and exit without starting an agent",
+      default: false,
+    },
+    "no-hitl": {
+      type: "boolean",
+      description: `CI: never prompt; a HITL gate stops the run with exit ${HITL_UNANSWERED_EXIT_CODE} (no default answer)`,
+      default: false,
+    },
+    plain: {
+      type: "boolean",
+      description:
+        "Status lines instead of the Mission Control live view (the default on a TTY; non-TTY, NO_COLOR and CI are always plain)",
       default: false,
     },
   },
@@ -84,6 +96,8 @@ export const runPlanCommand = defineCommand({
       model: args.model ? String(args.model) : undefined,
       dryRun: Boolean(args["dry-run"]),
       backend,
+      noHitl: Boolean(args["no-hitl"]),
+      plain: Boolean(args.plain),
     });
     process.exitCode = code;
   },

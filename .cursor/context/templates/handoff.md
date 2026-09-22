@@ -101,4 +101,4 @@ When using `/run-plan-all`, persist queue state as the same bullet fields (not a
   - plan-x.plan.md: completed (last to-do id, notes)
 - **Gaps:** [none | queue-level stop reason]
 
-*Keep handoff concise (~500 tokens) when possible; prioritize actionable information and file:line references.*
+*Growth contract: at or under 200 lines, no line over 2,000 chars (bytes/lines/longest-line only). Machine fields above always survive a prune. Over the limit: `agent-kit handoff --prune [--keep N]` (default 5) archives older narrative entries to `.cursor/context/archive/`; `agent-kit validate handoff` warns when either limit is crossed.*

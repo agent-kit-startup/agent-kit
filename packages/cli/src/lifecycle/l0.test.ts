@@ -50,9 +50,11 @@ describe("canonical L0 inventory", () => {
     expect(targets).toEqual(
       expect.arrayContaining([
         ".cursor/rules/hitl-ask-questions.mdc",
+        ".cursor/skills/core/hitl-gates/SKILL.md",
+        ".cursor/skills/core/hitl-gates/procedures.md",
         ".cursor/commands/agent-kit-onboard.md",
-        ".cursor/commands/kit-staging.md",
-        ".cursor/commands/kit-prod.md",
+        ".cursor/commands/git-staging.md",
+        ".cursor/commands/git-prod.md",
         ".cursor/context/templates/plan.md",
         ".cursor/context/templates/context-pack.md",
         ".cursor/context/templates/task-brief.md",
@@ -63,6 +65,18 @@ describe("canonical L0 inventory", () => {
     expect(targets).not.toContain(".cursor/commands/onboard.md");
     // Factory-only maintainer triage; never install/update to consumers.
     expect(targets).not.toContain(".cursor/commands/public-issue-triage.md");
+    // Factory landing wraps; not consumer L0.
+    expect(targets).not.toContain(".cursor/commands/kit-staging.md");
+    expect(targets).not.toContain(".cursor/commands/kit-prod.md");
+  });
+
+  it("ships /qa as an L0 command and does not promote test-suites", () => {
+    const targets = L0_ARTIFACTS.map((artifact) => artifact.target);
+    expect(targets).toContain(".cursor/commands/qa.md");
+    expect(targets).toContain(".cursor/skills/core/qa/SKILL.md");
+    expect(targets).not.toContain(".cursor/agents/test-suites.md");
+    expect(targets).not.toContain(".cursor/agents/qa-engineer.md");
+    expect(targets).not.toContain(".claude/commands/qa.md");
   });
 
   it("keeps the onboarding command on the repository-readiness contract", async () => {
@@ -99,15 +113,22 @@ describe("canonical L0 inventory", () => {
     expect(command).toContain("Defer (record reason)");
     expect(command).toMatch(/Options:.*Scaffold domain skills.*Defer \(record reason\).*Skip/);
     expect(command).toContain("type their own answer");
-    expect(command).toContain("Instruction-only surface");
-    expect(command).toContain(".cursor/skills/domain/");
-    expect(command).toContain("Relevant skills");
-    expect(command).toContain(".cursor/agent-kit.json");
     expect(command).toContain(".cursor/context/personalization.json");
-    expect(command).toContain("onboarding.domainSkills");
-    expect(command).toContain("https://github.com/agent-kit-startup/agent-kit/issues/36");
     expect(command).toContain("Next: /start-project");
     expect(command).toContain("Next: finish setup");
+    // Execution detail (Phase 2 size-budget split, contract-read-budget-lazy-layers-2026-09-19):
+    // what happens after each label moved to the command's skill page, one hop away.
+    expect(command).toContain("skills/core/agent-kit-onboard/procedure.md");
+
+    const procedure = await readRepositoryFile(
+      ".cursor/skills/core/agent-kit-onboard/procedure.md",
+    );
+    expect(procedure).toContain("Instruction-only surface");
+    expect(procedure).toContain(".cursor/skills/domain/");
+    expect(procedure).toContain("Relevant skills");
+    expect(procedure).toContain(".cursor/agent-kit.json");
+    expect(procedure).toContain("onboarding.domainSkills");
+    expect(procedure).toContain("https://github.com/agent-kit-startup/agent-kit/issues/36");
   });
 
   it("keeps registry and Port B install sources aligned with the canonical inventory", async () => {

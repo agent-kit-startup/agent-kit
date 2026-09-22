@@ -2,7 +2,14 @@ import type { spawn } from "node:child_process";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
-import type { BackendId, BackendRunResult, ClaudeRunCaps, VersionFn } from "./backends.js";
+import type {
+  BackendId,
+  BackendRunResult,
+  ClaudeRunCaps,
+  HitlRunOptions,
+  SpawnInfo,
+  VersionFn,
+} from "./backends.js";
 import {
   checkClaudeVersion,
   claudeChildEnv,
@@ -10,8 +17,10 @@ import {
   claudeRedactions,
   claudeRunCaps,
   redactSecrets,
+  resolveHitlRunOptions,
   spawnLogged,
 } from "./backends.js";
+import type { StreamSink } from "./stream-render.js";
 
 /** Project-run L0 set. `run-plan` aliases the existing loop; the rest dispatch the file. */
 export const RUN_CATALOG = [
@@ -81,7 +90,7 @@ export function commandMarkdownPath(root: string, name: string): string {
 
 export function buildDispatchPrompt(commandBody: string): string {
   return [
-    "Follow the Agent Kit command below. This session is headless: use numbered-list HITL (Ask questions is Cursor-only). Never /git-prod. No CLI --force promote.",
+    "Follow the Agent Kit command below. This session is headless: use numbered-list HITL (Ask questions is Cursor-only). Before each numbered list print one line `HITL_GATE: <ask-id> | <label 1> | <label 2> | ...` (ask-id and labels from the hitl-gates skill), then wait; the operator's answer arrives as `HITL_REPLY: <ask-id> | operator reply <n> | <label>`. Never /git-prod. No CLI --force promote.",
     "",
     commandBody.trimEnd(),
     "",
@@ -143,11 +152,10 @@ export function cursorAgentDispatchArgs(opts: {
  * the plan-loop tick (`claudeHeadlessArgs` in backends.ts). The dispatched L0
  * bodies edit files and run git (git-staging, backlog-*, start-project), so
  * plain `-p` — which starts read-only with nobody to answer a prompt — would
- * have every Edit/Write/Bash denied while the run still exited 0.
+ * have every Edit/Write/Bash denied while the run still exited 0. The prompt
+ * itself goes to stdin as the first `user` event (stream-json relay).
  */
-export function claudeDispatchArgs(
-  opts: { prompt: string; model?: string } & ClaudeRunCaps,
-): string[] {
+export function claudeDispatchArgs(opts: { model?: string } & ClaudeRunCaps = {}): string[] {
   return claudeHeadlessArgs(opts);
 }
 
@@ -164,6 +172,12 @@ export async function runHeadlessDispatch(opts: {
   versionFn?: VersionFn;
   /** Test seam: sink for operator tips (default: console.log). */
   log?: (line: string) => void;
+  /** HITL relay policy (`--no-hitl` = `{ policy: "off" }`); absent = prompt on a TTY. */
+  hitl?: HitlRunOptions;
+  /** Terminal side of the tee (default: status lines); the live view injects its feed. */
+  render?: StreamSink;
+  /** Fired once the child is running (pid, stop handle). */
+  onSpawn?: (info: SpawnInfo) => void;
 }): Promise<BackendRunResult> {
   if (opts.backendId === "claude") {
     // Same env contract as claudeBackend.run: the child inherits process.env
@@ -184,9 +198,21 @@ export async function runHeadlessDispatch(opts: {
     try {
       return await spawnLogged(
         opts.bin,
-        claudeDispatchArgs({ prompt: opts.prompt, model: opts.model, ...caps }),
+        claudeDispatchArgs({ model: opts.model, ...caps }),
         opts.logPath,
-        { cwd: opts.workspace, env, redact, spawnFn: opts.spawnFn },
+        {
+          cwd: opts.workspace,
+          env,
+          redact,
+          spawnFn: opts.spawnFn,
+          hitl: resolveHitlRunOptions(opts.hitl, {
+            kind: "stdin-stream-json",
+            firstPrompt: opts.prompt,
+          }),
+          render: opts.render,
+          onSpawn: opts.onSpawn,
+          backendId: "claude",
+        },
       );
     } catch (err) {
       // No `cause`: the raw error may carry the secret (see spawnLogged).
@@ -204,6 +230,10 @@ export async function runHeadlessDispatch(opts: {
   return spawnLogged(opts.bin, args, opts.logPath, {
     spawnFn: opts.spawnFn,
     redact: claudeRedactions(process.env),
+    hitl: resolveHitlRunOptions(opts.hitl, { kind: "none", backend: "cursor-agent" }),
+    render: opts.render,
+    onSpawn: opts.onSpawn,
+    backendId: "cursor-agent",
   });
 }
 

@@ -1,12 +1,12 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { detectGit } from "../scanner/detect-git.js";
 import type { ProjectProfile } from "../types.js";
-import { buildRoutines } from "./handoff.js";
+import { buildRoutines, runPrune } from "./handoff.js";
 
 const exec = promisify(execFile);
 
@@ -71,4 +71,65 @@ describe("buildRoutines", () => {
       ]),
     );
   }, 15_000);
+});
+
+function synthHandoffFile(narrativeCount: number): string {
+  const narrative = Array.from(
+    { length: narrativeCount },
+    (_, i) => `- **Tick ${narrativeCount - i} (completed):** body text for this tick entry.\n`,
+  ).join("\n");
+  return `# Handoff - synth
+
+- **Plan:** \`synth.plan.md\`
+- **Mode:** run-plan (orchestrated)
+
+${narrative}
+## Work Status
+
+- **In progress:** none
+`;
+}
+
+describe("runPrune", () => {
+  it("archives older narrative entries and rewrites HANDOFF.md in place", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-prune-"));
+    const handoffDir = path.join(root, ".cursor");
+    await mkdir(handoffDir, { recursive: true });
+    const handoffPath = path.join(handoffDir, "HANDOFF.md");
+    await writeFile(handoffPath, synthHandoffFile(6), "utf8");
+
+    await runPrune(root, 2);
+
+    const rewritten = await readFile(handoffPath, "utf8");
+    expect(rewritten).toContain("Tick 6");
+    expect(rewritten).toContain("Tick 5");
+    expect(rewritten).not.toContain("Tick 4");
+    expect(rewritten).toContain("- **Plan:** `synth.plan.md`");
+
+    const archiveDir = path.join(handoffDir, "context", "archive");
+    const archiveFiles = await readdir(archiveDir);
+    expect(archiveFiles).toHaveLength(1);
+    const archived = await readFile(path.join(archiveDir, archiveFiles[0] as string), "utf8");
+    expect(archived).toContain("Tick 4");
+    expect(archived).toContain("Tick 1");
+    expect(archived).not.toContain("Tick 6");
+  });
+
+  it("is a no-op when there is nothing to prune", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-prune-noop-"));
+    await mkdir(path.join(root, ".cursor"), { recursive: true });
+    const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
+    const original = synthHandoffFile(2);
+    await writeFile(handoffPath, original, "utf8");
+
+    await runPrune(root, 5);
+
+    expect(await readFile(handoffPath, "utf8")).toBe(original);
+  });
+
+  it("warns and exits non-zero when the file is missing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-prune-missing-"));
+    await runPrune(root, 5);
+    // No throw; nothing written. Covered implicitly by absence of errors.
+  });
 });

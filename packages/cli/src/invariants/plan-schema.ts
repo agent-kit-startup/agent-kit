@@ -37,7 +37,10 @@ export function validatePlanFrontmatterText(text: string): PlanWarning[] {
       cite: CITE,
     });
   }
-  const hasTodoItem = /^- id:\s*\S+/m.test(block);
+  // Indent-tolerant, matching plan-index.ts's `/^\s*- id:/`: the canonical
+  // `.cursor/context/templates/plan.md` frontmatter indents `todos:` items by
+  // two spaces, so a column-0-only regex flags a plan written by the book.
+  const hasTodoItem = /^\s*- id:\s*\S+/m.test(block);
   if (/^todos:/m.test(block) && !hasTodoItem && !/^todos:\s*\[\s*\]/m.test(block)) {
     warnings.push({
       code: "empty-todos",
