@@ -8,7 +8,9 @@ import {
   CHANGELOG_FETCH_TIMEOUT_MS,
   checkCursorUpdateAwareness,
   compareCursorVersion,
+  extractChangelogFeatureKeywords,
   extractLatestCursorVersion,
+  findMissingInventoryKeywords,
   isPlausibleCursorVersion,
   parseInventoryRefreshed,
   parseOpenActionIds,
@@ -17,12 +19,10 @@ import {
   stampCursorUpdateCheck,
 } from "./cursor-update-awareness.js";
 
-const fixtureHtml = readFileSync(
-  path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "fixtures",
-    "cursor-changelog-excerpt.html",
-  ),
+const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
+const fixtureHtml = readFileSync(path.join(fixtureDir, "cursor-changelog-excerpt.html"), "utf8");
+const featureKeywordHtml = readFileSync(
+  path.join(fixtureDir, "cursor-changelog-feature-keyword.html"),
   "utf8",
 );
 
@@ -58,6 +58,18 @@ describe("cursor-update-awareness helpers", () => {
     expect(extractLatestCursorVersion(fixtureHtml)).toBe("3.11");
     expect(isPlausibleCursorVersion("49.511")).toBe(false);
     expect(isPlausibleCursorVersion("3.11")).toBe(true);
+  });
+
+  it("extracts named changelog features and ignores CSS noise", () => {
+    expect(featureKeywordHtml).toContain("49.511");
+    expect(extractLatestCursorVersion(featureKeywordHtml)).toBe("3.11");
+    const keywords = extractChangelogFeatureKeywords(featureKeywordHtml);
+    expect(keywords).toContain("WidgetForge");
+    expect(keywords).toContain("/goal");
+    expect(keywords.join(" ")).not.toMatch(/49\.511/);
+    expect(
+      findMissingInventoryKeywords(keywords, "| Feature | What |\n| Plans | Native |"),
+    ).toEqual(expect.arrayContaining(["WidgetForge", "/goal"]));
   });
 
   it("keeps spawn timeout above changelog fetch timeout", () => {
@@ -299,6 +311,40 @@ describe("checkCursorUpdateAwareness", () => {
     expect(result.status).toBe("error");
     expect(result.inventoryRoot).toBeNull();
     expect(existsSync(path.join(cwd, ".cursor", "context", "config.json"))).toBe(false);
+  });
+
+  it("flags a named changelog feature the inventory omits and does not rewrite inventory", async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "cursor-awareness-keyword-"));
+    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeInventory(
+      cwd,
+      `Living audit; last refreshed **${recentDate}**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n`,
+    );
+    const inventoryPath = path.join(cwd, "docs", "cursor-native-audit.md");
+    const before = readFileSync(inventoryPath, "utf8");
+
+    const result = await checkCursorUpdateAwareness(cwd, { changelogBody: featureKeywordHtml });
+    expect(result.applyRecommended).toBe(false);
+    expect(result.fieldReportRecommended).toBe(false);
+    expect(result.status).toBe("gaps-found");
+    expect(result.gaps.some((g) => g.id === "feature-keyword-miss:widgetforge")).toBe(true);
+    expect(result.gaps.some((g) => g.id === "feature-keyword-miss:goal")).toBe(true);
+    expect(readFileSync(inventoryPath, "utf8")).toBe(before);
+  });
+
+  it("does not flag a changelog heading already listed in the features map", async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "cursor-awareness-known-feature-"));
+    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeInventory(
+      cwd,
+      `Living audit; last refreshed **${recentDate}**.\n\n| ID | Status | Action |\n|----|--------|--------|\n| A1 | ✅ Done | Fix |\n`,
+    );
+
+    const result = await checkCursorUpdateAwareness(cwd, {
+      changelogBody: `${fixtureHtml}\n<h1>Plans</h1>\n`,
+    });
+    expect(result.applyRecommended).toBe(false);
+    expect(result.gaps.some((g) => g.id === "feature-keyword-miss:plans")).toBe(false);
   });
 
   it("does not stamp under caller cwd across a nested .git boundary", async () => {

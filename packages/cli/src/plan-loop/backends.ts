@@ -3,6 +3,20 @@ import { createWriteStream } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import {
+  type AnswerReader,
+  type HitlRunRecord,
+  type HitlStop,
+  TurnWatcher,
+  askOperator,
+  createTerminalAnswerReader,
+  detectHitlGate,
+  emptyHitlRecord,
+  noRelayStop,
+  unansweredStop,
+  userEventLine,
+} from "./hitl-relay.js";
+import { type StreamSink, createStreamRenderer } from "./stream-render.js";
 
 export type BackendId = "cursor-agent" | "claude";
 
@@ -27,17 +41,61 @@ export interface BackendRunOptions {
   log?: (line: string) => void;
   /** Test seam: `claude --version` reader (claude backend only). */
   versionFn?: VersionFn;
+  /**
+   * HITL relay policy for this run. Absent = prompt the operator on a TTY
+   * (a gate on a non-TTY stdin stops the run, never a default answer).
+   */
+  hitl?: HitlRunOptions;
+  /**
+   * Terminal side of the tee (default: status lines on process.stdout). The
+   * Mission Control live view injects its feed here; the log file always
+   * receives the raw NDJSON regardless.
+   */
+  render?: StreamSink;
+  /** Fired once the child is running, with a handle that stops it honestly. */
+  onSpawn?: (info: SpawnInfo) => void;
+}
+
+/** What a caller learns about the running child, and the one way to stop it. */
+export interface SpawnInfo {
+  backend: BackendId;
+  pid: number | undefined;
+  /**
+   * Operator stop outside a gate: records `stop` on the run, ends the
+   * child's stdin and, past the kill grace, signals it. Idempotent.
+   */
+  stop: (stop: HitlStop) => void;
+}
+
+/** Operator-facing side of the relay; the backend supplies the transport. */
+export interface HitlRunOptions {
+  /** `off` is `--no-hitl`: reaching a gate stops the run (exit 4). */
+  policy?: "prompt" | "off";
+  /** Whether stdin is a terminal (default: process.stdin.isTTY). */
+  isTTY?: boolean;
+  /** Test seam / TUI seam: how one answer line is read (default: node:readline on stdin). */
+  readAnswer?: AnswerReader;
+  /** Terminal writer for the gate prompt and the relayed stamp (default: process.stdout). */
+  write?: (text: string) => void;
+  /** Called around the prompt so a caller can pause its own terminal chrome (spinner). */
+  onPromptStart?: () => void;
+  onPromptEnd?: () => void;
+  /** After a stop: ms of grace after stdin end before SIGTERM, then SIGKILL (default 5000). */
+  killAfterMs?: number;
 }
 
 export interface BackendRunResult {
+  /** The child's own exit code; see `hitlExitCode` for the run's. */
   exitCode: number;
+  /** Gate replies and the stop record, when the run carried a relay. */
+  hitl?: HitlRunRecord;
 }
 
 export interface AgentBackend {
   id: BackendId;
   /** Resolve binary path or name; null if not on PATH / not found. */
   resolve(): Promise<string | null>;
-  /** Run one headless tick; stream stdout/stderr to console and logPath. */
+  /** Run one headless tick; NDJSON to logPath, rendered status lines to the console. */
   run(opts: BackendRunOptions): Promise<BackendRunResult>;
 }
 
@@ -54,6 +112,55 @@ export interface SpawnLoggedOptions {
   spawnFn?: typeof spawn;
   /** Secret values replaced in the tee'd output (console echo and log file). */
   redact?: RedactionEntry[];
+  /**
+   * Terminal side of the tee (default: a StreamRenderer on process.stdout).
+   * Receives the same post-redaction text the log gets and renders status
+   * lines; the log file always receives the raw NDJSON.
+   */
+  render?: StreamSink;
+  /**
+   * HITL relay. `stdin-stream-json` keeps the child's stdin open, writes the
+   * first prompt as a `user` event and relays operator answers the same way;
+   * `none` (cursor-agent) only detects a gate and records an honest stop.
+   */
+  hitl?: SpawnHitlOptions;
+  /** Fired once the child is running (pid, stop handle). */
+  onSpawn?: (info: SpawnInfo) => void;
+  backendId?: BackendId;
+}
+
+export type HitlTransport =
+  | { kind: "stdin-stream-json"; firstPrompt: string }
+  | { kind: "none"; backend: string };
+
+export interface SpawnHitlOptions {
+  transport: HitlTransport;
+  policy: "prompt" | "off";
+  isTTY: boolean;
+  readAnswer: AnswerReader;
+  write: (text: string) => void;
+  onPromptStart?: () => void;
+  onPromptEnd?: () => void;
+  killAfterMs?: number;
+}
+
+const HITL_KILL_GRACE_MS = 5000;
+
+/** Fill the operator side of the relay from the process terminal. */
+export function resolveHitlRunOptions(
+  hitl: HitlRunOptions | undefined,
+  transport: HitlTransport,
+): SpawnHitlOptions {
+  return {
+    transport,
+    policy: hitl?.policy ?? "prompt",
+    isTTY: hitl?.isTTY ?? Boolean(process.stdin.isTTY),
+    readAnswer: hitl?.readAnswer ?? createTerminalAnswerReader(),
+    write: hitl?.write ?? ((text) => process.stdout.write(text)),
+    onPromptStart: hitl?.onPromptStart,
+    onPromptEnd: hitl?.onPromptEnd,
+    killAfterMs: hitl?.killAfterMs,
+  };
 }
 
 /**
@@ -301,6 +408,8 @@ export function spawnLogged(
   // Every rejection goes through here so a raw error (spawn, log stream, or a
   // synchronous throw inside the executor) never carries a secret out.
   const redactedError = (err: unknown) => new Error(redactSecrets(String(err), redact));
+  const hitl = options.hitl;
+  const stdinTransport = hitl?.transport.kind === "stdin-stream-json";
   return new Promise((resolve, reject) => {
     let out: ReturnType<typeof createWriteStream>;
     let child: ReturnType<typeof spawnFn>;
@@ -315,7 +424,7 @@ export function spawnLogged(
         reject(redactedError(err));
       });
       child = spawnFn(command, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [stdinTransport ? "pipe" : "ignore", "pipe", "pipe"],
         ...(options.cwd ? { cwd: options.cwd } : {}),
         ...(options.env ? { env: options.env } : {}),
       });
@@ -324,14 +433,41 @@ export function spawnLogged(
       return;
     }
 
+    // The log gets every byte first; the renderer rebuilds line boundaries
+    // from the same text and decides what the terminal shows (never raw
+    // NDJSON). A renderer failure is contained inside the sink. The relay
+    // watcher reads the same text to spot the end of a turn.
+    const render = options.render ?? createStreamRenderer();
+    const relay = hitl ? createRelay(hitl, child, redactedError) : null;
     const emit = (text: string | Buffer) => {
       if (text.length === 0) return;
-      process.stdout.write(text);
       out.write(text);
+      render.feed(text);
+      relay?.feed(text);
     };
-    // No redaction: raw tee, byte for byte. With redaction: one
+    if (relay?.startError) {
+      out.end();
+      reject(relay.startError);
+      return;
+    }
+    options.onSpawn?.({
+      backend: options.backendId ?? "claude",
+      pid: child.pid,
+      stop: (stop) => {
+        if (relay) {
+          relay.stop(stop);
+          return;
+        }
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          // Already gone.
+        }
+      },
+    });
+    // No redaction: raw log, byte for byte. With redaction: one
     // chunk-boundary-safe buffer per stream (stdout and stderr interleave in
-    // the tee exactly as their data events arrive).
+    // the log exactly as their data events arrive).
     const buffers: RedactingStreamBuffer[] = [];
     const tee = (stream: NodeJS.ReadableStream | null | undefined) => {
       if (!stream) return;
@@ -354,13 +490,167 @@ export function spawnLogged(
     });
     child.on("close", (code) => {
       for (const buffer of buffers) emit(buffer.flush());
-      out.end((err?: Error | null) => {
-        const failure = err ?? logError;
-        if (failure) reject(redactedError(failure));
-        else resolve({ exitCode: code ?? 1 });
-      });
+      render.end();
+      const finish = () => {
+        out.end((err?: Error | null) => {
+          const failure = err ?? logError;
+          if (failure) reject(redactedError(failure));
+          else if (relay) resolve({ exitCode: code ?? 1, hitl: relay.record });
+          else resolve({ exitCode: code ?? 1 });
+        });
+      };
+      if (relay) relay.closed().then(finish, finish);
+      else finish();
     });
   });
+}
+
+interface Relay {
+  /** Set when the transport could not be attached (no writable stdin). */
+  startError: Error | null;
+  record: HitlRunRecord;
+  feed(text: string | Buffer): void;
+  /** Resolves once the child has closed and any open prompt has settled. */
+  closed(): Promise<void>;
+  /** Operator stop outside a gate: record it, end stdin, signal past the grace. */
+  stop(stop: HitlStop): void;
+}
+
+/**
+ * Per-run relay: first prompt on stdin, gate detection at every `result`,
+ * one operator decision per gate. Rule for the stream-json transport: a
+ * `result` that is not a gate ends stdin so the child exits (it idles after
+ * every turn until stdin ends); a gate with a reply keeps stdin open for the
+ * next turn; a gate without a reply ends stdin and, past a grace period,
+ * signals the child.
+ */
+function createRelay(
+  hitl: SpawnHitlOptions,
+  child: ReturnType<typeof spawn>,
+  redactedError: (err: unknown) => Error,
+): Relay {
+  const record = emptyHitlRecord();
+  const stdinTransport = hitl.transport.kind === "stdin-stream-json";
+  const abort = new AbortController();
+  const grace = hitl.killAfterMs ?? HITL_KILL_GRACE_MS;
+  let startError: Error | null = null;
+  let closed = false;
+  let stdinEnded = false;
+  let pendingAsk: Promise<void> | null = null;
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  let resolveClosed: () => void = () => {};
+  const closedPromise = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
+
+  const stdin = child.stdin;
+  if (hitl.transport.kind === "stdin-stream-json") {
+    if (!stdin) {
+      startError = new Error("claude child has no writable stdin (stream-json transport)");
+    } else {
+      // EPIPE after the child died is not a run failure; the exit code is.
+      stdin.on("error", () => {});
+      try {
+        stdin.write(userEventLine(hitl.transport.firstPrompt));
+      } catch (err) {
+        startError = redactedError(err);
+      }
+    }
+  }
+
+  const endStdin = () => {
+    if (!stdinTransport || stdinEnded) return;
+    stdinEnded = true;
+    try {
+      stdin?.end();
+    } catch {
+      // Already closed by the child.
+    }
+  };
+
+  const stopChild = () => {
+    endStdin();
+    const term = setTimeout(() => {
+      if (closed) return;
+      child.kill("SIGTERM");
+      const kill = setTimeout(() => {
+        if (!closed) child.kill("SIGKILL");
+      }, grace);
+      kill.unref?.();
+      timers.push(kill);
+    }, grace);
+    term.unref?.();
+    timers.push(term);
+  };
+
+  const watcher = new TurnWatcher(({ resultText, assistantTexts }) => {
+    if (record.stop || closed) return;
+    const gate = detectHitlGate(resultText, assistantTexts);
+    if (!gate) {
+      endStdin();
+      return;
+    }
+    if (gate.detection === "fallback") record.fallbackDetections += 1;
+    if (hitl.transport.kind === "none") {
+      record.stop = noRelayStop(gate.askId, hitl.transport.backend);
+      return;
+    }
+    const ask = askOperator(gate, {
+      isTTY: hitl.isTTY,
+      policy: hitl.policy,
+      readAnswer: hitl.readAnswer,
+      write: hitl.write,
+      signal: abort.signal,
+      onPromptStart: hitl.onPromptStart,
+      onPromptEnd: hitl.onPromptEnd,
+    }).then(
+      (outcome) => {
+        if (record.stop) return;
+        if (outcome.kind === "stop") {
+          record.stop = outcome.stop;
+          stopChild();
+          return;
+        }
+        if (closed || !stdin) {
+          record.stop = unansweredStop(gate.askId, "child exited");
+          return;
+        }
+        record.replies.push(outcome.stamp);
+        hitl.write(`→ ${outcome.stamp.line}
+`);
+        stdin.write(userEventLine(outcome.stamp.line));
+      },
+      (err) => {
+        record.stop = unansweredStop(gate.askId, "child exited");
+        hitl.write(`hitl relay: ${redactedError(err).message}
+`);
+        stopChild();
+      },
+    );
+    pendingAsk = ask;
+  });
+
+  child.on("close", () => {
+    closed = true;
+    for (const t of timers) clearTimeout(t);
+    abort.abort();
+    watcher.end();
+    const settle = () => resolveClosed();
+    if (pendingAsk) pendingAsk.then(settle, settle);
+    else settle();
+  });
+
+  return {
+    startError,
+    record,
+    feed: (text) => watcher.feed(text),
+    closed: () => closedPromise,
+    stop: (stop) => {
+      if (closed || record.stop) return;
+      record.stop = stop;
+      stopChild();
+    },
+  };
 }
 
 export const cursorAgentBackend: AgentBackend = {
@@ -388,10 +678,16 @@ export const cursorAgentBackend: AgentBackend = {
     // merged override) and a tick can print its environment, so any value
     // present is elided from the console echo, the tick log and every error.
     const env = opts.env ? mergeChildEnv(opts.env) : undefined;
+    // No input channel on cursor-agent: a gate is detected and recorded as an
+    // honest stop (ADR 2026-09-19 point 1, relay capability `none`).
     return spawnLogged("cursor-agent", args, opts.logPath, {
       spawnFn: opts.spawnFn,
       env,
       redact: claudeRedactions(env ?? process.env),
+      hitl: resolveHitlRunOptions(opts.hitl, { kind: "none", backend: "cursor-agent" }),
+      render: opts.render,
+      onSpawn: opts.onSpawn,
+      backendId: "cursor-agent",
     });
   },
 };
@@ -477,6 +773,12 @@ export function resetClaudeVersionCache(): void {
  * - `--output-format stream-json --verbose`: NDJSON events; the final
  *   `{type:"result"}` line is what sentinel.ts prefers for LOOP_TICK_RESULT
  *   and carries `is_error` / `subtype` for the loop's stop message.
+ * - `--input-format stream-json --replay-user-messages`: the prompt is not
+ *   positional; it is written to stdin as the first `user` event and every
+ *   operator reply to a HITL gate follows as another one in the same session
+ *   (ADR 2026-09-19). The child echoes each `user` event into the NDJSON
+ *   stream (`isReplay: true`), so the reply stamp lands in the log authored
+ *   by the child. After a turn the child idles until stdin ends.
  * - `--dangerously-skip-permissions`: parity with cursor-agent
  *   `--force --sandbox disabled` (the run edits plan/HANDOFF and runs
  *   /git-staging; `-p` alone starts read-only and every Edit/Write/Bash
@@ -488,9 +790,7 @@ export function resetClaudeVersionCache(): void {
  *   `AGENT_KIT_CLAUDE_MAX_TURNS` / `AGENT_KIT_CLAUDE_MAX_BUDGET_USD`; no default.
  * No `--cwd` exists on the root command: the working directory is set on spawn.
  */
-export function claudeHeadlessArgs(
-  opts: { prompt: string; model?: string } & ClaudeRunCaps,
-): string[] {
+export function claudeHeadlessArgs(opts: { model?: string } & ClaudeRunCaps = {}): string[] {
   const args = [
     "-p",
     "--output-format",
@@ -499,6 +799,9 @@ export function claudeHeadlessArgs(
     "--dangerously-skip-permissions",
     "--permission-prompts",
     "none",
+    "--input-format",
+    "stream-json",
+    "--replay-user-messages",
   ];
   if (opts.maxTurns !== undefined) {
     args.push("--max-turns", String(opts.maxTurns));
@@ -509,7 +812,6 @@ export function claudeHeadlessArgs(
   if (opts.model) {
     args.push("--model", opts.model);
   }
-  args.push(opts.prompt);
   return args;
 }
 
@@ -593,15 +895,22 @@ export const claudeBackend: AgentBackend = {
     ).join(" ");
     // Tip prints presence only: no values, no workspace path (visual-kit ADR point 4).
     log(
-      `claude tick: claude -p (bypass permissions, stream-json${capText ? `, ${capText}` : ""}). env: ${presence}`,
+      `claude tick: claude -p (bypass permissions, stream-json, stdin relay${capText ? `, ${capText}` : ""}). env: ${presence}`,
     );
-    const args = claudeHeadlessArgs({ prompt: opts.prompt, model: opts.model, ...caps });
+    const args = claudeHeadlessArgs({ model: opts.model, ...caps });
     try {
       return await spawnLogged("claude", args, opts.logPath, {
         cwd: opts.workspace,
         env,
         spawnFn: opts.spawnFn,
         redact,
+        hitl: resolveHitlRunOptions(opts.hitl, {
+          kind: "stdin-stream-json",
+          firstPrompt: opts.prompt,
+        }),
+        render: opts.render,
+        onSpawn: opts.onSpawn,
+        backendId: "claude",
       });
     } catch (err) {
       // No `cause`: the raw error may carry the secret (see spawnLogged).

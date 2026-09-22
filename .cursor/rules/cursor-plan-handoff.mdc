@@ -9,11 +9,11 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
 
 0. **Plan first:** if there is no plan with to-dos, create/update one via plan-routine or `/start-project` before implementing. During execution, keep the to-dos' `status` up to date (`pending` -> `in_progress` -> `completed`) so the human can follow along in the panel.
 
-0b. **Manual mode hard stop (default):** unless the user explicitly ran `/run-plan` (or a deprecated alias `/run-plan-loop` / `/run-plan-orchestrated`), treat **one phase ≈ one chat**. After finishing the current phase (or one heavy to-do), update HANDOFF, **stop coding**, and ask before the next phase. Burning an entire multi-phase plan in one window is a kit failure, not "being helpful".
+0b. **Manual mode hard stop (default):** same as session hard rule 1-2 (one phase per chat; never burn the window in one conversation without `/run-plan` or its deprecated aliases `/run-plan-loop` / `/run-plan-orchestrated`).
 
-0c. **`/start-project` two gates (HITL):** Broad Intake Review before Gate A. Gate A = single composite question (with active plan: backlog+write / park+write / modify / cancel; without active plan: write / write+backlog / modify / cancel). Plan file only, no product edits. Gate B = after an explicit second yes, run one unit only (options: start first unit / run-plan / edit / Add to backlog / Stop here). `Add to backlog` lists under Backlog plans with Mode STOPPED; `Stop here` leaves the plan active without starting the unit. Active HANDOFF/plan → composite disposition+write options; never park silently. Goal in the same slash message is not execute permission. Merging "create plan and start Phase 1" in one turn is a kit failure. Fallback: one numbered list per message. Gates use Ask questions per `.cursor/rules/hitl-ask-questions.mdc`.
+0c. **`/start-project` two gates (HITL):** same as session hard rule 7 (Broad Intake Review before Gate A's single composite question; Gate B after an explicit second yes). Two effects hard rule 7 does not spell out: `Add to backlog` (a Gate B option) lists under Backlog plans with Mode STOPPED; `Stop here` leaves the plan active without starting the unit. Gates use Ask questions per `.cursor/skills/core/hitl-gates/SKILL.md` and `.cursor/rules/hitl-ask-questions.mdc`.
 
-0d. **Backlog CRUD (enqueue without activation):** `/backlog-add` runs Broad Intake, asks write-to-backlog confirmation, writes the plan file, appends HANDOFF `- **Backlog plans:**`, and stops (no Gate B, never parks or activates). `/backlog-edit` mutates plan markdown after confirm. `/backlog-delete` removes from Backlog and moves the file to `.cursor/plans/archive/`. `/backlog-cancel` soft-cancels open to-dos and removes the Backlog row but keeps the file under `.cursor/plans/`. Do not invent Field Report cards for routine backlog CRUD. Distinct from `/archive-plan` (parked-list only). Ask questions on every mutate; chat numbered-list fallback.
+0d. **Backlog CRUD (enqueue without activation):** same as session hard rule 10. Distinct from `/archive-plan` (parked-list only). Ask questions on every mutate; chat numbered-list fallback.
 
 1. **Execute to-dos by phase** following the plan's "Phases and to-dos by context" section (when it exists). Respect the order Phase 0 -> 1 -> 2 -> 3 -> 4 -> 5.
 
@@ -44,7 +44,7 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
 
 ## HANDOFF.md template
 
-Mission Control parses **machine fields** as `- **Field:**` bullets only. Do **not** invent `## Backlog plans` / `## Parked plans` / `## Run queue` headings in place of those fields (Checklist / Current mission go empty). Prefer backticked `*.plan.md` basenames.
+Mission Control parses **machine fields** as bullets, not headings; same as session hard rule 11 for the exact field list and canonical `- **Plan:**` format. Prefer backticked `*.plan.md` basenames.
 
 ```markdown
 # Handoff - [Plan name]
@@ -70,6 +70,8 @@ Mission Control parses **machine fields** as `- **Field:**` bullets only. Do **n
 For `/run-plan-all`, keep queue fields as bullets too (`- **Run queue:**`, `- **Queue cursor:**`, `- **Queue status:**`, `- **Queue outcomes:**`). See `.cursor/context/templates/handoff.md`.
 
 The `.cursor/HANDOFF.md` file can be added to `.gitignore` if you do not want to version it.
+
+**Growth contract:** keep the file at or under 200 lines, no line over 2,000 chars (bytes/lines/longest-line only, never a token count). Machine fields always survive a prune, wherever they sit. Over the limit: `agent-kit handoff --prune [--keep N]` (default `N=5`) archives older narrative entries to `.cursor/context/archive/`; `agent-kit validate handoff` warns when either limit is crossed. ADR `decisions/2026-09-20_contract-read-budget-and-laziness.md`.
 
 ## Context Memory System
 

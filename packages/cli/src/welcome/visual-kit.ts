@@ -51,15 +51,18 @@ export interface WelcomeRenderOptions {
   /** Force color on/off; when omitted, derive from env + TTY. */
   color?: boolean;
   stdoutIsTTY?: boolean;
+  /** Environment consulted for the color gate (default: process.env). */
+  env?: NodeJS.ProcessEnv;
 }
 
 /** Whether welcome / root help should emit ANSI (respects NO_COLOR / CI / non-TTY). */
 export function shouldUseWelcomeColor(opts: WelcomeRenderOptions = {}): boolean {
+  const env = opts.env ?? process.env;
   if (opts.color === false) return false;
-  if (process.env.NO_COLOR) return false;
-  if (process.env.NODE_DISABLE_COLORS) return false;
-  if (process.env.FORCE_COLOR === "0") return false;
-  if (process.env.CI != null && process.env.CI !== "") return false;
+  if (env.NO_COLOR) return false;
+  if (env.NODE_DISABLE_COLORS) return false;
+  if (env.FORCE_COLOR === "0") return false;
+  if (env.CI != null && env.CI !== "") return false;
   if (opts.color === true) return true;
   const tty = opts.stdoutIsTTY ?? Boolean(process.stdout.isTTY);
   return tty;

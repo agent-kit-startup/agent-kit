@@ -42,6 +42,54 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/rules/hitl-ask-questions.mdc",
   },
   {
+    source: ".cursor/skills/core/hitl-gates/SKILL.md",
+    target: ".cursor/skills/core/hitl-gates/SKILL.md",
+  },
+  {
+    source: ".cursor/skills/core/hitl-gates/procedures.md",
+    target: ".cursor/skills/core/hitl-gates/procedures.md",
+  },
+  {
+    source: ".cursor/skills/core/hitl-gates/run-plan-tick-contract.md",
+    target: ".cursor/skills/core/hitl-gates/run-plan-tick-contract.md",
+  },
+  {
+    source: ".cursor/skills/core/hitl-gates/start-project-intake.md",
+    target: ".cursor/skills/core/hitl-gates/start-project-intake.md",
+  },
+  {
+    source: ".cursor/skills/core/hitl-gates/run-plan-all-queue.md",
+    target: ".cursor/skills/core/hitl-gates/run-plan-all-queue.md",
+  },
+  {
+    source: ".cursor/skills/core/qa/SKILL.md",
+    target: ".cursor/skills/core/qa/SKILL.md",
+  },
+  {
+    source: ".cursor/skills/core/dashboard-broadcast/SKILL.md",
+    target: ".cursor/skills/core/dashboard-broadcast/SKILL.md",
+  },
+  {
+    source: ".cursor/skills/core/plan-review-triage/procedure.md",
+    target: ".cursor/skills/core/plan-review-triage/procedure.md",
+  },
+  {
+    source: ".cursor/skills/core/plan-external-review/procedure.md",
+    target: ".cursor/skills/core/plan-external-review/procedure.md",
+  },
+  {
+    source: ".cursor/skills/core/agent-kit-onboard/procedure.md",
+    target: ".cursor/skills/core/agent-kit-onboard/procedure.md",
+  },
+  {
+    source: ".cursor/skills/core/field-report-resolve/procedure.md",
+    target: ".cursor/skills/core/field-report-resolve/procedure.md",
+  },
+  {
+    source: ".cursor/skills/core/backlog-add/procedure.md",
+    target: ".cursor/skills/core/backlog-add/procedure.md",
+  },
+  {
     source: "registry/rules/git-secrets-safety.mdc",
     target: ".cursor/rules/git-secrets-safety.mdc",
   },
@@ -110,11 +158,8 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/git-staging.md",
   },
   { source: ".cursor/commands/git-prod.md", target: ".cursor/commands/git-prod.md" },
-  {
-    source: ".cursor/commands/kit-staging.md",
-    target: ".cursor/commands/kit-staging.md",
-  },
-  { source: ".cursor/commands/kit-prod.md", target: ".cursor/commands/kit-prod.md" },
+  // Factory landing wraps: keep `.cursor/commands/kit-staging.md` and
+  // `kit-prod.md` on disk. They are not consumer L0 (surface diet).
   {
     source: ".cursor/commands/plan-external-review.md",
     target: ".cursor/commands/plan-external-review.md",
@@ -137,6 +182,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/commands/cursor-update-awareness.md",
     target: ".cursor/commands/cursor-update-awareness.md",
+  },
+  {
+    source: ".cursor/commands/qa.md",
+    target: ".cursor/commands/qa.md",
   },
   {
     source: ".cursor/commands/update.md",

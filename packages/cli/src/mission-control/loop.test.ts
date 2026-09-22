@@ -318,6 +318,48 @@ describe("runMcTuiLoop", () => {
     handle?.stop();
   });
 
+  it("a paint still collecting when stop() runs writes nothing afterwards", async () => {
+    const writes: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let loads = 0;
+    let tick: () => void = () => undefined;
+    const handle = await runMcTuiLoop({
+      stdoutIsTTY: true,
+      env: {},
+      intervalMs: 15_000,
+      loadView: async () => {
+        loads += 1;
+        if (loads === 2) await gate;
+        return view;
+      },
+      hooks: {
+        write: (chunk) => {
+          writes.push(chunk);
+        },
+        setIntervalFn: ((fn: () => void, _ms: number) => {
+          tick = fn;
+          return 1 as unknown as NodeJS.Timeout;
+        }) as typeof setInterval,
+        clearIntervalFn: (() => undefined) as typeof clearInterval,
+      },
+    });
+    tick();
+    expect(loads).toBe(2);
+    handle?.stop();
+    const afterStop = writes.length;
+    expect(writes[afterStop - 1]).toBe("\x1b[?25h");
+    release();
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+    expect(writes.length).toBe(afterStop);
+    await handle?.repaint();
+    expect(writes.length).toBe(afterStop);
+  });
+
   it("renders an error frame when loadView rejects and restores the cursor on stop", async () => {
     const writes: string[] = [];
     const handle = await runMcTuiLoop({

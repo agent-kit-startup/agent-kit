@@ -36,7 +36,7 @@ Update the handoff document to preserve current state and allow continuation in 
 
 3. **Handoff preference (first time / when offering a choice):** if the user has no saved preference in `.cursor/context/config.json`, or you are offering automatic vs manual handoff, use the **Ask questions** tool (not typed yes/no).
    Options: `Automatic handoff` / `Manual handoff`
-   **Fallback:** if Ask questions is unavailable, say so once and ask the same options in chat.
+   **Fallback (path 1):** if Ask questions is missing, say so once, print the same two labels as a numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call.
    If they pick automatic, save `{ "autoHandoff": true }` in `.cursor/context/config.json`.
 
 4. **DevOps spine (suggest, do not run without being asked):**

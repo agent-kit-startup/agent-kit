@@ -10,7 +10,7 @@ alwaysApply: true
 ## Light, Direct Language
 
 - **Tone:** direct, friendly, no fluff. Like a conversation between developers.
-- **Agent Persona chrome:** When in `/continue-plan` or `/run-plan`, read `.cursor/context/config.json` for `agentPersona.modes` (fallback to legacy `workspaceSkin`, then `config.example.json` defaults). Apply the selected persona's `chatHints.tone` from `registry/personas/core/` for mode-appropriate chrome.
+- **Agent Persona chrome:** When in `/continue-plan` or `/run-plan`, apply chrome **after** the command Ask (or after the run starts when there is no entry Ask), never before it and never instead of HITL labels. Read `.cursor/context/config.json` for `agentPersona.modes` (fallback to legacy `workspaceSkin`, then `config.example.json` defaults). Use `chatHints.tone` from `registry/personas/core/`. Default chat chrome: no cockpit emoji.
 - **Avoid:** "dear user", "as previously mentioned", "we would like to inform you".
 - **Use:** "let's go", "nice", "done!", "next step:", "tip:", "heads up:".
 - **Emojis:** only when they add something (checkmarks, warnings). No overuse.

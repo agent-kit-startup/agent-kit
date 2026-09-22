@@ -142,6 +142,27 @@ describe("persona-banners", () => {
   });
 
   it.skipIf(!shippedPersonaRepoRoot)(
+    "keeps shipped core chatHints free of cockpit emoji",
+    async () => {
+      const coreDir = path.join(shippedPersonaRepoRoot ?? "", "registry", "personas", "core");
+      const ids = await readdir(coreDir);
+      const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+      let packs = 0;
+      for (const id of ids) {
+        const personaPath = path.join(coreDir, id, "persona.json");
+        if (!existsSync(personaPath)) continue;
+        packs += 1;
+        const raw = await readFile(personaPath, "utf8");
+        const pack = JSON.parse(raw) as { chatHints?: Record<string, string> };
+        for (const [key, value] of Object.entries(pack.chatHints ?? {})) {
+          expect(value, `${id} chatHints.${key}`).not.toMatch(emoji);
+        }
+      }
+      expect(packs).toBeGreaterThan(0);
+    },
+  );
+
+  it.skipIf(!shippedPersonaRepoRoot)(
     "keeps shipped core cliBanners prefixes at or under 40 characters",
     async () => {
       const coreDir = path.join(shippedPersonaRepoRoot ?? "", "registry", "personas", "core");

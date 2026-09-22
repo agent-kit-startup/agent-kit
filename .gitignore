@@ -32,6 +32,12 @@
 .cursor/context/backups/*.md
 !.cursor/context/backups/.gitkeep
 
+# HANDOFF prune archive (same class as .cursor/HANDOFF.md itself: local
+# session narrative, not a versioned artifact). Phase 4,
+# contract-read-budget-lazy-layers-2026-09-19 plan.
+.cursor/context/archive/*.md
+!.cursor/context/archive/.gitkeep
+
 # Plan shell orchestrator (scripts/plan-loop.sh) - logs and stop flag
 .cursor/loop-logs/
 .cursor/loop.stop

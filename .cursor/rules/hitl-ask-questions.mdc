@@ -5,46 +5,25 @@ alwaysApply: true
 
 # HITL Ask Questions - Kit-wide confirmations via AskQuestion
 
-Agent Kit uses **Ask questions** tool (`AskQuestion` / ACP `cursor/ask_question`) for **ALL** human-in-the-loop confirmations, choices among options, and clarifications before acting. This creates clickable options in the IDE UI instead of plain-text "type yes to continue" prompts.
+Agent Kit uses **Ask questions** (`AskQuestion` / ACP `cursor/ask_question`) for **ALL** human-in-the-loop confirmations, choices, and clarifications before acting.
 
-## Contract for Agent Kit
+Exact Ask labels, per-command gates, and numbered fallback as **path 1**: [`.cursor/skills/core/hitl-gates/SKILL.md`](../skills/core/hitl-gates/SKILL.md).
 
-1. **Any step that needs confirmation, choice among options, or clarification before acting** must call **Ask questions**, not ask the user to type. **No exceptions** for onboarding or install.
+## Contract
 
-2. **Prefer one question at a time** (or a small coherent set in one tool call if the product allows multi-question).
-
-3. **Options must be concrete labels** (e.g. `Write plan file`, `Write plan and add to backlog`, `Add to backlog`, `Create first plan`, `Skip for now`, `Install via CLI`, `Install via chat`, `Start first unit`, `Switch to /run-plan`).
-
-4. **Fallback when tool unavailable:** some models/modes do not expose the tool (dogfood 2026-07-20: Auto mode routed picks and Grok 4.5 absent; Opus, Sonnet 4.6, Composer 2.5 Fast, GPT, Gemini present; see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`). When it is not in the session toolset, say so once, then present the same options in chat as a **numbered list**. Tell the user they can **reply with the number** (or the label), and that they can always **type their own answer** (the equivalent of the built-in "Other" choice) if none fit. Do not invent a fake tool call. Tip: switching to a model that supports Ask questions restores the clickable UI.
-
-5. **This does not weaken HITL:** skipped/cancelled answers mean **stop** (same as no yes).
-
-## Gates requiring Ask questions
-
-| Surface | Gate |
-|---------|------|
-| `install.md` (Port B / drag-install) | Registry URL/ref if needed; migrate nested `agent-kit/` confirm; optional git-hooks install |
-| `/agent-kit-onboard` | One unresolved readiness decision at a time; confirm Git, branch, remote, hooks, CI, deploy, protection, and external mutations before acting; optional domain-skills scaffold gate after essentials (`Scaffold domain skills` / `Defer (record reason)` / `Skip`) before finish-setup CTA |
-| `context-guardian` readiness | Surface the first pending readiness check without blocking active plan/HANDOFF work; auto vs manual handoff preference (first time) |
-| `/start-project` | Single composite Gate A question: disposition + write merged into one pick (with active plan: backlog+write / park+write / modify / cancel; without active plan: write / write+backlog / modify / cancel); Gate B (start first unit / run-plan / edit / Add to backlog / Stop here); vague goal clarify; fallback rule: one numbered list per message |
-| `/backlog-add` | Vague-goal clarify; write confirm (`Write plan to backlog` / `Modify proposal first` / `Cancel`); when Unprocessed is non-empty, inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`) before write; never park/activate/Gate B; never Ask `confirm-provider` / `collaboration.provider` (one-line advisory or silence) |
-| `/backlog-edit` | Confirm before plan-file mutate (`Edit [plan-file]` / `Cancel`) |
-| `/backlog-delete` | Confirm before Backlog remove + archive move (`Delete [plan-file] from backlog` / `Cancel`) |
-| `/backlog-cancel` | Confirm soft cancel (`Cancel [plan-file] on backlog` / `Keep on backlog`) |
-| `/continue-plan` | Confirm next `[to-do-id]`; if multiple plans, pick which to resume; when Unprocessed is non-empty, inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`) before the next-unit Ask |
-| `/git-prod` | Explicit confirm before merge/push to `main` |
-| `/kit-staging` | After git staging, if landing-worthy: `Deploy landing to staging` / `Skip landing (repo only)` / `Cancel`. Skip the Ask when the landing gate says skip. |
-| `/kit-prod` | Keep the git-prod Ask first (`Proceed with production deploy` / `Review changes first` / `Cancel`). Do not steal that Ask. After git prod succeeds, if landing-worthy: extra Ask `Promote landing to production` / `Skip landing (repo only)` / `Cancel`. |
-| `/hotfix` | Confirm before write+run (`Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel`); lock ambiguous glyphs/tokens before run; risk pause same as `/run-plan` while ticking; never `/git-prod` |
-| `/run-plan` | Risk pause (PII, secrets, ambiguous scope); not every tick. When Unprocessed is non-empty (and this is not a `/run-plan-all` per-plan Task), inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`) before the first to-do. Audits pre-flight per `externalPlanReview.preflight`. Plan-exhausted audits arm when enabled (`mode: autonomous` → `--force --autonomous --wait-monitor`; `paste` → paste-only); else `offerOnExhausted` Ask (`Run review now` / `Always enable automatic` / `Not now`); AwaitShell until exit `0|3|4` (fresh monitor; chat slice `waitSliceSeconds` ~90s; remaining budget in `.cursor/context/audit-wait/`; not spawn-only); `backend: "auto"` uses Claude or Cursor Agent; exit `0` → `/plan-review-triage` Ask (not Final HANDOFF "after monitor lands"); chat never silent headless `--force`; must not steal `/git-prod` HITL (Ask after Final HANDOFF / prod suggestion) |
-| `/run-plan-all` | When Unprocessed is non-empty, inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`) before the 6-way confirm. Confirm queue Ask (6-way) before execute. Audits pre-flight per config. Mid-queue: when `midBatchAudits` one arm+wait per plan (or one `--batch` + wait_all); no N-Terminal fan-out without wait; no mid-queue triage Ask. Queue-end: audits arm / optional Ask, wait then `/plan-review-triage` Ask with explicit path list, then `/git-prod` suggestion as separate HITL. Malformed Task summary Ask before advancing cursor. Risk gates stay inside each plan Task. |
-| `/plan-review-triage` | Triage choice (write residuals plan / fix nits only / ack and stop); every outcome persists a durable triage heading on the monitor; reached automatically after wait-monitor exit `0` (freshness) when chat armed the audit. Classify preferred class before Ask (max closeout depth 1; nits/process-only prefer Ack/Fix nits; ADR `2026-08-11_plan-audit-residuals-termination.md`). **Write residuals:** gate 0 refuses another `close-*` when depth-capped/process-only unless operator overrides; Broad Intake (same buckets/labels as `/backlog-add`) → propose from Still open + intake → Ask `Write plan to backlog` / `Modify proposal first` / `Cancel` → plan file + HANDOFF Backlog (no Gate B, no activate, no Run-queue rewrite; `/start-project` optional escape hatch only). **Multi-path:** one Ask when remaining monitors share a uniform outcome class (batch Ack / batch residuals enqueue with one intake + one combined plan); sequential fallback when mixed; never silent-Ack (ADRs `2026-07-27_plan-review-triage-batch-uniform-hitl.md`, `2026-07-28_triage-write-residuals-via-backlog.md`) |
-| `/handoff` / guardian | Prefer Ask questions when offering auto vs manual handoff |
-| Other commands / docs | Any "stop and ask" / "Want to… (yes/no)" prose in L0 + getting-started / bootstrap |
+1. Any step that needs confirmation, choice, or clarification before acting must call **Ask questions**, not ask the user to type. No exceptions for onboarding or install.
+2. Prefer one question at a time (or a small coherent set if the product allows multi-question).
+3. Options must be concrete labels (for example `Write plan file`, `Write plan and add to backlog`, `Start first unit`).
+4. **Fallback is path 1:** when the tool is not in the session toolset, say so once, print one `HITL_GATE: <ask-id> | <labels>` line and the same options as a **numbered list** right after it (same message), accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Inbox, owed-close, and landing Asks are opt-in or post-default (inventory, ids and sentinel format: `.cursor/skills/core/hitl-gates/SKILL.md`).
+5. Skipped or cancelled answers mean **stop** (same as no yes).
 
 ## CLI exception
 
-`agent-kit init` / wizard in `packages/cli/src/utils/prompts.ts` already uses `@clack/prompts` (terminal select/confirm). Keep that. Do not call IDE `AskQuestion` from the CLI. This rule only ensures chat/`install.md` onboarding matches the same UX quality.
+`agent-kit init` / wizard in `packages/cli/src/utils/prompts.ts` already uses `@clack/prompts`. Keep that. Do not call IDE `AskQuestion` from the CLI.
+
+## `/qa`
+
+Mode (when ambiguous): `QA this release` / `Repro this bug` / `Claims only` / `Cancel`. Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel`. Playbook: `.cursor/skills/core/qa/SKILL.md`.
 
 ## References
 

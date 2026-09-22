@@ -11,6 +11,14 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
  * ADR pin below is private-factory only (public-sync excludes `.cursor/memory/**`);
  * skip when the file is absent so public mirror CI does not ENOENT.
  */
+describe("docs-contract: /run-plan L0 shrink", () => {
+  it("keeps the /run-plan procedure body under 80 lines", () => {
+    const body = readFileSync(resolve(repoRoot, ".cursor/commands/run-plan.md"), "utf8");
+    const afterFrontmatter = body.replace(/^---[\s\S]*?\n---\n/, "");
+    expect(afterFrontmatter.split("\n").length).toBeLessThan(80);
+  });
+});
+
 describe("docs-contract: staging lint-evidence clause", () => {
   const surfaces = [
     ".cursor/commands/git-staging.md",
@@ -65,6 +73,34 @@ describe("docs-contract: staging lint-evidence clause", () => {
     expect(body).toMatch(/dashboard-CSS/i);
     // Old incorrect scope listed dashboard/ alongside packages/ as Biome/ESLint.
     expect(body).not.toMatch(/under `packages\/`, `dashboard\//);
+  });
+});
+
+describe("docs-contract: git-staging 401 stay-on-routine", () => {
+  it("pins Prompt git staging stay-on-routine and no invented product", () => {
+    const body = readFileSync(resolve(repoRoot, "autogit/gitupdate.md"), "utf8");
+    expect(body).toMatch(/Stay on this command \(auth fail \/ HTTP 401\)/);
+    expect(body).toMatch(/compare or create URL/);
+    expect(body).toMatch(/Do \*\*not\*\* invent product/);
+    expect(body).toMatch(/dotenv/);
+    expect(body.match(/Stay on this command \(auth fail \/ HTTP 401\)/g)?.length).toBe(1);
+  });
+
+  it("does not tell the agent to gh auth login first after SSH already worked", () => {
+    const body = readFileSync(resolve(repoRoot, "autogit/gitupdate.md"), "utf8");
+    const troubleshooting =
+      body.split("## 🆘 Troubleshooting")[1]?.split("## 🤖 Technical Prompts")[0] ?? "";
+    expect(troubleshooting).toMatch(/not\*\* the first action after a successful SSH/i);
+    expect(troubleshooting).toMatch(/Prompt git staging §9/);
+    expect(troubleshooting).toMatch(/compare\/create URL/);
+  });
+
+  it("pins one L0 auth-block hard-stop on /git-staging", () => {
+    const body = readFileSync(resolve(repoRoot, ".cursor/commands/git-staging.md"), "utf8");
+    expect(body).toMatch(/Auth-block hard stop/i);
+    expect(body).toMatch(/HTTP 401/);
+    expect(body).toMatch(/Do not invent product/i);
+    expect(body.split("\n").length).toBeLessThan(80);
   });
 });
 

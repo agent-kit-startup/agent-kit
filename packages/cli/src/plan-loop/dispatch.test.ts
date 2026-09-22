@@ -30,15 +30,33 @@ function mockSpawn(input: {
 }) {
   return vi.fn((_cmd: string, _args: string[], _opts: unknown) => {
     if (input.throwSync) throw input.throwSync;
-    const ee = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter };
+    const ee = new EventEmitter() as EventEmitter & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+      stdin: EventEmitter & { writes: string[]; ended: boolean };
+      kill: () => boolean;
+    };
     ee.stdout = new EventEmitter();
     ee.stderr = new EventEmitter();
+    const writes: string[] = [];
+    ee.stdin = Object.assign(new EventEmitter(), {
+      writes,
+      ended: false,
+      write(chunk: string | Buffer) {
+        writes.push(String(chunk));
+        return true;
+      },
+      end() {
+        this.ended = true;
+      },
+    });
+    ee.kill = () => true;
     queueMicrotask(() => {
       for (const chunk of input.stdoutChunks ?? []) ee.stdout.emit("data", Buffer.from(chunk));
       for (const chunk of input.stderrChunks ?? []) ee.stderr.emit("data", Buffer.from(chunk));
       ee.emit("close", input.exitCode ?? 0);
     });
-    return ee as ReturnType<SpawnFn>;
+    return ee as unknown as ReturnType<SpawnFn>;
   });
 }
 
@@ -140,9 +158,9 @@ describe("dispatch prompt and spawn args", () => {
     ]);
   });
 
-  it("uses the same headless claude -p argv as the tick loop (permissions bypassed, no prompts)", () => {
-    const args = claudeDispatchArgs({ prompt: "follow L0" });
-    expect(args).toEqual(claudeHeadlessArgs({ prompt: "follow L0" }));
+  it("uses the same headless claude -p argv as the tick loop (permissions bypassed, prompt on stdin)", () => {
+    const args = claudeDispatchArgs();
+    expect(args).toEqual(claudeHeadlessArgs());
     expect(args).toEqual([
       "-p",
       "--output-format",
@@ -151,10 +169,12 @@ describe("dispatch prompt and spawn args", () => {
       "--dangerously-skip-permissions",
       "--permission-prompts",
       "none",
-      "follow L0",
+      "--input-format",
+      "stream-json",
+      "--replay-user-messages",
     ]);
-    expect(claudeDispatchArgs({ prompt: "x", model: "sonnet", maxTurns: 5 })).toEqual(
-      claudeHeadlessArgs({ prompt: "x", model: "sonnet", maxTurns: 5 }),
+    expect(claudeDispatchArgs({ model: "sonnet", maxTurns: 5 })).toEqual(
+      claudeHeadlessArgs({ model: "sonnet", maxTurns: 5 }),
     );
   });
 });
@@ -164,7 +184,11 @@ describe("runHeadlessDispatch on claude", () => {
   const BASE_URL = "https://gateway.example/anthropic";
   const API_KEY = "anthropic-test-api-key-0123456789";
 
-  beforeEach(() => resetClaudeVersionCache());
+  beforeEach(() => {
+    resetClaudeVersionCache();
+    // Plain-mode terminal renderer: exact echoed lines regardless of pool stdio.
+    vi.stubEnv("NO_COLOR", "1");
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -179,7 +203,10 @@ describe("runHeadlessDispatch on claude", () => {
     const logPath = path.join(dir, "run.log");
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdoutChunks: ["auth sk-ant-test-t", "oken+abc/def=\n"],
+      stdoutChunks: [
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"auth sk-ant-test-t',
+        'oken+abc/def="}]}}\n',
+      ],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const result = await runHeadlessDispatch({
@@ -195,18 +222,30 @@ describe("runHeadlessDispatch on claude", () => {
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     write.mockRestore();
 
-    expect(result).toEqual({ exitCode: 0 });
+    expect(result).toMatchObject({ exitCode: 0 });
     expect(spawnFn.mock.calls[0]?.[0]).toBe("/usr/bin/claude");
-    expect(spawnFn.mock.calls[0]?.[1]).toEqual(claudeHeadlessArgs({ prompt: "follow L0" }));
+    expect(spawnFn.mock.calls[0]?.[1]).toEqual(claudeHeadlessArgs());
     expect(spawnFn.mock.calls[0]?.[1]).toContain("--dangerously-skip-permissions");
-    const opts = spawnFn.mock.calls[0]?.[2] as { cwd?: string; env?: NodeJS.ProcessEnv };
+    const opts = spawnFn.mock.calls[0]?.[2] as {
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      stdio?: unknown;
+    };
     expect(opts.cwd).toBe("/repo");
+    expect(opts.stdio).toEqual(["pipe", "pipe", "pipe"]);
+    const child = spawnFn.mock.results[0]?.value as { stdin: { writes: string[] } };
+    expect(child.stdin.writes).toEqual([
+      '{"type":"user","message":{"role":"user","content":"follow L0"}}\n',
+    ]);
     expect(opts.env?.ANTHROPIC_AUTH_TOKEN).toBe(TOKEN);
     expect(opts.env && "CLAUDECODE" in opts.env).toBe(false);
     expect(opts.env && "CLAUDE_CODE_SESSION_ID" in opts.env).toBe(false);
     const logText = await readFile(logPath, "utf8");
-    expect(logText).toBe("auth [ANTHROPIC_AUTH_TOKEN]\n");
-    expect(echoed).toBe(logText);
+    expect(logText).toBe(
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"auth [ANTHROPIC_AUTH_TOKEN]"}]}}\n',
+    );
+    // The terminal shows the rendered assistant text, redacted, never raw NDJSON.
+    expect(echoed).toBe("auth [ANTHROPIC_AUTH_TOKEN]\n");
   });
 
   it("redacts ANTHROPIC_BASE_URL (and its host) and ANTHROPIC_API_KEY in the run log", async () => {
@@ -217,7 +256,9 @@ describe("runHeadlessDispatch on claude", () => {
     const logPath = path.join(dir, "run.log");
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdoutChunks: [`{"url":"${BASE_URL}","key":"${API_KEY}"}\n`],
+      stdoutChunks: [
+        `{"url":"${BASE_URL}","key":"${API_KEY}"}\n{"type":"assistant","message":{"content":[{"type":"text","text":"url ${BASE_URL} key ${API_KEY}"}]}}\n`,
+      ],
       stderrChunks: ["getaddrinfo ENOTFOUND gateway.example\n"],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -238,10 +279,11 @@ describe("runHeadlessDispatch on claude", () => {
     expect(opts.env?.ANTHROPIC_API_KEY).toBe(API_KEY);
     const logText = await readFile(logPath, "utf8");
     expect(logText).toBe(
-      '{"url":"[ANTHROPIC_BASE_URL]","key":"[ANTHROPIC_API_KEY]"}\ngetaddrinfo ENOTFOUND [ANTHROPIC_BASE_URL]\n',
+      '{"url":"[ANTHROPIC_BASE_URL]","key":"[ANTHROPIC_API_KEY]"}\n{"type":"assistant","message":{"content":[{"type":"text","text":"url [ANTHROPIC_BASE_URL] key [ANTHROPIC_API_KEY]"}]}}\ngetaddrinfo ENOTFOUND [ANTHROPIC_BASE_URL]\n',
     );
     expect(logText).not.toContain("gateway.example");
-    expect(echoed).toBe(logText);
+    expect(echoed).not.toContain("gateway.example");
+    expect(echoed).toBe("url [ANTHROPIC_BASE_URL] key [ANTHROPIC_API_KEY]\n");
   });
 
   it("refuses an older claude and reports a synchronous spawn throw redacted", async () => {
@@ -296,7 +338,10 @@ describe("runHeadlessDispatch on claude", () => {
     const logPath = path.join(dir, "run.log");
     const spawnFn = mockSpawn({
       exitCode: 2,
-      stdoutChunks: ["env sk-ant-test-t", "oken+abc/def=\n"],
+      stdoutChunks: [
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"env sk-ant-test-t',
+        'oken+abc/def="}]}}\n',
+      ],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const result = await runHeadlessDispatch({
@@ -309,13 +354,15 @@ describe("runHeadlessDispatch on claude", () => {
     });
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     write.mockRestore();
-    expect(result).toEqual({ exitCode: 2 });
+    expect(result).toMatchObject({ exitCode: 2 });
     // The child still inherits process.env untouched: no cwd, no env override.
     expect(spawnFn.mock.calls[0]?.[2]).toEqual({ stdio: ["ignore", "pipe", "pipe"] });
     const logText = await readFile(logPath, "utf8");
     expect(logText).not.toContain(TOKEN);
-    expect(logText).toBe("env [ANTHROPIC_AUTH_TOKEN]\n");
-    expect(echoed).toBe(logText);
+    expect(logText).toBe(
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"env [ANTHROPIC_AUTH_TOKEN]"}]}}\n',
+    );
+    expect(echoed).toBe("env [ANTHROPIC_AUTH_TOKEN]\n");
   });
 });
 

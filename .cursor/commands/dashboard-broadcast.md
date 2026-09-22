@@ -67,7 +67,11 @@ node dashboard/start-broadcast.mjs
 
    Verify `system.repoRoot` matches this workspace before trusting the response as your own Mission Control.
 
-3. **Share the printed Share URL** (Mission Kit cosmetic mask, default `https://missionkit.io/mc/open.html#…`). The fragment is reversible base64url of the full LAN URL **including the live token** — treat the Share URL with the **same secret handling** as the raw token (do not paste into Slack, tickets, screenshots, docs, or commits). Hostinger access logs never see the fragment; that does not make the link non-secret. Phone/tablet must still be on the **same trusted LAN**. After first Mission Control load, an HttpOnly cookie keeps same-origin assets/SSE working. Override base with `MISSION_CONTROL_SHARE_BASE` (BYO **HTTPS** origin hosting `open.html`; non-HTTPS is rejected except loopback http for local preview). Set `off` for raw LAN-only print (also the recovery if a hosted resolver 404s). Extensionless `…/mc/open` may still 404 on Hostinger until an alias exists; the default uses `open.html`. Soft TTL via `MISSION_CONTROL_SHARE_TTL_SEC` (default 86400; `0` = never expires in the UI). Expiry is **advisory only** (client refuse); hard revoke = stop broadcast or rotate `MISSION_CONTROL_TOKEN`. Secondary LAN lines default on (`MISSION_CONTROL_SHARE_SHOW_LAN=0` to hide).
+3. **Share the printed Share URL** (Mission Kit cosmetic mask, default `https://missionkit.io/mc/open.html#…`).
+   - The fragment is reversible base64url of the full LAN URL **including the live token** — treat the Share URL with the **same secret handling** as the raw token (do not paste into Slack, tickets, screenshots, docs, or commits). Hostinger access logs never see the fragment; that does not make the link non-secret.
+   - Phone/tablet must still be on the **same trusted LAN**. After first Mission Control load, an HttpOnly cookie keeps same-origin assets/SSE working.
+   - Override base with `MISSION_CONTROL_SHARE_BASE` (BYO **HTTPS** origin hosting `open.html`; non-HTTPS is rejected except loopback http for local preview). Set `off` for raw LAN-only print (also the recovery if a hosted resolver 404s). Extensionless `…/mc/open` may still 404 on Hostinger until an alias exists; the default uses `open.html`.
+   - Soft TTL via `MISSION_CONTROL_SHARE_TTL_SEC` (default 86400; `0` = never expires in the UI). Expiry is **advisory only** (client refuse); hard revoke = stop broadcast or rotate `MISSION_CONTROL_TOKEN`. Secondary LAN lines default on (`MISSION_CONTROL_SHARE_SHOW_LAN=0` to hide).
 
 4. **Open one surface only** (never OS + IDE together by default):
    - **Default (CLI / npm):** let `start-broadcast.mjs` open the preferred browser to the **Share URL** when masking is on (config `missionControl.preferredBrowser`, env `MISSION_CONTROL_PREFERRED_BROWSER`, or `--browser`). Use `--no-open` / `MISSION_CONTROL_NO_OPEN=1` to skip OS open (server still prints Share URL + token / LAN lines).
@@ -102,20 +106,6 @@ node dashboard/start-broadcast.mjs
   so the starter treats it as someone else's and starts beside it.
 - OS firewall may block inbound LAN TCP; allow the chosen port for your local network profile if needed.
 
-## Notes
+## Notes and troubleshooting
 
-- Port: `PORT` env overrides; default is the per-workspace hash allocation (range `3333-3588`), walking to the next candidate when one is held. Derive the preferred port with the snippet in step 0, or read the printed `Bind:` line / `system.port`. Explicit `PORT` refuses instead of walking, so a pinned port never silently moves.
-- Log default: `/tmp/mission-control-broadcast-<rootId>.log` (per workspace; `MISSION_CONTROL_LOG` overrides)
-- Loopback UX remains `/dashboard` / `npm run dashboard` / `agent-kit dashboard`
-- Detach lessons match `/dashboard` (error `2026-07-25_dashboard-server-reaped-agent-shell`)
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Serve exits: non-loopback requires token | `HOST` set without `MISSION_CONTROL_TOKEN` | Use `dashboard:broadcast` or set a ≥16 char token |
-| Port busy / token rejected | Existing instance on the allocated port | Nothing to do: the starter skips it and binds the next per-workspace candidate. Want that exact port? Kill the LISTEN pid **only** after verifying `repoRoot` is yours |
-| Explicit `PORT` refused | You pinned a `PORT` that another instance holds | Unset `PORT` (auto-pick a free per-workspace port), or free that port yourself if it is this workspace's |
-| A second broadcast appears each run | `MISSION_CONTROL_TOKEN` is regenerated per run, so the running one cannot be identified | Export a stable `MISSION_CONTROL_TOKEN` to reuse the existing broadcast |
-| Phone cannot connect | Firewall or wrong IP | Confirm printed LAN IPv4; allow inbound TCP |
-| Config save 403 from phone | Expected | Config writes are loopback-only |
+Port allocation detail, log path, detach lessons, and the failure-symptom table: [dashboard-broadcast-notes](../skills/core/dashboard-broadcast/SKILL.md).

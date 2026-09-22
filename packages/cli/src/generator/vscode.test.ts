@@ -42,6 +42,7 @@ function minimalProfile(
       ciFiles: [],
       infrastructureFiles: [],
       deploymentFiles: [],
+      ciRunCommands: [],
     },
     services: {},
     installHooks: false,

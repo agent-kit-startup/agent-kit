@@ -38,7 +38,7 @@ npx @dadado/agent-kit-cli run continue-plan
 npx @dadado/agent-kit-cli run-plan-all
 ```
 
-`--backend auto` (the default) picks the first installed agent CLI. Cursor Ask questions stays Cursor-only; headless confirmations are a numbered list. `agent-kit run git-prod` is refused: `/git-prod` stays operator-gated and is never auto-promoted. `agent-kit run run-plan` wraps the existing one-tick loop. `agent-kit run-plan-all` (same as `agent-kit run run-plan-all`) dispatches `.cursor/commands/run-plan-all.md`, not that tick loop. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all`. `agent-kit run-plan --backend claude` (or `agent-kit run run-plan --backend claude`) runs that tick loop on Claude Code headless (`claude -p`): same one-to-do tick contract, same `LOOP_TICK_RESULT` sentinel, never `/git-prod`. Flags and env are in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables).
+`--backend auto` (the default) picks the first installed agent CLI. Cursor Ask questions stays Cursor-only; headless confirmations are a numbered list, answered from the terminal (or the live TUI) and relayed back into the same agent session — the run does not just print the gate and exit. `agent-kit run git-prod` is refused: `/git-prod` stays operator-gated and is never auto-promoted. `agent-kit run run-plan` wraps the existing one-tick loop. `agent-kit run-plan-all` (same as `agent-kit run run-plan-all`) dispatches `.cursor/commands/run-plan-all.md`, not that tick loop. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all`. `agent-kit run-plan --backend claude` (or `agent-kit run run-plan --backend claude`) runs that tick loop on Claude Code headless (`claude -p`): same one-to-do tick contract, same `LOOP_TICK_RESULT` sentinel, never `/git-prod`. On a TTY the run renders as the Mission Control live view (progress bars, a scrolling status-line log, no raw stream JSON in the terminal); `--plain` forces plain status lines, and `--no-hitl` stops the run at the first gate instead of prompting (for CI). Flags, env and the full HITL relay contract are in the [consumer configuration CLI table](consumer-configuration.md#cli-flags-and-environment-variables).
 
 ## Watch progress
 
@@ -171,10 +171,11 @@ Operator sequence when you drive each unit (command SoT: [`.cursor/commands/cont
 | Run one plan to the end (auto staging per tick) | `/run-plan` |
 | Narrow urgent fix as a mini plan, then run ticks | `/hotfix` |
 | Run several plans as one ordered queue | `/run-plan-all` |
+| Test a release or bug against CHANGELOG claims | `/qa` |
 | Commit / MR to `staging` after a manual unit | `/git-staging` |
 | Promote `staging` → `main` | `/git-prod` (explicit confirm only) |
-| Staging plus public-landing preview (product changelog only) | `/kit-staging` |
-| Prod plus public-landing promote (release changelog only) | `/kit-prod` (git-prod Ask, then extra landing Ask) |
+
+Factory landing wrap (not consumer L0): `/kit-staging` / `/kit-prod` when those files exist. Mission Control TUI stays a third-surface viewer (ADR `2026-08-27_cli-native-mission-control-tui-thin-deps-third-surface.md`).
 
 Do not re-author Gate A/B or continuous tick contracts here; link L0 commands when you need the full contract.
 
@@ -199,8 +200,9 @@ Stay on the main commands. Specialist slashes remain the contracts and are invok
 2. **Run** — `/continue-plan`, `/run-plan`, `/run-plan-all`, or `/backlog-add`. When Unprocessed is non-empty, those commands may Ask `Analyze inbox now` / `Enqueue Fix now` / `Not now`. Analysis and memory WRITE start only after that HITL. Notes become plans or memory, never `plan-monitor-*.md`.
 3. **Audit** — when `externalPlanReview.enabled` is true, `/run-plan` and `/run-plan-all` arm, wait, and rearm leftover wait budget on exit 3. Use `/plan-external-review` only for paste or manual re-arm.
 4. **Triage** — after wait exit 0, the same run continues into `/plan-review-triage` (no silent-Ack). Prefer Ack / Fix nits when residuals are process-only.
+5. **QA** — `/qa` tests a release or bug against CHANGELOG claims, the install journey, and tests. It is not a plan audit (`/plan-external-review`) and not the dogfood inbox.
 
-Details: [external plan review](external-plan-review.md). Routing ADR: `2026-08-14_main-command-dogfood-audit-routing.md`.
+Details: [external plan review](external-plan-review.md). Routing ADR: `2026-08-14_main-command-dogfood-audit-routing.md`. `/qa` contract: [`.cursor/commands/qa.md`](../.cursor/commands/qa.md).
 
 ### Keeping Mission Kit current (consumers)
 
@@ -223,6 +225,8 @@ For the full list of consumer-configurable knobs (session config, dashboard skin
   - **Model / quota tip:** prefer a named model (Claude Opus, Sonnet 4.6, Composer 2.5 Fast) over Auto for long continuous runs. Auto and named models may use separate quota buckets; Auto can fall back after a limit and lose Ask questions. If you stay on Auto, set `interTickCooldownMs` to **15000** in Mission Control **Config** or `.cursor/context/config.json` (default stays `0` so named-model runs are not slowed). After an API-limit hard stop, do not expect the next tick to auto-resume until you confirm recovery. Do not throttle Mission Control refresh to "save" Agent quota (dashboard is local-only). When authoring plans, **split** docs-only close-out to-dos from product `read_scope` ticks so more Auto ticks qualify for inline-first ([plan-routine §6](../autogit/plan-routine.md#6-context-budget-per-to-do-optional)).
 
   > **Note for headless/scheduled execution:** If running continuous plan loops or scheduled agents outside the IDE (e.g. via `agent-kit run-plan --backend cursor-agent|claude` or `scripts/plan-loop.sh`), use a separate git worktree or clone rather than sharing an interactive working tree. This prevents conflicts between automated commits and manual work.
+
+- **`/qa`** - test a **release**, reproduce a **bug**, or check that CHANGELOG feat/fix/chore claims work (install journey included). Reports pass/fail with evidence; does not silent-fix product bugs (residuals go through `/backlog-add`). No new L0 agent. Full spec: [`.cursor/commands/qa.md`](../.cursor/commands/qa.md). Playbook: [`.cursor/skills/core/qa/SKILL.md`](../.cursor/skills/core/qa/SKILL.md).
 
 - **`/run-plan-all`** - run **multiple plans** as one ordered, deduplicated queue. Use it when Gate-A backlog plans have piled up, scopes overlap, or you want batch throughput instead of activating `/run-plan` plan by plan. Full command spec: [`.cursor/commands/run-plan-all.md`](../.cursor/commands/run-plan-all.md). Operator detail below; modes overview also in [plan-routine.md](../autogit/plan-routine.md) and the root [README](../README.md).
 
