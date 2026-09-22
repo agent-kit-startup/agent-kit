@@ -91,6 +91,8 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `install.md` | Registry URL/ref; migrate nested `agent-kit/`; optional git-hooks |
 | `/agent-kit-onboard` | One unresolved essential at a time. Domain skills: `Scaffold domain skills` / `Defer (record reason)` / `Skip` |
 
+`/git-prod` and `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact.
+
 ## Numbered fallback (path 1)
 
 When Ask questions is absent, the numbered list is **mandatory** (path 1, not optional). Do not invent a fake tool call. Print the `HITL_GATE:` sentinel line immediately before the list, in the same message: it is how a headless run (`agent-kit run`, `run-plan`, `run-plan-all`) detects the gate and relays the operator's answer (ADR `2026-09-19_headless-hitl-transport-and-live-tui.md`).

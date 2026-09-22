@@ -77,10 +77,11 @@ Promotes approved changes from `origin/staging` to `origin/main` (production).
 - ✅ Critical security validation
 - ✅ Checks `CHANGELOG.md` and **closes the release** (moves `[Unreleased]` → dated version)
 - ✅ Shows detailed summary of changes
-- ✅ **Requires explicit confirmation** before proceeding
+- ✅ **Requires explicit confirmation** before proceeding (**one confirm, one ship**: one SemVer close, one `v*` tag, one promote)
 - ✅ Merges `origin/staging` → `origin/main`
 - ✅ Publishes to production
-- ✅ In this monorepo: triggers public mirror sync (`pnpm git:trigger-public-sync`) when applicable
+- ✅ **Mandatory** fast-forward of `origin/staging` to `origin/main` when staging is an ancestor (prevents promote sawtooth)
+- ✅ In this monorepo: triggers public mirror sync (`pnpm git:trigger-public-sync`) when applicable; step 12.5 red/stale is a STOP, not a license for another patch under the same yes
 - ✅ *(Optional)* Updates task status in the repo's project manager (ClickUp, Jira, …) **only if** MCP/skill for that tool is configured
 
 
@@ -148,7 +149,7 @@ We follow the [Semantic Versioning](https://semver.org/) standard:
 - **MINOR** (0.X.0): New backward-compatible features
 - **PATCH** (0.0.X): Bug fixes, post-tag CI / Path C portability, and consumer fixes that must republish as a new npm tarball
 
-**Hold vs next patch:** after a published `vX.Y.Z`, CI-unblock or fixture commits may keep the four manifests on `X.Y.Z` (**hold**) when the existing tarball does not need to change (step 12.5). Cut the **next patch** (`X.Y.(Z+1)`) and a new annotated tag when npm, Path C install, or the public Release must carry the fix. Never force-move a pushed `v*`. 5.x history that shipped only `x.y.0` after `v5.2.1` is practice, not a second cadence. Factory ADR: `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`. Marketplace / skill-catalog semver is a different layer (`docs/CONTRIBUTING.md`).
+**Hold vs next patch:** after a published `vX.Y.Z`, CI-unblock or fixture commits may keep the four manifests on `X.Y.Z` (**hold**) when the existing tarball does not need to change (step 12.5). Cut the **next patch** (`X.Y.(Z+1)`) and a new annotated tag when npm, Path C install, or the public Release must carry the fix. Never force-move a pushed `v*`. A next-patch SemVer is a **new** `/git-prod` (or `/kit-prod`) with its own confirm; a red or stale public sync on the just-cut tag does not authorize another close under the same yes (see Prompt git prod: one confirm, one ship). 5.x history that shipped only `x.y.0` after `v5.2.1` is practice, not a second cadence. Factory ADR: `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`. Marketplace / skill-catalog semver is a different layer (`docs/CONTRIBUTING.md`).
 
 ### Conventional Commits
 
@@ -354,10 +355,12 @@ This section contains the detailed prompts that should be followed when commands
 | `ALLOW_MAIN_PUSH=1 git push origin main` (step 9) | **No.** Blocked by both the classifier and the GitHub ruleset. Don't spend a turn on it — go straight to `gh pr create --base main --head staging`. |
 | Any direct `git push origin staging` (e.g. closing the release) | **No.** Same ruleset covers `staging`. Commit on a fresh branch, PR to `staging` instead. |
 | `gh pr merge` (any repo, any PR — staging→main, feature→staging, public sync) | **No.** The classifier refuses this every time in this lane. One attempt is enough to log; treat the merge as operator-owed immediately rather than retrying. |
-| `gh pr merge` additionally erroring `head branch is not up to date with base branch` | A second, distinct GitHub check — `main` accumulates a merge-commit SHA per past release that `staging` doesn't contain as a direct ancestor (structural, not a content conflict; step 7 always uses a real merge). Surface this explicitly when merging staging→main; the operator may need `--admin` or a UI squash-merge to clear it. |
+| `gh pr merge` additionally erroring `head branch is not up to date with base branch` | Usually means a prior promote skipped the **mandatory** step 10 FF sync, so `main` still has a merge-commit SHA that `staging` never received. After every successful push of `main`, step 10 must FF `staging` when `origin/staging` is an ancestor of `origin/main`. Do **not** open a staging PR whose only job is to "record `origin/main` as ancestor" during this prod run. If staging is **not** an ancestor (new staging commits landed during the promote), stop and say so; a later `/git-staging` may integrate `main` as its own staging PR. When the check still blocks an otherwise clean promote, surface it; the operator may need `--admin` or a UI merge to clear a historical gap. |
 | `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
 
 Net effect: budget for exactly two operator-owed merges per `/git-prod` run (staging-close PR, then staging→main PR), plus a third if the public sync PR (step 12) also needs one — everything else in this routine is agent-doable.
+
+**One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or stale public sync (step 12.5: public sync PR not merged, public Release Latest ≠ the tag just cut, or `sync-landing` failed) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: private `main`, the npm version, the merged public sync PR, and public GitHub Release Latest all name the same `vX.Y.Z`.
 
 #### 1. **CRITICAL Security Validation**  
    - Run `git status -sb` to check modified, staged files and current branch.
@@ -380,6 +383,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
         Do not ship with only root+CLI bumped; L0 version-parity tests fail and tag CI skips publish/sync.
      4. **Required before the first `v*` tag push for this SemVer:** on staging (or the commit about to become `main`), run `pnpm typecheck` and `pnpm test` (or at least focused L0 version-parity: `vitest` on `packages/cli/src/lifecycle/l0.test.ts` **plus** `pnpm typecheck`). Do not treat this as optional: tag CI that fails typecheck skips `publish-npm` / `sync-public` (see `errors/2026-07-29_tag-ci-typecheck-blocked-481-publish.md`).
      5. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
+     6. **Release-close stays its own PR to staging.** Do not bundle release-close + a main-back-merge + a product fix in one staging PR. Close-release commits only; integrate `main` later via `/git-staging` when needed (and only when FF is impossible; see step 10).
    - If Unreleased is already empty and today's release reflects what's in staging, still verify all four manifests match the latest closed CHANGELOG version; bump and commit if they do not.
 
 #### 3. **Sync branches**  
@@ -415,7 +419,8 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
        - If commits are about fixes: `Merge origin/staging: Backend bug fixes and validations`
        - If mixed changes, prioritize most significant: `Merge origin/staging: New events API + updated docs`
      - **Tip**: Use commit prefixes (feat, fix, docs, etc.) to identify predominant change type.
-   - Run `git merge --no-ff origin/staging -m "<generated message>"` to merge preserving history.
+   - Run `git merge --no-ff origin/staging -m "<generated message>"` to merge preserving history. `--no-ff` keeps a real merge commit on `main` even when a fast-forward would have been possible; that merge commit is a SHA `staging` does not have until step 10. The mandatory FF sync in step 10 is what prevents the promote sawtooth (agents opening main→staging merge PRs that only "record `origin/main` as ancestor").
+   - Prefer keeping `--no-ff` for the promote. Do not invent a squash-only promote unless an Accepted ADR says otherwise. When the staging→main PR path is used instead (`gh pr create --base main --head staging`), still prefer a real merge onto `main` over a squash that rewrites the tip staging already carries.
    - The generated merge message must itself pass the gate: `printf '%s\n' "<generated message>" | sh git-hooks/prepare-commit-msg --check -` (no trailer, no session link). When this lane promotes through a staging→main PR instead (`gh pr create --base main --head staging`, see the blockers table above), scan that PR body before the operator merge: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`; exit 1 means `gh pr edit <N> --body` first.
    - If there are conflicts, stop and inform the user for manual resolution.
 
@@ -444,10 +449,16 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
      - If the tag was never pushed remotely and only exists locally on a bad tip: delete the **local** tag (`git tag -d vX.Y.Z`) and recreate on the fixed commit, then push once.
      - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` blocks force-update/delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1` (see `git-hooks/pre-push`).
 
-#### 10. **Sync staging (optional)**  
-   - Run `git checkout staging` to return to staging branch.
-   - Run `git merge --ff-only origin/main` to sync staging with main (if applicable).
-   - Run `git push origin staging` to update remote.
+#### 10. **Sync staging (mandatory after main is pushed)**  
+   Immediately after `origin/main` is updated (step 9) and the annotated tag is handled (step 9.5):
+
+   1. `git fetch origin`
+   2. If `git merge-base --is-ancestor origin/staging origin/main` succeeds (`origin/staging` is an ancestor of `origin/main`):
+      - `git checkout staging`
+      - `git merge --ff-only origin/main` (fast-forward only; do **not** open a merge PR that merely records `origin/main` as ancestor)
+      - Push staging (`git push origin staging`, or a PR whose only change is that FF tip when the ruleset blocks direct push)
+   3. If staging is **not** an ancestor (new staging commits landed during the promote): **stop and report**. Do not invent a main→staging back-merge in this prod session. A later `/git-staging` may integrate `main`; that integration is its own staging PR, not bundled with a release-close.
+   4. Never tell the agent to `git merge origin/main` (non-FF) into staging when `git merge --ff-only origin/main` would succeed.
 
 #### 11. **Cleanup and confirmation**  
    - Run `git checkout main` to return to main branch.
@@ -467,7 +478,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
 
    | Check | How |
    |-------|-----|
-   | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, and `sync-public` all green |
+   | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, `sync-public`, and `sync-landing` all green. A red `sync-landing` is a STOP (fail-closed). `build` / `publish-npm` / `sync-public` green does not pass this row while `sync-landing` is red |
    | Public storefront tag CI (advisory) | On `agent-kit-startup/agent-kit`, tag/Release runs should show `build` green with `sync-public` / `publish-npm` **skipped** (not failed; allowlist is `github.repository == 'agent-kit-startup/agent-kit-dev'`). The guard lands on the mirror only after Path C syncs the updated `ci.yml` (one-release lag). Do not treat a skipped public sync job as a private sync failure. |
    | npm | `npm view @dadado/agent-kit-cli version` matches the release |
    | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
@@ -477,7 +488,7 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
 
    **Post-tag `main` commits:** After a `vX.Y.Z` tag ships, CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z` (**hold**). That is allowed only when documented in the promote notes / HANDOFF (tag and npm tarball describe the tagged commit, not necessarily later `main`). Realign with the **next patch** when product fixes (for example Path C) must reach npm; never force-move the existing `v*` tag. See [Semantic Versioning](#semantic-versioning).
 
-   If `sync-public` failed, the sync PR is still open, or the public Release is missing: fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
+   If `sync-public` failed, `sync-landing` failed, the sync PR is still open, or the public Release is missing / Latest is stale: **STOP**. The promote is unfinished until private `main`, npm, the merged public sync PR, and public Release Latest agree on that tag. Fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Do **not** close a next patch, cut another `v*`, or re-run promote under the same confirm; that is a new `/git-prod` (or `/kit-prod`) Ask. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
 
 #### 13. **Final Report**  
    - Summarize executed actions, list commits promoted to production, inform merge status, mention if CHANGELOG.md was updated and any necessary follow-ups.

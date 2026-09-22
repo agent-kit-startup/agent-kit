@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "5.10.2",
+  "version": "5.10.3",
   "protected": [
     ".claude/commands/agent-kit.md",
     ".cursor/HANDOFF.md",

@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.10.3] - 2026-09-22
+
+### Changed
+
+- **One production confirm ships one version.** `/git-prod` and `/kit-prod` `Proceed with production deploy` covers one SemVer close, one annotated tag, and one promote. The next patch needs its own confirm. Hold (no new tag) stays available when the current npm package does not need to change. A pushed `v*` tag is still never force-moved.
+
 ## [5.10.2] - 2026-09-22
 
 ### Fixed
