@@ -89,6 +89,34 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
     expect(body).toMatch(/Bundles vs native/);
   });
 
+  it("pins git-prod one-confirm-one-ship and mandatory staging FF sync", () => {
+    const gitupdate = readRel("autogit/gitupdate.md");
+    expect(gitupdate).toMatch(/One confirm, one ship/);
+    expect(gitupdate).toMatch(/Sync staging \(mandatory after main is pushed\)/);
+    expect(gitupdate).toMatch(/merge-base --is-ancestor origin\/staging origin\/main/);
+    expect(gitupdate).toMatch(/merge --ff-only origin\/main/);
+    expect(gitupdate).not.toMatch(/#### 10\. \*\*Sync staging \(optional\)\*\*/);
+    expect(gitupdate).toMatch(/does not authorize another patch/);
+    expect(gitupdate).toMatch(/all name the same `vX\.Y\.Z`/);
+    expect(gitupdate).toMatch(/sync-landing/);
+
+    const gitProd = readRel(".cursor/commands/git-prod.md");
+    expect(gitProd).toMatch(/One confirm, one ship/);
+    expect(gitProd).toMatch(/Sync staging \(mandatory\)/);
+    expect(gitProd).toMatch(/merge-base --is-ancestor/);
+    expect(gitProd).toMatch(/all name the same `vX\.Y\.Z`/);
+    expect(gitProd).toMatch(/sync-landing/);
+
+    const kitProd = readRel(".cursor/commands/kit-prod.md");
+    expect(kitProd).toMatch(/One confirm, one ship/);
+    expect(kitProd).toMatch(/all name the same tag/);
+    expect(kitProd).toMatch(/sync-landing/);
+
+    const hitl = readRel(".cursor/skills/core/hitl-gates/SKILL.md");
+    expect(hitl).toMatch(/one `Proceed with production deploy` is one ship/);
+    expect(hitl).toMatch(/The next patch needs a new Ask/);
+  });
+
   // Factory `.claude/commands/**` is private-only (not on public-sync.manifest).
   const factoryClaudeKitCommandsPresent = (["kit-staging", "kit-prod"] as const).every((name) =>
     existsSync(resolve(repoRoot, `.claude/commands/${name}.md`)),

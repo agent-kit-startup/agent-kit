@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "5.10.2",
+  "version": "5.10.3",
   "description": "HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; Cursor-first with partial generators for VS Code and Windsurf.",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
