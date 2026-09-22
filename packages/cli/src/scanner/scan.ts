@@ -57,6 +57,7 @@ export async function runScanner(rootDir: string): Promise<ScanResult> {
       validationCommands: stack.validationCommands,
       ci: infra.ci,
       hasTests: stack.testCommands.length > 0,
+      ciRunCommands: infra.ciRunCommands,
     },
   };
 }

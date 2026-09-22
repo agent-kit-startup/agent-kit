@@ -127,8 +127,16 @@ The minimum structural set every install ships with:
 | `git-prod.md` | Promote to main (**explicit confirmation**) |
 | `plan-external-review.md` | Manual arm for optional Claude Code post-exhaustion review |
 | `plan-review-triage.md` | Triage monitor residuals (Ask: residuals plan / nits / ack) |
+| `qa.md` | `/qa` release or bug claim matrix (install journey, tests, hygiene). Playbook: `.cursor/skills/core/qa/`. No new L0 agent. Never `/git-prod` |
 
 Optional external plan review ships with L0 (commands above, templates below, launcher, `config.example.json`) but stays **config-disabled** by default (`externalPlanReview.enabled: false`). Never forces a Claude install. See [external-plan-review.md](external-plan-review.md).
+
+### Skills (core, L0 overlay)
+
+| Artifact | Role |
+|----------|------|
+| `.cursor/skills/core/hitl-gates/` | Ask labels, numbered-list fallback, tick/intake/queue procedures |
+| `.cursor/skills/core/qa/SKILL.md` | `/qa` playbook (claim matrix, journey, tests, hygiene). Invoke via `/qa`; not an L0 agent |
 
 ### Scripts (under `.cursor/`)
 
@@ -210,6 +218,28 @@ Only what is unique to the repo:
 **Consumer overlay (agents / skills / commands / hooks / scripts):** user-added basenames under `.cursor/agents/`, `.cursor/skills/`, `.cursor/commands/`, `.cursor/hooks/`, and `.cursor/scripts/` survive `update` (they are not in the apply set unless a pack/skill targets them). Kit-owned files in those trees that diverge from the managed-content ledger are preserved (`preserved-customized`) instead of silent overwrite; unedited kit files still refresh. The pre-commit secrets hook and the agent hooks are in this overlay: a consumer that widens `check-secrets.sh` keeps its widening, and the apply prints `! path` plus where the change belongs (`agent-kit diff`, `agent-kit contribute`, or a single-path `protected` pin). Pack rules under `.cursor/rules/` are **not** in this overlay and still clobber on drift. Do not blanket-protect `.cursor/agents/**` (or skills/commands/hooks/scripts) in `protected` — that blocks pack / `agent-kit add` installs and forfeits upstream fixes for the whole tree; pin one path when one file must never refresh. See decision `2026-07-29_consumer-l0-overlay-agents-optional.md` (amended 2026-09-10).
 
 Protected paths are listed in the manifest so `update` skips them.
+
+## Read budgets and laziness
+
+Every layer answers "safe to overwrite?" (above). A separate, size-oriented question sits alongside it: **when an agent operates this kit, does it read only what the current command needs, or does it pay for the whole tree?** Host tools that read a file in one call have their own limits (a line-count window, a byte cap, a per-line truncation length) that are outside the kit's control; the only lever the kit has is keeping each file inside those limits so a read never needs a second call.
+
+**Always-on** (loaded every session, no command involved):
+
+- The 10 `alwaysApply: true` L0 rules under `.cursor/rules/` (see the Rules table above).
+- `HARD_RULES` (`packages/cli/src/hooks/hard-rules.ts`), injected by the SessionStart hook. It is the **only** always-on text a Claude Code session receives — `.cursor/rules/*.mdc` is Cursor-native and nothing mirrors rules into `.claude/`. A Cursor session pays for both; a Claude Code session pays for `HARD_RULES` only.
+- The first N lines of `.cursor/HANDOFF.md` (byte-capped by the same hook).
+
+**Loads on command** (one hop, only when that command runs):
+
+- A consumer-L0 command's own body (`.cursor/commands/<name>.md`).
+- Its per-command skill procedure page, when the command's own contract needs more than a stub holds (for example `.cursor/skills/core/hitl-gates/run-plan-tick-contract.md` for `/run-plan`, or `.cursor/skills/core/backlog-add/procedure.md` for `/backlog-add`'s Broad Intake detail). The command stub links directly to its own page — never through an intermediate index file, so the hop count from slash to operational procedure stays at one.
+- The kit-wide HITL contract (`.cursor/skills/core/hitl-gates/SKILL.md`): exact Ask labels, the numbered-list fallback, and the `HITL_GATE`/`HITL_REPLY` sentinel format, shared across commands and linked from each one.
+
+**Loads on glob** (Cursor-native, matched by file pattern, never always-on):
+
+- The 15 globs-lazy rules under `.cursor/rules/cursor-skills-*.mdc`.
+
+**Budgets** (bytes, lines, and longest line only — never a token count; a token figure is a harness-internal detail the kit cannot pin or verify across hosts) are set per file class in `decisions/2026-09-20_contract-read-budget-and-laziness.md` and enforced as CI tests in `packages/cli/src/docs/size-budgets.test.ts`. In short: a consumer-L0 command stays under 150 lines / 8 KiB / 700 characters per line; its one-hop skill page under 250 lines / 10 KiB (or, for the handful of commands whose full procedure genuinely does not fit a stub-sized page, 400 lines / 48 KiB); the always-loaded classes (`alwaysApply` rule, globs-lazy rule, `.claude` command adapter) stay far smaller since every byte there is paid on every matching session. A split that only relocates bytes without cutting real duplication — as happened once (`#901`, `b142fdd`) — is a regression these tests catch; the numbers above are enforced, not aspirational.
 
 ## Relation to folder copies
 

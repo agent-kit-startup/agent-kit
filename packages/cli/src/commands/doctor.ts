@@ -9,6 +9,7 @@ import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
+import { readJson } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
 
@@ -19,6 +20,47 @@ export interface DoctorResult {
   env: EnvironmentReport;
   /** Present only when `--refresh-profile` ran: whether the on-disk profile changed. */
   profileRefreshed?: boolean;
+  /**
+   * Essential checks completed via a last-resort deferral instead of
+   * genuinely being ready (the scanner had no action for them). Visible so
+   * "onboarding says complete" is never silently the same as "every essential
+   * check is actually ready" — see /agent-kit-onboard's "Essential checks
+   * cannot be completed by deferral [with an available action]" contract.
+   * decisions/2026-07-28_onboarding-completion-nonessential-deferral.md,
+   * Amend 2026-09-20 (dogfood/cursor_stack_detection_no_dart_flutter_subdir_override_2026_09_15.md, defect 4/6).
+   */
+  deferredEssentials: Array<{ checkId: string; reason: string }>;
+}
+
+interface OnboardingConfigShape {
+  onboarding?: {
+    deferredItems?: Array<{ checkId?: unknown; reason?: unknown }>;
+  };
+}
+
+async function readDeferredEssentials(
+  rootDir: string,
+  report: ReadinessReport,
+): Promise<Array<{ checkId: string; reason: string }>> {
+  const config = await readJson<OnboardingConfigShape>(
+    path.join(rootDir, ".cursor", "context", "config.json"),
+  );
+  const deferredItems = config?.onboarding?.deferredItems;
+  if (!Array.isArray(deferredItems)) return [];
+  const essentialIds = new Set(
+    report.pillars
+      .flatMap((pillar) => pillar.checks)
+      .filter((check) => check.essential)
+      .map((check) => check.id),
+  );
+  return deferredItems
+    .filter(
+      (item): item is { checkId: string; reason: string } =>
+        typeof item?.checkId === "string" &&
+        typeof item?.reason === "string" &&
+        essentialIds.has(item.checkId),
+    )
+    .map((item) => ({ checkId: item.checkId, reason: item.reason }));
 }
 
 export async function runDoctor(
@@ -36,7 +78,13 @@ export async function runDoctor(
       generatedAt: options.generatedAt,
     });
     await writeReadinessSnapshot(rootDir, execution.after);
-    return { report: execution.after, safeChanges: execution.changes, hooks, env };
+    return {
+      report: execution.after,
+      safeChanges: execution.changes,
+      hooks,
+      env,
+      deferredEssentials: await readDeferredEssentials(rootDir, execution.after),
+    };
   }
 
   if (options.refreshProfile) {
@@ -50,7 +98,14 @@ export async function runDoctor(
       generatedAt: options.generatedAt,
     });
     await writeReadinessSnapshot(rootDir, report);
-    return { report, safeChanges: [], hooks, env, profileRefreshed: refresh.changed };
+    return {
+      report,
+      safeChanges: [],
+      hooks,
+      env,
+      profileRefreshed: refresh.changed,
+      deferredEssentials: await readDeferredEssentials(rootDir, report),
+    };
   }
 
   const scan = await runScanner(rootDir);
@@ -59,7 +114,13 @@ export async function runDoctor(
     generatedAt: options.generatedAt,
   });
   await writeReadinessSnapshot(rootDir, report);
-  return { report, safeChanges: [], hooks, env };
+  return {
+    report,
+    safeChanges: [],
+    hooks,
+    env,
+    deferredEssentials: await readDeferredEssentials(rootDir, report),
+  };
 }
 
 function printDoctorSummary(result: DoctorResult): void {
@@ -76,6 +137,9 @@ function printDoctorSummary(result: DoctorResult): void {
     console.log(
       `  profile refreshed: ${result.profileRefreshed ? "yes (facts changed)" : "no (already current)"}`,
     );
+  }
+  for (const item of result.deferredEssentials) {
+    console.log(`  Deferred essential: ${item.checkId} — ${item.reason}`);
   }
   console.log(`hooks: ${result.hooks.status}`);
   if (result.hooks.reasons.length > 0) {

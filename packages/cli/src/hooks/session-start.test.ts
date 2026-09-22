@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { formatSessionStartOutput } from "./format-session-start.js";
+import { HANDOFF_EXCERPT_MAX_BYTES } from "./handoff-excerpt.js";
 import { CURSOR_AWARENESS_NUDGE } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
@@ -135,6 +137,85 @@ describe("buildSessionStartAdditionalContext", () => {
     expect(additional_context.indexOf("## Current HANDOFF.md")).toBeGreaterThan(0);
     expect(additional_context).toContain("## Pending plans (index)");
     expect(additional_context).toContain("- active: `sample.plan.md`");
+  });
+
+  it("caps a large HANDOFF excerpt by bytes, keeps machine fields, in both formats", async () => {
+    const root = await fixtureRoot();
+    const prose = Array.from(
+      { length: 40 },
+      (_, i) => `- **Tick ${i} (phase${i}, completed):** ${"detail — ".repeat(400)}`,
+    );
+    const handoff = [
+      "# Handoff - big",
+      "",
+      "- **Plan:** `big.plan.md`",
+      "- **Mode:** run-plan-all",
+      ...prose,
+      "- **Instruction for the next agent:** Resume Phase 1.",
+      "",
+      "## Work Status",
+      "",
+      "- **In progress:** phase4",
+      "- **Backlog plans:** none",
+      "  - `queued.plan.md` (enqueued 2026-09-19)",
+      "- **Parked plans:** none",
+      "- **Run queue:** `big.plan.md`",
+      "- **Queue cursor:** 1/1",
+      "- **Queue status:** running",
+      "",
+    ].join("\n");
+    expect(Buffer.byteLength(handoff, "utf8")).toBeGreaterThan(3 * HANDOFF_EXCERPT_MAX_BYTES);
+    await writeFile(path.join(root, ".cursor", "HANDOFF.md"), handoff, "utf8");
+    const { additional_context } = await buildSessionStartAdditionalContext(root);
+
+    const start = additional_context.indexOf("## Current HANDOFF.md (excerpt)");
+    const end = additional_context.indexOf("## Pending plans (index)");
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const section = additional_context.slice(start, end);
+    // Section = heading + excerpt (<= cap) + one note line.
+    expect(Buffer.byteLength(section, "utf8")).toBeLessThan(HANDOFF_EXCERPT_MAX_BYTES + 256);
+    expect(section).toContain("_Excerpt capped at 12 KB (");
+    expect(section).toMatch(/ …\[truncated \d+ chars\]/);
+    for (const machine of [
+      "- **Plan:** `big.plan.md`",
+      "- **Mode:** run-plan-all",
+      "- **In progress:** phase4",
+      "- **Backlog plans:** none",
+      "  - `queued.plan.md` (enqueued 2026-09-19)",
+      "- **Parked plans:** none",
+      "- **Run queue:** `big.plan.md`",
+      "- **Queue cursor:** 1/1",
+      "- **Queue status:** running",
+      "- **Instruction for the next agent:** Resume Phase 1.",
+    ]) {
+      expect(section.split("\n")).toContain(machine);
+    }
+    // 54 source lines: everything up to the blank after Queue status is inside the 60-line bound.
+    expect(section).toContain("- **Tick 0 (phase0, completed):**");
+    expect(section).toContain("- **Tick 39 (phase39, completed):**");
+
+    // Both hook formats wrap the same capped context.
+    const claude = formatSessionStartOutput(additional_context, "claude");
+    expect(claude).toBe(additional_context);
+    const cursor = JSON.parse(formatSessionStartOutput(additional_context, "cursor")) as {
+      additional_context: string;
+    };
+    expect(cursor.additional_context).toBe(additional_context);
+    expect(Buffer.byteLength(claude, "utf8")).toBeLessThan(2 * HANDOFF_EXCERPT_MAX_BYTES);
+  });
+
+  it("leaves a small HANDOFF excerpt uncapped (no note, no marker)", async () => {
+    const root = await fixtureRoot();
+    await writeFile(
+      path.join(root, ".cursor", "HANDOFF.md"),
+      "# Handoff\n\n- **Plan:** `s.plan.md`\n- **Gaps:** none\n",
+      "utf8",
+    );
+    const { additional_context } = await buildSessionStartAdditionalContext(root);
+    expect(additional_context).toContain("- **Gaps:** none");
+    expect(additional_context).not.toContain("Excerpt capped");
+    expect(additional_context).not.toContain("[truncated");
   });
 
   it("notes missing HANDOFF when absent", async () => {

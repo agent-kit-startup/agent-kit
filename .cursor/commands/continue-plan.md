@@ -9,89 +9,30 @@ description: Resume a plan from the last handoff and execute only the next unit.
 
 Resume a plan from the last handoff. Confirm the next unit, then execute **only that unit** (manual default).
 
-## When to Use
+HITL contract, exact Ask labels, and numbered fallback (path 1): [hitl-gates](../skills/core/hitl-gates/SKILL.md). Resume detail is inline below (moved here from `hitl-gates/procedures.md` in Phase 1 of `contract-read-budget-lazy-layers-2026-09-19` — the 11-line resume section already fully overlapped this file's own Procedure, so it was folded in rather than kept as a separate one-line hop). Plans inventory is `.cursor/context/plan-index.json` + `.cursor/HANDOFF.md` only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`).
 
-- At the start of a new conversation after a handoff
-- When you want to continue where you left off
+## Hard stops (kit failure if skipped)
 
-## Hard stops
+1. **Read `.cursor/HANDOFF.md` first.** No handoff: say so and suggest `/start-project`. Do not invent progress.
+2. **API/usage-limit pre-flight.** If Mode / Gaps / Instruction still records an API/usage limit stop, do not mark a to-do `in_progress` until the operator confirms recovery. Numbered-list fallback is path 1.
+3. **One Ask on the default path.** Confirm the next `[to-do-id]` before editing (or the multi-plan picker first when more than one resumable plan exists). Inbox, owed-close, and landing Asks are opt-in or post-default, never pre-Ask blockers. Empty inbox: silent skip.
+4. **One unit per chat** unless the operator ran `/run-plan`.
+5. **Do not start a competing plan.** New goal requires `/start-project`.
 
-1. **Read `.cursor/HANDOFF.md` first.** No handoff → say so and suggest `/start-project`. Do not invent progress.
-2. **Pre-flight (API/usage limit):** if `- **Mode:**`, `- **Gaps:**`, or `- **Instruction for the next agent:**` still records an API/usage limit hard stop from a prior tick, **do not** mark a to-do `in_progress`, dispatch a Task, or edit product files until the operator confirms recovery (switch from Auto to a named model such as Claude Opus, Sonnet 4.6, or Composer 2.5 Fast; and/or wait for quota reset). Surface recovery via **Ask questions** when available. **Fallback after Auto→Grok:** Grok 4.5 and Auto often lack Ask questions (see `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`); use the numbered-list chat fallback (reply by number or label; typed answer = "Other"). Pre-flight is HANDOFF check plus operator model choice only; the kit has no remaining-quota API. Align with `context-guardian` Quota-blocked sessions and `/run-plan` Read-state pre-flight.
-3. **Audits pre-flight** (config `externalPlanReview.preflight`: `off` | `warn` | `block`; missing = `off`): before the next-unit confirmation Ask, check owed / untriaged audits for the chosen plan slug (Field Report owed, untriaged `plan-monitor-*.md`, open cadence WARNING). `off`: skip. `warn`: surface once, then continue. `block`: arm via `.cursor/scripts/plan-external-review.sh` (prefer `--autonomous` when `mode: autonomous`, else `--paste-only`) or stop until the operator defers; never steal `/git-prod`. Distinct from the advisory pre-unit monitor skim below (ADR `2026-07-27_audits-autonomous-plan-review-contract.md`).
-4. **Unprocessed dogfood preflight:** before the next-unit confirmation Ask, skim `##` or `### Unprocessed Files` in factory `dogfood/README.md` or consumer `.cursor/dogfood/README.md`. Empty or missing inbox: silent OK. Non-empty: mention count and top titles once with standard triage labels (`ignore` / `error` / `include` / `note`), then **Ask questions** (one question; chat numbered-list fallback) with labels exactly:
-   - `Analyze inbox now` — start the ingest ritual (analyze → memory WRITE → triage). Notes become plans/memory after HITL, never `plan-monitor-*.md`. `/dogfood` stays file-only.
-   - `Enqueue Fix now` — route include/error notes through the `/backlog-add` contract (Broad Intake + write-confirm; no Gate B, no activate).
-   - `Not now` — continue to the next-unit Ask. Do not start analysis.
-   Never auto-analyze, never invent Field Reports, never block resume solely because the inbox is non-empty. Runs regardless of `externalPlanReview.preflight`. sessionStart inbox tip stays complementary (ADRs `2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`, `2026-08-14_main-command-dogfood-audit-routing.md`).
-5. **Apply Agent Persona chrome.** Read `.cursor/context/config.json` for `agentPersona.modes.continue-plan` (fallback to legacy `workspaceSkin`, then "autopilot"). Use the corresponding persona's `chatHints` from `registry/personas/core/` for tone and confirmations.
-6. **Confirm the next unit with Ask questions** before editing. Use concrete option labels (see What to Do step 5). Do not accept a typed "yes" as the gate.
-7. **One unit per chat** (phase or one heavy to-do) unless the user explicitly ran `/run-plan`.
-8. **Do not start a competing plan.** New goal requires `/start-project`, which parks the active plan and proceeds to create a new one.
+## Ask labels
 
-## What to Do
+**Default-path (next unit):** `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`
 
-1. **Read `.cursor/HANDOFF.md`** (required).
+**Multi-plan picker (when needed):** `[plan-name.plan.md]` / `Create new plan instead`
 
-2. **Identify the state:**
-   - Active plan
-   - Phase completed
-   - Pending to-dos
-   - Instruction from the previous agent
-   - Parked plans (mention only; do not start unless the user asks)
+**Inbox (post-default, Unprocessed non-empty):** `Analyze inbox now` / `Enqueue Fix now` / `Not now`
 
-3. **Read the Context Pack** (if it exists) under `.cursor/context/current/`.
+Numbered-list fallback is **path 1** when Ask questions is missing.
 
-4. **Plan selection (if multiple resumable plans):**
-   When multiple resumable plans exist, delegate the plan scanning to a **Task(explore) subagent** using the worker prompt template at `.cursor/context/templates/command-worker-prompt.md`. Delegation stays (ADR `decisions/2026-07-26_command-orchestration-delegation-pattern.md`); the Plans bucket is **index + HANDOFF only**. Do not glob `.cursor/plans/*.plan.md`. Named single-file reads of a known basename remain OK.
+## Procedure
 
-   1. **Fill the template** — set these parameters:
-      - **Repo:** `[absolute repo path]`
-      - **Command:** `/continue-plan`
-      - **Task description:** "Read `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md` (index + HANDOFF only). Return resumable plans from the pending-only index (active / backlog / parked / pending). Do not glob `.cursor/plans/*.plan.md`. Named single-file reads of a known basename remain OK."
-      - **read_scope:** `[".cursor/context/plan-index.json", ".cursor/HANDOFF.md"]`
-      - **worker_contract:** "list of resumable plans: name, current phase, pending to-do ids"
-      - **max_ticks:** 1
-
-   2. **Dispatch** a Task subagent with `subagent_type: explore`.
-
-   3. **Read the worker summary** — the main window uses the structured plan list to build Ask questions options.
-
-   4. **Present options** using **Ask questions** tool:
-      > "Multiple plans available. Which one to continue?"
-      
-      Options: read from worker summary: `[plan-name-1.plan.md]` / `[plan-name-2.plan.md]` / `Create new plan instead`
-   
-   **Fallback:** If Task dispatch is unavailable, read index + HANDOFF inline (same contract; do not glob) and use **Ask questions** tool to pick which plan to resume. Fallback to chat if Ask questions unavailable.
-
-5. **Pre-unit monitor skim (advisory):** before the confirmation Ask, skim `.cursor/memory/plan-monitor-<chosen-plan-slug>.md` (and theme-matched `plan-review-*` if present) for Still open / untriaged / GAP lines. Mention material residuals once in the confirmation prompt. Do **not** block resume solely on Review debt; Field Report and `/plan-review-triage` remain attention/HITL SoT (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
-
-6. **Next to-do confirmation using Ask questions:**
-   > "[Phase X/Y completed] Last step: [description]. Next: `[to-do-id]`. Start that unit only?"
-   
-   Use **Ask questions** tool with options: `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`
-   
-   **Fallback:** if Ask questions tool unavailable, ask the same options in chat.
-
-7. **When the user picks `Start [to-do-id]`:** run only that unit. Keep plan to-do `status` updated (`pending` → `in_progress` → `completed`). Any other choice stops without editing.
-
-8. **When that unit is done:** update HANDOFF, stop, suggest `/git-staging` if there is a diff, and ask for a **new** conversation with `/continue-plan` for the next phase (manual mode).
-
-## Typical flow
-
-```
-User: /continue-plan
-Agent: Reading HANDOFF... Phase 2/5 done. Next: create-auth-service only.
-       Ask questions: Start create-auth-service / Edit plan first / Switch to different plan / Stop here
-User: [clicks Start create-auth-service]
-Agent: [Does that to-do] -> updates HANDOFF -> stops; suggests /git-staging if diff
-```
-
-**Fallback:** if Ask questions tool unavailable, present the same four options as a numbered list in chat (user replies with number or label; "Other" = type their own answer).
-
-## Tip
-
-If the handoff is outdated:
-> "Explain where we left off and what's left to do"
-
-Multi-phase in one window: user must opt into `/run-plan`.
+1. Read HANDOFF + index. Do not glob `.cursor/plans/*.plan.md`. If multiple resumable plans exist, Ask the picker first.
+2. Default-path Ask for the next unit. Persona chrome after that Ask. Default chat chrome: no cockpit emoji.
+3. On `Start [to-do-id]`: run only that unit; update plan status. Any other pick stops.
+4. When done: HANDOFF, stop, suggest `/git-staging` if there is a diff. Next phase: new conversation with `/continue-plan`.
+5. Inbox skim may mention count after the entry Ask. Do not Ask inbox before it.

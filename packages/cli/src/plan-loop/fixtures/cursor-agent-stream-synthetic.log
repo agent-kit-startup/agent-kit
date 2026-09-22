@@ -1,0 +1,10 @@
+{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/work/consumer","session_id":"11111111-2222-3333-4444-555555555555","model":"placeholder-model","permissionMode":"default"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"/run-plan\n\nFollow the L0 body."}]},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Reading the plan "}]},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"and the handoff."}]},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"tool_call","subtype":"started","call_id":"call-1","tool_call":{"readToolCall":{"args":{"path":"/work/consumer/.cursor/HANDOFF.md"}}},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"tool_call","subtype":"completed","call_id":"call-1","tool_call":{"readToolCall":{"args":{"path":"/work/consumer/.cursor/HANDOFF.md"},"result":{"success":{"content":"# Handoff\n- Plan: placeholder.plan.md","totalLines":2}}}},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"tool_call","subtype":"started","call_id":"call-2","tool_call":{"shellToolCall":{"args":{"command":"pnpm test","workingDirectory":"/work/consumer"}}},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"tool_call","subtype":"completed","call_id":"call-2","tool_call":{"shellToolCall":{"args":{"command":"pnpm test"},"result":{"error":{"message":"command exited with code 1","stderr":"1 test failed"}}}},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"One test failed; stopping this tick.\n\nLOOP_TICK_RESULT: stop — tests red"}]},"session_id":"11111111-2222-3333-4444-555555555555"}
+{"type":"result","subtype":"success","duration_ms":4210,"duration_api_ms":3900,"is_error":false,"result":"One test failed; stopping this tick.\n\nLOOP_TICK_RESULT: stop — tests red","session_id":"11111111-2222-3333-4444-555555555555","request_id":"req-placeholder"}

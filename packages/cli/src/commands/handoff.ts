@@ -1,11 +1,67 @@
 import { spawn } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineCommand } from "citty";
+import { pruneHandoffText } from "../invariants/handoff-prune.js";
 import type { ProjectProfile } from "../types.js";
 import { PM_TOOL_LABELS } from "../types.js";
 import { ensureDir, fileExists, readJson } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
+
+/** Default number of recent narrative chunks `--prune` keeps in place. */
+export const HANDOFF_PRUNE_DEFAULT_KEEP = 5;
+
+function pruneArchiveTimestamp(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+/**
+ * Prune `.cursor/HANDOFF.md` in place: keep the `keep` most recent narrative
+ * chunks, archive the rest to `.cursor/context/archive/handoff-<stamp>.md`.
+ * Never auto-triggered by a plain `agent-kit handoff` run -- explicit flag
+ * only, so an operator's narrative is never silently mutated.
+ */
+export async function runPrune(cwd: string, keep: number): Promise<void> {
+  const handoffPath = path.join(cwd, ".cursor", "HANDOFF.md");
+  if (!(await fileExists(handoffPath))) {
+    logger.warn("No .cursor/HANDOFF.md to prune.");
+    return;
+  }
+  const original = await readFile(handoffPath, "utf8");
+  const result = pruneHandoffText(original, keep);
+  if (!result.ok) {
+    logger.warn(`Refusing to prune: ${result.reason}`);
+    process.exitCode = 1;
+    return;
+  }
+  if (!result.archived || result.archived.length === 0) {
+    logger.info(
+      `HANDOFF.md already at or under ${keep} narrative ${keep === 1 ? "entry" : "entries"}; nothing to prune.`,
+    );
+    return;
+  }
+
+  const archiveDir = path.join(cwd, ".cursor", "context", "archive");
+  await ensureDir(archiveDir);
+  const archivePath = path.join(archiveDir, `handoff-${pruneArchiveTimestamp()}.md`);
+  const header = [
+    `<!-- Pruned from .cursor/HANDOFF.md at ${new Date().toISOString()} -->`,
+    `<!-- ${result.archived.length} narrative ${result.archived.length === 1 ? "entry" : "entries"} archived, keep=${keep} -->`,
+    "",
+  ].join("\n");
+  const body = `${result.archived.join("\n\n")}\n`;
+  if (await fileExists(archivePath)) {
+    await appendFile(archivePath, `\n${header}${body}`, "utf8");
+  } else {
+    await writeFile(archivePath, `${header}${body}`, "utf8");
+  }
+
+  await writeFile(handoffPath, result.text ?? original, "utf8");
+  logger.success(
+    `HANDOFF.md pruned: kept ${result.keptCount} narrative ${result.keptCount === 1 ? "entry" : "entries"}, archived ${result.archived.length} to ${path.relative(cwd, archivePath)}.`,
+  );
+}
 
 interface PlanFrontmatter {
   name?: string;
@@ -167,8 +223,27 @@ export const handoffCommand = defineCommand({
       description: "Project root directory",
       default: process.cwd(),
     },
+    prune: {
+      type: "boolean",
+      description:
+        "Prune .cursor/HANDOFF.md in place instead of regenerating it: keep the most recent narrative entries, archive the rest to .cursor/context/archive/. Never auto-triggered.",
+      default: false,
+    },
+    keep: {
+      type: "string",
+      description: `With --prune, how many recent narrative entries to keep in place (default ${HANDOFF_PRUNE_DEFAULT_KEEP}).`,
+    },
   },
   async run({ args }) {
+    if (args.prune) {
+      const keepArg = typeof args.keep === "string" ? Number.parseInt(args.keep, 10) : undefined;
+      const keep =
+        keepArg !== undefined && Number.isFinite(keepArg) && keepArg >= 0
+          ? keepArg
+          : HANDOFF_PRUNE_DEFAULT_KEEP;
+      await runPrune(args.cwd, keep);
+      return;
+    }
     const profile = await loadProfile(args.cwd);
     const plansDir = path.join(args.cwd, ".cursor", "plans");
     const handoffPath = path.join(args.cwd, ".cursor", "HANDOFF.md");

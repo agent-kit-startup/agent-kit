@@ -83,7 +83,7 @@ When `/start-project`, `/backlog-add`, or `/run-plan` (first tick) encounters op
 
 **Do not commit raw operator attachments.** Hygiene-strip first; the extract replaces the raw file for git purposes. If the source is no longer on disk, use product facts already captured in the plan's Broad Intake table (seed the extract from those, not from memory).
 
-**When no mixed source exists:** skip the stage. Pure-code or pure-docs plans without operator product context do not require an extract.
+**When no mixed source exists:** skip the stage. Pure-code or pure-docs plans without operator product context do not require an extract. Major Tom (ADR `2026-09-04_major-tom-autonomous-mode.md`) is not this stage and is not `/start-project` intake.
 
 Closes the parked use case in `decisions/2026-08-13_plan-intake-persist-originals.md`.
 

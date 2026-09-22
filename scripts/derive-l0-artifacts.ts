@@ -2,6 +2,7 @@ import { L0_ARTIFACTS } from "../packages/cli/src/lifecycle/l0";
 
 function deriveKind(source: string): string {
   if (source.includes(".cursor/commands/")) return "command";
+  if (source.includes(".cursor/skills/")) return "skill";
   if (source.includes(".cursor/rules/")) return "rule";
   if (source.includes("registry/rules/")) return "rule";
   if (source === ".cursor/hooks.json") return "hook";
@@ -17,6 +18,9 @@ function deriveKind(source: string): string {
 // basename, or a hand-picked disambiguation suffix) and must be preserved
 // verbatim rather than re-derived on every generation.
 const ID_OVERRIDES: Record<string, string> = {
+  ".cursor/skills/core/hitl-gates/SKILL.md": "hitl-gates",
+  ".cursor/skills/core/hitl-gates/procedures.md": "hitl-gates-procedures",
+  ".cursor/skills/core/qa/SKILL.md": "qa-skill",
   ".cursor/hooks.json": "hooks.json",
   ".cursor/context/config.example.json": "config-example",
   ".cursor/scripts/plan-external-review.sh": "plan-external-review-launcher",

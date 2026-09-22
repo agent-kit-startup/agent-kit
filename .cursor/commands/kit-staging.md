@@ -38,7 +38,7 @@ Repo-only shipping stays native `/git-staging`.
 
 ## 3. Landing HITL (only if landing-worthy)
 
-Ask questions. Fallback: one numbered list, wait; skip or cancel means stop.
+Landing Ask is post-default (only after git staging, and only when landing-worthy). Ask questions. Fallback is **path 1**: say the tool is missing once, print the same three labels as a numbered list, accept number or label, treat a typed answer as Other. Skip or cancel means stop. Do not invent a fake tool call.
 
 Options:
 

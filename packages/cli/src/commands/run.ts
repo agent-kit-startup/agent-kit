@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import path from "node:path";
 import { defineCommand } from "citty";
+import { shouldUseLiveTui, withLiveTui } from "../mission-control/live-run.js";
 import type { AgentBackend } from "../plan-loop/backends.js";
 import { getBackend } from "../plan-loop/backends.js";
 import type { WhichFn } from "../plan-loop/detect.js";
@@ -15,6 +16,11 @@ import {
   runHeadlessDispatch,
   unknownSlashMessage,
 } from "../plan-loop/dispatch.js";
+import {
+  HITL_UNANSWERED_EXIT_CODE,
+  formatHitlSummary,
+  hitlExitCode,
+} from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 
@@ -26,6 +32,10 @@ export interface ExecuteRunInput {
   dryRun: boolean;
   maxTicks: number;
   sleepSeconds: number;
+  /** `--no-hitl`: a gate stops the run (exit 4) instead of prompting. */
+  noHitl?: boolean;
+  /** `--plain`: status lines instead of the Mission Control live view on a TTY. */
+  plain?: boolean;
   whichFn?: WhichFn;
 }
 
@@ -94,6 +104,8 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       model: input.model,
       dryRun: false,
       backend,
+      noHitl: input.noHitl === true,
+      plain: input.plain === true,
     });
     return { exitCode: code };
   }
@@ -122,15 +134,32 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   console.log(`Log: ${path.relative(root, logPath)}`);
 
   try {
-    const result = await runHeadlessDispatch({
+    const dispatch = {
       backendId: detected.id,
       bin: detected.bin,
       workspace: root,
       prompt,
       model: input.model,
       logPath,
-    });
-    return { exitCode: result.exitCode };
+    };
+    const result = shouldUseLiveTui({ plain: input.plain })
+      ? await withLiveTui(
+          { root, backend: detected.id, logPath, noHitl: input.noHitl === true },
+          (seams) =>
+            runHeadlessDispatch({
+              ...dispatch,
+              hitl: seams.hitl,
+              render: seams.render,
+              onSpawn: seams.onSpawn,
+              log: seams.log,
+            }),
+        )
+      : await runHeadlessDispatch({
+          ...dispatch,
+          hitl: { policy: input.noHitl ? "off" : "prompt" },
+        });
+    for (const line of formatHitlSummary(result.hitl)) console.log(line);
+    return { exitCode: hitlExitCode(result.exitCode, result.hitl) };
   } catch (err) {
     return { exitCode: 1, error: String(err) };
   }
@@ -167,6 +196,17 @@ const runDispatchArgs = {
     description: "For run-plan alias only: seconds between ticks (default: 5)",
     default: "5",
   },
+  "no-hitl": {
+    type: "boolean" as const,
+    description: `CI: never prompt; a HITL gate stops the run with exit ${HITL_UNANSWERED_EXIT_CODE} (no default answer)`,
+    default: false,
+  },
+  plain: {
+    type: "boolean" as const,
+    description:
+      "Status lines instead of the Mission Control live view (the default on a TTY; non-TTY, NO_COLOR and CI are always plain)",
+    default: false,
+  },
 };
 
 export async function runSlashCli(
@@ -178,6 +218,8 @@ export async function runSlashCli(
     "dry-run": boolean;
     "max-ticks": string;
     sleep: string;
+    "no-hitl"?: boolean;
+    plain?: boolean;
   },
 ): Promise<void> {
   const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
@@ -201,6 +243,8 @@ export async function runSlashCli(
     dryRun: Boolean(args["dry-run"]),
     maxTicks,
     sleepSeconds,
+    noHitl: Boolean(args["no-hitl"]),
+    plain: Boolean(args.plain),
   });
   if (result.stdout) {
     console.log(result.stdout);
@@ -215,7 +259,7 @@ export const runCommand = defineCommand({
   meta: {
     name: "run",
     description:
-      "Start one headless session from an L0 slash file. Numbered-list HITL. Never git-prod.",
+      "Start one headless session from an L0 slash file. Numbered-list HITL answered from the terminal (claude backend). Never git-prod.",
   },
   args: {
     slash: {
@@ -234,7 +278,7 @@ export const runPlanAllCommand = defineCommand({
   meta: {
     name: "run-plan-all",
     description:
-      "Headless /run-plan-all queue from the L0 file. Numbered-list HITL. Never git-prod.",
+      "Headless /run-plan-all queue from the L0 file. Numbered-list HITL answered from the terminal (claude backend). Never git-prod.",
   },
   args: runDispatchArgs,
   async run({ args }) {

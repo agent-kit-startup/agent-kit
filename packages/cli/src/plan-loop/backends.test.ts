@@ -47,9 +47,27 @@ function mockSpawn(input: {
     const ee = new EventEmitter() as EventEmitter & {
       stdout: EventEmitter;
       stderr: EventEmitter;
+      stdin: EventEmitter & { writes: string[]; ended: boolean };
+      kill: () => boolean;
     };
     ee.stdout = new EventEmitter();
     ee.stderr = new EventEmitter();
+    // Recording stdin: the claude transport writes the prompt and the relay
+    // replies here; `end()` is what lets a stream-json child exit.
+    const writes: string[] = [];
+    const stdin = Object.assign(new EventEmitter(), {
+      writes,
+      ended: false,
+      write(chunk: string | Buffer) {
+        writes.push(String(chunk));
+        return true;
+      },
+      end() {
+        this.ended = true;
+      },
+    });
+    ee.stdin = stdin;
+    ee.kill = () => true;
     queueMicrotask(() => {
       if (input.error) {
         ee.emit("error", input.error);
@@ -65,12 +83,18 @@ function mockSpawn(input: {
       }
       ee.emit("close", input.exitCode ?? 0);
     });
-    return ee as ReturnType<SpawnFn>;
+    return ee as unknown as ReturnType<SpawnFn>;
   });
 }
 
 /** Deterministic `claude --version` for the backend tests (no real binary needed). */
 const versionOk = () => "2.1.261 (Claude Code)";
+
+/** The recording stdin of the first mocked child. */
+function stdinOf(spawnFn: ReturnType<typeof mockSpawn>): { writes: string[]; ended: boolean } {
+  const child = spawnFn.mock.results[0]?.value as { stdin: { writes: string[]; ended: boolean } };
+  return child.stdin;
+}
 
 /** Spawn options as received by the mock; asserted field by field so a
  * failing expectation never prints the whole inherited process.env. */
@@ -337,9 +361,9 @@ describe("missingClaudeAdapter", () => {
 });
 
 describe("claudeHeadlessArgs / claudeTickArgs", () => {
-  it("builds print-mode argv from confirmed flags only", () => {
+  it("builds print-mode argv from confirmed flags only; the prompt is not positional", () => {
     expect(claudeTickArgs).toBe(claudeHeadlessArgs);
-    expect(claudeTickArgs({ prompt: "tick" })).toEqual([
+    expect(claudeTickArgs()).toEqual([
       "-p",
       "--output-format",
       "stream-json",
@@ -347,9 +371,11 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "--dangerously-skip-permissions",
       "--permission-prompts",
       "none",
-      "tick",
+      "--input-format",
+      "stream-json",
+      "--replay-user-messages",
     ]);
-    expect(claudeTickArgs({ prompt: "tick", model: "sonnet" })).toEqual([
+    expect(claudeTickArgs({ model: "sonnet" })).toEqual([
       "-p",
       "--output-format",
       "stream-json",
@@ -357,14 +383,16 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "--dangerously-skip-permissions",
       "--permission-prompts",
       "none",
+      "--input-format",
+      "stream-json",
+      "--replay-user-messages",
       "--model",
       "sonnet",
-      "tick",
     ]);
   });
 
   it("appends the opt-in caps only when set", () => {
-    expect(claudeHeadlessArgs({ prompt: "tick", maxTurns: 25, maxBudgetUsd: 2 })).toEqual([
+    expect(claudeHeadlessArgs({ maxTurns: 25, maxBudgetUsd: 2 })).toEqual([
       "-p",
       "--output-format",
       "stream-json",
@@ -372,17 +400,24 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "--dangerously-skip-permissions",
       "--permission-prompts",
       "none",
+      "--input-format",
+      "stream-json",
+      "--replay-user-messages",
       "--max-turns",
       "25",
       "--max-budget-usd",
       "2",
-      "tick",
     ]);
   });
 });
 
 describe("claudeBackend.run", () => {
-  beforeEach(() => resetClaudeVersionCache());
+  beforeEach(() => {
+    resetClaudeVersionCache();
+    // Pin the terminal renderer to plain mode so the echoed lines are exact
+    // whatever stdio the test pool inherits.
+    vi.stubEnv("NO_COLOR", "1");
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -395,7 +430,7 @@ describe("claudeBackend.run", () => {
     const logPath = await tmpLog();
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdout: `{"type":"system","bearer":"${TOKEN}","url":"${BASE_URL}"}\n`,
+      stdout: `{"type":"system","bearer":"${TOKEN}","url":"${BASE_URL}"}\n{"type":"assistant","message":{"content":[{"type":"text","text":"bearer ${TOKEN} at ${BASE_URL}"}]}}\n`,
       stderr: `warn: ${TOKEN}\n{"type":"result","result":"LOOP_TICK_RESULT: continue"}\n`,
     });
     const log = vi.fn();
@@ -412,15 +447,19 @@ describe("claudeBackend.run", () => {
       versionFn: versionOk,
     });
 
-    expect(result).toEqual({ exitCode: 0 });
+    expect(result).toEqual({ exitCode: 0, hitl: { replies: [], fallbackDetections: 0 } });
     expect(spawnFn).toHaveBeenCalledTimes(1);
     expect(spawnFn.mock.calls[0]?.[0]).toBe("claude");
-    expect(spawnFn.mock.calls[0]?.[1]).toEqual(
-      claudeTickArgs({ prompt: "tick prompt", model: "sonnet" }),
-    );
+    expect(spawnFn.mock.calls[0]?.[1]).toEqual(claudeTickArgs({ model: "sonnet" }));
     const spawnOpts = spawnOptsOf(spawnFn);
     expect(spawnOpts.cwd).toBe("/repo");
-    expect(spawnOpts.stdio).toEqual(["ignore", "pipe", "pipe"]);
+    // stdin stays open for the relay; the prompt is the first `user` event.
+    expect(spawnOpts.stdio).toEqual(["pipe", "pipe", "pipe"]);
+    expect(stdinOf(spawnFn).writes).toEqual([
+      '{"type":"user","message":{"role":"user","content":"tick prompt"}}\n',
+    ]);
+    // A LOOP_TICK_RESULT result is not a gate: stdin is ended so the child exits.
+    expect(stdinOf(spawnFn).ended).toBe(true);
     expect(spawnOpts.env?.ANTHROPIC_AUTH_TOKEN).toBe(TOKEN);
     expect(spawnOpts.env?.ANTHROPIC_BASE_URL).toBe(BASE_URL);
     expect(spawnOpts.env?.PATH).toBe(process.env.PATH);
@@ -434,9 +473,15 @@ describe("claudeBackend.run", () => {
     expect(logText).toContain("warn: [ANTHROPIC_AUTH_TOKEN]");
     expect(logText).toContain("LOOP_TICK_RESULT: continue");
 
+    // The terminal gets rendered lines, never the raw NDJSON: the assistant
+    // text and the result status appear, the system event and the stderr
+    // warning do not, and the secret is elided on that path too.
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     expect(echoed).not.toContain(TOKEN);
-    expect(echoed).toContain("[ANTHROPIC_AUTH_TOKEN]");
+    expect(echoed).not.toContain(BASE_URL);
+    expect(echoed).toBe(
+      "bearer [ANTHROPIC_AUTH_TOKEN] at [ANTHROPIC_BASE_URL]\n✦ result success\n",
+    );
     write.mockRestore();
 
     expect(log).toHaveBeenCalledTimes(1);
@@ -453,7 +498,11 @@ describe("claudeBackend.run", () => {
     const logPath = await tmpLog();
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdoutChunks: ["x sk-ant-test-t", "oken+abc/def=\n", `{"result":"${TOKEN}"}`],
+      stdoutChunks: [
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"x sk-ant-test-t',
+        'oken+abc/def="}]}}\n',
+        `{"type":"result","subtype":"success","result":"${TOKEN}"}`,
+      ],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     await claudeBackend.run({
@@ -472,9 +521,12 @@ describe("claudeBackend.run", () => {
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     write.mockRestore();
     const logText = await readFile(logPath, "utf8");
-    expect(logText).toBe('x [ANTHROPIC_AUTH_TOKEN]\n{"result":"[ANTHROPIC_AUTH_TOKEN]"}');
+    expect(logText).toBe(
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"x [ANTHROPIC_AUTH_TOKEN]"}]}}\n{"type":"result","subtype":"success","result":"[ANTHROPIC_AUTH_TOKEN]"}',
+    );
     expect(logText).not.toContain(TOKEN);
-    expect(echoed).toBe(logText);
+    // The unterminated final line is still rendered on stream end.
+    expect(echoed).toBe("x [ANTHROPIC_AUTH_TOKEN]\n✦ result success\n");
   });
 
   it("redacts a gateway host split across two stderr chunks", async () => {
@@ -500,11 +552,12 @@ describe("claudeBackend.run", () => {
     });
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     write.mockRestore();
-    expect(result).toEqual({ exitCode: 1 });
+    expect(result).toMatchObject({ exitCode: 1 });
     const logText = await readFile(logPath, "utf8");
     expect(logText).toBe("Error: connect ECONNREFUSED [ANTHROPIC_BASE_URL]\n");
     expect(logText).not.toContain("gw.internal.example");
-    expect(echoed).toBe(logText);
+    // A non-JSON stderr line is logged but not rendered.
+    expect(echoed).toBe("");
   });
 
   it("passes the opt-in caps to argv and names them in the tip", async () => {
@@ -575,7 +628,7 @@ describe("claudeBackend.run", () => {
     await mkdir(path.join(root, ".claude", "commands"), { recursive: true });
     await writeFile(path.join(root, ".claude", "commands", "run-plan.md"), "adapter\n", "utf8");
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-    await expect(run("/run-plan - single tick")).resolves.toEqual({ exitCode: 0 });
+    await expect(run("/run-plan - single tick")).resolves.toMatchObject({ exitCode: 0 });
     write.mockRestore();
     expect(spawnFn).toHaveBeenCalledTimes(1);
   });
@@ -609,7 +662,7 @@ describe("claudeBackend.run", () => {
     const logPath = await tmpLog();
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdout: `{"type":"system","key":"${API_KEY}"}\n`,
+      stdout: `{"type":"system","key":"${API_KEY}"}\n{"type":"assistant","message":{"content":[{"type":"text","text":"key ${API_KEY}"}]}}\n`,
       stderr: `x-api-key: ${API_KEY}\n`,
     });
     const log = vi.fn();
@@ -632,7 +685,7 @@ describe("claudeBackend.run", () => {
     expect(logText).toContain('"key":"[ANTHROPIC_API_KEY]"');
     expect(logText).toContain("x-api-key: [ANTHROPIC_API_KEY]");
     expect(echoed).not.toContain(API_KEY);
-    expect(echoed).toContain("[ANTHROPIC_API_KEY]");
+    expect(echoed).toBe("key [ANTHROPIC_API_KEY]\n");
     const tip = String(log.mock.calls[0]?.[0]);
     expect(tip).toContain("ANTHROPIC_API_KEY=set");
     expect(tip).toContain("ANTHROPIC_AUTH_TOKEN=unset");
@@ -678,7 +731,7 @@ describe("claudeBackend.run", () => {
       versionFn: versionOk,
     });
     write.mockRestore();
-    expect(result).toEqual({ exitCode: 1 });
+    expect(result).toMatchObject({ exitCode: 1 });
     expect(await readFile(logPath, "utf8")).toContain("error: unknown option");
   });
 
@@ -756,6 +809,7 @@ describe("spawnLogged compatibility", () => {
 });
 
 describe("cursorAgentBackend.run", () => {
+  beforeEach(() => vi.stubEnv("NO_COLOR", "1"));
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -768,7 +822,10 @@ describe("cursorAgentBackend.run", () => {
     const logPath = await tmpLog();
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdoutChunks: ['{"type":"system","bearer":"sk-ant-test-t', `oken+abc/def="}\n`],
+      stdoutChunks: [
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"bearer sk-ant-test-t',
+        `oken+abc/def="}]}}\n`,
+      ],
       stderr: `warn: ${TOKEN}\n`,
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -781,16 +838,16 @@ describe("cursorAgentBackend.run", () => {
     const echoed = write.mock.calls.map((c) => String(c[0])).join("");
     write.mockRestore();
 
-    expect(result).toEqual({ exitCode: 0 });
+    expect(result).toMatchObject({ exitCode: 0 });
     // No env override: the child still inherits process.env untouched.
     expect(spawnFn.mock.calls[0]?.[2]).toEqual({ stdio: ["ignore", "pipe", "pipe"] });
     const logText = await readFile(logPath, "utf8");
     expect(logText).not.toContain(TOKEN);
     expect(logText).toBe(
-      '{"type":"system","bearer":"[ANTHROPIC_AUTH_TOKEN]"}\nwarn: [ANTHROPIC_AUTH_TOKEN]\n',
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"bearer [ANTHROPIC_AUTH_TOKEN]"}]}}\nwarn: [ANTHROPIC_AUTH_TOKEN]\n',
     );
     expect(echoed).not.toContain(TOKEN);
-    expect(echoed).toBe(logText);
+    expect(echoed).toBe("bearer [ANTHROPIC_AUTH_TOKEN]\n");
   });
 
   it("redacts a value supplied through the env override and still passes it to the child", async () => {
@@ -800,7 +857,7 @@ describe("cursorAgentBackend.run", () => {
     const logPath = await tmpLog();
     const spawnFn = mockSpawn({
       exitCode: 0,
-      stdout: `x-api-key: ${API_KEY}\n`,
+      stdout: `{"type":"assistant","message":{"content":[{"type":"text","text":"x-api-key: ${API_KEY}"}]}}\n`,
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     await cursorAgentBackend.run({
@@ -815,7 +872,9 @@ describe("cursorAgentBackend.run", () => {
 
     expect(spawnOptsOf(spawnFn).env?.ANTHROPIC_API_KEY).toBe(API_KEY);
     const logText = await readFile(logPath, "utf8");
-    expect(logText).toBe("x-api-key: [ANTHROPIC_API_KEY]\n");
-    expect(echoed).toBe(logText);
+    expect(logText).toBe(
+      '{"type":"assistant","message":{"content":[{"type":"text","text":"x-api-key: [ANTHROPIC_API_KEY]"}]}}\n',
+    );
+    expect(echoed).toBe("x-api-key: [ANTHROPIC_API_KEY]\n");
   });
 });

@@ -293,6 +293,120 @@ export function parseFeatureMapNames(markdown: string): string[] {
   return names;
 }
 
+const HEADING_NOISE = new Set([
+  "changelog",
+  "improvements",
+  "bug fixes",
+  "get started",
+  "settings",
+  "powered by",
+  "powered by cloud agents",
+  "shared context",
+  "desktop improvements",
+  "desktop bug fixes",
+  "agents window improvements",
+  "agents window bug fixes",
+  "what's new in cursor",
+  "latest updates",
+  "release notes",
+]);
+
+const MAX_FEATURE_KEYWORD_GAPS = 12;
+
+function visibleTextFromHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#?\w+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeFeatureKeyword(raw: string): string | null {
+  let value = raw
+    .replace(/^#+\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  value = value.replace(/[.,:;]+$/g, "");
+  value = value.replace(/\s+(improvements|bug fixes)$/i, "").trim();
+  if (!value) return null;
+  if (value.startsWith("/")) {
+    const cmd = value.match(/^\/[a-z][a-z0-9-]{1,32}$/i);
+    return cmd?.[0] ? cmd[0].toLowerCase() : null;
+  }
+  const lower = value.toLowerCase();
+  if (HEADING_NOISE.has(lower)) return null;
+  if (/^\d+(\.\d+){1,2}$/.test(value)) return null;
+  if (value.length < 4 || value.length > 80) return null;
+  return value;
+}
+
+export function slugifyFeatureKeyword(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+/** Named changelog surfaces (headings and slash commands), not CSS/layout tokens. */
+export function extractChangelogFeatureKeywords(changelogText: string): string[] {
+  const text = String(changelogText ?? "");
+  const buckets: { slash: string[]; h1: string[]; h2: string[]; h3: string[] } = {
+    slash: [],
+    h1: [],
+    h2: [],
+    h3: [],
+  };
+  const seen = new Set<string>();
+  const push = (raw: string, bucket: keyof typeof buckets) => {
+    const keyword = normalizeFeatureKeyword(raw);
+    if (!keyword) return;
+    const key = keyword.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    buckets[bucket].push(keyword);
+  };
+
+  for (const match of text.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)) {
+    push(visibleTextFromHtml(match[1] ?? ""), "h1");
+  }
+  for (const match of text.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)) {
+    push(visibleTextFromHtml(match[1] ?? ""), "h2");
+  }
+  for (const match of text.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/gi)) {
+    push(visibleTextFromHtml(match[1] ?? ""), "h3");
+  }
+  for (const match of text.matchAll(/^#\s+(.+)$/gm)) {
+    push(match[1] ?? "", "h1");
+  }
+  for (const match of text.matchAll(/^##\s+(.+)$/gm)) {
+    push(match[1] ?? "", "h2");
+  }
+  for (const match of text.matchAll(/^###\s+(.+)$/gm)) {
+    push(match[1] ?? "", "h3");
+  }
+  for (const match of text.matchAll(/(^|[\s>`(])(\/[a-z][a-z0-9-]{1,32})(?![/\w-])/gi)) {
+    push(match[2] ?? "", "slash");
+  }
+  return [...buckets.slash, ...buckets.h1, ...buckets.h2, ...buckets.h3];
+}
+
+/** Keywords the changelog names that neither inventory file mentions. */
+export function findMissingInventoryKeywords(keywords: string[], haystack: string): string[] {
+  const lower = String(haystack ?? "").toLowerCase();
+  return keywords.filter((keyword) => {
+    const needle = keyword.toLowerCase();
+    if (lower.includes(needle)) return false;
+    if (needle.startsWith("/") && lower.includes(needle.slice(1))) return false;
+    return true;
+  });
+}
+
 async function defaultFetchText(url: string): Promise<string> {
   if (!url.startsWith("https://")) {
     throw new Error(`Refusing non-HTTPS changelog URL: ${url}`);
@@ -411,6 +525,7 @@ export async function checkCursorUpdateAwareness(
   const inventoryRefreshed = parseInventoryRefreshed(inventoryMd);
   const openActionIds = parseOpenActionIds(inventoryMd);
   const gaps: CursorAwarenessGap[] = [];
+  let featuresMd = "";
 
   for (const id of openActionIds) {
     gaps.push({
@@ -439,7 +554,7 @@ export async function checkCursorUpdateAwareness(
   }
 
   try {
-    const featuresMd = await readFile(featuresPath, "utf8");
+    featuresMd = await readFile(featuresPath, "utf8");
     if (parseFeatureMapNames(featuresMd).length === 0) {
       gaps.push({
         id: "features-map-empty",
@@ -465,6 +580,22 @@ export async function checkCursorUpdateAwareness(
       const body =
         options.changelogBody ?? (await (options.fetchText ?? defaultFetchText)(changelogUrl));
       latestCursorVersion = extractLatestCursorVersion(body);
+      const haystack = `${inventoryMd}\n${featuresMd}`;
+      const missingKeywords = findMissingInventoryKeywords(
+        extractChangelogFeatureKeywords(body),
+        haystack,
+      );
+      for (const keyword of missingKeywords.slice(0, MAX_FEATURE_KEYWORD_GAPS)) {
+        const slug = slugifyFeatureKeyword(keyword);
+        if (!slug) continue;
+        gaps.push({
+          id: `feature-keyword-miss:${slug}`,
+          severity: "advisory",
+          path: FEATURES_REL,
+          evidence: `Changelog names "${keyword}" which is not listed in native-audit or cursor-3-features`,
+          suggestedRoute: "backlog-add",
+        });
+      }
       if (
         latestCursorVersion &&
         prefs.lastSeenCursorVersion &&
