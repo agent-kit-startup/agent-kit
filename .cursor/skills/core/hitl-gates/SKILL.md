@@ -28,7 +28,7 @@ Each main command has **exactly one Ask at entry** on the default path. Inbox, o
 |---------|--------------------------------|------------------|
 | `/start-project` | Gate A (vague-goal Ask first only if the goal is missing) | Gate B after a second yes. `confirm-provider` never |
 | `/run-plan` | Risk Ask only when PII, secrets, or scope is ambiguous; otherwise the run starts with no entry Ask | Inbox, exhaustion, owed-close |
-| `/run-plan-all` | Start-vs-resume (stored queue + material drift) **or** 6-way confirm (fresh synthesis) | Inbox, owed-close, landing. No mid-queue triage Ask |
+| `/run-plan-all` | Start-vs-resume (stored queue + material drift) **or** queue confirm (fresh synthesis) | Inbox, owed-close, landing. No mid-queue triage Ask |
 | `/continue-plan` | Next unit: `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`. Multi-plan picker first when needed | Inbox |
 | `/backlog-add` | `Write plan to backlog` / `Modify proposal first` / `Cancel` | Inbox. `confirm-provider` never |
 | `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel` | none |
@@ -67,7 +67,7 @@ Never steal `/git-prod`. Exhaustion Ask/arm is after Final HANDOFF and the prod 
 |------|----|--------|
 | Inbox (post-default) | `inbox` | `Analyze inbox now` / `Enqueue Fix now` / `Not now` |
 | Start vs resume (stored queue + material drift) | `queue-drift` | `Resume frozen queue` / `Insert new backlog` / `Re-synthesize` |
-| Confirm queue | `queue-confirm` | `Run as proposed` / `Edit order` / `Apply merges & drops only` / `Keep all plans as-is` / `Include Gate-B plans` / `Cancel` |
+| Confirm queue | `queue-confirm` | `Run as proposed` / `Run plans only` / `Edit order` / `Apply merges & drops only` / `Keep all plans as-is` / `Include Gate-B plans` / `Cancel` |
 | Malformed Task summary | `malformed-summary` | Ask before advancing the cursor |
 
 No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` suggestion as separate HITL.
@@ -91,7 +91,7 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `install.md` | Registry URL/ref; migrate nested `agent-kit/`; optional git-hooks |
 | `/agent-kit-onboard` | One unresolved essential at a time. Domain skills: `Scaffold domain skills` / `Defer (record reason)` / `Skip` |
 
-`/git-prod` and `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact.
+`/git-prod` and `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red public lane still stops the queue.
 
 ## Numbered fallback (path 1)
 
@@ -134,4 +134,4 @@ Broad Intake (index + HANDOFF only; no `.cursor/plans/*.plan.md` glob) → Gate 
 
 ## /run-plan-all compressed
 
-Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or 6-way confirm (default-path Ask) → one Task per plan running the `/run-plan` tick. Inbox Ask is post-default. Mid-batch audits wait, no triage Ask. Queue-end wait then `/plan-review-triage`. Never `/git-prod`. Details: [run-plan-all-queue.md](run-plan-all-queue.md).
+Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or queue confirm (default-path Ask) → one Task per plan running the `/run-plan` tick. When Ship auth is `per-plan-release`, one release per completed plan before the next plan. `Run plans only` does not promote. Inbox Ask is post-default. Mid-batch audits wait, no triage Ask. Queue-end wait then `/plan-review-triage`. Details: [run-plan-all-queue.md](run-plan-all-queue.md).

@@ -169,12 +169,14 @@ describe("in-window implement guard (transcript 606a14a5)", () => {
     expect(classifyOrchestratorAction({ kind: "product_edit" })).toBe("forbidden");
   });
 
-  it("allows Ask, Task dispatch, HANDOFF queue writes, and approved consolidation", () => {
+  it("allows Ask, Task dispatch, HANDOFF queue writes, approved consolidation, and the ship lane", () => {
     expect(classifyOrchestratorAction({ kind: "ask" })).toBe("allowed");
     expect(classifyOrchestratorAction({ kind: "task_dispatch" })).toBe("allowed");
     expect(classifyOrchestratorAction({ kind: "handoff_queue_write" })).toBe("allowed");
     expect(classifyOrchestratorAction({ kind: "approved_consolidation" })).toBe("allowed");
+    expect(classifyOrchestratorAction({ kind: "ship_lane" })).toBe("allowed");
     expect(isForbiddenOrchestratorAction({ kind: "task_dispatch" })).toBe(false);
+    expect(isForbiddenOrchestratorAction({ kind: "ship_lane" })).toBe(false);
   });
 });
 
@@ -193,5 +195,9 @@ describe("run-plan-all.md orchestrator prose contract", () => {
     expect(command).toMatch(/Do not invent an outcome/i);
     expect(command).toMatch(/confirm Ask/i);
     expect(command).toContain("Mandatory execution Task is **per queued plan** after confirmation");
+    expect(command).toContain("Run plans only");
+    expect(command).toContain("per-plan-release");
+    expect(command).toContain("One release per completed plan");
+    expect(command).toMatch(/Plan Tasks never `\/git-prod`/);
   });
 });

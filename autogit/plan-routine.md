@@ -67,7 +67,7 @@ If there's no PM tool: skip. Plans + HANDOFF + Git are sufficient for the struct
 | **Manual** | `/continue-plan` | You drive: 1 phase ≈ 1 chat; Ask before the unit; suggests `/git-staging`; handoff if context full; new chat for the next phase |
 | **Continuous** | `/run-plan` | It drives: runs the plan to the end; picks the strategy itself (orchestrated workers when Task exists, in-session loop otherwise, `agent-kit run-plan` / `scripts/plan-loop.sh` for headless); plan status each tick; automatic `/git-staging` if diff exists; **never** `/git-prod` |
 | **Hotfix** | `/hotfix` | Narrow urgent change: confirm → mini plan (≤4 to-dos / ≤2 phases) → activate → same `/run-plan` tick contract continuously; **never** `/git-prod`; refuse while `/run-plan-all` queue is `running` |
-| **Multi-plan queue** | `/run-plan-all` | PO synthesis → confirm queue → **pure orchestrator: dispatch one Task subagent per plan** (each runs the `/run-plan` tick contract), record the returned summary, advance the cursor; orchestrator never implements to-dos in-window; never `/git-prod`; context pause preserves queue for resume |
+| **Multi-plan queue** | `/run-plan-all` | PO synthesis → confirm queue → **pure orchestrator: dispatch one Task subagent per plan** (each runs the `/run-plan` tick contract), record the returned summary; one release per completed plan when Ship auth is `per-plan-release` (`Run plans only` does not promote); a red public sync stops the queue; context pause preserves queue for resume |
 
 `/run-plan-loop` and `/run-plan-orchestrated` are deprecated aliases of `/run-plan` (forced strategy).
 

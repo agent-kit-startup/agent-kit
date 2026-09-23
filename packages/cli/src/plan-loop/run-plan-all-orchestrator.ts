@@ -15,7 +15,7 @@ export type PlanWorkerSummary = {
 };
 
 export type QueueConfirmState = {
-  /** True only after the operator answers the 6-way confirm Ask. */
+  /** True only after the operator answers the queue confirm Ask. */
   confirmGranted: boolean;
 };
 
@@ -39,6 +39,7 @@ export type OrchestratorActionKind =
   | "task_dispatch"
   | "handoff_queue_write"
   | "approved_consolidation"
+  | "ship_lane"
   | "product_edit"
   | "run_tests"
   | "write_changelog"
@@ -70,7 +71,7 @@ export function isQueueConfirmGranted(state: QueueConfirmState): boolean {
 }
 
 /**
- * Execute-queue dispatch is blocked until the 6-way confirm Ask is answered.
+ * Execute-queue dispatch is blocked until the queue confirm Ask is answered.
  * PO synthesis Task(explore) is out of scope here; this gates plan Tasks only.
  */
 export function canDispatchQueuedPlan(state: QueueConfirmState): boolean {
@@ -186,12 +187,14 @@ const ALLOWED_KINDS = new Set<OrchestratorActionKind>([
   "task_dispatch",
   "handoff_queue_write",
   "approved_consolidation",
+  "ship_lane",
 ]);
 
 /**
  * Classify whether an orchestrator action is allowed after queue confirm.
  * Transcript 606a14a5 failure mode: in-window product/test/CHANGELOG/plan
  * implementation instead of Task dispatch + HANDOFF writes.
+ * `ship_lane` is the per-plan promote only. It is not plan implementation.
  */
 export function classifyOrchestratorAction(
   action: OrchestratorAction,

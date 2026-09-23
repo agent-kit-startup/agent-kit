@@ -91,7 +91,7 @@ How to drive a plan:
 
 - **`/continue-plan`** - you drive: one phase per chat.
 - **`/run-plan`** - the kit drives: runs the plan to the end and stages finished work.
-- **`/run-plan-all`** - queue several plans and run them in order after you confirm the queue.
+- **`/run-plan-all`** - queue several plans and run them in order after you confirm the queue. That confirm can ship one release per finished plan.
 
 Short chooser: [Getting started](docs/getting-started.md#which-command-next).
 

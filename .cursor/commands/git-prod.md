@@ -25,6 +25,7 @@ Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This 
    When the promotion goes through a staging→main PR (the Claude CLI lane in `autogit/gitupdate.md`), also scan its body before merge: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`.
    Exit 0 prints `ok`. Exit 1 lists the offending lines: **stop**; the fix lands on `staging` through `/git-staging` (reword the commit on a working branch, or `gh pr edit <N> --body`), then re-run this step from the top. Exit 2 (missing hook file, grep failure) is red, not a pass. Never merge, push, or tag over a red scan. Same shape as the Evidence-checks gate in `/git-staging`; pattern list: `sh git-hooks/prepare-commit-msg --list`. ADR: `2026-09-11_agent-signature-guard-strip-hook-check-gate`.
 6. **One confirm, one ship:** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote. A red or stale public sync (step 12.5) is a STOP; it does not authorize another patch under the same yes. Next ship needs a new Ask.
+   `/run-plan-all` only: when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip step 4. That queue confirm is this plan's yes. Still one tag. A red public sync stops the queue.
 7. Run merge to main (`git merge --no-ff` when promoting locally; real merge preferred on the staging→main PR path), then push with the authorized inline form only:
 
    `ALLOW_MAIN_PUSH=1 git push origin main`

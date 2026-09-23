@@ -138,7 +138,7 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `handoff` | Save your progress to `.cursor/HANDOFF.md` |
 | `run <slash>` | One headless session from an L0 slash file (numbered-list HITL; never git-prod) |
 | `run-plan` | Headless continuous plan runner (tick loop; never git-prod) |
-| `run-plan-all` | Headless `/run-plan-all` queue from the L0 file (same as `run run-plan-all`; never git-prod) |
+| `run-plan-all` | Headless `/run-plan-all` queue from the L0 file. `per-plan-release` ships inside that contract. `agent-kit run git-prod` stays refused |
 | `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); live TTY quits with `q` or Ctrl-C; `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 
@@ -231,18 +231,19 @@ For the full list of consumer-configurable knobs (session config, dashboard skin
 - **`/run-plan-all`** - run **multiple plans** as one ordered, deduplicated queue. Use it when Gate-A backlog plans have piled up, scopes overlap, or you want batch throughput instead of activating `/run-plan` plan by plan. Full command spec: [`.cursor/commands/run-plan-all.md`](../.cursor/commands/run-plan-all.md). Operator detail below; modes overview also in [plan-routine.md](../autogit/plan-routine.md) and the root [README](../README.md).
 
   1. **PO synthesis** - a read-only Task(`explore`) scans recent merges, commits, CHANGELOG, HANDOFF, and every eligible plan, then returns a proposed execution order with overlap and consolidation notes. The main window reviews that report only.
-  2. **Confirm queue** - mandatory **Ask questions** gate with six options:
+  2. **Confirm queue** - mandatory **Ask questions** gate. Run labels other than `Run plans only` set Ship auth `per-plan-release` (one release per completed plan). `Run plans only` does not promote.
 
      | Option | What it does |
      |--------|--------------|
-     | `Run as proposed` | Apply approved merges/drops, write queue to HANDOFF, start execution |
-     | `Edit order` | Apply consolidations, then run your custom order |
-     | `Apply merges & drops only` | Apply consolidations; keep heuristic order for the rest |
-     | `Keep all plans as-is` | No plan-file mutations; run the proposed order |
+     | `Run as proposed` | Apply approved merges/drops, write queue to HANDOFF, start execution, ship one release per completed plan |
+     | `Run plans only` | Same execution, no promote |
+     | `Edit order` | Apply consolidations, then run your custom order, then ship per plan |
+     | `Apply merges & drops only` | Apply consolidations; keep heuristic order; ship per plan |
+     | `Keep all plans as-is` | No plan-file mutations; run the proposed order; ship per plan |
      | `Include Gate-B plans` | Re-run synthesis with Gate-B-awaiting plans included (when any exist) |
      | `Cancel` | Abort; HANDOFF unchanged |
 
-  3. **Execute** - after you confirm, the main window is a **pure orchestrator**: it dispatches **one Task subagent per plan** (each runs the `/run-plan` tick contract). It never implements to-dos in-window. Plans run **sequentially**, not in parallel. Never `/git-prod` from this command. The queue is **non-stop** mid-run: no external-review Ask/paste between plans. Optional external review arms **once at queue end**; see [external plan review](external-plan-review.md#run-plan-all).
+  3. **Execute** - after you confirm, the main window is a **pure orchestrator**: it dispatches **one Task subagent per plan** (each runs the `/run-plan` tick contract). It never implements to-dos in-window. Plans run **sequentially**, not in parallel. After each completed plan, when Ship auth is `per-plan-release`, it ships one release and waits until that release is Done before the next plan. `Run plans only` leaves promote for a later `/git-prod`. The queue is **non-stop** mid-run: no external-review Ask/paste between plans. Optional external review arms **once at queue end**; see [external plan review](external-plan-review.md#run-plan-all).
 
   **Resume mid-queue:** if context fills up or you start a fresh chat, paste `/run-plan-all` again. The agent reads HANDOFF (`Mode: run-plan-all`, `Run queue`, `Queue cursor`, `Queue outcomes`) and dispatches the next plan as a Task without re-synthesizing. If a queued plan was deleted or materially changed outside the queue, run a new synthesis.
 

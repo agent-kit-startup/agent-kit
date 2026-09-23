@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.11.0] - 2026-09-22
+
+### Changed
+
+- **`/run-plan-all` ships one release per completed plan.** Confirming the queue with `Run as proposed` (or the other run labels) is the production yes. Each finished plan gets one version: minor when the staged commits include `feat`, otherwise patch. The next plan waits until that release is done. `Run plans only` does not promote.
+
 ## [5.10.3] - 2026-09-22
 
 ### Changed
