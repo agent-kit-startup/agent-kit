@@ -1,6 +1,6 @@
 ---
 name: hitl-gates
-description: Agent Kit HITL contract, exact Ask questions labels, and numbered-list fallback as path 1. Use when running /start-project, /run-plan, /run-plan-all, /continue-plan, /git-prod, backlog CRUD, /hotfix, /qa, /kit-staging, /kit-prod, /plan-review-triage, install, or onboard, or when Ask questions is missing. Invoke via the command's own link; do not auto-load.
+description: Agent Kit HITL contract, exact Ask questions labels, and numbered-list fallback as path 1. Use when running /start-project, /run-plan, /run-plan-all, /continue-plan, /git-prod, backlog CRUD, /hotfix, /qa, /plan-review-triage, install, or onboard, or when Ask questions is missing. Factory landing wraps /kit-staging and /kit-prod keep their own command-file Asks; they are not consumer default-path inventory. Invoke via the command's own link; do not auto-load.
 version: 0.1.3
 category: core
 disable-model-invocation: true
@@ -32,8 +32,6 @@ Each main command has **exactly one Ask at entry** on the default path. Inbox, o
 | `/continue-plan` | Next unit: `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`. Multi-plan picker first when needed | Inbox |
 | `/backlog-add` | `Write plan to backlog` / `Modify proposal first` / `Cancel` | Inbox. `confirm-provider` never |
 | `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel` | none |
-| `/kit-staging` | none at git-staging entry | Landing Ask only when landing-worthy (after git staging) |
-| `/kit-prod` | Same git-prod Ask first | Landing Ask after prod only when needed |
 | `/hotfix` | `Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel` | none |
 | `/qa` | Mode Ask only when the invocation is ambiguous (`QA this release` / `Repro this bug` / `Claims only` / `Cancel`); otherwise start | Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel` |
 | `/handoff` | `Automatic handoff` / `Manual handoff` (first time or when offering a choice) | none |
@@ -82,8 +80,6 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `/backlog-delete` | `Delete [plan-file] from backlog` / `Cancel` |
 | `/backlog-cancel` | `Cancel [plan-file] on backlog` / `Keep on backlog` |
 | `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel`. Claude lane (or recorded classifier denial): `I pushed main` / `Open staging→main PR instead` / `Cancel` |
-| `/kit-staging` | After git staging, if landing-worthy: `Deploy landing to staging` / `Skip landing (repo only)` / `Cancel` |
-| `/kit-prod` | Keep the git-prod Ask first. After prod: `Promote landing to production` / `Skip landing (repo only)` / `Cancel` |
 | `/hotfix` | `Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel` |
 | `/qa` | Mode (when ambiguous): `QA this release` / `Repro this bug` / `Claims only` / `Cancel`. Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel`. Playbook: `.cursor/skills/core/qa/SKILL.md` |
 | `/plan-review-triage` | Write residuals / Fix nits only / Ack and stop. Residuals write uses backlog-add labels. Multi-path: one Ask when remaining monitors share a uniform class |
@@ -91,7 +87,16 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `install.md` | Registry URL/ref; migrate nested `agent-kit/`; optional git-hooks |
 | `/agent-kit-onboard` | One unresolved essential at a time. Domain skills: `Scaffold domain skills` / `Defer (record reason)` / `Skip` |
 
-`/git-prod` and `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red public lane still stops the queue.
+`/git-prod` and factory `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red public lane still stops the queue.
+
+### Factory landing wraps (not consumer L0)
+
+Factory disk keeps `/kit-staging` and `/kit-prod`. They are omitted from consumer L0, public-sync, and `agent-kit run` catalog. Landing Asks live on those command files only:
+
+| Surface | Labels |
+|---------|--------|
+| `/kit-staging` | After git staging, if landing-worthy: `Deploy landing to staging` / `Skip landing (repo only)` / `Cancel` |
+| `/kit-prod` | Keep the git-prod Ask first. After prod: `Promote landing to production` / `Skip landing (repo only)` / `Cancel` |
 
 ## Numbered fallback (path 1)
 
