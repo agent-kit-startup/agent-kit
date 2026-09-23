@@ -9,7 +9,7 @@ Classification: **shipped core** (L0), **optional pack** (L1/L2), **planned**, *
 | Layer | What ships in core | Explicit non-claim |
 |-------|--------------------|--------------------|
 | Prompt + HITL | Plan gates, Ask questions, `/git-prod` confirmation | Not full autonomy without review |
-| Context + memory | HANDOFF, hooks, memory loop, personas (chrome only) | Not a hosted control plane or cloud HANDOFF sync. Memory loop is per-checkout. Fleet boards are out of kit (orchestration stays per-repository, 2026-09-15) |
+| Context + memory | HANDOFF, hooks, memory loop, personas (chrome only) | Not a hosted control plane or cloud HANDOFF sync. Default memory-loop WRITE is per-checkout. Fleet HANDOFF boards stay out of kit. Mission Kit account memory is the designed SoT for shared decisions/errors only (ADR 2026-09-23; store not shipped). Orchestration stays per-checkout (supersedes 2026-09-15) |
 | Safeguards | Staging-first git, shell/secrets hooks, output hygiene | Not a guarantee that every install is production-ready |
 | Iterative review | Opt-in external monitor, triage, Field Report cadence | Not autonomous model self-improvement |
 | Workflow coordination | `/run-plan`, `/run-plan-all`, headless CLI, local Mission Control | Not a general graph / DAG engine |
@@ -30,7 +30,7 @@ Classification: **shipped core** (L0), **optional pack** (L1/L2), **planned**, *
 
 1. Autonomous model self-improvement or self-training.
 2. General graph / DAG execution engine.
-3. Hosted multi-tenant control plane, cloud HANDOFF sync, or a shared fleet board that replaces per-repository HANDOFF (orchestration stays per-repository, 2026-09-15).
+3. Hosted multi-tenant control plane, cloud HANDOFF sync, or a shared fleet board that replaces per-checkout HANDOFF (orchestration stays per-checkout; ADR 2026-09-23). Account memory does not dump HANDOFF and does not authorize silent sibling-checkout writes.
 4. Guaranteed production readiness without lane-qualified release evidence.
 5. Silent auto-remediation of product code from external review when `autoRemediate` is false (default).
 6. Silent cross-network social posting (adoption comms draft with HITL only; community skill `mission-kit-comms`).

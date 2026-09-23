@@ -56,7 +56,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `ux-tone.mdc` - Chat tone guidelines with persona chrome support
 - `agent-output-hygiene.mdc` - Chat vs repository content separation
 - `docs-professional-standard.mdc` - Project documentation voice and inheritance standard
-- `memory-loop.mdc` - Cross-chat learning persistence in per-checkout `.cursor/memory/` (not a hosted control plane, fleet HANDOFF board, or host AgentStore; orchestration stays per-repository, 2026-09-15). L1 memory consolidation remains a candidate, not shipped.
+- `memory-loop.mdc` - Cross-chat learning persistence in per-checkout `.cursor/memory/` (not a hosted control plane, fleet HANDOFF board, or host AgentStore). Orchestration stays per-checkout (ADR 2026-09-23, supersedes 2026-09-15). Mission Kit account memory is the designed SoT for shared decisions/errors; bind requires an explicit sync path (no silent sibling writes). L1 memory consolidation remains a candidate, not shipped.
 - `hitl-ask-questions.mdc` - Human-in-the-loop confirmations via Ask questions tool
 - `git-secrets-safety.mdc` - Git commit safety with secrets validation
 

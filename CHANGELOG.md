@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.12.4] - 2026-09-23
+
+### Changed
+
+- **Mission Kit account memory is specified, not shipped.** Shared decisions and errors can be an account-level source of truth later. Each checkout still owns its plans and HANDOFF. The claim matrix, capability inventory, and basic-vs-advanced notes describe that split. This release does not add a store.
+
 ## [5.12.3] - 2026-09-23
 
 ### Fixed
