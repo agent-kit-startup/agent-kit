@@ -132,9 +132,11 @@ jobs:
 
 
   # ── Sync to public mirror (tag or manual trigger) ──
-  # Secret PUBLIC_REPO_TOKEN: fine-grained token with public repo Contents,
-  # Pull requests, and merge (or auto-merge) permission. Repo must Allow auto-merge
-  # when required checks exist. Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
+  # Secret PUBLIC_REPO_TOKEN: fine-grained token on the public repo with
+  # Contents, Pull requests, Workflows, and Administration. Administration is
+  # what lets the job use the Protect main admin bypass (one required review,
+  # squash only, auto-merge disabled). Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
+  # The job fails if the public build is red or the squash merge does not land.
   # Private-origin allowlist only (SoT: agent-kit-startup/agent-kit-dev).
   # Path C mirrors ci.yml; public / forks have no PUBLIC_REPO_TOKEN by design.
   # Adding another allowlisted site (this job `if` counts) requires updating the
@@ -239,11 +241,16 @@ jobs:
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # Secret HOSTINGER_API_TOKEN: fail loud when unset on tag/manual landing sync.
   # Staging hop is required: deploy:staging, field-check, then promote the same dist/.
-  # Does not merge the public sync PR. Does not replace /git-prod.
+  # Does not merge the public sync PR. On tag runs it waits until sync-public
+  # has squash-merged and published the public Release. A landing-only dispatch
+  # still runs when sync-public is skipped.
   sync-landing:
-    needs: build
+    needs: [build, sync-public]
     if: >-
-      github.repository == 'agent-kit-startup/agent-kit-dev'
+      always()
+      && github.repository == 'agent-kit-startup/agent-kit-dev'
+      && needs.build.result == 'success'
+      && (needs.sync-public.result == 'success' || needs.sync-public.result == 'skipped')
       && (startsWith(github.ref, 'refs/tags/v')
           || (github.event_name == 'workflow_dispatch'
               && github.event.inputs.sync_landing == 'true'))

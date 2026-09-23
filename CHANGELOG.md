@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.12.1] - 2026-09-23
+
+### Changed
+
+- **Public release sync squash-merges after the public build is green.** A failed public build is not merged. The job fails if the public repository did not update.
+
 ## [5.12.0] - 2026-09-23
 
 ### Changed
