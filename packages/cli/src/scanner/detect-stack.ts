@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { DetectionEvidence, PackageManager, StackDetection } from "../types.js";
 import { fileExists, readJson } from "../utils/fs.js";
+import { REPOSITORY_PROFILE_REL } from "./paths.js";
 
 const PROJECT_MARKERS = [
   "package.json",
@@ -221,7 +222,7 @@ function isDetectionEvidenceArray(value: unknown): value is DetectionEvidence[] 
  */
 async function readConfirmedStack(rootDir: string): Promise<StackDetection | undefined> {
   const configuration = await readJson<StackOverrideConfiguration>(
-    path.join(rootDir, ".cursor", "agent-kit.config.json"),
+    path.join(rootDir, REPOSITORY_PROFILE_REL),
   );
   const configured = configuration?.stack;
   const language = configured?.language;
@@ -251,7 +252,7 @@ async function readConfirmedStack(rootDir: string): Promise<StackDetection | und
     configured.packageManagerEvidence,
   )
     ? configured.packageManagerEvidence
-    : [{ source: "configuration", value: ".cursor/agent-kit.config.json#stack.language" }];
+    : [{ source: "configuration", value: `${REPOSITORY_PROFILE_REL}#stack.language` }];
 
   return {
     language,

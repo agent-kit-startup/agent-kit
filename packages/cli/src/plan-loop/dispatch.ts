@@ -16,10 +16,12 @@ import {
   claudeHeadlessArgs,
   claudeRedactions,
   claudeRunCaps,
+  cursorAgentHeadlessArgs,
   redactSecrets,
   resolveHitlRunOptions,
   spawnLogged,
 } from "./backends.js";
+import { RESERVED_GATE_IDS } from "./hitl-relay.js";
 import type { StreamSink } from "./stream-render.js";
 
 /** Project-run L0 set. `run-plan` aliases the existing loop; the rest dispatch the file. */
@@ -41,8 +43,11 @@ export type RunCatalogSlash = (typeof RUN_CATALOG)[number];
 /** Citty names that already implement a catalog slash (do not rewrite to `run`). */
 export const FIRST_CLASS_SLASH_COMMANDS = ["run-plan", "run-plan-all"] as const;
 
-/** Omitted from auto-yes. Operator-gated slashes; never CLI --force promote. */
-export const RUN_PROMOTE_BLOCKED = ["git-prod", "kit-prod"] as const;
+/**
+ * Omitted from auto-yes. Operator-gated slashes; never CLI --force promote.
+ * Same ids as `RESERVED_GATE_IDS` (HITL ask-ids the relay never answers).
+ */
+export const RUN_PROMOTE_BLOCKED = RESERVED_GATE_IDS;
 
 export type SlashClass = "catalog" | "run-plan" | "promote-blocked" | "unknown";
 
@@ -127,24 +132,13 @@ function stamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${p(d.getMilliseconds(), 3)}`;
 }
 
+/** One-shot `cursor-agent -p` argv: same SoT as the tick backend. */
 export function cursorAgentDispatchArgs(opts: {
   workspace: string;
   prompt: string;
   model?: string;
 }): string[] {
-  const args = [
-    "-p",
-    "--force",
-    "--sandbox",
-    "disabled",
-    "--output-format",
-    "stream-json",
-    "--workspace",
-    opts.workspace,
-  ];
-  if (opts.model) args.push("--model", opts.model);
-  args.push(opts.prompt);
-  return args;
+  return cursorAgentHeadlessArgs(opts);
 }
 
 /**

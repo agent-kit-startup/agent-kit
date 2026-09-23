@@ -23,7 +23,10 @@ export const HITL_GATE_LINE_RE = /^HITL_GATE:\s*([a-z0-9-]+)\s*\|\s*(.+)$/;
 /** Reply stamp prefix; the child echoes the same event into the run log (`--replay-user-messages`). */
 export const HITL_REPLY_PREFIX = "HITL_REPLY:";
 
-/** Gate ids a headless run never relays: the slash behind them is operator-gated. */
+/**
+ * Gate ids a headless run never relays: the slash behind them is operator-gated.
+ * SoT also for `RUN_PROMOTE_BLOCKED` in dispatch.ts (same ask-id / slash names).
+ */
 export const RESERVED_GATE_IDS = ["git-prod", "kit-prod"] as const;
 
 /** Ask-id recorded for a gate detected from prose (pre-sentinel adapters). */

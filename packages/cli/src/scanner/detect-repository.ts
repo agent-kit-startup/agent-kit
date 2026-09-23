@@ -10,6 +10,7 @@ import type {
   StackDetection,
 } from "../types.js";
 import { fileExists, listDirectory, readJson } from "../utils/fs.js";
+import { REPOSITORY_PROFILE_REL } from "./paths.js";
 
 const CONTEXT_PATHS: Array<[string, string]> = [
   ["README.md", "README"],
@@ -92,7 +93,7 @@ async function readConfirmedPurpose(
   rootDir: string,
 ): Promise<RepositoryPurposeDetection | undefined> {
   const configuration = await readJson<ProfileConfiguration>(
-    path.join(rootDir, ".cursor", "agent-kit.config.json"),
+    path.join(rootDir, REPOSITORY_PROFILE_REL),
   );
   const configuredPurpose = configuration?.purpose;
   if (
@@ -115,7 +116,7 @@ async function readConfirmedPurpose(
     evidence:
       evidence.length > 0
         ? evidence
-        : [{ source: "configuration", value: ".cursor/agent-kit.config.json#purpose.value" }],
+        : [{ source: "configuration", value: `${REPOSITORY_PROFILE_REL}#purpose.value` }],
   };
 }
 

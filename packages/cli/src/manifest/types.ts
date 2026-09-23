@@ -1,3 +1,5 @@
+import { HANDOFF_REL } from "../utils/kit-paths.js";
+
 /**
  * Distribution manifest (.cursor/agent-kit.json).
  * Distinct from ProjectProfile in agent-kit.config.json (scan/wizard).
@@ -44,7 +46,7 @@ export const MANIFEST_SCHEMA_VERSION = 1 as const;
  * `config.example.json` must remain installable (L0). Session state only.
  */
 export const DEFAULT_PROTECTED_PATHS: readonly string[] = [
-  ".cursor/HANDOFF.md",
+  HANDOFF_REL,
   ".cursor/plans/**",
   ".cursor/memory/**",
   ".cursor/context/config.json",

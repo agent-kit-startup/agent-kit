@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { CONTEXT_CONFIG_REL, contextConfigPath } from "../lifecycle/context-config.js";
 import type {
   OnboardingState,
   ReadinessAction,
@@ -11,11 +12,12 @@ import type {
 } from "../types.js";
 import { ensureDir, fileExists, readJson, writeJson } from "../utils/fs.js";
 import { KIT_OWNED_IGNORE_PATTERNS, REQUIRED_SECRET_PATTERNS } from "./detect-repository.js";
+import { REPOSITORY_PROFILE_REL } from "./paths.js";
 import { createReadinessReport } from "./readiness.js";
 import { runScanner } from "./scan.js";
 
-const PROFILE_RELATIVE_PATH = ".cursor/agent-kit.config.json";
-const CONTEXT_CONFIG_RELATIVE_PATH = ".cursor/context/config.json";
+/** POSIX form for change-record paths (SoT: lifecycle/context-config). */
+const CONTEXT_CONFIG_REL_POSIX = CONTEXT_CONFIG_REL.replace(/\\/g, "/");
 const ESSENTIAL_DIRECTORIES = [
   ".cursor",
   ".cursor/context",
@@ -312,7 +314,7 @@ export async function refreshRepositoryProfile(
     generatedAt,
   });
   const desiredProfile = createProfile(scan, report, generatedAt) as unknown as JsonObject;
-  const profilePath = path.join(scan.rootDir, PROFILE_RELATIVE_PATH);
+  const profilePath = path.join(scan.rootDir, REPOSITORY_PROFILE_REL);
   const existingProfile = (await readJson<JsonObject>(profilePath)) ?? {};
   // Fresh values win on shared keys (including clearing to undefined);
   // existing-only keys survive.
@@ -393,7 +395,7 @@ export async function executeSafeReadinessFixes(
     ),
   );
 
-  const profilePath = path.join(beforeScan.rootDir, PROFILE_RELATIVE_PATH);
+  const profilePath = path.join(beforeScan.rootDir, REPOSITORY_PROFILE_REL);
   const existingProfile = (await readJson<JsonObject>(profilePath)) ?? {};
   const desiredProfile = createProfile(beforeScan, before, generatedAt);
   const mergedProfile = mergeMissing(existingProfile, desiredProfile) as JsonObject;
@@ -402,11 +404,11 @@ export async function executeSafeReadinessFixes(
   recordChange(
     changes,
     "merge-repository-profile",
-    PROFILE_RELATIVE_PATH,
+    REPOSITORY_PROFILE_REL,
     profileChanged,
     dryRun,
     relativeEvidence(
-      PROFILE_RELATIVE_PATH,
+      REPOSITORY_PROFILE_REL,
       profileChanged ? "missing scanner-derived facts" : "existing facts preserved",
     ),
   );
@@ -416,22 +418,22 @@ export async function executeSafeReadinessFixes(
     generatorVersion: options.generatorVersion,
     generatedAt,
   });
-  const contextConfigPath = path.join(beforeScan.rootDir, CONTEXT_CONFIG_RELATIVE_PATH);
-  const existingContextConfig = (await readJson<JsonObject>(contextConfigPath)) ?? {};
+  const configPath = contextConfigPath(beforeScan.rootDir);
+  const existingContextConfig = (await readJson<JsonObject>(configPath)) ?? {};
   const onboarding = reconcileOnboardingState(evidenceReport, existingContextConfig, generatedAt);
   const defaults = preferenceDefaults(onboarding, existingContextConfig.onboarded);
   const mergedContextConfig = mergeMissing(existingContextConfig, defaults) as JsonObject;
   mergedContextConfig.onboarding = onboarding;
   const contextConfigChanged = !jsonEqual(existingContextConfig, mergedContextConfig);
-  if (contextConfigChanged && !dryRun) await writeJson(contextConfigPath, mergedContextConfig);
+  if (contextConfigChanged && !dryRun) await writeJson(configPath, mergedContextConfig);
   recordChange(
     changes,
     "merge-onboarding-state",
-    CONTEXT_CONFIG_RELATIVE_PATH,
+    CONTEXT_CONFIG_REL_POSIX,
     contextConfigChanged,
     dryRun,
     relativeEvidence(
-      CONTEXT_CONFIG_RELATIVE_PATH,
+      CONTEXT_CONFIG_REL_POSIX,
       contextConfigChanged ? "missing preferences or onboarding state" : "state already merged",
     ),
   );

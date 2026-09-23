@@ -19,6 +19,7 @@ import {
   FIELD_REPORT_CADENCE_LEDGER_REL,
   FLIGHT_LOG_LEDGER_REL,
   MAX_AGENT_PROMPTS,
+  MAX_EXTERNAL_REPORTS,
   MAX_GIT_ACTIVITY,
   MISSION_TIMING_LEDGER_REL,
   SUBAGENT_TRANSCRIPT_FILE_RE,
@@ -87,7 +88,8 @@ const MAX_TRANSCRIPT_BYTES = 1024 * 1024; // skip oversized transcripts, degrade
 const TRANSCRIPT_RECENCY_MS = 30 * 24 * 60 * 60 * 1000; // 30-day recency window
 
 // External review report scan bounds (fs half of the triage contract).
-const MAX_REPORT_FILES = 20; // cap memory reads per snapshot
+// SoT for the count is MAX_EXTERNAL_REPORTS (semantic-model); keep fs read cap equal.
+const MAX_REPORT_FILES = MAX_EXTERNAL_REPORTS;
 const MAX_REPORT_BYTES = 512 * 1024; // skip oversized reports, degrade quietly
 const REPORT_RECENCY_MS = 90 * 24 * 60 * 60 * 1000; // 90-day recency window
 

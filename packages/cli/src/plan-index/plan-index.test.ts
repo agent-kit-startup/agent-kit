@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   FORBIDDEN_PLANS_SCAN_GLOB,
+  HANDOFF_REL,
   PLAN_INDEX_REL,
   type PlanIndexIo,
   buildPlanIndex,
@@ -203,6 +204,7 @@ describe("builder source allowlist", () => {
     expect(src).toContain('source: "handoff-named"');
     expect(src).toContain("FORBIDDEN_PLANS_SCAN_GLOB");
     expect(FORBIDDEN_PLANS_SCAN_GLOB).toBe(".cursor/plans/*.plan.md");
+    expect(HANDOFF_REL).toBe(".cursor/HANDOFF.md");
   });
 });
 

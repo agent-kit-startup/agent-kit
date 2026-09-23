@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { constants, access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { RESOLVE_AGENT_KIT_REL } from "../generator/claude-session-start-hook.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -218,11 +219,11 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
     }
   }
 
-  const resolveLib = path.join(root, ".cursor", "hooks", "agent", "resolve-agent-kit.sh");
+  const resolveLib = path.join(root, RESOLVE_AGENT_KIT_REL);
   if (!(await exists(resolveLib))) {
-    reasons.push("missing `.cursor/hooks/agent/resolve-agent-kit.sh` (thin adapter resolver)");
+    reasons.push(`missing \`${RESOLVE_AGENT_KIT_REL}\` (thin adapter resolver)`);
   } else if (!(await isExecutable(resolveLib))) {
-    reasons.push("`.cursor/hooks/agent/resolve-agent-kit.sh` is not executable (chmod +x)");
+    reasons.push(`\`${RESOLVE_AGENT_KIT_REL}\` is not executable (chmod +x)`);
   }
 
   for (const rel of adapterRels) {

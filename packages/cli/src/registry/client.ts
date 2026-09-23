@@ -1,5 +1,6 @@
 import path from "node:path";
 import { readJson } from "../utils/fs.js";
+import { REGISTRY_INDEX_REL } from "./paths.js";
 import type {
   RegistryArtifact,
   RegistryIndex,
@@ -8,7 +9,7 @@ import type {
 } from "./types.js";
 
 export async function loadRegistry(rootDir: string): Promise<RegistryIndex> {
-  const indexPath = path.join(rootDir, "registry", "registry.json");
+  const indexPath = path.join(rootDir, REGISTRY_INDEX_REL);
   const index = await readJson<RegistryIndex>(indexPath);
   if (!index) throw new Error(`Registry not found at ${indexPath}`);
   return index;

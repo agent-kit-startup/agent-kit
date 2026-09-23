@@ -11,6 +11,7 @@ import { loadManagedHashLedger, saveManagedHashLedger } from "../lifecycle/overl
 import { resolveContained } from "../lifecycle/paths.js";
 import { readJson } from "../utils/fs.js";
 import { allSkills, findPack, loadRegistry } from "./client.js";
+import { REGISTRY_INDEX_REL } from "./paths.js";
 import type { RegistryIndex, RegistrySkill } from "./types.js";
 
 export interface PackMember {
@@ -172,7 +173,7 @@ export async function installSkillsByIds(
   skillIds: string[],
   options: InstallOptions = {},
 ): Promise<ApplyStats> {
-  const index = await readJson<RegistryIndex>(path.join(registryRoot, "registry", "registry.json"));
+  const index = await readJson<RegistryIndex>(path.join(registryRoot, REGISTRY_INDEX_REL));
   const stats = emptyStats();
   if (!index) return stats;
 

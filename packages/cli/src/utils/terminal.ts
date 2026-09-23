@@ -9,6 +9,7 @@ import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { confirm, isCancel } from "@clack/prompts";
+import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { fileExists } from "./fs.js";
 
 /** True when stdin is not a TTY or CI env vars are set. */
@@ -82,11 +83,11 @@ export async function validateProjectRoot(resolved: string): Promise<ProjectRoot
     };
   }
   const hasGit = await fileExists(path.join(resolved, ".git"));
-  const hasManifest = await fileExists(path.join(resolved, ".cursor", "agent-kit.json"));
+  const hasManifest = await fileExists(path.join(resolved, MANIFEST_RELATIVE_PATH));
   if (!hasGit && !hasManifest) {
     return {
       ok: false,
-      reason: `Refused ${resolved}: no .git and no .cursor/agent-kit.json.`,
+      reason: `Refused ${resolved}: no .git and no ${MANIFEST_RELATIVE_PATH}.`,
       recovery: [
         "Starting from an empty folder? Pick one of these:",
         "  1. git init          - then re-run. Recommended: readiness and the",

@@ -19,6 +19,7 @@ import {
   claudeRunCaps,
   claudeTickArgs,
   cursorAgentBackend,
+  cursorAgentHeadlessArgs,
   getBackend,
   listBackendIds,
   mergeChildEnv,
@@ -407,6 +408,30 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "25",
       "--max-budget-usd",
       "2",
+    ]);
+  });
+});
+
+describe("cursorAgentHeadlessArgs", () => {
+  it("builds positional-prompt argv shared with dispatch", () => {
+    expect(
+      cursorAgentHeadlessArgs({
+        workspace: "/repo",
+        prompt: "do work",
+        model: "sonnet",
+      }),
+    ).toEqual([
+      "-p",
+      "--force",
+      "--sandbox",
+      "disabled",
+      "--output-format",
+      "stream-json",
+      "--workspace",
+      "/repo",
+      "--model",
+      "sonnet",
+      "do work",
     ]);
   });
 });

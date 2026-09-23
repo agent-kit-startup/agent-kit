@@ -16,6 +16,7 @@ import { loadAgentKitManifest } from "../manifest/index.js";
 import { logger } from "../utils/logger.js";
 import { RootRefusedError, confirmProjectRoot, isNonInteractive } from "../utils/terminal.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
+import { NON_INTERACTIVE_ROOT_ARGS } from "./shared-args.js";
 
 export const updateCommand = defineCommand({
   meta: {
@@ -62,17 +63,7 @@ export const updateCommand = defineCommand({
         "Apply even when this CLI is older than the registry it is syncing from; the manifest is then stamped with this CLI's version, not the registry's (factory/dev only)",
       default: false,
     },
-    yes: {
-      type: "boolean",
-      alias: "y",
-      description: "Skip interactive prompts; use defaults (IDE-agnostic non-interactive mode)",
-      default: false,
-    },
-    "force-root": {
-      type: "boolean",
-      description: "Bypass the ambiguous-root guard (use with caution)",
-      default: false,
-    },
+    ...NON_INTERACTIVE_ROOT_ARGS,
     ...REGISTRY_CLI_ARGS,
   },
   async run({ args }) {

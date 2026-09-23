@@ -1,9 +1,11 @@
 /**
  * Per-plan ship decisions for `/run-plan-all`.
  *
- * The queue confirm is the production yes. Each completed plan gets one
- * SemVer close. The next plan starts only after that ship is Done.
- * A red public lane stops the queue. It does not authorize another tag.
+ * The queue confirm is the production yes. Each completed plan with a
+ * product diff gets one SemVer close. The next plan starts only after
+ * that ship is Done. A completed plan with no product diff skips the
+ * release and the cursor advances. A red public lane stops the queue.
+ * It does not authorize another tag.
  */
 
 export const PER_PLAN_RELEASE_LABELS = [
@@ -30,6 +32,12 @@ export type ShipLaneAction =
 export type ShipLaneInput = {
   auth: ShipAuth;
   outcome: "completed" | "blocked" | "partial";
+  /**
+   * False when the completed plan has no versionable product diff.
+   * That skips the release and advances. It is not `staging_not_ready`.
+   */
+  productDiff: boolean;
+  /** False when a product diff exists and did not land on staging. */
   stagingReady: boolean;
   stagingAheadOfMain: boolean;
   ci: "green" | "red" | "pending";
@@ -78,6 +86,7 @@ export function decideShipLane(input: ShipLaneInput): ShipLaneDecision {
   if (input.auth === "plans-only") return { action: "skip", reason: "plans_only" };
   if (input.previousShip === "stopped") return { action: "stop", reason: "previous_ship_not_done" };
   if (input.outcome !== "completed") return { action: "skip", reason: "plan_not_completed" };
+  if (!input.productDiff) return { action: "skip", reason: "no_product_diff" };
   if (!input.stagingReady) return { action: "stop", reason: "staging_not_ready" };
   if (!input.stagingAheadOfMain) return { action: "skip", reason: "staging_not_ahead" };
   if (input.ci === "pending") return { action: "wait-ci", reason: "ci_pending" };
@@ -125,7 +134,9 @@ export function decideAdvanceAfterShip(
 ): { advance: boolean; reason: string } {
   if (
     decision.action === "skip" &&
-    (decision.reason === "plans_only" || decision.reason === "staging_not_ahead")
+    (decision.reason === "plans_only" ||
+      decision.reason === "staging_not_ahead" ||
+      decision.reason === "no_product_diff")
   ) {
     return { advance: true, reason: decision.reason };
   }

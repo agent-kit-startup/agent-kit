@@ -348,17 +348,33 @@ This section contains the detailed prompts that should be followed when commands
 
 > ### Whenever I type `git prod` in the chat, follow exactly the routine below to promote changes from `origin/staging` to `origin/main` (production):
 
-**Claude CLI lane — known blockers, read once before running (saves retries):** this repo's private `agent-kit-dev` has a `Protect main and staging` ruleset (PR-only on both branches) *plus* the Claude Code auto-mode permission classifier blocks several of the commands below outright. Full detail and recurrence history in `.cursor/memory/errors/2026-08-14_git-prod-private-main-requires-pr.md` and `.cursor/memory/errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md`. The short version:
+**Claude CLI lane, known blockers (read once before running, saves retries):** The Claude Code auto-mode permission classifier blocks the agent running `ALLOW_MAIN_PUSH=1 git push origin main`. This repo's private `agent-kit-dev` also has a `Protect main and staging` ruleset (PR-only on both branches). Full detail and recurrence history in `.cursor/memory/errors/2026-08-14_git-prod-private-main-requires-pr.md` and `.cursor/memory/errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md`. The short version:
+
+**Classifier-blocked (any repo):**
 
 | Command | Expect it to work? |
 |---|---|
-| `ALLOW_MAIN_PUSH=1 git push origin main` (step 9) | **No.** Blocked by both the classifier and the GitHub ruleset. Don't spend a turn on it — go straight to `gh pr create --base main --head staging`. |
-| Any direct `git push origin staging` (e.g. closing the release) | **No.** Same ruleset covers `staging`. Commit on a fresh branch, PR to `staging` instead. |
-| `gh pr merge` (any repo, any PR — staging→main, feature→staging, public sync) | **No.** The classifier refuses this every time in this lane. One attempt is enough to log; treat the merge as operator-owed immediately rather than retrying. |
-| `gh pr merge` additionally erroring `head branch is not up to date with base branch` | Usually means a prior promote skipped the **mandatory** step 10 FF sync, so `main` still has a merge-commit SHA that `staging` never received. After every successful push of `main`, step 10 must FF `staging` when `origin/staging` is an ancestor of `origin/main`. Do **not** open a staging PR whose only job is to "record `origin/main` as ancestor" during this prod run. If staging is **not** an ancestor (new staging commits landed during the promote), stop and say so; a later `/git-staging` may integrate `main` as its own staging PR. When the check still blocks an otherwise clean promote, surface it; the operator may need `--admin` or a UI merge to clear a historical gap. |
-| `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
+| Agent running `ALLOW_MAIN_PUSH=1 git push origin main` (step 9) | **No.** Permission classifier blocks the agent. Do not retry. Use the Ask in step 9. The operator may run the same command. |
 
-Net effect: budget for exactly two operator-owed merges per `/git-prod` run (staging-close PR, then staging→main PR), plus a third if the public sync PR (step 12) also needs one — everything else in this routine is agent-doable.
+**Classifier refusal observed on `agent-kit-dev` and the public mirror only:**
+
+| Command | Expect it to work? |
+|---|---|
+| `gh pr merge` | **No** on those two repos. One attempt is enough to log; the merge is operator-owed. Do not predict this for every consumer repo. A consumer repo accepted `gh pr merge` on staging PRs (`agent-kit-startup/agent-kit#53`). |
+
+**Factory ruleset-blocked (`agent-kit-dev` only):**
+
+| Command | Expect it to work? |
+|---|---|
+| Direct `git push origin main` (step 9) | **No.** GitHub ruleset requires a PR. |
+| Any direct `git push origin staging` (e.g. closing the release) | **No.** Same ruleset covers `staging`. Commit on a fresh branch, PR to `staging` instead. |
+| `gh pr merge` additionally erroring `head branch is not up to date with base branch` | Usually means a prior promote skipped the **mandatory** step 10 FF sync, so `main` still has a merge-commit SHA that `staging` never received. After every successful push of `main`, step 10 must FF `staging` when `origin/staging` is an ancestor of `origin/main`. Do **not** open a staging PR whose only job is to "record `origin/main` as ancestor" during this prod run. If staging is **not** an ancestor (new staging commits landed during the promote), stop and say so; a later `/git-staging` may integrate `main` as its own staging PR. When the check still blocks an otherwise clean promote, surface it; the operator may need `--admin` or a UI merge to clear a historical gap. |
+
+**Not blocked:**
+
+| Command | Expect it to work? |
+|---|---|
+| `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
 
 **One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or stale public sync (step 12.5: public sync PR not merged, public Release Latest ≠ the tag just cut, or `sync-landing` failed) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: private `main`, the npm version, the merged public sync PR, and public GitHub Release Latest all name the same `vX.Y.Z`.
 
@@ -433,12 +449,14 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
 
 #### 9. **Publish main (PRODUCTION)**  
    - **WARNING**: This is the critical step that updates production.
-   - Run `ALLOW_MAIN_PUSH=1 git push origin main` to send changes to production (the local `pre-push` hook and the agent Shell `guard shell` both block bare pushes to `main`; this env gate is the authorized `/git-prod` path — see `git-hooks/README.md`).
-   - Agent Shell: use the same inline form. CLI SoT (`agent-kit guard shell`) honors `ALLOW_MAIN_PUSH=1` before stripping env prefixes; bare `git push origin main` stays denied.
-   - **IMPORTANT**: Avoid setting `ALLOW_MAIN_PUSH=1` as a persistent session environment variable (e.g., `export ALLOW_MAIN_PUSH=1` in terminal or IDE). This disables main-push protection for all subsequent agent Shell commands until unset. Use the inline prefix form `ALLOW_MAIN_PUSH=1 git push origin main` for authorized single commands only.
-   - If push fails (e.g., protected branch), inform user and provide alternative instructions.
-   - **NEVER** force push (`--force` or `--force-with-lease`) without explicit user authorization.
-   - Prefer `ALLOW_MAIN_PUSH=1` over `--no-verify` so other hooks still run.
+   - **Claude Code lane (or a recorded classifier denial of this push):** Do not run `ALLOW_MAIN_PUSH=1 git push origin main`. After local main preparation (merge `--no-ff`, signature scan green), Ask with these exact labels:
+     - `I pushed main`
+     - `Open staging→main PR instead`
+     - `Cancel`
+   - **On `I pushed main`:** The operator already pushed. Verify `origin/main` advanced, then continue with the annotated tag (step 9.5), staging sync (step 10), and the report. Do not run the push.
+   - **On `Open staging→main PR instead`:** While on local `main`, run `git reset --hard origin/main`, then `gh pr create --base main --head staging`. Prefer a merge commit. Wait for the operator to merge the PR.
+   - **On `Cancel`:** Stop. Do not tag, push, or open a PR.
+   - **Other lanes:** Run `ALLOW_MAIN_PUSH=1 git push origin main` to send changes to production (the local `pre-push` hook and the agent Shell `guard shell` both block bare pushes to `main`; this env gate is the authorized `/git-prod` path, see `git-hooks/README.md`). Agent Shell: use the same inline form. CLI SoT (`agent-kit guard shell`) honors `ALLOW_MAIN_PUSH=1` before stripping env prefixes; bare `git push origin main` stays denied. **IMPORTANT**: Avoid setting `ALLOW_MAIN_PUSH=1` as a persistent session environment variable. Use the inline prefix form for authorized single commands only. **NEVER** force push without explicit user authorization. Prefer `ALLOW_MAIN_PUSH=1` over `--no-verify` so other hooks still run. Then continue with the annotated tag (step 9.5).
 
 #### 9.5. **Create and push annotated tag (when absent)**  
    - Check if tag exists for current version: `git tag -l "v<version>"` where `<version>` matches `package.json`.

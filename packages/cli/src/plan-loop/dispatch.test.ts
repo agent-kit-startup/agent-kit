@@ -4,7 +4,11 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { claudeHeadlessArgs, resetClaudeVersionCache } from "./backends.js";
+import {
+  claudeHeadlessArgs,
+  cursorAgentHeadlessArgs,
+  resetClaudeVersionCache,
+} from "./backends.js";
 import {
   RUN_CATALOG,
   RUN_PROMOTE_BLOCKED,
@@ -19,6 +23,7 @@ import {
   runHeadlessDispatch,
   unknownSlashMessage,
 } from "./dispatch.js";
+import { RESERVED_GATE_IDS } from "./hitl-relay.js";
 
 type SpawnFn = typeof spawn;
 
@@ -77,6 +82,7 @@ describe("slash catalog", () => {
     expect(classifySlash("/kit-prod.md")).toBe("promote-blocked");
     expect(classifySlash("hotfix")).toBe("unknown");
     expect(RUN_CATALOG).not.toContain("git-prod");
+    expect(RUN_PROMOTE_BLOCKED).toBe(RESERVED_GATE_IDS);
     expect(RUN_PROMOTE_BLOCKED).toEqual(["git-prod", "kit-prod"]);
   });
 
@@ -143,6 +149,13 @@ describe("dispatch prompt and spawn args", () => {
       prompt: "do work",
       model: "sonnet",
     });
+    expect(args).toEqual(
+      cursorAgentHeadlessArgs({
+        workspace: "/repo",
+        prompt: "do work",
+        model: "sonnet",
+      }),
+    );
     expect(args).toEqual([
       "-p",
       "--force",

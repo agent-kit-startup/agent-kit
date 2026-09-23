@@ -209,7 +209,7 @@ The orchestrator **must not** implement to-dos, edit product code, run tests, wr
 
    Missing or malformed summary: **Ask the user** before advancing the cursor. Do not invent an outcome.
 5. **Record the outcome**  -  write HANDOFF `Queue outcomes` (plan basename, `outcome`, `lastTodoId`, optional notes from `failures`).
-6. **Ship lane, then advance**  -  when outcome is `completed`, run the [ship lane](#ship-lane-after-each-completed-plan) before incrementing `Queue cursor`. Advance only on a benign skip or a Done ship. Then repeat from step 1 until a stop condition.
+6. **Ship lane, then advance**  -  when outcome is `completed`, run the [ship lane](#ship-lane-after-each-completed-plan) before incrementing `Queue cursor`. Advance only on a benign skip (`plans_only`, `staging_not_ahead`, `no_product_diff`) or a Done ship. Then repeat from step 1 until a stop condition.
 
 ### Ship lane (after each completed plan)
 
@@ -218,6 +218,8 @@ Main window only, after a valid `completed` summary, before the next plan Task. 
 | State | Action |
 | --- | --- |
 | `plans-only`, outcome not `completed`, or `staging` not ahead of `main` | Skip. `plans-only` suggests `/git-prod` only at queue end. |
+| Completed plan, no versionable product diff (`Staging ready: no-diff`, or `no` with an empty product diff) | Skip (`no_product_diff`). Advance the cursor. Do not cut a tag. Commits already on `staging` stay for the next plan that has a diff. |
+| `Staging ready: no` and a product diff exists | Stop (`staging_not_ready`). Do not start the next plan. |
 | Previous ship in this queue is not Done | Stop. Do not start the next plan. |
 | Staging CI pending | Wait for that SHA. |
 | Staging CI red, no fix yet | One Task fixes that CI and runs `/git-staging`. Not an in-window product edit. |
@@ -280,6 +282,8 @@ Rules:
 - Prefer orchestrated /run-plan strategy inside this Task when Task nesting is available; otherwise in-session loop for this plan only.
 - Update plan frontmatter todo statuses and HANDOFF for this plan as you go.
 - Before "Staging ready: yes": run repository-appropriate formatter/linter on touched files.
+- `Staging ready: no-diff` when the plan completed and there is no versionable product diff. The parent skips the release and advances.
+- `Staging ready: no` only when a product diff exists and did not land on staging. The parent stops the queue.
 
 Return ONLY a structured summary (no diff/log dump):
 ## Worker summary
@@ -287,7 +291,7 @@ Return ONLY a structured summary (no diff/log dump):
 - lastTodoId: <id>
 - filesTouched: [<paths>]
 - failures: [<optional short notes>]
-- Staging ready: yes|no
+- Staging ready: yes | no | no-diff
 - Notes: <1-2 sentences>
 ```
 
