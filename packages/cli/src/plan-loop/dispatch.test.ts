@@ -77,11 +77,12 @@ describe("slash catalog", () => {
     expect(classifySlash("run-plan")).toBe("run-plan");
     expect(classifySlash("/run-plan-all")).toBe("catalog");
     expect(classifySlash("git-staging")).toBe("catalog");
-    expect(classifySlash("kit-staging")).toBe("catalog");
+    expect(classifySlash("kit-staging")).toBe("unknown");
     expect(classifySlash("git-prod")).toBe("promote-blocked");
     expect(classifySlash("/kit-prod.md")).toBe("promote-blocked");
     expect(classifySlash("hotfix")).toBe("unknown");
     expect(RUN_CATALOG).not.toContain("git-prod");
+    expect(RUN_CATALOG).not.toContain("kit-staging");
     expect(RUN_PROMOTE_BLOCKED).toBe(RESERVED_GATE_IDS);
     expect(RUN_PROMOTE_BLOCKED).toEqual(["git-prod", "kit-prod"]);
   });

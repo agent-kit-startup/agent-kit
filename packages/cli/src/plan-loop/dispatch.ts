@@ -35,7 +35,6 @@ export const RUN_CATALOG = [
   "backlog-delete",
   "backlog-cancel",
   "git-staging",
-  "kit-staging",
 ] as const;
 
 export type RunCatalogSlash = (typeof RUN_CATALOG)[number];

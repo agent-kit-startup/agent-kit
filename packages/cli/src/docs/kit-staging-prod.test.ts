@@ -19,6 +19,13 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
     expect(existsSync(resolve(repoRoot, ".cursor/commands/kit-prod.md"))).toBe(true);
   });
 
+  it("excludes kit-staging and kit-prod from public-sync.manifest", () => {
+    const manifest = readRel("scripts/public-sync.manifest");
+    expect(manifest).toMatch(/^!\.cursor\/commands\/kit-staging\.md$/m);
+    expect(manifest).toMatch(/^!\.cursor\/commands\/kit-prod\.md$/m);
+    expect(manifest).toMatch(/^!\.cursor\/commands\/public-issue-triage\.md$/m);
+  });
+
   it("keeps native git-staging and git-prod git-only (no landing deploy)", () => {
     for (const rel of [".cursor/commands/git-staging.md", ".cursor/commands/git-prod.md"]) {
       const body = readRel(rel);
