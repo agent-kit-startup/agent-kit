@@ -232,24 +232,24 @@ describe("size-budgets: large procedure page (target ceiling: 400 lines / 49152 
   }
 });
 
-describe("size-budgets: alwaysApply rule (current-state ceiling; Phase 0 target is 100 lines / 4096 B / 500 chars, owned by Phase 3)", () => {
-  // Per-file ceiling: generous enough that every current rule passes, tight
-  // enough to catch unbounded growth (matches the consumer-L0-command
-  // budget as a convenient, already-justified round number).
+describe("size-budgets: alwaysApply rule (per-file target 100 lines / 4096 B / 500 chars; aggregate toward 32 KiB)", () => {
+  // Per-file: session-starter Phase 1 closed the named 4 KiB leftovers
+  // (git-workflow, docs-professional). plan-handoff and context-guardian
+  // remain over 4 KiB (lazy-layers Phase 3 folds already applied); they
+  // still pass this current-state ceiling until a later shrink.
   const MAX_LINES = 150;
   const MAX_BYTES = 8192;
-  // Phase 3 folded cursor-plan-handoff.mdc and context-guardian.mdc's
-  // HARD_RULES-duplicate paragraphs into short pointers, which also fixed
-  // their longest-line overage (894 / 503 -> 472 / 460); every alwaysApply
-  // rule now meets the real 500-char target.
   const MAX_LONGEST_LINE = 500;
-  // Aggregate ceiling: current measured total (36,880 B, down from the
-  // Phase 0 baseline 38,968 B after Phase 3's fold) plus headroom. This is
-  // the check that actually matters -- the remaining shrink is still
-  // Phase 3/future work, and any tick that silently regrows the total
-  // (the #901 failure mode) fails here even if every file still passes its
-  // own ceiling.
-  const MAX_AGGREGATE_BYTES = 40000;
+  /** Named leftovers this plan claimed under 4 KiB. */
+  const MUST_BE_UNDER_4KIB = new Set([
+    ".cursor/rules/cursor-skills-git-workflow.mdc",
+    ".cursor/rules/docs-professional-standard.mdc",
+  ]);
+  // Aggregate ceiling: session-starter Phase 1 brought measured total to
+  // ~34,925 B (git-workflow + docs-professional under 4 KiB). Pin under
+  // 36 KiB toward the ADR 32 KiB class target without claiming that target
+  // is closed (plan-handoff + context-guardian remain over 4 KiB).
+  const MAX_AGGREGATE_BYTES = 36000;
 
   const ruleFiles = L0_ARTIFACTS.map((a) => a.target).filter((t) => t.startsWith(".cursor/rules/"));
   const alwaysApplyFiles = ruleFiles.filter(isAlwaysApply);
@@ -264,6 +264,14 @@ describe("size-budgets: alwaysApply rule (current-state ceiling; Phase 0 target 
       expect(m.lines, `${target} lines`).toBeLessThanOrEqual(MAX_LINES);
       expect(m.bytes, `${target} bytes`).toBeLessThanOrEqual(MAX_BYTES);
       expect(m.longestLine, `${target} longest line`).toBeLessThanOrEqual(MAX_LONGEST_LINE);
+    });
+  }
+
+  for (const target of MUST_BE_UNDER_4KIB) {
+    it(`${target} meets the 4 KiB alwaysApply target`, () => {
+      expect(alwaysApplyFiles).toContain(target);
+      const m = measureFile(target);
+      expect(m.bytes, `${target} bytes`).toBeLessThanOrEqual(4096);
     });
   }
 

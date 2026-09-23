@@ -11,7 +11,7 @@ Persist **resolved errors** and **tradeoff decisions** in `.cursor/memory/` so t
 
 ## Flow
 
-1. **CHECK** - before investigating a serious error or proposing a relevant architectural decision, search `.cursor/memory/errors/` and `.cursor/memory/decisions/` (glob, grep on titles, symptoms). Also glob theme-matched `.cursor/memory/plan-monitor-*.md` and `plan-review-*.md` (and `_index.md` Audits) before deep re-investigation of a theme already reviewed externally (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`).
+1. **CHECK** - before a serious error diagnosis or architectural decision, search `.cursor/memory/errors/` and `.cursor/memory/decisions/` (glob, grep on titles, symptoms). Also glob theme-matched `plan-monitor-*.md` / `plan-review-*.md` before re-investigating an externally reviewed theme (ADR `2026-07-27_plan-monitor-consumer-awareness.md`). Prefer glob/grep over reading the full `_index.md` (ADR `2026-09-23_memory-index-changelog-growth-contracts.md`).
 2. **ACT** - if a matching entry exists, **reuse** the solution or align with the documented decision; otherwise, solve it normally.
 3. **WRITE** - after closing the case, if it meets the criteria below, create a new file and **update** `.cursor/memory/_index.md`.
 

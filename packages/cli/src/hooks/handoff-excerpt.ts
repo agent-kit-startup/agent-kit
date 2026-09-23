@@ -1,31 +1,27 @@
 /**
  * HANDOFF excerpt for the sessionStart hook: a line cap plus a byte budget.
  *
- * The excerpt used to be the first 60 lines verbatim. HANDOFF bullets grow to
- * several thousand characters each, so 60 lines reached 61 KB on the factory
- * checkout and 38 KB on a consumer (measured 2026-09-20), and every headless
- * turn re-read that prefix from the prompt cache. The budget keeps the
- * machine fields Mission Control and the plan index parse (`- **Plan:**`,
- * `Backlog plans`, `Run queue`, ...) whole, including their indented
- * continuation lines, and spends the rest on prose bullets: each prose line
- * gets an equal share (water-filled, so short lines donate their slack), is
- * cut at a code-point boundary with a visible marker, and only when the
- * per-line floor still does not fit are prose lines dropped last-first.
- * Headings and blank lines are structural and always kept.
+ * Machine fields (Plan, Run queue, Queue cursor, …) are selected from the
+ * **whole** file first, then the remaining line budget is filled from the
+ * top. That closes the lazy-layers Phase 4 carve-out where queue fields past
+ * line 60 were dropped by `slice(0, 60)` before the byte budget ran.
+ *
+ * Within the selected lines, machine fields stay whole under the byte cap:
+ * prose is water-filled, truncated at a code-point boundary with a visible
+ * marker, and dropped last-first only when the per-line floor still does not
+ * fit. Headings and blank lines are structural.
  *
  * Both hook formats (`--format cursor` JSON and `--format claude` plain
  * text) wrap the same excerpt, so the cap applies to both.
  */
 
-/** Outer bound, unchanged from the original excerpt. */
+/** Outer bound on selected lines (not "first N lines of the file"). */
 export const HANDOFF_EXCERPT_MAX_LINES = 60;
 
 /**
  * 12 KiB. Measured on the factory HANDOFF (60 lines, 61,401 B, 44 prose
- * lines) and on the consumer HANDOFF from the recorded run (60 lines,
- * 38,046 B, one 7,576-char line): 12 KiB keeps every line present with
- * about 200 bytes per prose line; 8 KiB would already drop lines on the
- * factory file because the floor below does not fit.
+ * lines) and on a consumer HANDOFF (60 lines, 38,046 B): 12 KiB keeps every
+ * selected line present with about 200 bytes per prose line.
  */
 export const HANDOFF_EXCERPT_MAX_BYTES = 12 * 1024;
 
@@ -47,6 +43,7 @@ export const HANDOFF_MACHINE_FIELDS: ReadonlySet<string> = new Set([
   "Run queue",
   "Queue cursor",
   "Queue status",
+  "Queue outcomes",
 ]);
 
 export interface HandoffExcerptOptions {
@@ -58,7 +55,7 @@ export interface HandoffExcerptOptions {
 export interface HandoffExcerptResult {
   text: string;
   bytes: number;
-  /** Lines of the source file considered (after the line cap). */
+  /** Lines selected into the excerpt (after field-priority + line cap). */
   lines: number;
   truncatedLines: number;
   droppedLines: number;
@@ -96,6 +93,47 @@ function classify(lines: string[]): Entry[] {
     entries.push({ text, kind, bytes: byteLength(text) });
   }
   return entries;
+}
+
+/**
+ * Field-priority line selection: keep every machine bullet (and its indented
+ * continuations) from the full file, then fill remaining slots from the top.
+ * Preserves relative order of selected lines.
+ */
+function selectByFieldPriority(entries: Entry[], maxLines: number): Entry[] {
+  if (entries.length <= maxLines) return entries;
+
+  const mustKeep = new Set<number>();
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (!e) continue;
+    if (e.kind === "machine") mustKeep.add(i);
+  }
+
+  // Prefer the document title when present.
+  if (entries[0] && /^#\s/.test(entries[0].text)) mustKeep.add(0);
+
+  const selected = new Set<number>(mustKeep);
+  for (let i = 0; i < entries.length && selected.size < maxLines; i++) {
+    selected.add(i);
+  }
+
+  // If machine fields alone exceed the line cap, keep earliest machine/title
+  // indices so the excerpt stays bounded (byte cap still applies).
+  if (mustKeep.size > maxLines) {
+    const ordered = [...mustKeep].sort((a, b) => a - b).slice(0, maxLines);
+    return ordered.flatMap((i) => {
+      const e = entries[i];
+      return e ? [e] : [];
+    });
+  }
+
+  return [...selected]
+    .sort((a, b) => a - b)
+    .flatMap((i) => {
+      const e = entries[i];
+      return e ? [e] : [];
+    });
 }
 
 /** Cut at a code-point boundary so multibyte prose never corrupts. */
@@ -153,8 +191,8 @@ export function capHandoffExcerpt(
   const maxBytes = options.maxBytes ?? HANDOFF_EXCERPT_MAX_BYTES;
   const floor = options.proseLineMinBytes ?? HANDOFF_PROSE_LINE_MIN_BYTES;
 
-  const lines = content.split(/\r?\n/).slice(0, maxLines);
-  const entries = classify(lines);
+  const allEntries = classify(content.split(/\r?\n/));
+  const entries = selectByFieldPriority(allEntries, maxLines);
   const join = (items: Entry[]) =>
     items
       .map((e) => e.text)
@@ -167,7 +205,7 @@ export function capHandoffExcerpt(
     return {
       text: untouched,
       bytes: untouchedBytes,
-      lines: lines.length,
+      lines: entries.length,
       truncatedLines: 0,
       droppedLines: 0,
     };
@@ -207,9 +245,9 @@ export function capHandoffExcerpt(
     const remaining = shaped.filter((_, i) => keep.has(i));
     remaining.push({ text: droppedMarker(droppedLines), kind: "structural", bytes: 0 });
     const text = join(remaining);
-    return { text, bytes: byteLength(text), lines: lines.length, truncatedLines, droppedLines };
+    return { text, bytes: byteLength(text), lines: entries.length, truncatedLines, droppedLines };
   }
 
   const text = join(shaped);
-  return { text, bytes: byteLength(text), lines: lines.length, truncatedLines, droppedLines };
+  return { text, bytes: byteLength(text), lines: entries.length, truncatedLines, droppedLines };
 }
