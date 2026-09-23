@@ -362,6 +362,8 @@ Net effect: budget for exactly two operator-owed merges per `/git-prod` run (sta
 
 **One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or stale public sync (step 12.5: public sync PR not merged, public Release Latest ≠ the tag just cut, or `sync-landing` failed) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: private `main`, the npm version, the merged public sync PR, and public GitHub Release Latest all name the same `vX.Y.Z`.
 
+**`/run-plan-all` ship lane:** when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip the confirm Ask in this prompt. That queue confirm is the yes for this plan's one ship. A red step 12.5 still stops the queue. Do not cut another tag, and do not start the next queued plan, until this ship is Done.
+
 #### 1. **CRITICAL Security Validation**  
    - Run `git status -sb` to check modified, staged files and current branch.
    - **CRITICAL BLOCK**: 

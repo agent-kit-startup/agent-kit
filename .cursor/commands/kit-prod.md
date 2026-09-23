@@ -15,6 +15,8 @@ Follow the **Prompt: git prod** section in `autogit/gitupdate.md` and `.cursor/c
 
 Before merge or push to `main`, Ask questions with the **same** git-prod labels. Do not rename them, skip them, or fold landing into this Ask.
 
+**`/run-plan-all` exception:** when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip this Ask. The queue confirm is the yes for this one ship. A red public sync still stops the queue. When the Ask does run, do not rename its labels.
+
 Options: `Proceed with production deploy` / `Review changes first` / `Cancel`
 
 **Fallback (path 1):** if Ask questions is missing, say so once, print the same labels as one numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Wait.

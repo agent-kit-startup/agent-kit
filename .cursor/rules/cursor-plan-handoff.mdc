@@ -27,6 +27,7 @@ When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan
    - Instruction for the next agent (1-3 sentences)
    - **Manual mode:** if the phase produced commitable code, **suggest** `/git-staging` (do not run without being asked). Production only via `/git-prod`.
  - **Continuous mode** (`/run-plan`): run `/git-staging` at the end of the tick if there is a diff; update to-do status in the plan every tick; **never** `/git-prod`. In the orchestrated strategy the main window does not implement: it dispatches a Task/worker, reviews the summary, writes the HANDOFF, and stages. No Task: in-session loop strategy.
+ - **Queue mode** (`/run-plan-all`): one release per completed plan when Ship auth is `per-plan-release`. `Run plans only` does not promote. A red public sync stops the queue.
 
 3. **If context is getting full** before the phase is done (manual mode):
    - Update `.cursor/HANDOFF.md` with the current state (phase, last completed to-do, next to-do, clear instruction).

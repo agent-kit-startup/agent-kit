@@ -119,7 +119,7 @@ The minimum structural set every install ships with:
 | `backlog-cancel.md` | Soft-cancel open to-dos; keep file under `.cursor/plans/` |
 | `continue-plan.md` | Resume from HANDOFF (manual mode: one phase per chat) |
 | `run-plan.md` | Continuous mode; auto strategy (orchestrated workers / in-session loop / headless); staging per tick |
-| `run-plan-all.md` | `/run-plan-all` multi-plan queue: pure orchestrator dispatches one Task subagent per plan (each runs the `/run-plan` tick contract); never implements in-window |
+| `run-plan-all.md` | `/run-plan-all` multi-plan queue: pure orchestrator dispatches one Task per plan; one release per completed plan when Ship auth is `per-plan-release` |
 | `run-plan-loop.md` / `run-plan-orchestrated.md` | Deprecated aliases of `run-plan.md` (forced strategy) |
 | `handoff.md` | Persist state |
 | `summary.md` / `context-status.md` | Orientation |
