@@ -40,7 +40,7 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 2. **`git prod`** - `staging` → `main` on **private**; push `origin main`; create/push annotated vX.Y.Z tag when absent.
 3. **Automatic triggers** - Annotated `v*` tags on the **private** repo (`agent-kit-startup/agent-kit-dev`) trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs. The same workflow file is mirrored to the public storefront; those two jobs run only on the private-origin allowlist (`github.repository == 'agent-kit-startup/agent-kit-dev'`), so public tag CI does not fail on missing private-only secrets. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from the URL). When that URL var is unset, `PUBLIC_REPO_SLUG` may override the `gh --repo` slug; when both are set, URL wins (stderr warning). The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither overrides that job-level `if`.
 4. **Public sync PR** - Creates semantic PR body (Summary + public CHANGELOG excerpt + source SHA) against public `main`. The copied `CHANGELOG.md` and GitHub Release notes are the stripped public excerpt, not the private-full developer log.
-5. **Auto-merge** - PRs auto-merge after required checks pass (`gh pr merge --auto`). Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
+5. **Squash merge** - After public `build` is green, the job squash-merges. Protect main still requires one review and has auto-merge off, so a plain squash is retried with the Admin bypass. The job fails if public `main` did not move. Set `PUBLIC_SYNC_AUTO_MERGE=false` to leave the PR for a manual squash.
 6. **Public GitHub Release** - After the sync PR merges, sync creates/updates a public GitHub Release `vX.Y.Z` (public excerpt notes; Latest badge). Opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`. Git tags alone do not move the Releases sidebar. Landing product notes are a separate short blurb (`node scripts/public-changelog.mjs --version X.Y.Z --blurb` into `pnpm landing:update-release`), not a `## [x.y.z]` dump.
 7. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
 
@@ -49,7 +49,7 @@ Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, tag and m
 ### Public launch checklist
 
 1. Ensure the public repository is empty (no initial README if you want history only from first sync).
-2. Create a fine-grained token limited to the public repository, with `Contents: write`, `Pull requests: write` and `Workflows: write`; save as `PUBLIC_REPO_TOKEN`.
+2. Create a fine-grained token limited to the public repository, with `Contents: write`, `Pull requests: write`, `Workflows: write`, and `Administration: write` (the Protect main admin bypass). Save it as `PUBLIC_REPO_TOKEN` on the private repo only.
 3. Optional: `git remote add public https://github.com/agent-kit-startup/agent-kit.git` in the clone for local tests.
 4. Run sync: `v*` tag or *workflow_dispatch* per the workflow.
 5. README, license, and PR policy on the **public** repository (external issues/PRs; sensitive patches only on private).

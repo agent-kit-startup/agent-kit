@@ -6,7 +6,7 @@ Checklist before promoting or advertising the public mirror ([agent-kit-startup/
 
 | Mode | Behavior | When |
 |------|----------|------|
-| **append-only PR** (default) | Clone `main` → replace allowlisted tree → push semantic head (`sync/vX.Y.Z-<shortsha>`) → open or update PR; close superseded `sync/*` PRs | Normal sync; compatible with protected `main`, community PRs, and watches |
+| **append-only PR** (default) | Clone `main` → replace allowlisted tree → push semantic head (`sync/vX.Y.Z-<shortsha>`) → open or update PR; squash-merge after public `build` is green; close superseded `sync/*` PRs | Normal sync; compatible with protected `main`, community PRs, and watches |
 | **direct** | Clone public → replace allowlisted tree → push directly to `main` | Migration only, before branch protection (`--direct`) |
 | **force-snapshot** | `git init` + force-push | Escape hatch only (`--force-snapshot`) |
 
@@ -92,9 +92,9 @@ After `git prod` on the private repo, the pipeline automatically:
 
 1. **Creates annotated vX.Y.Z tag** (triggers npm publish + sync-public jobs on **private** `agent-kit-dev`)
 2. **Opens sync PR** with semantic body: Summary + public CHANGELOG excerpt (private fences stripped) + source SHA
-3. **Auto-merges PR** after required checks pass (`gh pr merge --auto`)
+3. **Squash-merges the PR** after public `build` is green (`gh pr merge --squash`, then `--admin` when Protect main still requires a review)
 
-Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to require manual merge.
+Opt-out: Set `PUBLIC_SYNC_AUTO_MERGE=false` to leave the PR for a manual squash. The default job fails if the merge does not land.
 
 **Public storefront tag CI:** Path C mirrors `.github/workflows/ci.yml` to `agent-kit-startup/agent-kit`. Private-origin jobs (`sync-public`, `publish-npm`) and private-only build steps run only when `github.repository == 'agent-kit-startup/agent-kit-dev'` (allowlist). On the public slug (and any other repo), those jobs/steps are **skipped**. Only the shared `build` work should run on the storefront. Do **not** add `PUBLIC_REPO_TOKEN` or `NPM_TOKEN` to the public repo; those secrets stay on private. Private tag/manual sync still fails loud when `PUBLIC_REPO_TOKEN` is unset. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from that URL in `scripts/sync-public.mjs`). When `PUBLIC_REPO_URL` is unset, `PUBLIC_REPO_SLUG` may set `owner/repo` for `gh` calls; when both are set, the URL-derived slug wins and the script warns on stderr. The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither variable overrides the job-level allowlist `if`.
 
