@@ -6,67 +6,51 @@ globs:
 
 # Git - Staging to production flow (DevOps spine)
 
-Reference: [autogit/gitupdate.md](autogit/gitupdate.md) (when it exists in the project).
+Reference: [autogit/gitupdate.md](autogit/gitupdate.md). Session hard rule point 5 states the short spine (`HARD_RULES`); this rule adds kit naming and pointers. Full routines live in `autogit/gitupdate.md`.
 
-Agent Kit treats this flow as the agents' **operational memory**: plan -> handoff -> staging -> prod -> memory. Without a structured promote step, handoffs go stale and the agent loses track of what has already shipped.
+Agent Kit treats this flow as **operational memory**: plan -> handoff -> staging -> prod -> memory. Without a structured promote, handoffs go stale.
 
 ## Commands
 
-| Command | Slash | Destination (in this repo) | Use |
-|---------|-------|------------------------------|-----|
-| `git staging` | `/git-staging` | `origin/staging` | Bring local changes to staging (working branch, commit, MR, merge). |
-| `git prod` | `/git-prod` | `origin/main` | Promote approved staging to production. |
+| Command | Slash | Destination | Use |
+|---------|-------|-------------|-----|
+| `git staging` | `/git-staging` | `origin/staging` | Working branch, commit, MR, merge to staging |
+| `git prod` | `/git-prod` | `origin/main` | Promote approved staging to production |
 
-Factory landing wrap (not consumer L0): `/kit-staging` / `/kit-prod` when those files exist. Consumers use `/git-staging` / `/git-prod`.
-
-Legacy projects may name the pre-prod branch `homologacao`, `develop`, etc.; the **two-step pattern** stays the same and the canonical name is `staging`. See the decision in `.cursor/memory/decisions/` (branch naming).
+Factory wrap (not consumer L0): `/kit-staging` / `/kit-prod` when present. Consumers use `/git-staging` / `/git-prod`. Legacy pre-prod names (`homologacao`, `develop`) keep the two-step pattern; canonical name is `staging`.
 
 ## Critical rule
 
-- **NEVER** commit directly to `main`, nor push to `origin/main` without going through `origin/staging`.
-- When committing on the user's behalf: use **`git staging`** (do not commit to `main`).
-- Promotion to production only via **`git prod`**, after approval in staging.
+- **NEVER** commit or push directly to `main` / `origin/main`. Always via `origin/staging`.
+- Commits: **`git staging`**. Production: only **`git prod`** after staging approval.
+- Never work on `main`. After `git prod`, switch back to `staging`.
+- Install `pre-commit` / `pre-push` guards from [git-hooks/](../../git-hooks/) that abort commit/push to `main`/`master`.
+- `git log --first-parent --no-merges main` should only list the root commit.
+- Prune migrated legacy pre-prod branches locally and on remotes.
 
 ## Flow + memory
 
 ```
 Plan (.cursor/plans/) -> work -> /handoff
-    -> git staging -> origin/staging
-    -> (approval) -> git prod -> origin/main
-    -> memory-loop WRITE if it applies
+  -> git staging -> origin/staging
+  -> (approval) -> git prod -> origin/main
+  -> memory-loop WRITE if it applies
 ```
 
-After staging or prod: update `.cursor/HANDOFF.md`. If the promote closed an incident or a tradeoff decision, record it in `.cursor/memory/` (memory-loop rule).
-
-## Validations
-
-- BLOCKED: commit to `main`, push directly to `origin/main`, merging a local branch directly into `main`.
-- ALLOWED: commits on a working branch; push to `staging`; promotion `staging` -> `main` via `git prod`.
-
-## Staging-first and enforcement
-
-The "never commit to `main`" rule only works if the checkout is not on `main` while working.
-
-- **Never work on `main`.** Commits happen on a working branch or on `staging`. `git prod` leaves the checkout on `main`; when done, switch back with `git checkout staging`.
-- **Hook guards.** Install the `pre-commit` and `pre-push` hooks from [git-hooks/](../../git-hooks/) that abort a commit/push directly to `main`/`master`. This makes the block enforced, not just a convention.
-- **Audit the `main` line.** `git log --first-parent --no-merges main` should only list the root commit. Any other non-merge commit on that line was born directly on `main`.
-- **Prune legacy branches.** A pre-prod branch (`homologacao`, `develop`) already migrated to `staging` should be deleted, locally and on remotes, so it does not confuse the flow.
+After staging or prod: update `.cursor/HANDOFF.md`. Closed incidents/decisions: write `.cursor/memory/` (memory-loop).
 
 ## Conventional Commits
 
-Use prefixes: `feat:`, `fix:`, `docs:`, `docs(memory):`, `refactor:`, `chore:`, `chore(kit):`, `test:`, `style:`, `perf:`. Soft kit paths (plan-monitors, `_index.md` Audits rows, versioned HANDOFF) ship as `docs(memory):` / `chore(kit):` when they are not the product theme.
+Prefixes: `feat:`, `fix:`, `docs:`, `docs(memory):`, `refactor:`, `chore:`, `chore(kit):`, `test:`, `style:`, `perf:`. Soft kit paths (monitors, `_index` Audits, versioned HANDOFF) ship as `docs(memory):` / `chore(kit):` when not the product theme.
 
 ## When the user says
 
-- **`git staging`** - Full routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git staging" section): inventory the dirty tree, theme-bucket, CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, commit, push, MR, merge, cleanup; then HANDOFF. SoT for inventory → bucket → ship.
-  Warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only (never broad `git add` of `.cursor/memory/` WIP into a product commit). Remaining safe kit dirt ships in a `docs(memory):` / `chore(kit):` bucket in the same run; do not stop-and-quiz because a path looks out of flow.
-- **`git prod`** - Routine in [autogit/gitupdate.md](autogit/gitupdate.md) ("Prompt: git prod" section): validation, close the release in the CHANGELOG, summary, **explicit confirmation** (**one confirm, one ship**), merge to main, push, **mandatory** FF sync of staging when it is an ancestor of main, then HANDOFF (+ public sync in this monorepo if applicable).
-  A red or stale public sync (including a red `sync-landing`) is a STOP, not another patch under the same yes.
-  Done means private `main`, npm, the merged public sync PR, and public Release Latest name the same tag.
-  Advisory mention of Blocking untriaged monitors matching the delta is allowed; never steal the confirmation Ask.
+- **`git staging`** / **`git prod`**: run the matching section in [autogit/gitupdate.md](autogit/gitupdate.md) end-to-end (SoT). Do not invent a parallel routine.
+  Staging: warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only; remaining safe kit dirt ships in a `docs(memory):` / `chore(kit):` bucket in the same run.
+  Prod: **one confirm, one ship**. Red/stale public sync is a STOP. Done means private `main`, npm, merged public sync PR, and public Release Latest name the same tag. Never steal the confirmation Ask.
 
-## Quick troubleshooting
+## Troubleshooting
 
-- "Direct commits to main are blocked" -> use `git staging`.
-- `staging` branch does not exist -> `git checkout -b staging` and `git push -u origin staging`.
-- Legacy repo with `homologacao` -> same command; migrate to `staging` when possible (see gitupdate.md, Naming section).
+- Direct commits to main blocked -> `git staging`.
+- No `staging` branch -> `git checkout -b staging` and `git push -u origin staging`.
+- Legacy `homologacao` -> same command; migrate to `staging` when possible (gitupdate Naming).

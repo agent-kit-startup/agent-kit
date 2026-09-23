@@ -5,61 +5,54 @@ alwaysApply: true
 
 # Documentation: professional, inheritable standard
 
-Documentation **belongs to the project**, not to the conversation, the person, or the moment. Whoever inherits the repo a year from now should understand the system without knowing who wrote it or what happened in the chat.
+Documentation **belongs to the project**, not the conversation or the moment. A maintainer a year from now should understand the system without chat access.
 
 ## Scope
 
 Applies to: README, `docs/`, ADRs, runbooks, `CHANGELOG`, public API comments, setup guides, `install.md`, skills/rules versioned as product, and any markdown **meant to live in Git** as a project reference.
 
-**Does not** apply to chat tone (see `ux-tone`). HANDOFF and active plans are session state; still no gossip/meta-language (`agent-output-hygiene`). When promoting plan/HANDOFF content into `docs/`, **rewrite** it to the standard below.
+Does **not** apply to chat tone (`ux-tone`). HANDOFF and active plans are session state; still no gossip/meta-language (`agent-output-hygiene`). When promoting plan/HANDOFF content into `docs/`, **rewrite** to this standard.
 
-## Indicative docs; delivery truth (read-time law)
+## Indicative docs; delivery truth (read-time)
 
 README, HANDOFF, inventories, claim matrices, and monitor prose are **indicative**. They orient; they are never sole proof of runtime, release, or "work done."
 
-When a claim matters (install path, shipped version, completed to-do, public behavior), verify against **code, tests, APIs, infra, Git SHAs, and published artifacts** before trusting the prose. Prefer those sources when they conflict with docs.
+When a claim matters (install path, shipped version, completed to-do, public behavior), verify against **code, tests, APIs, infra, Git SHAs, and published artifacts**. Prefer those when they conflict with docs.
 
-**Review / acceptance priority** (highest first):
+**Review / acceptance priority** (highest first): (1) delivery truth, (2) security, (3) logic gaps, (4) bad code/practices with path-level evidence.
 
-1. **Delivery truth** - was the claimed work actually done? Does the statement match reality?
-2. **Security** - breaches, unsafe defaults, secret handling
-3. **Logic gaps** - broken flows, missing edge cases, false acceptance
-4. **Bad code / practices** - maintainability defects with path-level evidence
-
-Write-time **Verifiable** (below) is the authoring half of the same contract. This section is the read-time half: do not treat pretty docs or empty "looks good" reviews as proof. Evidence: `errors/2026-07-30_docs-claimed-path-c-unpublished-after-ship.md`; ADR `decisions/2026-08-01_docs-indicative-delivery-truth.md`.
+Write-time **Verifiable** (below) is the authoring half. Evidence: `errors/2026-07-30_docs-claimed-path-c-unpublished-after-ship.md`; ADR `decisions/2026-08-01_docs-indicative-delivery-truth.md`.
 
 ## Required
 
-1. **Project voice** - describe the system ("the CLI does X"), not the session ("today I configured X").
-2. **Inheritable** - stable names for components, commands, paths, and contracts; a glossary consistent with the code.
-3. **Timeless** - prefer behavior and invariants over meeting dates, sprints, or "this week".
-4. **Verifiable** - what the doc claims must match the code; do not invent behavior. Docs never sole proof (see Indicative docs above).
-5. **Complete enough** - setup, usage, limits, and internal links; no narrative filler.
+1. **Project voice** - the system ("the CLI does X"), not the session.
+2. **Inheritable** - stable names for components, commands, paths, contracts.
+3. **Timeless** - behavior and invariants over sprint dates.
+4. **Verifiable** - claims match code; docs never sole proof.
+5. **Complete enough** - setup, usage, limits, internal links; no filler.
 
 ## Forbidden (transient / outside the project)
 
 | Forbidden | Instead |
 |-----------|---------|
-| People's names (authors, managers, colleagues, "so-and-so asked") | Generic role ("maintainer", "reviewer") or omit |
-| Projects / products / clients that are **not this repository** | Generic concept, or omit |
-| Former employers or brands unrelated to the product | "external integration", "provider", name only if it is a real code dependency |
-| Conversation urgency or drama ("because the deadline...") | Technical requirement, or omit |
+| People's names | Role ("maintainer") or omit |
+| Projects/clients that are **not this repository** | Generic concept or omit |
+| Unrelated employers/brands | "external integration" / "provider", or name only if a real dependency |
+| Conversation urgency/drama | Technical requirement or omit |
 | Agent meta-language / chat reasoning | Fact about the software |
-| Examples with a specific client's IDs, lists, or workspace names | Placeholder (`YOUR_LIST_ID`, "the project's list") |
-| "As we discussed", "in the previous chat", "agent WIP" | Current state of the system |
-| Em dash ("-") as a sentence connector (AI slop) | Hyphen, colon, comma, or parentheses; eliminate entirely, keep only in a required literal quote |
+| Client-specific IDs / workspace names in examples | Placeholder (`YOUR_LIST_ID`) |
+| "As we discussed", "previous chat", "agent WIP" | Current system state |
+| Em dash as sentence connector (AI slop) | Hyphen, colon, comma, or parentheses; keep only in a required literal quote |
 
 ## Inheritance test
 
-Before writing or updating a doc:
+> Can a new maintainer, with no chat access, use this 12 months from now?
 
-> "Can a new maintainer, with no chat access and no knowledge of the team, use this 12 months from now?"
-
-If not, rewrite it. If it would be embarrassing on public GitHub, rewrite it.
+If not, or if it would be embarrassing on public GitHub, rewrite.
 
 ## Relation to other rules
 
-- **agent-output-hygiene** - chat is not the repo (commits, HANDOFF, memory).
-- **This rule** - the standard for *product/project documentation* (README, docs, ADRs), including read-time delivery truth (docs are indicative).
-- **docs-repo** (skill/agent) - the writing process; must follow this rule.
+- **agent-output-hygiene** - chat is not the repo.
+- **This rule** - product/project documentation standard (write-time voice + read-time delivery truth).
+- **docs-repo** skill/agent - writing process; must follow this rule.
 - **ux-tone** - chat only.

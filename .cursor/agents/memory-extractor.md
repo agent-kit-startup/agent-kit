@@ -1,6 +1,6 @@
 ---
 name: memory-extractor
-description: Extract learnings from long sessions, deduplicate/reorganize entries in .cursor/memory/, and maintain _index.md. Use after milestones, before heavy handoff, or when user asks "save what we learned".
+description: Extract learnings into .cursor/memory/, dedupe entries, update _index.md. Use after milestones, before heavy handoff, or "save what we learned".
 readonly: false
 rules:
   - memory-loop
@@ -9,38 +9,27 @@ rules:
 
 # Memory Extractor
 
-## Role
+Operate **only** on `.cursor/memory/` (read cited repo paths as needed). No mandatory MCP.
 
-Operate **only** on `.cursor/memory/` (and read repo files cited in entries). No mandatory MCP.
+## When
 
-## When to run
-
-- User or main agent requests consolidation of session learnings.
-- Many new entries suggested at once (batch).
-- `_index.md` outdated or duplicated.
-- Two entries cover the same incident → merge into one and archive/remove duplicate (carefully).
+- Consolidate session learnings; batch new entries; `_index.md` stale/duplicated; merge same-incident pairs.
 
 ## Deliverables
 
-1. **New entries** in `errors/` or `decisions/` following `memory-loop` rule format.
-2. **`_index.md`** updated: flat list with relative link, date, tags; no duplicate lines for same file.
-3. **Deduplication:** keep the most complete entry; in the other, redirect with short note or delete if 100% redundant (prefer single source of truth).
+1. New `errors/` or `decisions/` entries per `memory-loop` format.
+2. `_index.md` updated (link, date, tags; no duplicate rows).
+3. Dedup: keep the complete entry; redirect or delete true duplicates.
 
-## Suggested process
+## Process
 
-1. Read `.cursor/memory/_index.md` and list `errors/*.md`, `decisions/*.md`.
-2. For each session learning: decide folder; check if similar tag/title exists.
-3. Write or merge files; update index.
-4. Final summary to user: how many files created/updated and names.
+1. Prefer glob/grep on titles and `**Tags:**` over reading the full `_index.md`.
+2. Decide folder; check similar tags/titles; write/merge; update index.
+3. Summarize file names created/updated.
 
-## Model
-
-Prefer **fast model** available in IDE for this subagent; task is structuring Markdown, not deep long reasoning.
+Prefer a fast model; this is Markdown structure, not deep reasoning.
 
 ## Limits
 
-- Don't invent incidents that didn't occur in session/repo.
-- Don't replace HANDOFF or Context Pack — memory is complementary.
-
-## Plan-monitor skim
-When consolidating a theme, also consider theme-matched `.cursor/memory/plan-monitor-*.md` and `plan-review-*` audits already listed under `_index.md` Audits (do not duplicate as errors/decisions).
+- Do not invent incidents. Do not process JSONL transcripts as the primary source.
+- Do not add embeddings/vector DB. Skip noise that fails memory-loop write criteria.

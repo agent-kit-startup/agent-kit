@@ -61,6 +61,30 @@ describe("capHandoffExcerpt", () => {
     expect(r.text).not.toContain("- line 60");
   });
 
+  it("prefers machine queue fields past the old first-60-lines window", () => {
+    const prose = Array.from({ length: 55 }, (_, i) => `- **Tick ${i}:** filler`);
+    const source = [
+      "# Handoff - deep queue",
+      "",
+      "- **Plan:** `deep.plan.md`",
+      ...prose,
+      "- **Run queue:** `a.plan.md`, `b.plan.md`",
+      "- **Queue cursor:** 3/10",
+      "- **Queue status:** running",
+      "- **Queue outcomes:**",
+      "  - a.plan.md: completed",
+      "",
+    ].join("\n");
+    expect(source.split("\n").length).toBeGreaterThan(60);
+    const r = capHandoffExcerpt(source);
+    expect(r.lines).toBeLessThanOrEqual(60);
+    expect(r.text).toContain("- **Run queue:** `a.plan.md`, `b.plan.md`");
+    expect(r.text).toContain("- **Queue cursor:** 3/10");
+    expect(r.text).toContain("- **Queue status:** running");
+    expect(r.text).toContain("- **Queue outcomes:**");
+    expect(r.text).toContain("  - a.plan.md: completed");
+  });
+
   it("respects the byte budget and keeps machine fields whole", () => {
     const source = bigHandoff();
     expect(B(source)).toBeGreaterThan(HANDOFF_EXCERPT_MAX_BYTES);

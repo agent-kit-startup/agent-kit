@@ -235,7 +235,10 @@ Every layer answers "safe to overwrite?" (above). A separate, size-oriented ques
 
 - The 10 `alwaysApply: true` L0 rules under `.cursor/rules/` (see the Rules table above).
 - `HARD_RULES` (`packages/cli/src/hooks/hard-rules.ts`), injected by the SessionStart hook. It is the **only** always-on text a Claude Code session receives — `.cursor/rules/*.mdc` is Cursor-native and nothing mirrors rules into `.claude/`. A Cursor session pays for both; a Claude Code session pays for `HARD_RULES` only.
-- The first N lines of `.cursor/HANDOFF.md` (byte-capped by the same hook).
+- A field-priority excerpt of `.cursor/HANDOFF.md` (machine fields such as `Run queue` / `Queue cursor` / `Queue status` / `Queue outcomes` survive first; then a 60-line / 12 KiB cap). See ADR `decisions/2026-09-23_memory-index-changelog-growth-contracts.md`.
+- **Parent-workspace bleed (operator / factory):** if the IDE opens a parent folder (or multi-root workspace) that also has `.cursor/rules`, those rules load beside kit alwaysApply. Prefer opening this repo root alone. The kit does not delete out-of-repo rules (ADR `decisions/2026-09-23_session-starter-tax-kit-vs-operator.md`).
+- **Operator MCP plugins:** Hostinger, Figma, Postman (and similar) namespaces are IDE plugins. The kit ships no `mcp.json` and invents no deny-list that cannot bind host plugins.
+- **Agent catalog:** `.cursor/agents/` bodies are always listed by Cursor today; kit lever is shorter descriptions only (no host lazy-list API).
 
 **Loads on command** (one hop, only when that command runs):
 

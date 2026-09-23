@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.13.0] - 2026-09-23
+
+### Changed
+
+- **Session starter keeps the run queue in view.** The SessionStart HANDOFF excerpt prefers machine fields (run queue, cursor, status, outcomes) when they sit past the first window. Two always-on kit rules are smaller, and the layers spec names which starter text is kit-owned versus parent-workspace or operator MCP.
+
 ## [5.12.4] - 2026-09-23
 
 ### Changed
