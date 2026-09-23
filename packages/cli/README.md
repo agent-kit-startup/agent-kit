@@ -62,7 +62,7 @@ NO_COLOR=1 agent-kit
 # → plain text (no ANSI); also plain when stdout is not a TTY or CI=1
 ```
 
-Subcommands and `agent-kit --version` are unchanged. `agent-kit run <slash>` starts those project slashes headless from `.cursor/commands/` (numbered-list HITL). `agent-kit run-plan-all` is a first-class alias of `agent-kit run run-plan-all`. Typing `/run-plan-all` in zsh is a filesystem path. `/git-prod` and `/kit-prod` stay operator-gated and are omitted from that catalog.
+Subcommands and `agent-kit --version` are unchanged. `agent-kit run <slash>` starts those project slashes headless from `.cursor/commands/` (numbered-list HITL). `agent-kit run-plan-all` is a first-class alias of `agent-kit run run-plan-all`. Typing `/run-plan-all` in zsh is a filesystem path. `/git-prod` and `/kit-prod` stay operator-gated and are omitted from that catalog. Factory `/kit-staging` is not a catalog slash either (factory disk / landing wraps only).
 
 On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `update`, `run-plan` ticks) show an in-process ANSI spinner plus a rotating Mission Kit tip. Set `AGENT_KIT_REDUCED_MOTION=1` for static text on a capable TTY. Runtime dependencies stay `@clack/prompts`, `citty`, and `kolorist` (no `ora` / `figlet` / `chalk` / `ink`). Window titles for `agent-kit dashboard` and `agent-kit dashboard-broadcast` use the workspace basename, not the CLI package folder.
 

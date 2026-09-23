@@ -10,6 +10,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.12.3] - 2026-09-23
+
+### Fixed
+
+- **Public CI skips factory-only kit-command pins.** The docs contract still checks consumer L0 on every tree. Assertions that read `kit-staging.md`, `kit-prod.md`, or `public-sync.manifest` run only when those files are present.
+
+## [5.12.2] - 2026-09-23
+
+### Fixed
+
+- **Factory `/kit-staging` and `/kit-prod` no longer reach consumer installs.** Marketplace sync excludes both command files. `agent-kit run` no longer lists `kit-staging`. Use `/git-staging` and `/git-prod`.
+
 ## [5.12.1] - 2026-09-23
 
 ### Changed

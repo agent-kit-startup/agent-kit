@@ -156,4 +156,23 @@ describe("public-sync dashboard allowlist guard", () => {
       `CLI script refs missing from public-sync.manifest:\n${missing.join("\n")}`,
     ).toEqual([]);
   });
+
+  it("excludes factory-only kit-staging and kit-prod command files", () => {
+    if (!existsSync(manifestPath)) {
+      return;
+    }
+
+    const manifest = parseManifest(manifestPath);
+    for (const rel of [
+      ".cursor/commands/kit-staging.md",
+      ".cursor/commands/kit-prod.md",
+      ".cursor/commands/public-issue-triage.md",
+    ]) {
+      expect(isAllowlisted(rel, manifest), `${rel} must be public-sync excluded`).toBe(false);
+      expect(manifest.excludes).toContain(rel);
+    }
+    // Peer consumer L0 commands still sync.
+    expect(isAllowlisted(".cursor/commands/git-staging.md", manifest)).toBe(true);
+    expect(isAllowlisted(".cursor/commands/git-prod.md", manifest)).toBe(true);
+  });
 });
