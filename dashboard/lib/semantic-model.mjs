@@ -67,10 +67,11 @@ export const PROMPT_RESUME_GUIDANCE =
 // Cap for agent prompts merged into the Field Report attention stack.
 export const MAX_AGENT_PROMPTS = 8;
 
-// Max external review reports surfaced in Field Report. Aligned with
-// MAX_REPORT_FILES in dashboard-data.mjs so the surfacing cap never truncates
-// below what the snapshot already read. External review is post-hoc, so most
-// rows land as review debt; a low cap silently drops that owed triage.
+// Max external review reports surfaced in Field Report. SoT for the count:
+// dashboard-data.mjs sets MAX_REPORT_FILES = MAX_EXTERNAL_REPORTS so the fs
+// read cap never truncates below what buildExternalReportItems can surface.
+// External review is post-hoc, so most rows land as review debt; a low cap
+// silently drops that owed triage.
 export const MAX_EXTERNAL_REPORTS = 20;
 
 // Max readiness advisories merged into the Field Report attention stack.

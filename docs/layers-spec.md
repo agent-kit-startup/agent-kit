@@ -133,10 +133,18 @@ Optional external plan review ships with L0 (commands above, templates below, la
 
 ### Skills (core, L0 overlay)
 
+SoT for the apply set: `packages/cli/src/lifecycle/l0.ts`. Factory tree may hold additional core/community/domain skills that are registry-installable and are not in this overlay.
+
 | Artifact | Role |
 |----------|------|
-| `.cursor/skills/core/hitl-gates/` | Ask labels, numbered-list fallback, tick/intake/queue procedures |
+| `.cursor/skills/core/hitl-gates/` | Ask labels, numbered-list fallback, tick/intake/queue procedures (`SKILL.md`, redirect stub, three contract pages) |
 | `.cursor/skills/core/qa/SKILL.md` | `/qa` playbook (claim matrix, journey, tests, hygiene). Invoke via `/qa`; not an L0 agent |
+| `.cursor/skills/core/dashboard-broadcast/SKILL.md` | `/dashboard-broadcast` port, log, and detach notes |
+| `.cursor/skills/core/agent-kit-onboard/procedure.md` | Onboard check resolution (one-hop from `/agent-kit-onboard`) |
+| `.cursor/skills/core/backlog-add/procedure.md` | Broad Intake detail (one-hop from `/backlog-add`) |
+| `.cursor/skills/core/field-report-resolve/procedure.md` | Per-shape locate/check (one-hop from `/field-report-resolve`) |
+| `.cursor/skills/core/plan-external-review/procedure.md` | Manual arm / chat-vs-CI (one-hop from `/plan-external-review`) |
+| `.cursor/skills/core/plan-review-triage/procedure.md` | Triage steps 1-6 (one-hop from `/plan-review-triage`) |
 
 ### Scripts (under `.cursor/`)
 

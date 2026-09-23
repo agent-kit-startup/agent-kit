@@ -9,6 +9,7 @@ import {
   resolveRegistryRoot,
 } from "../registry/resolve.js";
 import { readJson, writeJson } from "../utils/fs.js";
+import { contextConfigPath, intervalElapsed, loadContextConfig } from "./context-config.js";
 import { diffAgainstRegistry, summarizeDiff } from "./diff.js";
 import { KIT_PACKAGE_SPEC, KIT_VERSION } from "./version.js";
 
@@ -190,21 +191,7 @@ export function readUpdateApplyPrefs(config: unknown): UpdateApplyPrefs {
   };
 }
 
-function intervalElapsed(lastCheckedAt: string | null, intervalDays: number): boolean {
-  if (!lastCheckedAt) return true;
-  const last = Date.parse(lastCheckedAt);
-  if (Number.isNaN(last)) return true;
-  const ms = intervalDays * 24 * 60 * 60 * 1000;
-  return Date.now() - last >= ms;
-}
-
-async function loadContextConfig(cwd: string): Promise<Record<string, unknown> | null> {
-  const configPath = path.join(cwd, ".cursor", "context", "config.json");
-  return readJson<Record<string, unknown>>(configPath);
-}
-
 async function stampLastCheckedAt(cwd: string): Promise<void> {
-  const configPath = path.join(cwd, ".cursor", "context", "config.json");
   const existing = (await loadContextConfig(cwd)) ?? {};
   const prev =
     existing.updateCheck && typeof existing.updateCheck === "object"
@@ -215,7 +202,7 @@ async function stampLastCheckedAt(cwd: string): Promise<void> {
     ...prev,
     lastCheckedAt: new Date().toISOString(),
   };
-  await writeJson(configPath, existing);
+  await writeJson(contextConfigPath(cwd), existing);
 }
 
 export interface CheckForUpdatesOptions {

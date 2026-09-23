@@ -10,6 +10,7 @@ import type {
   GitWorkflow,
 } from "../types.js";
 import { fileExists, readJson } from "../utils/fs.js";
+import { REPOSITORY_PROFILE_REL } from "./paths.js";
 
 const exec = promisify(execFile);
 
@@ -50,7 +51,7 @@ function sanitizeRemoteUrl(remoteUrl: string): string {
 
 export async function detectProvider(rootDir: string, remoteUrl?: string): Promise<ProviderResult> {
   const configuration = await readJson<ProviderConfiguration>(
-    path.join(rootDir, ".cursor", "agent-kit.config.json"),
+    path.join(rootDir, REPOSITORY_PROFILE_REL),
   );
   const configuredProvider = configuration?.git?.provider;
   if (configuredProvider) {
@@ -69,7 +70,7 @@ export async function detectProvider(rootDir: string, remoteUrl?: string): Promi
       provider: configuredProvider,
       providerKind: configuredKind,
       confidence: "high",
-      evidence: [{ source: "configuration", value: ".cursor/agent-kit.config.json#git.provider" }],
+      evidence: [{ source: "configuration", value: `${REPOSITORY_PROFILE_REL}#git.provider` }],
     };
   }
   if (!remoteUrl) {

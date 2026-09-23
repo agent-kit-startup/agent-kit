@@ -653,26 +653,42 @@ function createRelay(
   };
 }
 
+/**
+ * Headless `cursor-agent -p` argv shared by the tick backend and one-shot
+ * dispatch (`agent-kit run <slash>`). Positional prompt (no stdin relay);
+ * parity flags: `--force --sandbox disabled --output-format stream-json`.
+ */
+export function cursorAgentHeadlessArgs(opts: {
+  workspace: string;
+  prompt: string;
+  model?: string;
+}): string[] {
+  const args = [
+    "-p",
+    "--force",
+    "--sandbox",
+    "disabled",
+    "--output-format",
+    "stream-json",
+    "--workspace",
+    opts.workspace,
+  ];
+  if (opts.model) args.push("--model", opts.model);
+  args.push(opts.prompt);
+  return args;
+}
+
 export const cursorAgentBackend: AgentBackend = {
   id: "cursor-agent",
   async resolve() {
     return whichBinary("cursor-agent");
   },
   async run(opts) {
-    const args = [
-      "-p",
-      "--force",
-      "--sandbox",
-      "disabled",
-      "--output-format",
-      "stream-json",
-      "--workspace",
-      opts.workspace,
-    ];
-    if (opts.model) {
-      args.push("--model", opts.model);
-    }
-    args.push(opts.prompt);
+    const args = cursorAgentHeadlessArgs({
+      workspace: opts.workspace,
+      prompt: opts.prompt,
+      model: opts.model,
+    });
     // Same redaction as the claude backend: cursor-agent does not read the
     // ANTHROPIC_* keys, but the child inherits them (process.env, or the
     // merged override) and a tick can print its environment, so any value

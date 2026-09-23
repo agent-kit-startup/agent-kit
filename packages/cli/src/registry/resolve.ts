@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileExists } from "../utils/fs.js";
+import { REGISTRY_INDEX_REL } from "./paths.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -237,7 +238,7 @@ function cacheKey(url: string, ref: string): string {
 }
 
 async function hasRegistryIndex(root: string): Promise<boolean> {
-  return fileExists(path.join(root, "registry", "registry.json"));
+  return fileExists(path.join(root, REGISTRY_INDEX_REL));
 }
 
 async function cloneRegistry(url: string, ref: string, dest: string): Promise<void> {
@@ -299,7 +300,7 @@ export async function resolveRegistryRoot(options: {
   if (options.registryPath) {
     const root = path.resolve(options.registryPath);
     if (!(await hasRegistryIndex(root))) {
-      throw new Error(`No registry/registry.json under --registry ${root}`);
+      throw new Error(`No ${REGISTRY_INDEX_REL} under --registry ${root}`);
     }
     return { root, source: "flag" };
   }
@@ -308,7 +309,7 @@ export async function resolveRegistryRoot(options: {
   if (envPath) {
     const root = path.resolve(envPath);
     if (!(await hasRegistryIndex(root))) {
-      throw new Error(`No registry/registry.json under AGENT_KIT_REGISTRY=${root}`);
+      throw new Error(`No ${REGISTRY_INDEX_REL} under AGENT_KIT_REGISTRY=${root}`);
     }
     return { root, source: "env", url: options.registryUrl, ref: options.registryRef };
   }
@@ -335,7 +336,7 @@ export async function resolveRegistryRoot(options: {
     } else {
       await cloneRegistry(url, ref, dest);
       if (!(await hasRegistryIndex(dest))) {
-        throw new Error(`Cloned ${url}@${ref} but registry/registry.json is missing`);
+        throw new Error(`Cloned ${url}@${ref} but ${REGISTRY_INDEX_REL} is missing`);
       }
     }
     ownershipTransferred = true;

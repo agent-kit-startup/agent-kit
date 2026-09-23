@@ -12,6 +12,7 @@ import {
 const ready: ShipLaneInput = {
   auth: "per-plan-release",
   outcome: "completed",
+  productDiff: true,
   stagingReady: true,
   stagingAheadOfMain: true,
   ci: "green",
@@ -50,6 +51,15 @@ describe("release bump", () => {
 });
 
 describe("ship lane", () => {
+  it("skips a completed plan with no product diff and still stops an unready diff", () => {
+    const empty = decideShipLane({ ...ready, productDiff: false, stagingReady: false });
+    expect(empty).toEqual({ action: "skip", reason: "no_product_diff" });
+    expect(decideAdvanceAfterShip(empty, false).advance).toBe(true);
+    const unready = decideShipLane({ ...ready, stagingReady: false });
+    expect(unready.reason).toBe("staging_not_ready");
+    expect(decideAdvanceAfterShip(unready, false).advance).toBe(false);
+  });
+
   it("skips when the operator chose plans only or staging is not ahead", () => {
     expect(decideShipLane({ ...ready, auth: "plans-only" }).reason).toBe("plans_only");
     expect(decideShipLane({ ...ready, stagingAheadOfMain: false }).reason).toBe(

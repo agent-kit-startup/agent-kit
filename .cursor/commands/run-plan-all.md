@@ -13,7 +13,7 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 
 ## Hard stops (kit failure if skipped)
 
-1. **One release per completed plan** when the confirm label sets Ship auth `per-plan-release`. `Run plans only` does not ship. Each ship is one SemVer, one `v*` tag, one promote. The next plan starts only after that ship is Done. A red or stale public sync stops the queue (no extra patch, no next plan).
+1. **One release per completed plan that has a product diff** when the confirm label sets Ship auth `per-plan-release`. `Run plans only` does not ship. Each ship is one SemVer, one `v*` tag, one promote. The next plan starts only after that ship is Done. A completed plan with no versionable product diff skips that release and the cursor advances. A red or stale public sync, or a product diff that is not staging-ready, stops the queue (no extra patch, no next plan).
 2. **Confirm before execute.** Default-path Ask is start-vs-resume (stored queue + material drift) or the queue confirm (fresh synthesis). Inbox Ask is opt-in or post-default, never a pre-Ask blocker. No silent resume that skips eligible-not-queued or adjustment-class Backlog.
 3. **One Task per plan, sequential.** After the confirm Ask the orchestrator dispatches one Task subagent per queued plan. It must not implement to-dos, run tests, or write that plan's changelog. Mandatory execution Task is **per queued plan** after confirmation. No parallel plan Tasks. No co-pack with `/git-staging`. The ship lane starts only after that Task's summary is in.
 4. **Missing or malformed summary:** Ask the user before advancing the cursor. Do not invent an outcome.

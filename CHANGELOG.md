@@ -10,6 +10,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.12.0] - 2026-09-23
+
+### Changed
+
+- **Mission Control Field Report read cap shares SoT with the surface cap.** `dashboard-data.mjs` sets `MAX_REPORT_FILES` from `MAX_EXTERNAL_REPORTS` so the filesystem scan and Field Report list cannot drift.
+- **Plan-loop promote gates and cursor-agent argv share one SoT each.** `RUN_PROMOTE_BLOCKED` aliases `RESERVED_GATE_IDS`; `cursorAgentDispatchArgs` aliases `cursorAgentHeadlessArgs` (parity with the existing claude headless argv helper).
+- **Kit and Cursor update-check prefs share config load and interval helpers.** `loadContextConfig` / `intervalElapsed` live in `lifecycle/context-config.ts`; install/init/update share `NON_INTERACTIVE_ROOT_ARGS` for `--yes` / `--force-root`.
+- **Evidence ledger generators share frozen lane SHAs and cutoff.** `scripts/lib/evidence-frozen.mjs` is the SoT for file/history/artifact/authority/knowledge generators (hash helpers included).
+- **Scanner context config and repository profile paths share one SoT each.** Safe-fixes uses `lifecycle/context-config` for `.cursor/context/config.json`; confirmed-lane readers share `scanner/paths.ts` `REPOSITORY_PROFILE_REL`.
+- **Registry index, repository profile reader, and resolve-agent-kit hook paths share one SoT each.** `REGISTRY_INDEX_REL` covers client/resolve/install; personalization uses `REPOSITORY_PROFILE_REL`; hooks-health uses `RESOLVE_AGENT_KIT_REL`.
+- **HANDOFF path, sessionStart prefs, and root-guard manifest share one SoT each.** `HANDOFF_REL` covers plan-index / session-start / default protected; sessionStart uses `loadContextConfig` plus readiness and manifest relative paths.
+- **Capability inventory skills counts match on-disk `SKILL.md` and L0 overlay.** Inventory and layers-spec list `hitl-gates`, `dashboard-broadcast`, `llm-security-ops`, and L0 procedure pages; pin test fails on undercount.
+- **`/git-prod` Claude lane operator Ask for main push method.** When the permission classifier blocks the agent push, Ask: `I pushed main` / `Open staging→main PR instead` / `Cancel`. Other lanes run the authorized push directly.
+- **A finished `/run-plan-all` plan with no product diff does not stop the queue.** That plan skips its release and the cursor advances. The queue still stops when a real diff is not ready to stage, staging CI stays red, or the release is not done.
+
 ## [5.11.0] - 2026-09-22
 
 ### Changed

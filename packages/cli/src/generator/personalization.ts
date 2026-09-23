@@ -10,6 +10,7 @@ import {
 } from "../registry/install.js";
 import type { RegistryIndex } from "../registry/types.js";
 import { detectIde } from "../scanner/detect-ide.js";
+import { REPOSITORY_PROFILE_REL } from "../scanner/paths.js";
 import type {
   DetectionEvidence,
   GitDetection,
@@ -542,7 +543,7 @@ export async function applyPersonalization(input: {
 }
 
 export async function readRepositoryProfile(rootDir: string): Promise<RepositoryProfile | null> {
-  const target = path.join(rootDir, ".cursor/agent-kit.config.json");
+  const target = path.join(rootDir, REPOSITORY_PROFILE_REL);
   if (!(await fileExists(target))) return null;
   return JSON.parse(await readFile(target, "utf8")) as RepositoryProfile;
 }

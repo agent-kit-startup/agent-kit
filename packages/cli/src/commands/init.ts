@@ -17,6 +17,7 @@ import {
   performInstall,
   printInstallEpilogue,
 } from "./install.js";
+import { NON_INTERACTIVE_ROOT_ARGS } from "./shared-args.js";
 
 type CompatibilityInstaller = (options: { cwd: string }) => Promise<InstallResult>;
 
@@ -38,17 +39,7 @@ export const initCommand = defineCommand({
       description: "Project root directory",
       default: process.cwd(),
     },
-    yes: {
-      type: "boolean",
-      alias: "y",
-      description: "Skip interactive prompts; use defaults (IDE-agnostic non-interactive mode)",
-      default: false,
-    },
-    "force-root": {
-      type: "boolean",
-      description: "Bypass the ambiguous-root guard (use with caution)",
-      default: false,
-    },
+    ...NON_INTERACTIVE_ROOT_ARGS,
   },
   async run({ args }) {
     const nonInteractive = args.yes || isNonInteractive();

@@ -81,7 +81,7 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `/backlog-edit` | `Edit [plan-file]` / `Cancel` |
 | `/backlog-delete` | `Delete [plan-file] from backlog` / `Cancel` |
 | `/backlog-cancel` | `Cancel [plan-file] on backlog` / `Keep on backlog` |
-| `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel` |
+| `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel`. Claude lane (or recorded classifier denial): `I pushed main` / `Open staging→main PR instead` / `Cancel` |
 | `/kit-staging` | After git staging, if landing-worthy: `Deploy landing to staging` / `Skip landing (repo only)` / `Cancel` |
 | `/kit-prod` | Keep the git-prod Ask first. After prod: `Promote landing to production` / `Skip landing (repo only)` / `Cancel` |
 | `/hotfix` | `Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel` |

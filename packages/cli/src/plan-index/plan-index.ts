@@ -1,12 +1,15 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureDir } from "../utils/fs.js";
+import { HANDOFF_REL } from "../utils/kit-paths.js";
 
 /** Generated artifact; same gitignore class as other `.cursor/context/*.json` locals. */
 export const PLAN_INDEX_REL = ".cursor/context/plan-index.json";
 
 /** Banned as a scan glob. Named single-file reads of a known basename remain OK. */
 export const FORBIDDEN_PLANS_SCAN_GLOB = ".cursor/plans/*.plan.md";
+
+export { HANDOFF_REL };
 
 const NONE = /^(none|n\/a|empty|nil)$/i;
 const OPEN_STATUSES = new Set(["pending", "in_progress"]);
@@ -131,7 +134,7 @@ export async function buildPlanIndex(
   io: PlanIndexIo = defaultPlanIndexIo(),
   now: () => Date = () => new Date(),
 ): Promise<PlanIndex> {
-  const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
+  const handoffPath = path.join(root, HANDOFF_REL);
   const handoffText = (await io.readFile(handoffPath)) ?? "";
   const named = extractHandoffNamedPlans(handoffText);
   const plans: PlanIndexEntry[] = [];

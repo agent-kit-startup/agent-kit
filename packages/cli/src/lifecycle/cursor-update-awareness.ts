@@ -1,6 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileExists, readJson, writeJson } from "../utils/fs.js";
+import { fileExists, writeJson } from "../utils/fs.js";
+import { contextConfigPath, intervalElapsed, loadContextConfig } from "./context-config.js";
 
 /** Official Cursor product changelog (detection source SoT). */
 export const DEFAULT_CURSOR_CHANGELOG_URL = "https://cursor.com/changelog";
@@ -144,24 +145,11 @@ export function readCursorUpdateCheckPrefs(config: unknown): CursorUpdateCheckPr
   };
 }
 
-function intervalElapsed(lastCheckedAt: string | null, intervalDays: number): boolean {
-  if (!lastCheckedAt) return true;
-  const last = Date.parse(lastCheckedAt);
-  if (Number.isNaN(last)) return true;
-  return Date.now() - last >= intervalDays * 24 * 60 * 60 * 1000;
-}
-
-async function loadContextConfig(cwd: string): Promise<Record<string, unknown> | null> {
-  const configPath = path.join(cwd, ".cursor", "context", "config.json");
-  return readJson<Record<string, unknown>>(configPath);
-}
-
 /** Persist cursorUpdateCheck prefs; refuses implausible lastSeenCursorVersion values. */
 export async function stampCursorUpdateCheck(
   cwd: string,
   patch: { lastSeenCursorVersion?: string | null },
 ): Promise<void> {
-  const configPath = path.join(cwd, ".cursor", "context", "config.json");
   const existing = (await loadContextConfig(cwd)) ?? {};
   const prev =
     existing.cursorUpdateCheck && typeof existing.cursorUpdateCheck === "object"
@@ -176,7 +164,7 @@ export async function stampCursorUpdateCheck(
       ...prev,
       lastCheckedAt: new Date().toISOString(),
     };
-    await writeJson(configPath, existing);
+    await writeJson(contextConfigPath(cwd), existing);
     return;
   }
   existing.cursorUpdateCheck = {
@@ -185,7 +173,7 @@ export async function stampCursorUpdateCheck(
     lastCheckedAt: new Date().toISOString(),
     ...(nextSeen !== undefined ? { lastSeenCursorVersion: nextSeen } : {}),
   };
-  await writeJson(configPath, existing);
+  await writeJson(contextConfigPath(cwd), existing);
 }
 
 /** True when major is in the plausible Cursor product range (rejects CSS/layout noise). */

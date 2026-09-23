@@ -56,6 +56,10 @@
 # Secrets e credenciais
 .env
 .env.*
+
+# Major Tom XPS Kitchan inbox (runtime; never commit)
+infra/xps/kitchan-inbox.md
+infra/xps/kitchan-inbox.cursor
 *.pem
 *.key
 credentials.json

@@ -26,6 +26,7 @@ import {
   isNonInteractive,
 } from "../utils/terminal.js";
 import { shouldUseWelcomeColor, withCliProgress } from "../welcome/visual-kit.js";
+import { NON_INTERACTIVE_ROOT_ARGS } from "./shared-args.js";
 
 function parsePackList(raw: string | undefined): string[] {
   if (!raw?.trim()) return [];
@@ -259,17 +260,7 @@ export const installCommand = defineCommand({
       type: "string",
       description: `Comma-separated L1 pack ids (e.g. cybersec,devops). Known: ${DOMAIN_PACK_IDS.join(", ")}`,
     },
-    yes: {
-      type: "boolean",
-      alias: "y",
-      description: "Skip interactive prompts; use defaults (IDE-agnostic non-interactive mode)",
-      default: false,
-    },
-    "force-root": {
-      type: "boolean",
-      description: "Bypass the ambiguous-root guard (use with caution)",
-      default: false,
-    },
+    ...NON_INTERACTIVE_ROOT_ARGS,
     claude: {
       type: "boolean",
       description:

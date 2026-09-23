@@ -1,9 +1,14 @@
 import { spawn } from "node:child_process";
-import { access, readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
+import { loadContextConfig } from "../lifecycle/context-config.js";
 import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
+import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
+import { READINESS_SNAPSHOT_RELATIVE_PATH } from "../scanner/snapshot.js";
+import { fileExists } from "../utils/fs.js";
+import { HANDOFF_REL } from "../utils/kit-paths.js";
 import { HANDOFF_EXCERPT_MAX_BYTES, capHandoffExcerpt } from "./handoff-excerpt.js";
 import {
   CURSOR_AWARENESS_NUDGE,
@@ -26,15 +31,6 @@ async function readFull(filePath: string): Promise<string> {
     return await readFile(filePath, "utf8");
   } catch {
     return "";
-  }
-}
-
-async function fileExists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -116,11 +112,10 @@ function extractUnprocessedDogfoodLine(line: string): string | null {
 }
 
 async function l0Present(root: string): Promise<boolean> {
-  const cursor = path.join(root, ".cursor");
   return (
-    (await fileExists(path.join(cursor, "agent-kit.json"))) ||
-    (await fileExists(path.join(cursor, "commands", "agent-kit-onboard.md"))) ||
-    (await fileExists(path.join(cursor, "commands", "start-project.md")))
+    (await fileExists(path.join(root, MANIFEST_RELATIVE_PATH))) ||
+    (await fileExists(path.join(root, ".cursor", "commands", "agent-kit-onboard.md"))) ||
+    (await fileExists(path.join(root, ".cursor", "commands", "start-project.md")))
   );
 }
 
@@ -166,7 +161,7 @@ function unresolvedReadinessChecks(data: Record<string, unknown>): {
 }
 
 async function readinessSection(root: string): Promise<string | null> {
-  const snapshotPath = path.join(root, ".cursor", "context", "readiness.json");
+  const snapshotPath = path.join(root, READINESS_SNAPSHOT_RELATIVE_PATH);
   let data: Record<string, unknown>;
   try {
     data = JSON.parse(await readFile(snapshotPath, "utf8")) as Record<string, unknown>;
@@ -211,18 +206,13 @@ async function dogfoodInboxSection(root: string): Promise<string | null> {
 }
 
 async function loadUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
-  try {
-    const data = JSON.parse(
-      await readFile(path.join(root, ".cursor", "context", "config.json"), "utf8"),
-    ) as Record<string, unknown>;
-    const uc = data.updateCheck;
-    if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
-      return null;
-    }
-    return uc as Record<string, unknown>;
-  } catch {
+  const data = await loadContextConfig(root);
+  if (!data) return null;
+  const uc = data.updateCheck;
+  if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
     return null;
   }
+  return uc as Record<string, unknown>;
 }
 
 function runUpdateCheckJson(root: string): Promise<Record<string, unknown> | null> {
@@ -293,18 +283,13 @@ async function updateCheckSection(root: string): Promise<string | null> {
 }
 
 async function loadCursorUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
-  try {
-    const data = JSON.parse(
-      await readFile(path.join(root, ".cursor", "context", "config.json"), "utf8"),
-    ) as Record<string, unknown>;
-    const uc = data.cursorUpdateCheck;
-    if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
-      return null;
-    }
-    return uc as Record<string, unknown>;
-  } catch {
+  const data = await loadContextConfig(root);
+  if (!data) return null;
+  const uc = data.cursorUpdateCheck;
+  if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
     return null;
   }
+  return uc as Record<string, unknown>;
 }
 
 function runCursorAwarenessJson(root: string): Promise<Record<string, unknown> | null> {
@@ -562,7 +547,7 @@ export async function buildSessionStartAdditionalContext(
   _payload: SessionStartPayload = {},
 ): Promise<{ additional_context: string }> {
   const root = path.resolve(rootDir);
-  const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
+  const handoffPath = path.join(root, HANDOFF_REL);
   const handoffFull = await readFull(handoffPath);
   const handoff = capHandoffExcerpt(handoffFull);
   const parts: string[] = [HARD_RULES];

@@ -26,11 +26,21 @@ Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This 
    Exit 0 prints `ok`. Exit 1 lists the offending lines: **stop**; the fix lands on `staging` through `/git-staging` (reword the commit on a working branch, or `gh pr edit <N> --body`), then re-run this step from the top. Exit 2 (missing hook file, grep failure) is red, not a pass. Never merge, push, or tag over a red scan. Same shape as the Evidence-checks gate in `/git-staging`; pattern list: `sh git-hooks/prepare-commit-msg --list`. ADR: `2026-09-11_agent-signature-guard-strip-hook-check-gate`.
 6. **One confirm, one ship:** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote. A red or stale public sync (step 12.5) is a STOP; it does not authorize another patch under the same yes. Next ship needs a new Ask.
    `/run-plan-all` only: when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip step 4. That queue confirm is this plan's yes. Still one tag. A red public sync stops the queue.
-7. Run merge to main (`git merge --no-ff` when promoting locally; real merge preferred on the staging→main PR path), then push with the authorized inline form only:
+7. Run merge to main (`git merge --no-ff` when promoting locally; real merge preferred on the staging→main PR path). Prepare local main (merge and signature scan green) before any push.
 
-   `ALLOW_MAIN_PUSH=1 git push origin main`
+   **Claude Code lane (or a recorded classifier denial of this push):** Do not run `ALLOW_MAIN_PUSH=1 git push origin main`. Ask with these exact labels:
 
-   Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination. Then create/push annotated vX.Y.Z tag (when absent) and confirm production. Details: `autogit/gitupdate.md` Prompt git prod step 9.
+   - `I pushed main`
+   - `Open staging→main PR instead`
+   - `Cancel`
+
+   **On `I pushed main`:** The operator already pushed. Verify `origin/main` advanced, then continue with the annotated tag, staging sync, and the report. Do not run the push.
+   **On `Open staging→main PR instead`:** While on local `main`, `git reset --hard origin/main`, then `gh pr create --base main --head staging`. Prefer a merge commit. Wait for the operator to merge the PR.
+   **On `Cancel`:** Stop. Do not tag, push, or open a PR.
+
+   **Other lanes:** Push with the authorized inline form `ALLOW_MAIN_PUSH=1 git push origin main`, then continue with the annotated tag. Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination.
+
+   Details: `autogit/gitupdate.md` Prompt git prod step 9.
 8. **Sync staging (mandatory):** immediately after `main` is pushed, if `git merge-base --is-ancestor origin/staging origin/main`, fast-forward staging with `git merge --ff-only origin/main` and push. Do not open a merge PR that only records `origin/main` as ancestor. If staging is not an ancestor, stop and report; do not back-merge in this prod session. Details: `autogit/gitupdate.md` step 10.
 9. Update `.cursor/HANDOFF.md` ("promoted to production") and memory-loop WRITE if it applies.
 10. In this monorepo: annotated tags trigger `publish-npm` + `sync-public` CI; `pnpm git:trigger-public-sync` fallback when needed per `autogit/gitupdate.md`.

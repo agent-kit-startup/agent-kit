@@ -4,7 +4,7 @@ Mission Kit capability catalog grouped by surface family. Lists every shipped ca
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against the working tree on 2026-09-17): **31** slash commands under `.cursor/commands/` (**30** synced/L0-oriented; **1** factory-only `/public-issue-triage` excluded from public-sync and L0 install), 25 rules, 14 agents, 11 skills listed below, 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
+Real counts (verified against the working tree on 2026-09-23): **31** slash commands under `.cursor/commands/` (**28** syncable/L0-oriented per counting policy below; `/public-issue-triage`, `/kit-staging`, `/kit-prod` are factory-only), 25 rules, 14 agents, **14** `SKILL.md` files under `.cursor/skills/` (plus L0 one-hop `procedure.md` pages), 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
@@ -98,12 +98,26 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 
 ---
 
-## Skills (.cursor/skills/ - 11)
+## Skills (.cursor/skills/ - 14 SKILL.md)
 
-### Core skills (3)
-- `clean-code` - AI code slop removal and clean patterns
-- `docs-repo` - Repository documentation with professional standard
-- `qa` - Playbook for `/qa`: claim matrix, install journey, tests, hygiene (invoke via `/qa`; do not auto-load)
+Factory on-disk count is **14** `SKILL.md` files (5 core + 8 community + 1 domain). L0 overlay ships a subset of those plus one-hop `procedure.md` pages (SoT: `packages/cli/src/lifecycle/l0.ts`). Procedure-only dirs are not counted in the 14.
+
+### Core skills with SKILL.md (5)
+- `clean-code` - AI code slop removal and clean patterns (registry-installable; not L0 overlay)
+- `docs-repo` - Repository documentation with professional standard (registry-installable; not L0 overlay)
+- `hitl-gates` - Ask labels, numbered-list fallback, tick/intake/queue procedures (L0)
+- `qa` - Playbook for `/qa`: claim matrix, install journey, tests, hygiene (L0; invoke via `/qa`; do not auto-load)
+- `dashboard-broadcast` - `/dashboard-broadcast` port, log, and detach notes (L0)
+
+### Core one-hop procedures (L0, no SKILL.md)
+- `agent-kit-onboard/procedure.md` - Onboard check resolution and domain-skills scaffold
+- `backlog-add/procedure.md` - Broad Intake and post-write inbox Ask detail
+- `field-report-resolve/procedure.md` - Per-shape locate/check eligibility
+- `plan-external-review/procedure.md` - Manual arm, chat-vs-CI, smoke notes
+- `plan-review-triage/procedure.md` - Steps 1-6 triage walk
+
+### Domain skills (1)
+- `llm-security-ops` - OWASP LLM map, mitigation patterns, local lab ops (not L0 overlay)
 
 ### Community skills (8)
 - `clickup` - ClickUp task management via MCP
@@ -304,7 +318,7 @@ Size-pinned contract files introduced in [Unreleased]. Numeric bytes/lines/longe
 | Slash commands | 25 | 31 | +`/dogfood`, later L0 slashes including `/qa` |
 | Rules | 25 | 25 | Matches estimate |
 | Named agents | 13 | 13 | Matches estimate |
-| Skills | 9 | 11 | +`mission-kit-comms`, `/qa` playbook |
+| Skills (`SKILL.md`) | 9 | 14 | +`hitl-gates`, `dashboard-broadcast`, `llm-security-ops`, `/qa`; L0 also ships 5 `procedure.md` pages |
 | Cursor-native hooks | - | 5 | Not estimated |
 | Git hooks | - | 3 | Not estimated |
 | CLI commands | 13 | 18 | Higher than estimate |
