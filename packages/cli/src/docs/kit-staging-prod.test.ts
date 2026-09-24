@@ -123,19 +123,38 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
     expect(gitupdate).toMatch(/merge --ff-only origin\/main/);
     expect(gitupdate).not.toMatch(/#### 10\. \*\*Sync staging \(optional\)\*\*/);
     expect(gitupdate).toMatch(/does not authorize another patch/);
-    expect(gitupdate).toMatch(/all name the same `vX\.Y\.Z`/);
-    expect(gitupdate).toMatch(/sync-landing/);
+    expect(gitupdate).toMatch(/Post-prod verification \(do not skip\)/);
+    expect(gitupdate).toMatch(/Otherwise Done = main pushed, tag pushed, tag CI green/);
 
     const gitProd = readRel(".cursor/commands/git-prod.md");
     expect(gitProd).toMatch(/One confirm, one ship/);
     expect(gitProd).toMatch(/Sync staging \(mandatory\)/);
     expect(gitProd).toMatch(/merge-base --is-ancestor/);
-    expect(gitProd).toMatch(/all name the same `vX\.Y\.Z`/);
-    expect(gitProd).toMatch(/sync-landing/);
+    expect(gitProd).toMatch(/If the project defines post-prod release verification/);
+    expect(gitProd).toMatch(/all on the same `vX\.Y\.Z`/);
 
     const hitl = readRel(".cursor/skills/core/hitl-gates/SKILL.md");
     expect(hitl).toMatch(/one `Proceed with production deploy` is one ship/);
     expect(hitl).toMatch(/The next patch needs a new Ask/);
+  });
+
+  it("keeps maintainer-only release plumbing out of consumer L0 git commands", () => {
+    // Public mirror, npm package, landing, Hostinger, storefront verification
+    // live on factory-only /kit-staging + /kit-prod (L0 omit, public-sync exclude).
+    const factoryOnly =
+      /sync-landing|sync-public|trigger-public-sync|publish-npm|@dadado\/agent-kit-cli|missionkit|Hostinger|HOSTINGER|Path C|public sync PR|public-changelog\.mjs|agent-kit-dev|storefront|12\.5/;
+    for (const rel of [
+      "autogit/gitupdate.md",
+      ".cursor/commands/git-staging.md",
+      ".cursor/commands/git-prod.md",
+      ".cursor/commands/run-plan-all.md",
+      ".cursor/skills/core/hitl-gates/run-plan-all-queue.md",
+      ".cursor/skills/core/hitl-gates/SKILL.md",
+      ".cursor/rules/cursor-skills-git-workflow.mdc",
+    ]) {
+      expect(L0_ARTIFACTS.map((a) => a.target)).toContain(rel);
+      expect(readRel(rel), rel).not.toMatch(factoryOnly);
+    }
   });
 
   it.skipIf(!factoryKitCommandsPresent)(
@@ -145,6 +164,25 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       expect(kitProd).toMatch(/One confirm, one ship/);
       expect(kitProd).toMatch(/all name the same tag/);
       expect(kitProd).toMatch(/sync-landing/);
+    },
+  );
+
+  it.skipIf(!factoryKitCommandsPresent)(
+    "owns the factory release steps and post-prod verification moved out of consumer L0",
+    () => {
+      const kitProd = readRel(".cursor/commands/kit-prod.md");
+      expect(kitProd).toMatch(/## 5\. Factory release steps \+ post-prod verification/);
+      expect(kitProd).toMatch(/all name the same `vX\.Y\.Z`/);
+      expect(kitProd).toMatch(/npm view @dadado\/agent-kit-cli version/);
+      expect(kitProd).toMatch(/Public sync PR \*\*merged\*\*/);
+      expect(kitProd).toMatch(/Public GitHub Release/);
+      expect(kitProd).toMatch(/Scoped-install Path C smoke/);
+      expect(kitProd).toMatch(/pnpm git:trigger-public-sync/);
+      expect(kitProd).toMatch(/publish-npm/);
+      expect(kitProd).toMatch(/sync-public/);
+      expect(kitProd).toMatch(/\.cursor-plugin\/plugin\.json/);
+      expect(kitProd).toMatch(/public-changelog\.mjs --version <X\.Y\.Z>/);
+      expect(kitProd).toMatch(/Protect main and staging/);
     },
   );
 

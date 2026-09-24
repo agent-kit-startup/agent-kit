@@ -14,10 +14,7 @@ plan → /handoff → git staging → git prod → memory
 |---------|---------------|----------------------------|-------------|
 | `git staging` | `/git-staging` | `origin/staging` | Updates the staging branch with local changes |
 | `git prod` | `/git-prod` | `origin/main` | Promotes `origin/staging` → `origin/main` (production) after approval |
-| `kit staging` | `/kit-staging` | `origin/staging`, then optional landing staging | Git-staging routine, then landing field update + `landing:deploy:staging` only when a product changelog or release changed |
-| `kit prod` | `/kit-prod` | `origin/main`, then optional landing promote | Git-prod routine (same HITL), then landing field update + `landing:promote` only when this promotion includes a release |
-
-**Bundles vs native:** `/git-staging` and `/git-prod` remain the SoT for git-only work. They do not deploy the public landing. `/kit-staging` and `/kit-prod` wrap those prompts. After a public GitHub Release Latest is cut, private tag CI job `sync-landing` stamps missionkit.io (public excerpt blurb), deploys staging, then promotes the same `dist/` bytes. Fail-closed if Latest is missing or live fields stay stale. `/kit-prod` does not Ask `Promote landing to production` for that path. Design-canvas visual deploys still use `/kit-staging` HITL. Repo-only shipping stays `/git-staging` / `/git-prod`. Command SoT: `.cursor/commands/kit-staging.md`, `.cursor/commands/kit-prod.md`.
+**Bundles vs native:** `/git-staging` and `/git-prod` are the SoT for git-only work (PR, promote, tag, CI green). They do not publish packages, sync mirrors, or deploy sites. A project may add its own wrapper commands (in the kit factory: `/kit-staging` and `/kit-prod`, when those files exist) that run these routines unchanged and then own any maintainer-only release steps and post-prod release verification. Without a wrapper, repo-only shipping stays `/git-staging` / `/git-prod`.
 
 In legacy projects the pre-prod branch may be called `homologacao`, `develop`, etc. The **two-step pattern** is fixed; the canonical name in Agent Kit is **`staging`**.
 
@@ -81,7 +78,7 @@ Promotes approved changes from `origin/staging` to `origin/main` (production).
 - ✅ Merges `origin/staging` → `origin/main`
 - ✅ Publishes to production
 - ✅ **Mandatory** fast-forward of `origin/staging` to `origin/main` when staging is an ancestor (prevents promote sawtooth)
-- ✅ In this monorepo: triggers public mirror sync (`pnpm git:trigger-public-sync`) when applicable; step 12.5 red/stale is a STOP, not a license for another patch under the same yes
+- ✅ Verifies post-prod (step 12): red or unfinished is a STOP, not a license for another patch under the same yes
 - ✅ *(Optional)* Updates task status in the repo's project manager (ClickUp, Jira, …) **only if** MCP/skill for that tool is configured
 
 
@@ -147,9 +144,9 @@ git remote -v
 We follow the [Semantic Versioning](https://semver.org/) standard:
 - **MAJOR** (X.0.0): Incompatible changes
 - **MINOR** (0.X.0): New backward-compatible features
-- **PATCH** (0.0.X): Bug fixes, post-tag CI / Path C portability, and consumer fixes that must republish as a new npm tarball
+- **PATCH** (0.0.X): Bug fixes, post-tag CI fixes, and fixes that must reach a published artifact
 
-**Hold vs next patch:** after a published `vX.Y.Z`, CI-unblock or fixture commits may keep the four manifests on `X.Y.Z` (**hold**) when the existing tarball does not need to change (step 12.5). Cut the **next patch** (`X.Y.(Z+1)`) and a new annotated tag when npm, Path C install, or the public Release must carry the fix. Never force-move a pushed `v*`. A next-patch SemVer is a **new** `/git-prod` (or `/kit-prod`) with its own confirm; a red or stale public sync on the just-cut tag does not authorize another close under the same yes (see Prompt git prod: one confirm, one ship). 5.x history that shipped only `x.y.0` after `v5.2.1` is practice, not a second cadence. Factory ADR: `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`. Marketplace / skill-catalog semver is a different layer (`docs/CONTRIBUTING.md`).
+**Hold vs next patch:** after a pushed `vX.Y.Z`, CI-unblock or fixture commits may keep the version manifest(s) on `X.Y.Z` (**hold**) when the released artifact does not need to change. Cut the **next patch** (`X.Y.(Z+1)`) and a new annotated tag when the release must carry the fix. Never force-move a pushed `v*`. A next-patch SemVer is a **new** `/git-prod` with its own confirm; a red post-prod verification on the just-cut tag does not authorize another close under the same yes (see Prompt git prod: one confirm, one ship).
 
 ### Conventional Commits
 
@@ -189,9 +186,9 @@ or
 
 **Flow rule:**
 - **`git staging`:** add bullets only in `[Unreleased]`.
-- **`git prod`:** before merging `staging → main`, **close the release** - move everything from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today) or SemVer version and leave `[Unreleased]` empty. Set root and `packages/cli` `package.json` `"version"` to that same SemVer. Never promote with Unreleased full.
+- **`git prod`:** before merging `staging → main`, **close the release** - move everything from `[Unreleased]` to `## [YYYY.MM.DD] - YYYY-MM-DD` (today) or SemVer version and leave `[Unreleased]` empty. Set the project's version manifest(s) (e.g. `package.json` `"version"`) to that same SemVer. Never promote with Unreleased full.
 
-**Public excerpt:** keep `<!-- changelog-private -->` fences when closing a release. Public GitHub, GitHub Releases, and the landing product-notes field receive the stripped consumer/contributor notes only (`node scripts/public-changelog.mjs`). Landing stamp uses `--version X.Y.Z --blurb`, never `CHANGELOG.md` as `--notes-file`.
+**Private fences (optional convention):** if the project keeps `<!-- changelog-private -->` fences in `CHANGELOG.md`, keep them when closing a release; the project's own tooling decides what, if anything, is published from the stripped notes.
 
 ---
 
@@ -348,21 +345,16 @@ This section contains the detailed prompts that should be followed when commands
 
 > ### Whenever I type `git prod` in the chat, follow exactly the routine below to promote changes from `origin/staging` to `origin/main` (production):
 
-**Claude CLI lane, known blockers (read once before running, saves retries):** The Claude Code auto-mode permission classifier blocks the agent running `ALLOW_MAIN_PUSH=1 git push origin main`. This repo's private `agent-kit-dev` also has a `Protect main and staging` ruleset (PR-only on both branches). Full detail and recurrence history in `.cursor/memory/errors/2026-08-14_git-prod-private-main-requires-pr.md` and `.cursor/memory/errors/2026-07-24_public-sync-pr-merge-blocked-ruleset.md`. The short version:
+**Claude CLI lane, known blockers (read once before running, saves retries):** The Claude Code auto-mode permission classifier blocks the agent running `ALLOW_MAIN_PUSH=1 git push origin main`. Some repos also protect `main` and `staging` with a PR-only ruleset. The short version:
 
 **Classifier-blocked (any repo):**
 
 | Command | Expect it to work? |
 |---|---|
 | Agent running `ALLOW_MAIN_PUSH=1 git push origin main` (step 9) | **No.** Permission classifier blocks the agent. Do not retry. Use the Ask in step 9. The operator may run the same command. |
+| `gh pr merge` | **Sometimes.** Refused on some repos, accepted on others. One refusal is enough to log; that merge is operator-owed. Do not predict it for every repo. |
 
-**Classifier refusal observed on `agent-kit-dev` and the public mirror only:**
-
-| Command | Expect it to work? |
-|---|---|
-| `gh pr merge` | **No** on those two repos. One attempt is enough to log; the merge is operator-owed. Do not predict this for every consumer repo. A consumer repo accepted `gh pr merge` on staging PRs (`agent-kit-startup/agent-kit#53`). |
-
-**Factory ruleset-blocked (`agent-kit-dev` only):**
+**Ruleset-blocked (repos with PR-only protection on `main` / `staging`):**
 
 | Command | Expect it to work? |
 |---|---|
@@ -376,9 +368,9 @@ This section contains the detailed prompts that should be followed when commands
 |---|---|
 | `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
 
-**One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or stale public sync (step 12.5: public sync PR not merged, public Release Latest ≠ the tag just cut, or `sync-landing` failed) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: private `main`, the npm version, the merged public sync PR, and public GitHub Release Latest all name the same `vX.Y.Z`.
+**One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or unfinished post-prod verification (step 12) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: `origin/main` pushed, the annotated tag pushed, and tag CI green, all on the same `vX.Y.Z`; plus the project's own release verification when it defines one (step 12).
 
-**`/run-plan-all` ship lane:** when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip the confirm Ask in this prompt. That queue confirm is the yes for this plan's one ship. A red step 12.5 still stops the queue. Do not cut another tag, and do not start the next queued plan, until this ship is Done.
+**`/run-plan-all` ship lane:** when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip the confirm Ask in this prompt. That queue confirm is the yes for this plan's one ship. A red step 12 still stops the queue. Do not cut another tag, and do not start the next queued plan, until this ship is Done.
 
 #### 1. **CRITICAL Security Validation**  
    - Run `git status -sb` to check modified, staged files and current branch.
@@ -393,16 +385,11 @@ This section contains the detailed prompts that should be followed when commands
    - **Close release (mandatory if `[Unreleased]` has content):**
      1. Move all bullets from `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (SemVer + today's date). If today's SemVer section already exists, **merge** into it.
      2. Leave `[Unreleased]` empty (heading only).
-     3. **Bump all four runtime manifests to the same SemVer** (ADR `2026-07-28_git-prod-version-manifest-parity`):
-        - root `package.json`
-        - `packages/cli/package.json`
-        - `.cursor/agent-kit.json`
-        - `.cursor-plugin/plugin.json`
-        Do not ship with only root+CLI bumped; L0 version-parity tests fail and tag CI skips publish/sync.
-     4. **Required before the first `v*` tag push for this SemVer:** on staging (or the commit about to become `main`), run `pnpm typecheck` and `pnpm test` (or at least focused L0 version-parity: `vitest` on `packages/cli/src/lifecycle/l0.test.ts` **plus** `pnpm typecheck`). Do not treat this as optional: tag CI that fails typecheck skips `publish-npm` / `sync-public` (see `errors/2026-07-29_tag-ci-typecheck-blocked-481-publish.md`).
+     3. **Bump every version manifest the project keeps to the same SemVer** (e.g. `package.json`, and each workspace package that ships). In a consumer project `.cursor/agent-kit.json` records the installed Agent Kit version and is not a product manifest. A wrapper command may list extra manifests for its repo (and wins over this default).
+     4. **Required before the first `v*` tag push for this SemVer:** on staging (or the commit about to become `main`), run the project's typecheck and test suite. Tag CI that fails there usually skips the release jobs it gates.
      5. Commit this change to working branch / staging **before** merging to `main` (via MR if necessary).
      6. **Release-close stays its own PR to staging.** Do not bundle release-close + a main-back-merge + a product fix in one staging PR. Close-release commits only; integrate `main` later via `/git-staging` when needed (and only when FF is impossible; see step 10).
-   - If Unreleased is already empty and today's release reflects what's in staging, still verify all four manifests match the latest closed CHANGELOG version; bump and commit if they do not.
+   - If Unreleased is already empty and today's release reflects what's in staging, still verify the version manifest(s) match the latest closed CHANGELOG version; bump and commit if they do not.
 
 #### 3. **Sync branches**  
    - Run `git fetch --prune` to update remote references.
@@ -462,10 +449,10 @@ This section contains the detailed prompts that should be followed when commands
    - Check if tag exists for current version: `git tag -l "v<version>"` where `<version>` matches `package.json`.
    - If tag does not exist, create annotated tag: `git tag -a v<version> -m "Release v<version>"` on the current main commit.
    - Push the tag: `git push origin v<version>`.
-   - **Effect**: Annotated vX.Y.Z tags trigger CI `publish-npm` job (when `NPM_TOKEN` configured) and `sync-public` workflow (when `PUBLIC_REPO_TOKEN` configured).
+   - **Effect**: an annotated `vX.Y.Z` tag triggers whatever tag CI the project configures (build, publish, deploy).
    - **Immutable tags — never force-move `v*`:**
      - Do **not** `git push --force` (or delete-and-recreate in place) an existing `vX.Y.Z` that already pointed at another SHA. Consumers and mirrors may have resolved the old tip.
-     - If tag CI fails after the first push: fix on a new commit. **Hold** (keep manifests on the tagged SemVer, no new tag) when the existing npm tarball can stay. **Next patch** plus a **new** annotated tag when npm / Path C / public Release must carry the fix. Do not rewrite history of a published `v*`. Same fork as [Semantic Versioning](#semantic-versioning) and ADR `2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`.
+     - If tag CI fails after the first push: fix on a new commit. **Hold** (keep manifests on the tagged SemVer, no new tag) when the released artifact can stay. **Next patch** plus a **new** annotated tag when the release must carry the fix. Do not rewrite history of a published `v*`. Same fork as [Semantic Versioning](#semantic-versioning).
      - If the tag was never pushed remotely and only exists locally on a bad tip: delete the **local** tag (`git tag -d vX.Y.Z`) and recreate on the fixed commit, then push once.
      - Optional hardening: GitHub ruleset protecting `v*` from force-update/deletion; local `pre-push` blocks force-update/delete of `refs/tags/v*` unless `ALLOW_TAG_FORCE=1` (see `git-hooks/pre-push`).
 
@@ -488,32 +475,25 @@ This section contains the detailed prompts that should be followed when commands
 #### 11.5. **Project manager — optional**  
    - **If** the project has PM tool MCP/skill configured: update status of promotion-related tasks (e.g., "completed"). No tool or no tasks: skip without warning.
 
-#### 12. **Public mirror sync (this monorepo)**  
-   - **Primary**: Annotated vX.Y.Z tag (step 9.5) automatically triggers `sync-public` CI when `PUBLIC_REPO_TOKEN` is configured.
-   - **Fallback**: If tag was not created or manual dispatch needed, run **`pnpm git:trigger-public-sync`** (or `bash scripts/trigger-public-sync-after-prod.sh`) to trigger CI workflow with public repository sync. See `docs/repository-boundaries.md`.
-   - In projects without public mirror, skip this step.
-
-#### 12.5. **Post-prod verification (this monorepo — do not skip)**  
-   Tag push alone is not proof that consumers see the release. Before closing the chat, verify and report:
+#### 12. **Post-prod verification (do not skip)**  
+   A green local merge/push is not proof the release shipped. Before closing the chat, verify and report:
 
    | Check | How |
    |-------|-----|
-   | Private tag CI | `gh run list` for the `vX.Y.Z` tag: `build`, `publish-npm`, `sync-public`, and `sync-landing` all green. A red `sync-landing` is a STOP (fail-closed). `build` / `publish-npm` / `sync-public` green does not pass this row while `sync-landing` is red |
-   | Public storefront tag CI (advisory) | On `agent-kit-startup/agent-kit`, tag/Release runs should show `build` green with `sync-public` / `publish-npm` **skipped** (not failed; allowlist is `github.repository == 'agent-kit-startup/agent-kit-dev'`). The guard lands on the mirror only after Path C syncs the updated `ci.yml` (one-release lag). Do not treat a skipped public sync job as a private sync failure. |
-   | npm | `npm view @dadado/agent-kit-cli version` matches the release |
-   | Public sync PR **merged** | `sync-public` may open a PR; do **not** pass this row on CI-green alone. Confirm the public sync PR is **merged** (`gh pr view` / `gh pr list -R <public> --state merged`) before claiming public `main` is current |
-   | Public `main` | Latest commit message like `chore: sync private vX.Y.Z (...)` on the public default branch **after** that merge |
-   | Public GitHub Release | `gh release list -R <public>` shows `vX.Y.Z` as Latest (not a stale older release) |
-   | Scoped-install Path C smoke (manual or CI) | Install `@dadado/agent-kit-cli@X.Y.Z` into a blank folder under `node_modules/@dadado/…` (no kit checkout) and confirm `agent-kit dashboard` reaches HTTP 200 on loopback; required after Path C / detach-start changes |
+   | `main` | `origin/main` is at the promoted merge commit |
+   | Tag | `vX.Y.Z` exists on `origin` and points at that commit |
+   | Tag CI | `gh run list` (or `glab ci list`) for the `vX.Y.Z` tag: every required job green |
 
-   **Post-tag `main` commits:** After a `vX.Y.Z` tag ships, CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z` (**hold**). That is allowed only when documented in the promote notes / HANDOFF (tag and npm tarball describe the tagged commit, not necessarily later `main`). Realign with the **next patch** when product fixes (for example Path C) must reach npm; never force-move the existing `v*` tag. See [Semantic Versioning](#semantic-versioning).
+   **Project release verification:** if the project defines post-prod release verification (e.g. a factory wrapper command that publishes packages, syncs a mirror, or deploys a site), run it and include its rows. Otherwise Done = main pushed, tag pushed, tag CI green.
 
-   If `sync-public` failed, `sync-landing` failed, the sync PR is still open, or the public Release is missing / Latest is stale: **STOP**. The promote is unfinished until private `main`, npm, the merged public sync PR, and public Release Latest agree on that tag. Fix or re-run (`pnpm git:trigger-public-sync`), do not assume success from a green local merge/push or from tag CI alone. Do **not** close a next patch, cut another `v*`, or re-run promote under the same confirm; that is a new `/git-prod` (or `/kit-prod`) Ask. Write a memory/dogfood note when the gap was silent (npm green, public storefront stale; or CI green, sync PR unmerged).
+   **Post-tag `main` commits:** CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z` (**hold**) only when documented in the promote notes / HANDOFF. Realign with the **next patch** when the fix must reach the released artifact; never force-move the existing `v*` tag. See [Semantic Versioning](#semantic-versioning).
+
+   If tag CI or the project's release verification is red or unfinished: **STOP**. Fix or re-run the failed job; do not assume success from a green merge/push. Do **not** close a next patch, cut another `v*`, or re-run promote under the same confirm; that is a new `/git-prod` Ask.
 
 #### 13. **Final Report**  
    - Summarize executed actions, list commits promoted to production, inform merge status, mention if CHANGELOG.md was updated and any necessary follow-ups.
    - **Highlight**: Clearly inform that changes are now in production (`origin/main`).
-   - Include the step 12.5 verification results (pass/fail per row).
+   - Include the step 12 verification results (pass/fail per row).
    - Update `.cursor/HANDOFF.md` ("promoted to production"); if appropriate, memory-loop WRITE.
 
 ---

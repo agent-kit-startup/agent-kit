@@ -13,6 +13,7 @@ const ready: ShipLaneInput = {
   auth: "per-plan-release",
   outcome: "completed",
   productDiff: true,
+  publicUnreleasedNotes: "### Fixed\n\n- Consumer queue ships one release per plan",
   stagingReady: true,
   stagingAheadOfMain: true,
   ci: "green",
@@ -58,6 +59,19 @@ describe("ship lane", () => {
     const unready = decideShipLane({ ...ready, stagingReady: false });
     expect(unready.reason).toBe("staging_not_ready");
     expect(decideAdvanceAfterShip(unready, false).advance).toBe(false);
+  });
+
+  it("skips a completed plan whose public [Unreleased] notes are empty (private-fence only)", () => {
+    for (const publicUnreleasedNotes of [null, "", "  \n"]) {
+      const privateOnly = decideShipLane({ ...ready, publicUnreleasedNotes });
+      expect(privateOnly).toEqual({ action: "skip", reason: "no_product_diff" });
+      expect(decideAdvanceAfterShip(privateOnly, false)).toEqual({
+        advance: true,
+        reason: "no_product_diff",
+      });
+    }
+    const unready = decideShipLane({ ...ready, publicUnreleasedNotes: null, stagingReady: false });
+    expect(unready.reason).toBe("no_product_diff");
   });
 
   it("skips when the operator chose plans only or staging is not ahead", () => {

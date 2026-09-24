@@ -4,7 +4,8 @@
  * The queue confirm is the production yes. Each completed plan with a
  * product diff gets one SemVer close. The next plan starts only after
  * that ship is Done. A completed plan with no product diff skips the
- * release and the cursor advances. A red public lane stops the queue.
+ * release and the cursor advances. So does a plan whose public
+ * `[Unreleased]` notes are empty (private-fence only). A red public lane stops the queue.
  * It does not authorize another tag.
  */
 
@@ -37,6 +38,16 @@ export type ShipLaneInput = {
    * That skips the release and advances. It is not `staging_not_ready`.
    */
   productDiff: boolean;
+  /**
+   * Public `[Unreleased]` CHANGELOG extract:
+   * `extractPublicReleaseNotes(changelog, "Unreleased")` from
+   * `scripts/lib/public-changelog.mjs` (or stdout of
+   * `node scripts/public-changelog.mjs --version Unreleased`).
+   * Null or blank when the section is missing or every bullet is inside a
+   * changelog-private fence. That is `no_product_diff`: a release with no
+   * public notes fails tag CI `sync-landing` closed.
+   */
+  publicUnreleasedNotes: string | null;
   /** False when a product diff exists and did not land on staging. */
   stagingReady: boolean;
   stagingAheadOfMain: boolean;
@@ -86,7 +97,9 @@ export function decideShipLane(input: ShipLaneInput): ShipLaneDecision {
   if (input.auth === "plans-only") return { action: "skip", reason: "plans_only" };
   if (input.previousShip === "stopped") return { action: "stop", reason: "previous_ship_not_done" };
   if (input.outcome !== "completed") return { action: "skip", reason: "plan_not_completed" };
-  if (!input.productDiff) return { action: "skip", reason: "no_product_diff" };
+  if (!input.productDiff || !input.publicUnreleasedNotes?.trim()) {
+    return { action: "skip", reason: "no_product_diff" };
+  }
   if (!input.stagingReady) return { action: "stop", reason: "staging_not_ready" };
   if (!input.stagingAheadOfMain) return { action: "skip", reason: "staging_not_ahead" };
   if (input.ci === "pending") return { action: "wait-ci", reason: "ci_pending" };

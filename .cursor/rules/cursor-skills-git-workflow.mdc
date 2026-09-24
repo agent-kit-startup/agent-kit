@@ -47,7 +47,7 @@ Prefixes: `feat:`, `fix:`, `docs:`, `docs(memory):`, `refactor:`, `chore:`, `cho
 
 - **`git staging`** / **`git prod`**: run the matching section in [autogit/gitupdate.md](autogit/gitupdate.md) end-to-end (SoT). Do not invent a parallel routine.
   Staging: warn on dirty untracked `plan-monitor-*.md`; stage memory/monitor files add-by-name only; remaining safe kit dirt ships in a `docs(memory):` / `chore(kit):` bucket in the same run.
-  Prod: **one confirm, one ship**. Red/stale public sync is a STOP. Done means private `main`, npm, merged public sync PR, and public Release Latest name the same tag. Never steal the confirmation Ask.
+  Prod: **one confirm, one ship**. Red or unfinished post-prod verification is a STOP. Done means `main` pushed, tag pushed, tag CI green (plus any project release verification). Never steal the confirmation Ask.
 
 ## Troubleshooting
 

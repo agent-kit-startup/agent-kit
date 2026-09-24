@@ -90,7 +90,7 @@ These rows are **post-publish** only. Do not mark them Met from pre-tag mechanis
 
 ## Cross-lens go/no-go (before tagging)
 
-Use this matrix with dogfood / `/git-prod` Step 12.5. Cite `.cursor/memory/` when a row fails.
+Use this matrix with dogfood / factory `/kit-prod` §5 (post-prod verification). Cite `.cursor/memory/` when a row fails.
 
 | Lens | Check | Pass criteria | Known footguns / memory |
 |------|-------|---------------|-------------------------|
@@ -98,7 +98,7 @@ Use this matrix with dogfood / `/git-prod` Step 12.5. Cite `.cursor/memory/` whe
 | DevSecOps | Secrets / private paths out of tarball | Dry-run / pack list has no `.env`, credentials, `.cursor/memory`, private `config.json` | this checklist, `docs/repository-boundaries.md` |
 | Cyber | Mission Control bind | Default `/dashboard` loopback; LAN broadcast requires token; no silent non-loopback | ADR opt-in LAN broadcast; Path C bundled host still respects bind rules |
 | DevOps | Tag CI publish path | `publish-npm` runs pack verify before publish; Biome/pnpm/setup-node/`typecheck` green on tag | `errors/2026-07-21_ci-biome-blocked-440-publish.md`, `errors/2026-07-23_biome-format-blocked-446-tag-ci.md`, `errors/2026-07-29_tag-ci-typecheck-blocked-481-publish.md` |
-| Git | Promote immutability | Four manifests match SemVer; never force-move pushed `v*`; hold vs next patch per `autogit/gitupdate.md`; Step 12.5 requires **merged** sync PR | `decisions/2026-07-28_git-prod-version-manifest-parity.md`, `decisions/2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`, `errors/2026-07-28_public-sync-pr-unmerged-skips-release.md` |
+| Git | Promote immutability | Four manifests match SemVer; never force-move pushed `v*`; hold vs next patch per `autogit/gitupdate.md`; factory `/kit-prod` §5 requires **merged** sync PR | `decisions/2026-07-28_git-prod-version-manifest-parity.md`, `decisions/2026-09-04_semver-patch-for-post-tag-and-consumer-fixes.md`, `errors/2026-07-28_public-sync-pr-unmerged-skips-release.md` |
 | Product | Consumer install honesty | Dual-audience README; Port A/B leave `hooks.json`; Path C dashboard without kit checkout after publish | `errors/2026-07-19_consumer-install-missing-hooks-json.md`, `errors/2026-07-20_consumer-install-footguns.md` |
 | Hygiene | Monitor staging | Untracked `plan-monitor-*.md` staged add-by-name only; tree clean before `/git-prod` validation | ADR R14/R15 staging hygiene |
 
@@ -119,7 +119,7 @@ Walk this list **before** asking for `/git-prod`. Checking a box here is not per
 2. **Four-manifest pin.** Root `package.json`, `packages/cli/package.json`, `.cursor/agent-kit.json`, and `.cursor-plugin/plugin.json` still match the last tagged SemVer until close-release. Close-release bumps all four to the new SemVer in the same commit as the CHANGELOG dated section (ADR `2026-07-28_git-prod-version-manifest-parity.md`).
 3. **Public excerpt.** `node scripts/public-changelog.mjs --version Unreleased` then `--version X.Y.Z` and `--blurb` after the dated section exists. Empty public excerpt is allowed only if the operator accepts a factory-only release (no landing notes). Blurb stays under 1000 characters. Never pass `CHANGELOG.md` as `--notes-file`.
 4. **Tag immutability.** `git tag -l vX.Y.Z` must be empty before the first push. Never force-move a published `v*`. Retry is a new patch tag or local-only recreate before first push.
-5. **Path C / npm / public Release (gitupdate step 12.5).** After tag: private tag CI `build` + `publish-npm` + `sync-public` + `sync-landing` green; `npm view @dadado/agent-kit-cli version` matches; public sync PR **merged**; public `main` sync commit; public GitHub Release Latest on that same tag. Done means those four agree. A red or unmerged public row is a STOP: it does not authorize the next patch under the same confirm. CI-green alone is not public-current.
+5. **Path C / npm / public Release (factory `/kit-prod` §5).** After tag: private tag CI `build` + `publish-npm` + `sync-public` + `sync-landing` green; `npm view @dadado/agent-kit-cli version` matches; public sync PR **merged**; public `main` sync commit; public GitHub Release Latest on that same tag. Done means those four agree. A red or unmerged public row is a STOP: it does not authorize the next patch under the same confirm. CI-green alone is not public-current.
 6. **Derived stamps.** `.cursor/project-context.md` is indicative. Regenerate after close-release; do not treat a stale observed version as a promote blocker.
 
 ## Related docs
@@ -127,4 +127,4 @@ Walk this list **before** asking for `/git-prod`. Checking a box here is not per
 - Boundaries and secrets table: [repository-boundaries.md](repository-boundaries.md)
 - Public mirror launch (separate from npm): [public-launch.md](public-launch.md)
 - CI workflow: `.github/workflows/ci.yml` (`publish-npm` job)
-- `/git-prod` routine: `autogit/gitupdate.md` (Prompt: git prod, §2 pre-tag gate, §12.5)
+- `/git-prod` routine: `autogit/gitupdate.md` (Prompt: git prod, §2 pre-tag gate, §12); factory release steps + post-prod verification: `.cursor/commands/kit-prod.md` §5

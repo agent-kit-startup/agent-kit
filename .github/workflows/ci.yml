@@ -104,6 +104,9 @@ jobs:
       - name: Evidence checks
         if: github.repository == 'agent-kit-startup/agent-kit-dev'
         run: |
+          # Closed CHANGELOG section for package.json version must carry public
+          # notes, or tag CI sync-landing fails closed after the tag.
+          pnpm check:release-preflight
           pnpm evidence:codebase-findings:check
           pnpm evidence:risk-hotspots:check
           pnpm evidence:knowledge-classification:check
