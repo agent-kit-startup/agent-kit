@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.14.1] - 2026-09-24
+
+### Changed
+
+- **`/git-staging`, `/git-prod`, and `/run-plan-all` are generic again.** Release steps that only apply to the kit's own maintainers are gone from the installed commands. Done after a promote means main pushed, tag pushed, and tag CI green, plus your project's own post-release check when it defines one.
+- **`/run-plan-all` skips the release for a plan with no public changelog notes.** The queue moves on instead of cutting an empty release.
+
 ## [5.14.0] - 2026-09-24
 
 ### Changed

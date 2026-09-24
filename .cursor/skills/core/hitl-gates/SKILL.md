@@ -87,16 +87,11 @@ No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` sugges
 | `install.md` | Registry URL/ref; migrate nested `agent-kit/`; optional git-hooks |
 | `/agent-kit-onboard` | One unresolved essential at a time. Domain skills: `Scaffold domain skills` / `Defer (record reason)` / `Skip` |
 
-`/git-prod` and factory `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unmerged public sync, a red `sync-landing`, or a public Release Latest that does not match that tag, is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red public lane still stops the queue.
+`/git-prod` and factory `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unfinished post-prod verification (tag CI, or the wrapper's release checks) is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red post-prod verification still stops the queue.
 
-### Factory landing wraps (not consumer L0)
+### Wrapper commands (not consumer L0)
 
-Factory disk keeps `/kit-staging` and `/kit-prod`. They are omitted from consumer L0, public-sync, and `agent-kit run` catalog. Landing Asks live on those command files only:
-
-| Surface | Labels |
-|---------|--------|
-| `/kit-staging` | After git staging, if landing-worthy: `Deploy landing to staging` / `Skip landing (repo only)` / `Cancel` |
-| `/kit-prod` | Keep the git-prod Ask first. After prod: `Promote landing to production` / `Skip landing (repo only)` / `Cancel` |
+A project may wrap `/git-staging` / `/git-prod` (the kit factory keeps `/kit-staging` and `/kit-prod`, omitted from consumer L0, public-sync, and the `agent-kit run` catalog). A wrapper keeps the native Ask first and owns any extra post-ship Asks and their labels in its own command file.
 
 ## Numbered fallback (path 1)
 

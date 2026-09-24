@@ -218,7 +218,7 @@ Main window only, after a valid `completed` summary, before the next plan Task. 
 | State | Action |
 | --- | --- |
 | `plans-only`, outcome not `completed`, or `staging` not ahead of `main` | Skip. `plans-only` suggests `/git-prod` only at queue end. |
-| Completed plan, no versionable product diff (`Staging ready: no-diff`, or `no` with an empty product diff) | Skip (`no_product_diff`). Advance the cursor. Do not cut a tag. Commits already on `staging` stay for the next plan that has a diff. |
+| Completed plan, no versionable product diff (`Staging ready: no-diff`, `no` with an empty product diff, or an `[Unreleased]` public CHANGELOG extract that is empty: `publicUnreleasedNotes` null) | Skip (`no_product_diff`). Advance the cursor. Do not cut a tag. Commits already on `staging` stay for the next plan that has a diff. |
 | `Staging ready: no` and a product diff exists | Stop (`staging_not_ready`). Do not start the next plan. |
 | Previous ship in this queue is not Done | Stop. Do not start the next plan. |
 | Staging CI pending | Wait for that SHA. |
@@ -227,7 +227,7 @@ Main window only, after a valid `completed` summary, before the next plan Task. 
 | `BREAKING CHANGE` or a `type!:` subject | Stop. No automatic major. |
 | Any `feat` subject | One minor. Otherwise one patch. |
 
-Use `/kit-prod` when that command file exists, otherwise `/git-prod`, with no second `Proceed with production deploy` Ask. The queue confirm is the yes. One tag. Factory Done is private `main`, npm, the merged public sync PR, and public Release Latest on that tag, with `sync-landing` green. Absent lanes count as satisfied. Not Done stops the queue. Subjects: `git log origin/main..origin/staging --format=%s%n%b`. Decision helper: `packages/cli/src/plan-loop/run-plan-all-ship-lane.ts`.
+Use `/kit-prod` when that command file exists, otherwise `/git-prod`, with no second `Proceed with production deploy` Ask. The queue confirm is the yes. One tag. Done is that command's own Done (`/git-prod`: main pushed, tag pushed, tag CI green; a wrapper adds its release verification). Not Done stops the queue. Subjects: `git log origin/main..origin/staging --format=%s%n%b`. Decision helper: `packages/cli/src/plan-loop/run-plan-all-ship-lane.ts`.
 
 Subagent ownership (inside the Task): mark to-dos `in_progress` → implement → `completed`; plan-level HANDOFF updates; per-to-do risk gates (`max_ticks`, PII/secrets Ask, staging-on-diff); never `/git-prod`.
 
