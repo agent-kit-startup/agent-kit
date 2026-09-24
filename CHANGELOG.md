@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.13.3] - 2026-09-24
+
+### Changed
+
+- **CI actions are pinned to commit SHAs.** Dependabot covers GitHub Actions and npm.
+
 ## [5.13.2] - 2026-09-24
 
 ### Changed
