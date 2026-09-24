@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.13.1] - 2026-09-24
+
+### Changed
+
+- **Beacon-class memory collectors stay out of Mission Kit.** Session capture into a second database, and an MCP store of that database, are not part of the kit. Reviewed errors and decisions still land through the memory loop.
+
 ## [5.13.0] - 2026-09-23
 
 ### Changed
