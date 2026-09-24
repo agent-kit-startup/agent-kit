@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [5.14.0] - 2026-09-24
 
+### Changed
+
+- **Maintenance release.** Maintainer-side tooling only. Nothing changes for people who install the kit.
+
 ## [5.13.4] - 2026-09-24
 
 ### Changed
