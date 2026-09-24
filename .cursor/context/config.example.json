@@ -44,6 +44,11 @@
     "lastSeenCursorVersion": null,
     "changelogUrl": "https://cursor.com/changelog"
   },
+  "publicInboundCheck": {
+    "enabled": false,
+    "intervalDays": 7,
+    "lastCheckedAt": null
+  },
   "updateApply": {
     "auto": false
   },

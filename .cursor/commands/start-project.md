@@ -38,3 +38,7 @@ Numbered-list fallback is **path 1** when Ask questions is missing (one list per
 3. Vague goal: Ask for 1-2 sentences, then Gate A.
 4. Gate A: write plan + HANDOFF per pick. Backlog paths skip Gate B (`Mode: STOPPED` or current plan stays active).
 5. Gate B (park or no-active-plan activate only): one unit, HANDOFF, stop. Suggest `/git-staging` if there is a diff. Manual mode: one phase per chat unless the operator used `/run-plan`.
+
+## Opt-in public inbound nudge (factory)
+
+When `publicInboundCheck.enabled` is true and the interval elapsed, after the default Gate Ask (never before it), optionally run `agent-kit public-inbound-radar --json --respect-prefs --stamp` and surface `/public-inbound-radar` route Ask if open items exist. Default off. Fail-open. See ADR `2026-09-24_public-inbound-radar.md`.

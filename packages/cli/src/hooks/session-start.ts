@@ -4,6 +4,7 @@ import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
 import { loadContextConfig } from "../lifecycle/context-config.js";
 import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
+import { shouldEmitPublicInboundNudge } from "../lifecycle/public-inbound-radar.js";
 import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
 import { READINESS_SNAPSHOT_RELATIVE_PATH } from "../scanner/snapshot.js";
@@ -14,6 +15,7 @@ import {
   CURSOR_AWARENESS_NUDGE,
   DOGFOOD_INBOX_HINT,
   HARD_RULES,
+  PUBLIC_INBOUND_NUDGE,
   UPDATE_CHECK_NUDGE,
 } from "./hard-rules.js";
 
@@ -397,6 +399,112 @@ export async function cursorAwarenessSection(
   return CURSOR_AWARENESS_NUDGE;
 }
 
+/** Must exceed a typical gh list round-trip; fail-open on timeout. */
+export const PUBLIC_INBOUND_SPAWN_TIMEOUT_MS = 30_000;
+
+async function loadPublicInboundCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
+  const data = await loadContextConfig(root);
+  if (!data) return null;
+  const uc = data.publicInboundCheck;
+  if (!uc || typeof uc !== "object" || (uc as Record<string, unknown>).enabled !== true) {
+    return null;
+  }
+  return uc as Record<string, unknown>;
+}
+
+function runPublicInboundJson(root: string): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const child = spawn(
+      process.execPath,
+      [
+        process.argv[1] ?? "",
+        "public-inbound-radar",
+        "--json",
+        "--respect-prefs",
+        "--stamp",
+        "--cwd",
+        root,
+      ],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: PUBLIC_INBOUND_SPAWN_TIMEOUT_MS },
+    );
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    child.on("error", () => resolve(null));
+    child.on("close", () => {
+      try {
+        const parsed = JSON.parse(out.trim()) as Record<string, unknown>;
+        resolve(parsed && typeof parsed === "object" ? parsed : null);
+      } catch {
+        resolve(null);
+      }
+    });
+  });
+}
+
+/**
+ * sessionStart public-inbound section. Opt-in via publicInboundCheck.enabled.
+ * Primary spawn is `agent-kit`; on ENOENT / empty failure, one fallback via execPath.
+ */
+export async function publicInboundSection(
+  root: string,
+  deps: {
+    spawnFn?: CursorAwarenessSpawn;
+    runFallback?: (root: string) => Promise<Record<string, unknown> | null>;
+  } = {},
+): Promise<string | null> {
+  if ((await loadPublicInboundCheckPrefs(root)) === null) return null;
+  const spawnFn = deps.spawnFn ?? spawn;
+  const runFallback = deps.runFallback ?? runPublicInboundJson;
+  const result = await new Promise<Record<string, unknown> | null>((resolve) => {
+    let settled = false;
+    let fallbackStarted = false;
+    const finish = (value: Record<string, unknown> | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const startFallback = () => {
+      if (settled || fallbackStarted) return;
+      fallbackStarted = true;
+      void runFallback(root).then(finish);
+    };
+    const child = spawnFn(
+      "agent-kit",
+      ["public-inbound-radar", "--json", "--respect-prefs", "--stamp", "--cwd", root],
+      {
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: PUBLIC_INBOUND_SPAWN_TIMEOUT_MS,
+        shell: false,
+      },
+    );
+    let out = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      out += chunk.toString("utf8");
+    });
+    child.on("error", () => {
+      startFallback();
+    });
+    child.on("close", (code) => {
+      if (settled || fallbackStarted) return;
+      if (code !== 0 && !out.trim()) {
+        startFallback();
+        return;
+      }
+      try {
+        finish(JSON.parse(out.trim()) as Record<string, unknown>);
+      } catch {
+        startFallback();
+      }
+    });
+  });
+  if (!shouldEmitPublicInboundNudge(result)) {
+    return null;
+  }
+  return PUBLIC_INBOUND_NUDGE;
+}
+
 /**
  * Detached audit-session visibility (plan phase3-visibility).
  *
@@ -565,6 +673,9 @@ export async function buildSessionStartAdditionalContext(
 
   const cursorNudge = await cursorAwarenessSection(root);
   if (cursorNudge) parts.push(cursorNudge);
+
+  const inboundNudge = await publicInboundSection(root);
+  if (inboundNudge) parts.push(inboundNudge);
 
   // Belt and suspenders on top of the section's own try/catch: this section has no
   // config gate, so it runs on every sessionStart and must stay fail-open.

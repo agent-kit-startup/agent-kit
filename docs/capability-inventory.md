@@ -4,13 +4,13 @@ Mission Kit capability catalog grouped by surface family. Lists every shipped ca
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against the working tree on 2026-09-23): **31** slash commands under `.cursor/commands/` (**28** syncable/L0-oriented per counting policy below; `/public-issue-triage`, `/kit-staging`, `/kit-prod` are factory-only), 25 rules, 14 agents, **14** `SKILL.md` files under `.cursor/skills/` (plus L0 one-hop `procedure.md` pages), 5 Cursor hooks, 18 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
+Real counts (verified against the working tree on 2026-09-24): **32** slash commands under `.cursor/commands/` (**28** syncable/L0-oriented per counting policy below; `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, `/kit-prod` are factory-only), 25 rules, 14 agents, **14** `SKILL.md` files under `.cursor/skills/` (plus L0 one-hop `procedure.md` pages), 5 Cursor hooks, 19 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
-## Slash commands (.cursor/commands/ - 31)
+## Slash commands (.cursor/commands/ - 32)
 
-Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **28** syncable commands (excluding `/public-issue-triage`, `/kit-staging`, and `/kit-prod`). The on-disk factory tree has **31** files; `/public-issue-triage` is omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` remain factory files (landing wraps of native git); they are not consumer L0. `/qa` is consumer L0 (command plus core skill; no new L0 agent).
+Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **28** syncable commands (excluding `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, and `/kit-prod`). The on-disk factory tree has **32** files; `/public-issue-triage` and `/public-inbound-radar` are omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` remain factory files (landing wraps of native git); they are not consumer L0. `/qa` is consumer L0 (command plus core skill; no new L0 agent).
 
 - `/start-project` - Plan creation with two-gate HITL (broad intake, write confirm, optional Gate B start unit)
 - `/backlog-add` - Enqueue plan under HANDOFF Backlog without activation
@@ -43,6 +43,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `/context-status` - Context window and memory status report
 - `/dogfood` - File a private dogfood note into the factory or consumer inbox
 - `/public-issue-triage` - Factory-only maintainer triage for the public GitHub issues inbox (HITL; not L0 / not public-sync)
+- `/public-inbound-radar` - Factory-only inspect of open public issues/PRs + HITL route (read-only; Dependabot is one batch; not L0 / not public-sync)
 
 ---
 
@@ -141,11 +142,12 @@ Factory on-disk count is **14** `SKILL.md` files (5 core + 8 community + 1 domai
 
 ---
 
-## CLI commands (packages/cli/src/commands/ - 18)
+## CLI commands (packages/cli/src/commands/ - 19)
 
 - `add` - Add new components to Agent Kit installation
 - `contribute` - Contribution workflow helpers
 - `cursor-awareness` - Advisory Cursor product-update awareness check (`cursorUpdateCheck`)
+- `public-inbound-radar` - Factory-only read-only list of open public issues/PRs (`publicInboundCheck`)
 - `dashboard-broadcast` - Mission Control broadcast management
 - `dashboard` - Mission Control UI server
 - `diff` - Compare Agent Kit versions and changes

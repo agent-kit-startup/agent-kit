@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.14.0] - 2026-09-24
+
 ## [5.13.4] - 2026-09-24
 
 ### Changed

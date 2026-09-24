@@ -35,6 +35,7 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       expect(manifest).toMatch(/^!\.cursor\/commands\/kit-staging\.md$/m);
       expect(manifest).toMatch(/^!\.cursor\/commands\/kit-prod\.md$/m);
       expect(manifest).toMatch(/^!\.cursor\/commands\/public-issue-triage\.md$/m);
+      expect(manifest).toMatch(/^!\.cursor\/commands\/public-inbound-radar\.md$/m);
     },
   );
 

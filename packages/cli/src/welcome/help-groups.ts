@@ -36,7 +36,15 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
   {
     id: "integrity",
     title: "INTEGRITY",
-    commands: ["validate", "guard", "hook", "cursor-awareness", "diff", "contribute"],
+    commands: [
+      "validate",
+      "guard",
+      "hook",
+      "cursor-awareness",
+      "public-inbound-radar",
+      "diff",
+      "contribute",
+    ],
   },
 ];
 
