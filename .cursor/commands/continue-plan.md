@@ -36,3 +36,7 @@ Numbered-list fallback is **path 1** when Ask questions is missing.
 3. On `Start [to-do-id]`: run only that unit; update plan status. Any other pick stops.
 4. When done: HANDOFF, stop, suggest `/git-staging` if there is a diff. Next phase: new conversation with `/continue-plan`.
 5. Inbox skim may mention count after the entry Ask. Do not Ask inbox before it.
+
+## Opt-in public inbound nudge (factory)
+
+When `publicInboundCheck.enabled` is true and the interval elapsed, after the default-path Ask (never before it), optionally run `agent-kit public-inbound-radar --json --respect-prefs --stamp` and surface `/public-inbound-radar` route Ask if open items exist. Default off. Fail-open. See ADR `2026-09-24_public-inbound-radar.md`.

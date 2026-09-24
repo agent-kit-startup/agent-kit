@@ -15,6 +15,7 @@ import { installCommand } from "./commands/install.js";
 import { missionControlCommand } from "./commands/mission-control.js";
 import { monitorsCommand } from "./commands/monitors.js";
 import { planIndexCommand } from "./commands/plan-index.js";
+import { publicInboundRadarCommand } from "./commands/public-inbound-radar.js";
 import { runPlanCommand } from "./commands/run-plan.js";
 import { runCommand, runPlanAllCommand } from "./commands/run.js";
 import { scanCommand } from "./commands/scan.js";
@@ -47,6 +48,7 @@ const main = defineCommand({
     status: statusCommand,
     update: updateCommand,
     "cursor-awareness": cursorAwarenessCommand,
+    "public-inbound-radar": publicInboundRadarCommand,
     diff: diffCommand,
     contribute: contributeCommand,
     handoff: handoffCommand,

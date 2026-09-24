@@ -167,6 +167,7 @@ describe("public-sync dashboard allowlist guard", () => {
       ".cursor/commands/kit-staging.md",
       ".cursor/commands/kit-prod.md",
       ".cursor/commands/public-issue-triage.md",
+      ".cursor/commands/public-inbound-radar.md",
     ]) {
       expect(isAllowlisted(rel, manifest), `${rel} must be public-sync excluded`).toBe(false);
       expect(manifest.excludes).toContain(rel);

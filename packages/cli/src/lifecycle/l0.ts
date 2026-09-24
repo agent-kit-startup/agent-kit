@@ -176,9 +176,11 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/commands/dogfood.md",
     target: ".cursor/commands/dogfood.md",
   },
-  // Factory-only: `.cursor/commands/public-issue-triage.md` is intentionally
-  // omitted from L0 (and excluded from public-sync). See ADR
-  // 2026-08-05_factory-only-public-issue-triage-command.md.
+  // Factory-only: `.cursor/commands/public-issue-triage.md` and
+  // `.cursor/commands/public-inbound-radar.md` are intentionally omitted from
+  // L0 (and excluded from public-sync). See ADRs
+  // 2026-08-05_factory-only-public-issue-triage-command.md and
+  // 2026-09-24_public-inbound-radar.md.
   {
     source: ".cursor/commands/cursor-update-awareness.md",
     target: ".cursor/commands/cursor-update-awareness.md",

@@ -32,3 +32,9 @@ export const CURSOR_AWARENESS_NUDGE = `## Cursor product-update awareness
 Advisory gaps vs \`docs/cursor-native-audit.md\` (check-only; no apply; no Field Reports).
 
 Run \`/cursor-update-awareness\` (or \`agent-kit cursor-awareness --check\`) and confirm routing via Ask → \`/backlog-add\` or \`/dogfood\`.`;
+
+export const PUBLIC_INBOUND_NUDGE = `## Public inbound radar
+
+Open issues or pull requests on \`agent-kit-startup/agent-kit\` (inspect-only; no merge/close).
+
+Run \`/public-inbound-radar\` (or \`agent-kit public-inbound-radar --json\`) and confirm routing via Ask → \`/backlog-add\`, Memory WRITE, \`/dogfood\`, \`/public-issue-triage\`, or Dismiss. Dependabot is one batch.`;
