@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.8.2",
-    "citty": "^0.1.6",
+    "citty": "^0.2.2",
     "kolorist": "^1.8.0"
   },
   "devDependencies": {
