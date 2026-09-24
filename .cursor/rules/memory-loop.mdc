@@ -65,6 +65,7 @@ After each new entry, add a line to `.cursor/memory/_index.md` with: title (rela
 
 - Do not process JSONL transcripts as the loop's main source.
 - Do not introduce embeddings, a vector DB, or an external service just for this.
+- Do not add Beacon-class session collectors or a `memory.db` MCP memory store beside `.cursor/memory/` (ADR `2026-09-23_agent-beacon-study-adapt.md`). Review-before-WRITE remains this contract.
 - Do not duplicate style preferences already covered by other rules.
 - Do not inflate memory with noise; prefer a few **useful** entries.
 
