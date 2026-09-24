@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.13.2] - 2026-09-24
+
+### Changed
+
+- **Decision records have an active catalog.** New decisions still carry a Status. The active list lives in the decisions index. Fully superseded records can move to an archive and leave that list. The files stay in git history.
+
 ## [5.13.1] - 2026-09-24
 
 ### Changed
