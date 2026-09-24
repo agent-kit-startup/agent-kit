@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.13.4] - 2026-09-24
+
+### Changed
+
+- **The install overlay hash ledger matches the current kit files.**
+
 ## [5.13.3] - 2026-09-24
 
 ### Changed
