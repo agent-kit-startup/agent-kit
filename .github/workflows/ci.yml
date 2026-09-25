@@ -30,6 +30,13 @@ concurrency:
 
 jobs:
   build:
+    # The staging -> main promote PR head is the staging tip, which its own
+    # staging push run already built (main is FF-synced into staging after
+    # every promote). A skipped job still reports success to required checks.
+    if: >-
+      ${{ !(github.event_name == 'pull_request'
+        && github.base_ref == 'main'
+        && github.head_ref == 'staging') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

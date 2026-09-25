@@ -31,6 +31,10 @@ Do not market unchecked full autonomy. Staging may be automatic; production (`/g
 
 **Never:** paid ads as the first delivery; scraping PII into recaps; silent cross-network posting; renaming npm/CLI/slash to Mission Kit; overloading Agent Personas as the poster.
 
+## Forge vs local memory (boundary)
+
+GitHub Issues / PRs are **contributor visibility** (funnel, inbound triage, ship closeout). They are **not** kit session memory. HANDOFF machine fields, plans, `/run-plan` queues, HITL replies, dogfood Unprocessed, and default memory-loop WRITE stay in the checkout. Do not use milestones or GitHub Projects as a HANDOFF or queue replacement. Optional: open a hygiene-stripped issue for a durable blocker only after an explicit operator yes (never auto-file monitors or raw Gaps). GitLab issues/boards are out of scope (CI templates only). ADR: `.cursor/memory/decisions/2026-09-23_forge-surfaces-as-collab-memory.md`.
+
 ## Cadence sketch (Cartesi-style input, not brand copy)
 
 Bind every cycle to artifacts that already exist:

@@ -42,7 +42,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `/archive-plan` - Move parked plan to archive with status update
 - `/context-status` - Context window and memory status report
 - `/dogfood` - File a private dogfood note into the factory or consumer inbox
-- `/public-issue-triage` - Factory-only maintainer triage for the public GitHub issues inbox (HITL; not L0 / not public-sync)
+- `/public-issue-triage` - Factory-only maintainer triage for the public GitHub issues inbox (HITL; not L0 / not public-sync). Forge issues stay contributor visibility, not HANDOFF/session memory ([comms channel map](comms-channel-map.md#forge-vs-local-memory-boundary); ADR `2026-09-23_forge-surfaces-as-collab-memory.md`).
 - `/public-inbound-radar` - Factory-only inspect of open public issues/PRs + HITL route (read-only; Dependabot is one batch; not L0 / not public-sync)
 
 ---
