@@ -1,14 +1,24 @@
 # Dependabot: GitHub Actions and npm only (supply-chain-scanner-true-positives plan).
+# Grouped and monthly: one PR per ecosystem instead of one per package, each of
+# which ran full CI and re-ran it on every rebase (Actions minutes, 2026-09-24).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ["*"]
 
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      npm-production:
+        dependency-type: production
+      npm-development:
+        dependency-type: development

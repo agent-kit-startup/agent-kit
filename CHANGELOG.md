@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.14.2] - 2026-09-25
+
+### Changed
+
+- **Forge vs local memory is documented.** Comms channel map and capability inventory state that GitHub Issues/PRs are contributor visibility, not HANDOFF or session memory (ADR Accepted).
+
 ## [5.14.1] - 2026-09-24
 
 ### Changed
