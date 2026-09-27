@@ -83,7 +83,7 @@ All five hook adapters (`sessionStart`, `preCompact`, `beforeShellExecution`, `a
 
 `author` is an **object** (`{ "name": … }`), not a string. Rules, agents, skills, and commands all need YAML frontmatter; command frontmatter carries `name` (kebab-case, matching the filename slug) plus `description`.
 
-`displayName` (currently `"Agent Kit"`) is **not** in Cursor's documented plugin manifest schema. Kept deliberately as a listing-friendly name distinct from the package-style `name`; unknown keys have not been observed to fail manifest validation. Drop it only if a future submission attempt reports it as rejected by validation.
+`displayName` (currently `"Mission Kit"`) is **not** in Cursor's documented plugin manifest schema. Kept deliberately as a listing-friendly name distinct from the package-style `name`; unknown keys have not been observed to fail manifest validation. Drop it only if a future submission attempt reports it as rejected by validation.
 
 Editing any file under `.cursor/{agents,skills,commands}/` (or a registry skill's `SKILL.md`) changes its consumer-overlay hash: run `pnpm overlay:hashes` (root; or `npm run overlay:hashes` from `packages/cli`) in the same commit to append the new hashes to `KNOWN_SHIPPED_OVERLAY_HASHES` (`packages/cli/src/lifecycle/overlay-known-hashes.ts`). The helper is append-only — prior entries are never removed or reordered — and `pnpm overlay:hashes:check` lists missing hashes (exit 1) without writing. Without the append, an unedited consumer copy is misread as customized and never refreshed. The "KNOWN_SHIPPED_OVERLAY_HASHES coverage" tests in `packages/cli/src/lifecycle/overlay.test.ts` enforce this for every L0 overlay artifact and every registry skill `SKILL.md` (core + community).
 

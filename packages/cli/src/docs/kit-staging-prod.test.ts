@@ -125,6 +125,7 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
     expect(gitupdate).toMatch(/does not authorize another patch/);
     expect(gitupdate).toMatch(/Post-prod verification \(do not skip\)/);
     expect(gitupdate).toMatch(/Otherwise Done = main pushed, tag pushed, tag CI green/);
+    expect(gitupdate).toMatch(/Eventually-consistent row: poll with bounded backoff/);
 
     const gitProd = readRel(".cursor/commands/git-prod.md");
     expect(gitProd).toMatch(/One confirm, one ship/);
@@ -132,10 +133,28 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
     expect(gitProd).toMatch(/merge-base --is-ancestor/);
     expect(gitProd).toMatch(/If the project defines post-prod release verification/);
     expect(gitProd).toMatch(/all on the same `vX\.Y\.Z`/);
+    expect(gitProd).toMatch(/Eventually-consistent row: poll with bounded backoff/);
 
     const hitl = readRel(".cursor/skills/core/hitl-gates/SKILL.md");
     expect(hitl).toMatch(/one `Proceed with production deploy` is one ship/);
     expect(hitl).toMatch(/The next patch needs a new Ask/);
+  });
+
+  it("keeps eventually-consistent poll language generic on consumer L0 (no factory row names)", () => {
+    // Negative pin: consumer L0 may say "eventually-consistent row: poll with
+    // bounded backoff" but must not name npm, landing, or public-sync there.
+    // Those names belong in kit-prod section 5 only.
+    const convergeClause = /Eventually-consistent row: poll with bounded backoff[^.!;\n]*/gi;
+    const factoryRowNames =
+      /\bnpm\b|publish-npm|sync-landing|sync-public|public-sync|Release Latest|landing HTML/i;
+    for (const rel of ["autogit/gitupdate.md", ".cursor/commands/git-prod.md"]) {
+      const body = readRel(rel);
+      const clauses = body.match(convergeClause);
+      expect(clauses?.length ?? 0, rel).toBeGreaterThan(0);
+      for (const clause of clauses ?? []) {
+        expect(clause, rel).not.toMatch(factoryRowNames);
+      }
+    }
   });
 
   it("keeps maintainer-only release plumbing out of consumer L0 git commands", () => {
@@ -183,6 +202,7 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       expect(kitProd).toMatch(/\.cursor-plugin\/plugin\.json/);
       expect(kitProd).toMatch(/public-changelog\.mjs --version <X\.Y\.Z>/);
       expect(kitProd).toMatch(/Protect main and staging/);
+      expect(kitProd).toMatch(/[Ss]tale after a green publish = poll, not STOP/);
     },
   );
 

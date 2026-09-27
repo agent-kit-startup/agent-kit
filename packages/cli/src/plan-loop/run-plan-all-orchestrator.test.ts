@@ -4,9 +4,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseHandoffMarkdown } from "../../../../dashboard/lib/semantic-model.mjs";
 import {
+  CONTEXT_CHECKPOINT_ASK_LABELS,
+  NOVEL_FAILURE_ASK_LABELS,
+  QUEUE_DRIFT_ASK_LABELS,
+  backlogAppearedSinceConfirm,
   canDispatchQueuedPlan,
   classifyOrchestratorAction,
+  decideContextCheckpointAsk,
   decideCursorAdvance,
+  decideQueueDriftAsk,
   isForbiddenOrchestratorAction,
   isQueueConfirmGranted,
   isValidPlanWorkerSummary,
@@ -127,11 +133,19 @@ describe("HANDOFF queue fields round-trip", () => {
       queueCursor: 2,
       queueCursorPlan: "cockpit-run-plan-all-queue.plan.md",
       queueStatus: "running",
+      confirmedBacklog: [
+        "eligible-not-queued.plan.md",
+        "checklist-plans-active-progress-shimmer.plan.md",
+      ],
       queueOutcomes: {
         "checklist-plans-active-progress-shimmer.plan.md": "completed",
         "monitor-feed-single-roll-residuals.plan.md": "completed",
       },
     });
+
+    expect(md).toContain(
+      "- **Confirmed backlog:** [eligible-not-queued.plan.md, checklist-plans-active-progress-shimmer.plan.md]",
+    );
 
     const handoff = parseHandoffMarkdown(md);
     expect(handoff).not.toBeNull();
@@ -149,6 +163,84 @@ describe("HANDOFF queue fields round-trip", () => {
       "checklist-plans-active-progress-shimmer.plan.md": "completed",
       "monitor-feed-single-roll-residuals.plan.md": "completed",
     });
+  });
+});
+
+describe("queue drift Ask (confirmed backlog set)", () => {
+  it("pins Resume frozen queue / Insert new backlog / Re-synthesize", () => {
+    expect([...QUEUE_DRIFT_ASK_LABELS]).toEqual([
+      "Resume frozen queue",
+      "Insert new backlog",
+      "Re-synthesize",
+    ]);
+  });
+
+  it("does not Ask when stable Backlog was already present at confirm", () => {
+    const confirmed = ["a.plan.md", "b.plan.md", "outside-queue.plan.md"];
+    const current = ["outside-queue.plan.md", "b.plan.md", "a.plan.md"];
+    expect(backlogAppearedSinceConfirm(confirmed, current)).toEqual([]);
+    const decision = decideQueueDriftAsk({
+      confirmedBacklog: confirmed,
+      currentBacklog: current,
+    });
+    expect(decision.ask).toBe(false);
+    expect(decision.reason).toBe("no_drift");
+    expect(decision.newBacklog).toEqual([]);
+  });
+
+  it("asks only when a Backlog plan appeared after the last queue confirm", () => {
+    const decision = decideQueueDriftAsk({
+      confirmedBacklog: ["a.plan.md", "outside-queue.plan.md"],
+      currentBacklog: ["a.plan.md", "outside-queue.plan.md", "new-after-confirm.plan.md"],
+    });
+    expect(decision.ask).toBe(true);
+    expect(decision.reason).toBe("backlog_appeared_since_confirm");
+    expect(decision.newBacklog).toEqual(["new-after-confirm.plan.md"]);
+    expect([...decision.labels]).toEqual([...QUEUE_DRIFT_ASK_LABELS]);
+  });
+
+  it("asks when a stored queue item is missing or status-invalidated", () => {
+    const decision = decideQueueDriftAsk({
+      confirmedBacklog: ["a.plan.md"],
+      currentBacklog: ["a.plan.md"],
+      queuedPlanInvalid: true,
+    });
+    expect(decision.ask).toBe(true);
+    expect(decision.reason).toBe("queued_plan_invalid");
+  });
+});
+
+describe("context checkpoint Ask (plan boundaries)", () => {
+  it("pins Continue queue / Stop and prepare handoff / Change queue", () => {
+    expect([...CONTEXT_CHECKPOINT_ASK_LABELS]).toEqual([
+      "Continue queue",
+      "Stop and prepare handoff",
+      "Change queue",
+    ]);
+  });
+
+  it("pins novel-failure labels (no fourth label)", () => {
+    expect([...NOVEL_FAILURE_ASK_LABELS]).toEqual([
+      "Retry recovery once",
+      "Hold and document",
+      "Stop the queue",
+    ]);
+  });
+
+  it("asks only at a plan boundary when estimated window use is about 50% or more", () => {
+    expect(decideContextCheckpointAsk({ atPlanBoundary: false, estimatedWindowUse: 0.9 }).ask).toBe(
+      false,
+    );
+    expect(
+      decideContextCheckpointAsk({ atPlanBoundary: true, estimatedWindowUse: 0.49 }).reason,
+    ).toBe("below_threshold");
+    const hit = decideContextCheckpointAsk({
+      atPlanBoundary: true,
+      estimatedWindowUse: 0.5,
+    });
+    expect(hit.ask).toBe(true);
+    expect(hit.reason).toBe("checkpoint");
+    expect([...hit.labels]).toEqual([...CONTEXT_CHECKPOINT_ASK_LABELS]);
   });
 });
 
@@ -199,5 +291,12 @@ describe("run-plan-all.md orchestrator prose contract", () => {
     expect(command).toContain("per-plan-release");
     expect(command).toContain("One release per completed plan");
     expect(command).toMatch(/Plan Tasks never `\/git-prod`/);
+    expect(command).toContain("Continue queue");
+    expect(command).toContain("Stop and prepare handoff");
+    expect(command).toContain("Change queue");
+    expect(command).toContain("Confirmed backlog");
+    expect(command).toContain("Retry recovery once");
+    expect(command).toContain("Hold and document");
+    expect(command).toContain("Stop the queue");
   });
 });

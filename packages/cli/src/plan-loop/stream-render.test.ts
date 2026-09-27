@@ -7,6 +7,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { RedactingStreamBuffer, redactSecrets, spawnLogged } from "./backends.js";
+import {
+  CONTEXT_CHECKPOINT_ASK_LABELS,
+  NOVEL_FAILURE_ASK_LABELS,
+  QUEUE_DRIFT_ASK_LABELS,
+} from "./run-plan-all-orchestrator.js";
 import { firstLineOfContent, parseStreamLine, summarizeToolInput } from "./stream-events.js";
 import { StreamRenderer, renderStreamEvent } from "./stream-render.js";
 
@@ -470,6 +475,24 @@ describe("recorded claude run (queue-drift Ask fixture)", () => {
     expect(lines.at(-1)).toBe("");
     // The final assistant text is printed once; the result event adds status only.
     expect(rendered.split("**Queue drift — how should I proceed?**").length).toBe(2);
+  });
+
+  it("pins context-checkpoint and novel-failure Ask labels (ADR three HITL points)", () => {
+    expect([...CONTEXT_CHECKPOINT_ASK_LABELS]).toEqual([
+      "Continue queue",
+      "Stop and prepare handoff",
+      "Change queue",
+    ]);
+    expect([...NOVEL_FAILURE_ASK_LABELS]).toEqual([
+      "Retry recovery once",
+      "Hold and document",
+      "Stop the queue",
+    ]);
+    expect([...QUEUE_DRIFT_ASK_LABELS]).toEqual([
+      "Resume frozen queue",
+      "Insert new backlog",
+      "Re-synthesize",
+    ]);
   });
 
   it("renders the same lines when fed through RedactingStreamBuffer at arbitrary chunk sizes", () => {

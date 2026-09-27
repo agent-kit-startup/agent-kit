@@ -278,7 +278,7 @@ audit_workspace_token() {
   fi
   printf '%s' "$hash"
 }
-AUDIT_WS_TOKEN="$(audit_workspace_token)"
+AUDIT_WS_TOKEN=$(audit_workspace_token)
 AUDIT_SESSION_OWNED_PREFIX="${AUDIT_SESSION_NS_PREFIX}${AUDIT_WS_TOKEN}-"
 # Detached workspace-owned sessions: warn at or above WARN, refuse to spawn at or above CAP. 0 disables.
 AUDIT_SESSION_WARN=5
@@ -1151,11 +1151,11 @@ print_host_token_breakdown() {
       name = $2
       sub(/^agent-kit-audit-/, "", name)
       if (name ~ /^[0-9a-f]{8}-[0-9]+$/) {
-        token = substr(name, 1, 8)
+        bucket = substr(name, 1, 8)
       } else {
-        token = "unscoped-legacy"
+        bucket = "unscoped-legacy"
       }
-      counts[token]++
+      counts[bucket]++
     }
     END {
       for (t in counts) {

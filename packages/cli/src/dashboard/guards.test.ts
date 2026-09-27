@@ -42,7 +42,7 @@ describe("allowlistConfig", () => {
       onboarded: true,
       autoHandoff: false,
       interTickCooldownMs: 250,
-      secretToken: "must-not-leak",
+      secretToken: "example-must-not-leak",
       onboarding: {
         status: "complete",
         contractVersion: 2,

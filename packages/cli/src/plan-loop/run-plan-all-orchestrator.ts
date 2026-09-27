@@ -1,11 +1,35 @@
 /**
  * Pure decision helpers for the `/run-plan-all` orchestrator contract.
  * Used by regression tests (and future CLI) so dogfood failure modes stay locked.
- * See `.cursor/memory/decisions/2026-07-26_run-plan-all-pure-orchestration.md`.
+ * See `.cursor/memory/decisions/2026-07-26_run-plan-all-pure-orchestration.md`
+ * and `.cursor/memory/decisions/2026-09-25_run-plan-all-three-hitl-points.md`.
  */
 
 export const PLAN_WORKER_OUTCOMES = ["completed", "blocked", "partial"] as const;
 export type PlanWorkerOutcome = (typeof PLAN_WORKER_OUTCOMES)[number];
+
+/** Start-vs-resume Ask when a Backlog plan appeared after the last queue confirm. */
+export const QUEUE_DRIFT_ASK_LABELS = [
+  "Resume frozen queue",
+  "Insert new backlog",
+  "Re-synthesize",
+] as const;
+
+/** Plan-boundary context checkpoint (~50% orchestrator window self-estimate). */
+export const CONTEXT_CHECKPOINT_ASK_LABELS = [
+  "Continue queue",
+  "Stop and prepare handoff",
+  "Change queue",
+] as const;
+
+/**
+ * Novel error / expired wait Ask. Same three labels as the ship-lane intake
+ * runbook; do not invent a fourth.
+ */
+export { NOVEL_SHIP_FAILURE_ASK_LABELS as NOVEL_FAILURE_ASK_LABELS } from "./run-plan-all-intake-runbook.js";
+
+/** Fraction of orchestrator window that triggers the context checkpoint Ask. */
+export const CONTEXT_CHECKPOINT_WINDOW_THRESHOLD = 0.5;
 
 export type PlanWorkerSummary = {
   outcome: PlanWorkerOutcome;
@@ -61,7 +85,44 @@ export type RunPlanAllQueueSlice = {
   queueStatus: string;
   /** Basename → outcome token (optional notes ignored by Mission Control parse). */
   queueOutcomes: Record<string, string>;
+  /**
+   * Gate-A Backlog basenames visible at the last queue confirm.
+   * Drift Ask compares current Backlog to this set (not to Run queue alone).
+   */
+  confirmedBacklog?: string[];
   lastUpdated?: string;
+};
+
+export type QueueDriftInput = {
+  /** Backlog basenames recorded at the last queue confirm (`- **Confirmed backlog:**`). */
+  confirmedBacklog: readonly string[];
+  /** Gate-A Backlog basenames now. */
+  currentBacklog: readonly string[];
+  /** True when a stored Run queue item is missing or status-invalidated. */
+  queuedPlanInvalid?: boolean;
+};
+
+export type QueueDriftDecision = {
+  ask: boolean;
+  reason: "no_drift" | "backlog_appeared_since_confirm" | "queued_plan_invalid";
+  /** Basenames in current Backlog that were not in the confirmed set. */
+  newBacklog: string[];
+  labels: typeof QUEUE_DRIFT_ASK_LABELS;
+};
+
+export type ContextCheckpointInput = {
+  /** True only at a plan boundary (after ship lane / before the next plan Task). */
+  atPlanBoundary: boolean;
+  /** Orchestrator self-estimate of window use in [0, 1]. Claude has no preCompact. */
+  estimatedWindowUse: number;
+  /** Override threshold; default CONTEXT_CHECKPOINT_WINDOW_THRESHOLD (0.5). */
+  threshold?: number;
+};
+
+export type ContextCheckpointDecision = {
+  ask: boolean;
+  reason: "not_at_boundary" | "below_threshold" | "checkpoint";
+  labels: typeof CONTEXT_CHECKPOINT_ASK_LABELS;
 };
 
 const OUTCOME_SET = new Set<string>(PLAN_WORKER_OUTCOMES);
@@ -208,6 +269,82 @@ export function isForbiddenOrchestratorAction(action: OrchestratorAction): boole
   return classifyOrchestratorAction(action) === "forbidden";
 }
 
+function normalizeBasenames(list: readonly string[] | null | undefined): string[] {
+  if (!list?.length) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of list) {
+    if (typeof raw !== "string") continue;
+    const name = raw.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push(name);
+  }
+  return out;
+}
+
+/**
+ * Backlog basenames that appeared after the last queue confirm.
+ * A stable Backlog that was already present at confirm is not drift.
+ */
+export function backlogAppearedSinceConfirm(
+  confirmedBacklog: readonly string[],
+  currentBacklog: readonly string[],
+): string[] {
+  const confirmed = new Set(normalizeBasenames(confirmedBacklog));
+  return normalizeBasenames(currentBacklog).filter((name) => !confirmed.has(name));
+}
+
+/**
+ * Drift Ask fires only when a Backlog plan appeared after the last queue confirm,
+ * or when a stored queue item is missing / status-invalidated.
+ * Eligible-not-queued Backlog that was already in the confirmed set is not drift.
+ */
+export function decideQueueDriftAsk(input: QueueDriftInput): QueueDriftDecision {
+  const newBacklog = backlogAppearedSinceConfirm(input.confirmedBacklog, input.currentBacklog);
+  if (input.queuedPlanInvalid === true) {
+    return {
+      ask: true,
+      reason: "queued_plan_invalid",
+      newBacklog,
+      labels: QUEUE_DRIFT_ASK_LABELS,
+    };
+  }
+  if (newBacklog.length > 0) {
+    return {
+      ask: true,
+      reason: "backlog_appeared_since_confirm",
+      newBacklog,
+      labels: QUEUE_DRIFT_ASK_LABELS,
+    };
+  }
+  return {
+    ask: false,
+    reason: "no_drift",
+    newBacklog: [],
+    labels: QUEUE_DRIFT_ASK_LABELS,
+  };
+}
+
+/**
+ * Context checkpoint at plan boundaries when the orchestrator estimates about
+ * 50% or more window use. Claude Code has no preCompact signal: self-estimate.
+ */
+export function decideContextCheckpointAsk(
+  input: ContextCheckpointInput,
+): ContextCheckpointDecision {
+  const labels = CONTEXT_CHECKPOINT_ASK_LABELS;
+  if (!input.atPlanBoundary) {
+    return { ask: false, reason: "not_at_boundary", labels };
+  }
+  const threshold = input.threshold ?? CONTEXT_CHECKPOINT_WINDOW_THRESHOLD;
+  const use = Number.isFinite(input.estimatedWindowUse) ? input.estimatedWindowUse : 0;
+  if (use < threshold) {
+    return { ask: false, reason: "below_threshold", labels };
+  }
+  return { ask: true, reason: "checkpoint", labels };
+}
+
 /**
  * Emit HANDOFF machine-field bullets for the `/run-plan-all` queue slice.
  * Round-trips through `parseHandoffMarkdown` (dashboard semantic-model).
@@ -229,8 +366,14 @@ export function serializeRunPlanAllQueueFields(slice: RunPlanAllQueueSlice): str
     `- **Run queue:** [${slice.runQueue.join(", ")}]`,
     `- **Queue cursor:** ${cursorLine}`,
     `- **Queue status:** ${slice.queueStatus}`,
-    "- **Queue outcomes:**",
   );
+
+  const confirmed = normalizeBasenames(slice.confirmedBacklog);
+  if (confirmed.length > 0) {
+    lines.push(`- **Confirmed backlog:** [${confirmed.join(", ")}]`);
+  }
+
+  lines.push("- **Queue outcomes:**");
 
   const outcomeEntries = Object.entries(slice.queueOutcomes);
   if (outcomeEntries.length === 0) {

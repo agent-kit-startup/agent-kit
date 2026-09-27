@@ -127,13 +127,13 @@ test(
       {
         cwd: ROOT,
         encoding: "utf8",
-        env: { ...process.env, CURSOR_API_KEY: "placeholder-not-a-real-key" },
+        env: { ...process.env, CURSOR_API_KEY: "example-not-a-real-key" },
       },
     );
     assert.match(out, /reviewer-backend: cloud/);
     assert.match(out, /cloud-api-base: https:\/\/api\.cursor\.com/);
     assert.match(out, /cloud-write-switches: autoCreatePR=false workOnCurrentBranch=false/);
     assert.match(out, /cloud-pushed-state:/);
-    assert.doesNotMatch(out, /placeholder-not-a-real-key/);
+    assert.doesNotMatch(out, /example-not-a-real-key/);
   },
 );

@@ -52,7 +52,7 @@ node dashboard/start-broadcast.mjs
 
    ```bash
    export HOST=0.0.0.0
-   export MISSION_CONTROL_TOKEN="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+   export MISSION_CONTROL_TOKEN=$(openssl rand -hex 32)
    export MC_PORT=$(node -e 'import("./dashboard/lib/guards.mjs").then(m => console.log(m.preferredPortForRepoRoot(process.cwd()))).catch(e => { console.error(e.message); process.exit(1) })')
    export PORT=$MC_PORT
    # same double-fork / setsid pattern as /dashboard (agent shell reaps bare &)
