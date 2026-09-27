@@ -10,6 +10,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.15.0] - 2026-09-27
+
+### Added
+
+- **Privacy and terms.** `PRIVACY.md` and `TERMS.md` state that Mission Kit collects no telemetry and ships under PolyForm Noncommercial 1.0.0. Commercial use needs a separate license (sales@missionkit.io).
+
+### Changed
+
+- **`/run-plan-all` waits out a lagging check.** After a green publish, an eventually-consistent row polls with bounded backoff. The queue asks at confirm, at a context checkpoint, and when a new failure shows up or the wait expires.
+- **Plugin display name is Mission Kit.** The manifest `name` stays `agent-kit`. It links https://missionkit.io/ plus the privacy and terms pages.
+- **HOL Registry badge.** The README shows the verified guard badge and a link to the public listing.
+- **Landing release chip.** The hero shows a static `vX.Y.Z` link to the public releases page. The HOL Guard badge sits with the install links. There is no live GitHub release badge.
+
 ## [5.14.2] - 2026-09-25
 
 ### Changed

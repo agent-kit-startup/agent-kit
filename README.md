@@ -4,12 +4,13 @@
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](LICENSE)
 [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
 [![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
+[![agent-kit guard badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fguard%2Fagent-kit-startup%2Fagent-kit)](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
 
 <p align="center">
   <img src="dashboard/logo.svg" alt="Mission Kit helmet mark" width="190">
 </p>
 
-[Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io)
+[Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io) · [HOL Registry](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
 
 **Mission Kit** is the building gear pack for AI coding agent: orchestrated plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal: it writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
 

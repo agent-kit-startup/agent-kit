@@ -52,10 +52,12 @@ pnpm landing:deploy:staging
 # 6. Automated acceptance against the live staging URL
 pnpm landing:verify:staging
 # Headless-Chrome render (not curl): 0 unresolved bindings, #dc-root
-# present, video + iframe present, no request outside the origin on load.
-# The demo modal's youtube-nocookie embed is an opt-in exception that only
-# fires if a person clicks to open it: this gate never clicks, so it neither
-# tests nor needs to allow that host. See "On-interaction exception".
+# present, video + the Mission Control iframe present. On load the only
+# host beyond the page is img.shields.io (HOL guard badge). There is no
+# hol.org iframe. The demo modal's youtube-nocookie embed is an opt-in
+# exception that only fires if a person clicks to open it: this gate never
+# clicks, so it neither tests nor needs to allow that host. See
+# "On-interaction exception".
 
 # 7. HITL — open https://staging.missionkit.io, compare side by side
 #    against the Claude Design canvas, approve explicitly. Nothing below
@@ -88,15 +90,14 @@ canvas fields below and are stamped with `pnpm landing:update-release` (does not
 
 ### Release version and product notes
 
-Two existing canvas fields, restored to the original pill-and-frame visual (no live badge,
-no CHANGELOG.md dump):
+Two existing canvas fields. The hero is the wordmark "Mission Kit", a grey "release" chip, and a cyan version link. There is no "New release" pill and no live GitHub release badge. Product notes are not a `CHANGELOG.md` dump.
 
 | Field | Selector | Content |
 |---|---|---|
-| Current release | `a[data-release-version]` inside `p.ak-brand` (New release pill + version text) | Version string plus a link to the **public** GitHub Release (`agent-kit-startup/agent-kit`, not the private `agent-kit-dev` repo) |
+| Current release | `a[data-release-version]` inside `p.ak-brand` (grey "release" chip + `vX.Y.Z` text) | Visible text `vX.Y.Z` linking to `https://github.com/agent-kit-startup/agent-kit/releases/latest` (public repo, not a tag URL, not `agent-kit-dev`) |
 | Product notes | `div[data-changelog-content]` in the Footer CTA `.ak-mc-frame` | Short public product notes. Not a live feed and not `CHANGELOG.md`. |
 
-Stamp (idempotent; fails closed if the fields are missing, if notes look like a changelog dump, or if the URL is not the public tag URL):
+Stamp (idempotent; fails closed if the fields are missing, if notes look like a changelog dump, or if the URL is not the public `releases/latest` URL):
 
 ```bash
 node scripts/public-changelog.mjs --version 5.6.0 --blurb
@@ -115,23 +116,30 @@ Then `pnpm landing:build`. Deploy stays `landing:deploy:staging` / `landing:prom
 
 ### On-load vs on-interaction requests
 
-Everything the build ships is self-contained **on load** by default (proven headless,
-external DNS blocked). There is no on-load third-party exception: the former hero
-release badge (`img.shields.io`) is gone; version is a static `data-release-version`
-link. See ADR `decisions/2026-08-05_landing-external-design-source-of-record.md`
+Everything the build ships is self-contained **on load** except the HOL guard
+badge, which requests `img.shields.io` on purpose. Version stays a static
+`data-release-version` link. There is no live GitHub release badge
+(`img.shields.io/github/...`). `landing:build` and `landing:update-release`
+allow only the HOL guard endpoint and still reject any other `img.shields.io`
+URL. See ADR `decisions/2026-08-05_landing-external-design-source-of-record.md`
 (2026-08-27 addendum). Visual or copy changes to the marketing canvas still go through
 Claude Design, then re-export and `landing:sync`. The two release fields above are
 the sanctioned stamp via `landing:update-release` (re-run after every sync).
 
+`verify-landing` blocks other hosts with `--host-resolver-rules` (`MAP * ~NOTFOUND`,
+excluding the page host and localhost). The net-log allowlist is the page host,
+`img.shields.io`, and `--allow-host` extras. `update.googleapis.com` and
+`api.github.com` are ignored browser/GitHub noise, same class as Chrome's own
+telemetry hosts. Any other third-party host still fails. There is no `hol.org`
+iframe exception. The landing build sets no Content-Security-Policy.
+
 **On-interaction exception:** the demo video modal mounts a `youtube-nocookie.com`
 iframe, but only when a person clicks to open it. `demoSrc` defaults to `''` and the
 modal (iframe included) is not in the DOM at all until `demoOpen` is true
-(`<sc-if value="{{ demoOpen }}">`), so first paint issues zero third-party requests
-(fixed 2026-08-05, `85a9e61`; re-verified live 2026-08-11: `missionkit.io`'s served
-bytes carried no outward `src`; re-verified again from source at HEAD 2026-08-24
-via `pnpm landing:build` with no network access). This is expected, deliberate
+(`<sc-if value="{{ demoOpen }}">`), so first paint does not request
+`youtube-nocookie.com` (fixed 2026-08-05, `85a9e61`). This is expected, deliberate
 behavior, not a defect: a video demo has to come from somewhere. The acceptance
-line is "the live page issues no request outside its own origin **on load**; opening
+line is "on load, the only page host outside the origin is `img.shields.io`; opening
 the demo modal is a user-opted exception to `youtube-nocookie.com`", not an
 unqualified "no request outside origin," which the page was never trying to
 guarantee for every possible click.
@@ -149,7 +157,7 @@ guarantee for every possible click.
 - **Subdomain:** `staging.missionkit.io`, created via `hosting_createWebsiteSubdomainV1` (`POST .../websites/missionkit.io/subdomains`), directory `staging/` under the same document root as production — not a separate hosting account.
 - **Never indexed.** Staging must not carry `noindex` inside `dist/`'s own bytes: `landing:promote` ships the *exact same* `dist/` bytes already validated on staging, and if those bytes carried a `noindex` meta tag, promoting would noindex production too. Instead, `landing:deploy:staging` writes two generated, staging-only files alongside the upload — `staging/.htaccess` (`Header set X-Robots-Tag "noindex, nofollow"`) and `staging/robots.txt` (`Disallow: /`) — neither is part of `dist/`, neither is ever promoted. This is a deliberate deviation from the plan's literal wording ("toggle in build-landing.mjs"), made to preserve the plan's own higher-priority rule that promote never rebuilds and ships identical bytes.
 - **Residual:** the subdomain directory lives under the same document root as production (`.../public_html/staging/`), so the staged build may also be reachable at `missionkit.io/staging/` in addition to `staging.missionkit.io/`. The `X-Robots-Tag` header covers indexing either way; this is noted, not solved, here.
-- **Acceptance:** `pnpm landing:verify:staging` (`scripts/verify-landing.mjs --url https://staging.missionkit.io/`): headless Chrome (`--headless=new --dump-dom`, external DNS blocked via `--host-resolver-rules`, same self-containment technique as the original production acceptance gate) asserting `#dc-root`, zero unresolved bindings, a `<video>`, the `mc/dashboard.html` iframe, and no request to a host outside the origin on load. This is a load-time check only. It never clicks anything, so it does not exercise (and does not need to allow) the demo modal's on-interaction `youtube-nocookie.com` request; see the on-interaction exception paragraph above.
+- **Acceptance:** `pnpm landing:verify:staging` (`scripts/verify-landing.mjs --url https://staging.missionkit.io/`): headless Chrome (`--headless=new --dump-dom`, external DNS blocked via `--host-resolver-rules`, same self-containment technique as the original production acceptance gate) asserting `#dc-root`, zero unresolved bindings, a `<video>`, the `mc/dashboard.html` iframe, and no unexpected request host on load. `img.shields.io` is allowed (HOL guard badge). `update.googleapis.com` and `api.github.com` are ignored noise. This is a load-time check only. It never clicks anything, so it does not exercise (and does not need to allow) the demo modal's on-interaction `youtube-nocookie.com` request; see the on-interaction exception paragraph above.
 - **Promote/rollback safety:** `landing:promote` archives whatever is *currently live* at `missionkit.io` into `.cursor/context/landing-missionkit/releases/<timestamp>/` (zip, gitignored) **before** deploying — fetched over public HTTPS per file (not the Hostinger file-content API, which refuses binary files) so videos/images are captured too. `landing:rollback [release]` redeploys an archived release; with no argument, the immediately previous one. Neither script ever calls `landing:build`.
 - **HITL gate (Design-canvas / visual):** Phase 3 of the plan — operator opens `https://staging.missionkit.io`, compares against the Claude Design canvas, approves explicitly. Visual deploys do not promote on a passing `landing:verify:staging` alone.
 - **Release-field closeout:** tag CI `sync-landing` may promote after staging HTML field-check (version pill + public blurb). That path is not a Design-canvas compare. Staging hop stays required.
@@ -201,7 +209,7 @@ Other crawler fields matching the build pipeline:
 - **Open Graph image:** `assets/hero-astronaut.png` (absolutized to `https://missionkit.io/assets/hero-astronaut.png` in crawler head)
 - **Twitter Card:** `summary_large_image` with title, description, and image
 
-Operator path for copy changes: edit Claude Design SoR → Download zip → `pnpm landing:sync` → `pnpm landing:update-release` → `pnpm landing:build` → staging deploy / promote. Do not hand-edit `landing-missionkit/remote/` as the source of truth. Standing `/design` paste template: `.cursor/context/landing-missionkit/CLAUDE-DESIGN-TEMPLATE.md` (New release pill + stamped notes). One-off prompt notes: `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT.md` (license copy + install/prompt clipboard honesty). Do not re-apply `UPSTREAM-DESIGN-FIX-PROMPT-badge-changelog.md`.
+Operator path for copy changes: edit Claude Design SoR → Download zip → `pnpm landing:sync` → `pnpm landing:update-release` → `pnpm landing:build` → staging deploy / promote. Do not hand-edit `landing-missionkit/remote/` as the source of truth. Standing `/design` paste template: `.cursor/context/landing-missionkit/CLAUDE-DESIGN-TEMPLATE.md` (grey "release" chip, `a[data-release-version]` to `releases/latest`, HOL guard badge in the link column, no `hol.org` embed). One-off prompt notes: `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT.md` (SEO, clipboard, license copy, and the HOL guard badge tasks are checked). Do not re-apply `UPSTREAM-DESIGN-FIX-PROMPT-badge-changelog.md`.
 
 Install and prompt copy buttons await `navigator.clipboard.writeText`, fall back to `document.execCommand('copy')` when needed, and show a brief failure affordance instead of an optimistic checkmark. The How-it-works "Copy plan path" / "Copy /git-staging" controls are decorative (disabled). Product Mission Control paste-destination CTAs are a separate contract (`dashboard/dashboard.html`).
 

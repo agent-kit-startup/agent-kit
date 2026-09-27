@@ -4,7 +4,7 @@
 // Scans .cursor/plans, HANDOFF, memory, config, git status, terminals, processes
 // Outputs JSON to stdout (consumed by dashboard.html)
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
@@ -500,7 +500,7 @@ try {
   const parsed = parseGitStatusShort(status);
   let recentLog = [];
   try {
-    recentLog = execSync(`git log --oneline -n ${MAX_GIT_ACTIVITY}`, gitOpts)
+    recentLog = execFileSync("git", ["log", "--oneline", "-n", String(MAX_GIT_ACTIVITY)], gitOpts)
       .trim()
       .split("\n")
       .filter(Boolean);
@@ -512,7 +512,11 @@ try {
   // origin/main, plus staging vs main (pending promotion count).
   const countDivergence = (range) => {
     try {
-      const out = execSync(`git rev-list --left-right --count ${range}`, gitOpts).trim();
+      const out = execFileSync(
+        "git",
+        ["rev-list", "--left-right", "--count", range],
+        gitOpts,
+      ).trim();
       const [left, right] = out.split(/\s+/).map((n) => Number.parseInt(n, 10) || 0);
       return { ahead: right, behind: left };
     } catch {
@@ -528,8 +532,18 @@ try {
   // Readable graph (branch lanes + merges) as pre-rendered text lines.
   let graphLines = [];
   try {
-    graphLines = execSync(
-      `git log --graph --oneline --decorate --date-order --all -n ${MAX_GIT_GRAPH_LINES}`,
+    graphLines = execFileSync(
+      "git",
+      [
+        "log",
+        "--graph",
+        "--oneline",
+        "--decorate",
+        "--date-order",
+        "--all",
+        "-n",
+        String(MAX_GIT_GRAPH_LINES),
+      ],
       gitOpts,
     )
       .trimEnd()
@@ -589,8 +603,16 @@ function collectPipelineRuns() {
     // and url are dropped: the pipeline card is display-only with no
     // paste-destination for a run URL (ADR 2026-07-25 copy-only convention),
     // so requesting them only adds payload cost without a consumer.
-    const out = execSync(
-      `gh run list --limit ${MAX_PIPELINE_RUNS} --json workflowName,status,conclusion,headBranch,event,createdAt`,
+    const out = execFileSync(
+      "gh",
+      [
+        "run",
+        "list",
+        "--limit",
+        String(MAX_PIPELINE_RUNS),
+        "--json",
+        "workflowName,status,conclusion,headBranch,event,createdAt",
+      ],
       { cwd: ROOT, encoding: "utf-8", timeout: GH_RUN_LIST_TIMEOUT_MS },
     );
     const rows = JSON.parse(out);
@@ -651,8 +673,15 @@ function collectDeploySignal() {
   try {
     // v*-only: an archive/* or other non-release tag under "what shipped
     // recently" would be exactly the misleading signal this phase avoids.
-    const out = execSync(
-      `git for-each-ref --sort=-creatordate --format='%(refname:short)|%(creatordate:short)' --count=${MAX_DEPLOY_TAGS} 'refs/tags/v*'`,
+    const out = execFileSync(
+      "git",
+      [
+        "for-each-ref",
+        "--sort=-creatordate",
+        "--format=%(refname:short)|%(creatordate:short)",
+        `--count=${MAX_DEPLOY_TAGS}`,
+        "refs/tags/v*",
+      ],
       gitOpts,
     ).trim();
     tags = out

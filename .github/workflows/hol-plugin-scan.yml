@@ -1,0 +1,28 @@
+name: HOL plugin scan
+
+# The pinned action README does not name a HOL detection event.
+# Run on pull requests, pushes to main and staging, and manual dispatch.
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Scan plugin
+        uses: hashgraph-online/ai-plugin-scanner-action@caba2e96aa8ad2feb6cf6fca52442b52e22e779f # v1.2.635
+        with:
+          plugin_dir: "."
+          fail_on_severity: high
+          # Tracked checkout, plugin-scanner 3.0.123: Final Score 94/100.
+          # The remaining low is root SECURITY.md, which stays under .github/.
+          min_score: 80

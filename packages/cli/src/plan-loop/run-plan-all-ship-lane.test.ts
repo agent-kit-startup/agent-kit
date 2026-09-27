@@ -1,13 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { createRequire } from "node:module";
+import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_SHIP_CONVERGE_DELAY_MS,
+  DEFAULT_SHIP_CONVERGE_WINDOW_MS,
+  type ShipDoneInput,
   type ShipLaneInput,
+  type WaitForPublicLatestFn,
   classifyReleaseBump,
   decideAdvanceAfterShip,
   decideShipDone,
   decideShipLane,
   shipAuthFromConfirmLabel,
   shipAuthFromHandoff,
+  shipConvergeAttempts,
+  waitForShipNpmLatest,
+  waitForShipReleaseLatest,
+  waitForShipRowMatch,
 } from "./run-plan-all-ship-lane.js";
+
+const require = createRequire(import.meta.url);
+const { waitForPublicLatest } = require("../../../../scripts/lib/sync-landing-release.mjs") as {
+  waitForPublicLatest: WaitForPublicLatestFn;
+};
 
 const ready: ShipLaneInput = {
   auth: "per-plan-release",
@@ -20,6 +34,17 @@ const ready: ShipLaneInput = {
   ciFixAttempts: 0,
   previousShip: "none",
   subjects: ["fix: close the queue gap"],
+};
+
+const shipDoneReady: ShipDoneInput = {
+  privateMainHasTag: true,
+  npmMatches: true,
+  publishNpmGreen: true,
+  publicSyncMerged: true,
+  syncPublicGreen: true,
+  releaseLatestMatches: true,
+  syncLandingGreen: true,
+  landingMatches: true,
 };
 
 describe("queue confirm ship auth", () => {
@@ -108,24 +133,69 @@ describe("ship lane", () => {
 
 describe("ship done and cursor advance", () => {
   it("is Done only when every lane that exists agrees", () => {
+    expect(decideShipDone({ ...shipDoneReady, landingMatches: false })).toEqual({
+      done: false,
+      converging: true,
+      reason: "converging",
+      convergingRows: ["landing"],
+    });
+    expect(decideShipDone(shipDoneReady)).toEqual({
+      done: true,
+      converging: false,
+      reason: "done",
+      convergingRows: [],
+    });
+  });
+
+  it("converges when a row is stale after its producing step is green", () => {
+    expect(decideShipDone({ ...shipDoneReady, npmMatches: false })).toEqual({
+      done: false,
+      converging: true,
+      reason: "converging",
+      convergingRows: ["npm"],
+    });
+    expect(decideShipDone({ ...shipDoneReady, releaseLatestMatches: false })).toEqual({
+      done: false,
+      converging: true,
+      reason: "converging",
+      convergingRows: ["release-latest"],
+    });
     expect(
       decideShipDone({
-        privateMainHasTag: true,
-        npmMatches: true,
-        publicSyncMerged: true,
-        releaseLatestMatches: true,
-        syncLandingGreen: false,
-      }).done,
-    ).toBe(false);
+        ...shipDoneReady,
+        npmMatches: false,
+        releaseLatestMatches: false,
+        landingMatches: false,
+      }).convergingRows,
+    ).toEqual(["npm", "release-latest", "landing"]);
+  });
+
+  it("stops on a red producing step and does not treat it as converging", () => {
+    expect(decideShipDone({ ...shipDoneReady, publishNpmGreen: false, npmMatches: false })).toEqual(
+      {
+        done: false,
+        converging: false,
+        reason: "ship_red",
+        convergingRows: [],
+      },
+    );
     expect(
       decideShipDone({
-        privateMainHasTag: true,
-        npmMatches: true,
-        publicSyncMerged: true,
-        releaseLatestMatches: true,
-        syncLandingGreen: true,
+        ...shipDoneReady,
+        syncPublicGreen: false,
+        releaseLatestMatches: false,
       }).reason,
-    ).toBe("done");
+    ).toBe("ship_red");
+    expect(
+      decideShipDone({
+        ...shipDoneReady,
+        syncLandingGreen: false,
+        landingMatches: false,
+      }).reason,
+    ).toBe("ship_red");
+    expect(decideShipDone({ ...shipDoneReady, publicSyncMerged: false }).reason).toBe(
+      "ship_unfinished",
+    );
   });
 
   it("advances after a benign skip or a finished ship, and holds when the ship is unfinished", () => {
@@ -134,7 +204,91 @@ describe("ship done and cursor advance", () => {
     const shipped = decideShipLane(ready);
     expect(decideAdvanceAfterShip(shipped, false).reason).toBe("ship_not_done");
     expect(decideAdvanceAfterShip(shipped, true).reason).toBe("ship_done");
+    const converging = decideShipDone({ ...shipDoneReady, npmMatches: false });
+    expect(decideAdvanceAfterShip(shipped, converging)).toEqual({
+      advance: false,
+      reason: "converging",
+    });
     const stopped = decideShipLane({ ...ready, ci: "red", ciFixAttempts: 1 });
     expect(decideAdvanceAfterShip(stopped, false).advance).toBe(false);
+  });
+});
+
+describe("ship converge poll helpers", () => {
+  it("defaults the poll window to 20 minutes", () => {
+    expect(DEFAULT_SHIP_CONVERGE_WINDOW_MS).toBe(20 * 60 * 1000);
+    expect(shipConvergeAttempts()).toBe(
+      Math.ceil(DEFAULT_SHIP_CONVERGE_WINDOW_MS / DEFAULT_SHIP_CONVERGE_DELAY_MS),
+    );
+  });
+
+  it("polls npm latest until match and times out when stale", async () => {
+    let n = 0;
+    await expect(
+      waitForShipNpmLatest({
+        expectedVersion: "5.14.2",
+        fetchLatest: async () => {
+          n += 1;
+          return n < 3 ? "5.14.1" : "5.14.2";
+        },
+        windowMs: 45,
+        delayMs: 15,
+        sleep: async () => {},
+      }),
+    ).resolves.toEqual({ ok: true, value: "5.14.2" });
+    expect(n).toBe(3);
+
+    await expect(
+      waitForShipNpmLatest({
+        expectedVersion: "5.14.2",
+        fetchLatest: async () => "5.14.1",
+        windowMs: 30,
+        delayMs: 15,
+        sleep: async () => {},
+      }),
+    ).resolves.toEqual({ ok: false, reason: "timeout" });
+  });
+
+  it("reuses waitForPublicLatest for Release Latest converge", () => {
+    let n = 0;
+    expect(
+      waitForShipReleaseLatest({
+        expectedVersion: "5.14.2",
+        fetchLatest: () => {
+          n += 1;
+          if (n < 2) throw new Error("not yet");
+          return "v5.14.2";
+        },
+        waitForPublicLatest,
+        windowMs: 30,
+        delayMs: 15,
+        sleep: () => {},
+      }),
+    ).toEqual({ ok: true, value: "v5.14.2" });
+    expect(n).toBe(2);
+
+    expect(
+      waitForShipReleaseLatest({
+        expectedVersion: "5.14.2",
+        fetchLatest: () => "v5.14.1",
+        waitForPublicLatest,
+        windowMs: 30,
+        delayMs: 15,
+        sleep: () => {},
+      }),
+    ).toEqual({ ok: false, reason: "timeout" });
+  });
+
+  it("polls a generic row match for landing HTML lag", async () => {
+    const matches = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await expect(
+      waitForShipRowMatch({
+        matches,
+        windowMs: 30,
+        delayMs: 15,
+        sleep: async () => {},
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(matches).toHaveBeenCalledTimes(2);
   });
 });

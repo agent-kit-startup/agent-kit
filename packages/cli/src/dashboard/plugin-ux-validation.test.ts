@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HOST,
@@ -16,6 +17,10 @@ import {
   classifyPlan,
   parseHandoffMarkdown,
 } from "../../../../dashboard/lib/semantic-model.mjs";
+
+function loadDashboardExtract<T>(body: string): T {
+  return runInNewContext(`(function(){\n${body}\n})()`, Object.create(null)) as T;
+}
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
 const dashboardHtml = readFileSync(resolve(repoRoot, "dashboard/dashboard.html"), "utf8");
@@ -1012,9 +1017,9 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       flightLogHasPastEntries,
       flightLogHasWarningEntries,
       isFlightLogQuiet,
-    } = new Function(
+    } = loadDashboardExtract(
       `${sources.join("\n")}\nreturn { resolveFlightLogCurrent, flightLogHasPastEntries, flightLogHasWarningEntries, isFlightLogQuiet };`,
-    )() as {
+    ) as {
       resolveFlightLogCurrent: (d: unknown) => string | null;
       flightLogHasPastEntries: (fl: unknown) => boolean;
       flightLogHasWarningEntries: (fl: unknown) => boolean;
@@ -1133,12 +1138,15 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       /\.flight-log-card:hover,\s*\n\.flight-log-card:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--border-active\)/,
     );
 
-    const kindHoverTokens: Array<{ kind: string; token: string }> = [
-      { kind: "ok", token: "var(--green)" },
-      { kind: "advice", token: "var(--blue)" },
-      { kind: "residual", token: "var(--yellow)" },
-      { kind: "warning", token: "var(--orange, var(--yellow))" },
-    ];
+    const hoverFill = {
+      ok: "var(--green)",
+      advice: "var(--blue)",
+      residual: "var(--yellow)",
+      warning: "var(--orange, var(--yellow))",
+    };
+    const kindHoverTokens: Array<{ kind: string; token: string }> = Object.entries(hoverFill).map(
+      ([kind, token]) => ({ kind, token }),
+    );
     for (const { kind, token } of kindHoverTokens) {
       expect(dashboardHtml).toContain(`.flight-log-card-current.flight-log-kind-${kind}:hover`);
       expect(dashboardHtml).toContain(
@@ -1899,9 +1907,9 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
       expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
       return match?.[0];
     });
-    const { isManualPlanMode, continuePlanPasteText, renderNowModeHint } = new Function(
+    const { isManualPlanMode, continuePlanPasteText, renderNowModeHint } = loadDashboardExtract(
       `${sources.join("\n")}\nreturn { isManualPlanMode, continuePlanPasteText, renderNowModeHint };`,
-    )() as {
+    ) as {
       isManualPlanMode: (mode: string | null | undefined) => boolean;
       continuePlanPasteText: (plan: string) => string;
       renderNowModeHint: (mode: string | null | undefined) => string;
@@ -1942,9 +1950,9 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
       expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
       return match?.[0];
     });
-    const { formatModeDisplayLabel } = new Function(
+    const { formatModeDisplayLabel } = loadDashboardExtract(
       `${sources.join("\n")}\nreturn { formatModeDisplayLabel };`,
-    )() as {
+    ) as {
       formatModeDisplayLabel: (mode: string | null | undefined) => string;
     };
 
@@ -2472,7 +2480,7 @@ function loadActivityTargetAttributes() {
     expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
     return match?.[0];
   });
-  return new Function(`${sources.join("\n")}\nreturn activityTargetAttributes;`)() as (
+  return loadDashboardExtract(`${sources.join("\n")}\nreturn activityTargetAttributes;`) as (
     ev: {
       id?: string;
       label?: string;
@@ -2488,7 +2496,7 @@ function loadActivityTargetAttributes() {
 function loadSpaceIconSvg() {
   const fn = dashboardHtml.match(/function spaceIconSvg\(kind, opts\) \{[\s\S]*?\n\}/);
   expect(fn).not.toBeNull();
-  return new Function(`${fn?.[0]}\nreturn spaceIconSvg;`)() as (
+  return loadDashboardExtract(`${fn?.[0]}\nreturn spaceIconSvg;`) as (
     kind: string,
     opts?: { decorative?: boolean },
   ) => string;
@@ -3300,9 +3308,9 @@ function loadNowStepRenderers() {
     expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
     return match?.[0];
   });
-  return new Function(
+  return loadDashboardExtract(
     `${sources.join("\n")}\nreturn { renderNowStepBar, renderNowStepper };`,
-  )() as {
+  ) as {
     renderNowStepBar: (now: StepperNow) => string;
     renderNowStepper: (
       now: StepperNow,
@@ -3519,9 +3527,9 @@ function loadQueueChecklistHelpers() {
     expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
     return match?.[0];
   });
-  return new Function(
+  return loadDashboardExtract(
     `${lifecycleRank}\n${roleRank}\n${sources.join("\n")}\nreturn { sortPlansForPortfolio, queueRolePill };`,
-  )() as {
+  ) as {
     sortPlansForPortfolio: (plans: object[]) => Array<{ file: string }>;
     queueRolePill: (p: object) => string;
   };
@@ -3959,9 +3967,9 @@ describe("plugin-ux-validation: Git tab (promotion flow + graph + staging hygien
       expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
       return match?.[0];
     });
-    const { gitFlowBadge, gitFlowStateLabel } = new Function(
+    const { gitFlowBadge, gitFlowStateLabel } = loadDashboardExtract(
       `${sources.join("\n")}\nreturn { gitFlowBadge, gitFlowStateLabel };`,
-    )() as {
+    ) as {
       gitFlowBadge: (div: { ahead: number; behind: number } | null) => string;
       gitFlowStateLabel: (
         div: { ahead: number; behind: number } | null,
@@ -4023,11 +4031,12 @@ describe("plugin-ux-validation: Git tab (promotion flow + graph + staging hygien
 
   it("wires flow, graph, and hygiene data in dashboard-data.mjs", () => {
     const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
-    expect(dataSource).toContain("git rev-list --left-right --count ${range}");
+    expect(dataSource).toContain('["rev-list", "--left-right", "--count", range]');
     expect(dataSource).toContain('countDivergence("origin/staging...HEAD")');
     expect(dataSource).toContain('countDivergence("origin/main...HEAD")');
     expect(dataSource).toContain('countDivergence("origin/main...origin/staging")');
-    expect(dataSource).toContain("git log --graph --oneline --decorate --date-order --all");
+    expect(dataSource).toContain('"--graph"');
+    expect(dataSource).toContain('"--date-order"');
     expect(dataSource).toContain("MAX_GIT_GRAPH_LINES");
     expect(dataSource).toContain("/^\\.cursor\\/memory\\/plan-monitor-.+\\.md$/");
     expect(dataSource).toContain("hygiene: { monitorWip }");

@@ -1,22 +1,17 @@
 {
   "name": "agent-kit",
-  "displayName": "Agent Kit",
+  "displayName": "Mission Kit",
   "author": {
     "name": "agent-kit-startup"
   },
   "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
-  "keywords": [
-    "agents",
-    "hitl",
-    "handoff",
-    "git-staging",
-    "context",
-    "multi-ide",
-    "anti-slop"
-  ],
+  "keywords": ["agents", "hitl", "handoff", "git-staging", "context", "multi-ide", "anti-slop"],
   "license": "PolyForm-Noncommercial-1.0.0",
-  "version": "5.14.2",
+  "version": "5.15.0",
   "homepage": "https://github.com/agent-kit-startup/agent-kit",
+  "websiteURL": "https://missionkit.io/",
+  "privacyPolicyURL": "https://github.com/agent-kit-startup/agent-kit/blob/main/PRIVACY.md",
+  "termsOfServiceURL": "https://github.com/agent-kit-startup/agent-kit/blob/main/TERMS.md",
   "repository": "https://github.com/agent-kit-startup/agent-kit",
   "logo": "dashboard/logo-marketplace.svg",
   "rules": ".cursor/rules",

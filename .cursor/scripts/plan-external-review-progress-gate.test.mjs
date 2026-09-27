@@ -164,7 +164,7 @@ function extractNamed(name) {
 
 const SESSION_VARS = `
 AUDIT_SESSION_NS_PREFIX="agent-kit-audit-"
-AUDIT_WS_TOKEN="aaaaaaaa"
+AUDIT_WS_TOKEN=aaaaaaaa
 AUDIT_SESSION_OWNED_PREFIX="agent-kit-audit-aaaaaaaa-"
 AUDIT_SESSION_WARN=5
 AUDIT_SESSION_CAP=20
@@ -269,7 +269,7 @@ test("host-cap refusal includes the per-token breakdown with dispose-scope hones
 test("breakdown skips attached sessions and sorts tokens deterministically", () => {
   const fn = extractNamed("print_host_token_breakdown");
   const bash = `
-AUDIT_WS_TOKEN="aaaaaaaa"
+AUDIT_WS_TOKEN=aaaaaaaa
 ${MOCK_HOST_PILE}
 ${fn}
 print_host_token_breakdown

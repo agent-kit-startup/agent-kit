@@ -28,7 +28,7 @@ Each main command has **exactly one Ask at entry** on the default path. Inbox, o
 |---------|--------------------------------|------------------|
 | `/start-project` | Gate A (vague-goal Ask first only if the goal is missing) | Gate B after a second yes. `confirm-provider` never |
 | `/run-plan` | Risk Ask only when PII, secrets, or scope is ambiguous; otherwise the run starts with no entry Ask | Inbox, exhaustion, owed-close |
-| `/run-plan-all` | Start-vs-resume (stored queue + material drift) **or** queue confirm (fresh synthesis) | Inbox, owed-close, landing. No mid-queue triage Ask |
+| `/run-plan-all` | Start-vs-resume (stored queue + Backlog appeared after last confirm) **or** queue confirm (fresh synthesis) | Inbox, owed-close, landing, context checkpoint at plan boundaries, novel error / expired wait. No mid-queue triage Ask |
 | `/continue-plan` | Next unit: `Start [to-do-id]` / `Edit plan first` / `Switch to different plan` / `Stop here`. Multi-plan picker first when needed | Inbox |
 | `/backlog-add` | `Write plan to backlog` / `Modify proposal first` / `Cancel` | Inbox. `confirm-provider` never |
 | `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel` | none |
@@ -64,11 +64,13 @@ Never steal `/git-prod`. Exhaustion Ask/arm is after Final HANDOFF and the prod 
 | Gate | Id | Labels |
 |------|----|--------|
 | Inbox (post-default) | `inbox` | `Analyze inbox now` / `Enqueue Fix now` / `Not now` |
-| Start vs resume (stored queue + material drift) | `queue-drift` | `Resume frozen queue` / `Insert new backlog` / `Re-synthesize` |
+| Start vs resume (Backlog appeared after last confirm) | `queue-drift` | `Resume frozen queue` / `Insert new backlog` / `Re-synthesize` |
 | Confirm queue | `queue-confirm` | `Run as proposed` / `Run plans only` / `Edit order` / `Apply merges & drops only` / `Keep all plans as-is` / `Include Gate-B plans` / `Cancel` |
+| Context checkpoint (plan boundary, ~50% window) | `context-checkpoint` | `Continue queue` / `Stop and prepare handoff` / `Change queue` |
+| Novel error / expired wait | `novel-failure` | `Retry recovery once` / `Hold and document` / `Stop the queue` |
 | Malformed Task summary | `malformed-summary` | Ask before advancing the cursor |
 
-No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` suggestion as separate HITL.
+Asks only at queue confirm, context checkpoint, and novel error / expired wait (ADR `2026-09-25_run-plan-all-three-hitl-points.md`). Drift Ask only when a Backlog plan appeared after the last queue confirm (`- **Confirmed backlog:**`); a stable Backlog already present at confirm is not drift. No mid-queue triage Ask. Queue-end `/plan-review-triage` then `/git-prod` suggestion as separate HITL.
 
 ### Other surfaces
 
@@ -108,7 +110,8 @@ HITL_GATE: <ask-id> | <label-a> | <label-b> | <label-c>
 
 One numbered list per message. Accept number or label. A typed answer that is not a number or label is Other.
 
-Sentinel rules: one line, column 0, `HITL_GATE: <ask-id> | <label 1> | ... | <label n>`. `<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `malformed-summary`, `next-unit`, `backlog-write`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
+Sentinel rules: one line, column 0, `HITL_GATE: <ask-id> | <label 1> | ... | <label n>`.
+`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `malformed-summary`, `next-unit`, `backlog-write`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
 Surfaces without a listed id keep the numbered list without a sentinel (the headless runner detects them by the wording above as a prose fallback). `git-prod` and `kit-prod` are never relayed headless: the run stops and points at the operator slash.
 The operator's answer comes back as one line, `HITL_REPLY: <ask-id> | operator reply <n> | <label>` (or `operator reply other | <typed text>`); cite it as the Ask provenance in HANDOFF. Never assume a reply: no answer means stop.
 
@@ -134,4 +137,5 @@ Broad Intake (index + HANDOFF only; no `.cursor/plans/*.plan.md` glob) → Gate 
 
 ## /run-plan-all compressed
 
-Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or queue confirm (default-path Ask) → one Task per plan running the `/run-plan` tick. When Ship auth is `per-plan-release`, one release per completed plan before the next plan. `Run plans only` does not promote. Inbox Ask is post-default. Mid-batch audits wait, no triage Ask. Queue-end wait then `/plan-review-triage`. Details: [run-plan-all-queue.md](run-plan-all-queue.md).
+Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or queue confirm (write `- **Confirmed backlog:**`) → one Task per plan. Context checkpoint at plan boundaries when window self-estimate is ~50%+ (`Continue queue` / `Stop and prepare handoff` / `Change queue`). Novel error / expired wait: `Retry recovery once` / `Hold and document` / `Stop the queue`.
+When Ship auth is `per-plan-release`, one release per completed plan before the next. `Run plans only` does not promote. Inbox Ask is post-default. Mid-batch audits wait, no triage Ask. Queue-end wait then `/plan-review-triage`. Details: [run-plan-all-queue.md](run-plan-all-queue.md).
