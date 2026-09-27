@@ -131,6 +131,27 @@ describe("prose fallback detection", () => {
       detection: "fallback",
     });
   });
+
+  it("parses context-checkpoint and novel-failure Ask label pins", () => {
+    expect(
+      parseHitlGateLine(
+        "HITL_GATE: context-checkpoint | Continue queue | Stop and prepare handoff | Change queue",
+      ),
+    ).toEqual({
+      askId: "context-checkpoint",
+      labels: ["Continue queue", "Stop and prepare handoff", "Change queue"],
+      detection: "sentinel",
+    });
+    expect(
+      parseHitlGateLine(
+        "HITL_GATE: novel-failure | Retry recovery once | Hold and document | Stop the queue",
+      ),
+    ).toEqual({
+      askId: "novel-failure",
+      labels: ["Retry recovery once", "Hold and document", "Stop the queue"],
+      detection: "sentinel",
+    });
+  });
 });
 
 describe("operator answer resolution and stamps", () => {

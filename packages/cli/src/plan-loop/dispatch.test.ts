@@ -194,9 +194,9 @@ describe("dispatch prompt and spawn args", () => {
 });
 
 describe("runHeadlessDispatch on claude", () => {
-  const TOKEN = "sk-ant-test-token+abc/def=";
+  const TOKEN = "example-auth-token";
   const BASE_URL = "https://gateway.example/anthropic";
-  const API_KEY = "anthropic-test-api-key-0123456789";
+  const API_KEY = "example-api-key-0123456789";
 
   beforeEach(() => {
     resetClaudeVersionCache();
@@ -218,8 +218,8 @@ describe("runHeadlessDispatch on claude", () => {
     const spawnFn = mockSpawn({
       exitCode: 0,
       stdoutChunks: [
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"auth sk-ant-test-t',
-        'oken+abc/def="}]}}\n',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"auth example-aut',
+        'h-token"}]}}\n',
       ],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -353,8 +353,8 @@ describe("runHeadlessDispatch on claude", () => {
     const spawnFn = mockSpawn({
       exitCode: 2,
       stdoutChunks: [
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"env sk-ant-test-t',
-        'oken+abc/def="}]}}\n',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"env example-aut',
+        'h-token"}]}}\n',
       ],
     });
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);

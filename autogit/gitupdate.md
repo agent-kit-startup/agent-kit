@@ -78,7 +78,7 @@ Promotes approved changes from `origin/staging` to `origin/main` (production).
 - ✅ Merges `origin/staging` → `origin/main`
 - ✅ Publishes to production
 - ✅ **Mandatory** fast-forward of `origin/staging` to `origin/main` when staging is an ancestor (prevents promote sawtooth)
-- ✅ Verifies post-prod (step 12): red or unfinished is a STOP, not a license for another patch under the same yes
+- ✅ Verifies post-prod (step 12): red is a STOP; eventually-consistent row polls with bounded backoff; neither is a license for another patch under the same yes
 - ✅ *(Optional)* Updates task status in the repo's project manager (ClickUp, Jira, …) **only if** MCP/skill for that tool is configured
 
 
@@ -368,7 +368,7 @@ This section contains the detailed prompts that should be followed when commands
 |---|---|
 | `gh pr create`, `gh release create`, `git push origin <new-branch>` | **Yes**, these are not classifier-blocked — safe to run directly. |
 
-**One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red or unfinished post-prod verification (step 12) is a **STOP**. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: `origin/main` pushed, the annotated tag pushed, and tag CI green, all on the same `vX.Y.Z`; plus the project's own release verification when it defines one (step 12).
+**One confirm, one ship (hard stop):** `Proceed with production deploy` authorizes exactly one SemVer close, one annotated `v*` tag, and one promote of `staging` → `main`. A red post-prod verification (step 12) is a **STOP**. An eventually-consistent row: poll with bounded backoff (Ask only on timeout); never cut another tag while polling. It does not authorize another patch, another release-close, or another promote under the same yes. The next ship needs a new confirm Ask. **Done** for that ship: `origin/main` pushed, the annotated tag pushed, and tag CI green, all on the same `vX.Y.Z`; plus the project's own release verification when it defines one (step 12).
 
 **`/run-plan-all` ship lane:** when HANDOFF `- **Ship auth:**` is `per-plan-release`, skip the confirm Ask in this prompt. That queue confirm is the yes for this plan's one ship. A red step 12 still stops the queue. Do not cut another tag, and do not start the next queued plan, until this ship is Done.
 
@@ -488,7 +488,7 @@ This section contains the detailed prompts that should be followed when commands
 
    **Post-tag `main` commits:** CI-unblock or fixture commits may land on `main` while manifests still say `X.Y.Z` (**hold**) only when documented in the promote notes / HANDOFF. Realign with the **next patch** when the fix must reach the released artifact; never force-move the existing `v*` tag. See [Semantic Versioning](#semantic-versioning).
 
-   If tag CI or the project's release verification is red or unfinished: **STOP**. Fix or re-run the failed job; do not assume success from a green merge/push. Do **not** close a next patch, cut another `v*`, or re-run promote under the same confirm; that is a new `/git-prod` Ask.
+   If tag CI or the project's release verification is **red**: **STOP**. Fix or re-run the failed job; do not assume success from a green merge/push. Eventually-consistent row: poll with bounded backoff; Ask only on timeout; do not cut another `v*` while polling. Do **not** close a next patch, cut another `v*`, or re-run promote under the same confirm; that is a new `/git-prod` Ask.
 
 #### 13. **Final Report**  
    - Summarize executed actions, list commits promoted to production, inform merge status, mention if CHANGELOG.md was updated and any necessary follow-ups.

@@ -116,9 +116,9 @@ async function tmpLog(): Promise<string> {
   return path.join(dir, "tick.log");
 }
 
-const TOKEN = "sk-ant-test-token+abc/def=";
+const TOKEN = "example-auth-token";
 const BASE_URL = "https://gateway.example/anthropic";
-const API_KEY = "anthropic-test-api-key-0123456789";
+const API_KEY = "example-api-key-0123456789";
 
 describe("backend table", () => {
   it("lists both backends and resolves claude without throwing", () => {
@@ -182,10 +182,10 @@ describe("RedactingStreamBuffer", () => {
   it("streams an oversized partial line minus a safe tail, then completes it", () => {
     const head = "a".repeat(70 * 1024);
     const buffer = new RedactingStreamBuffer(secrets);
-    const first = buffer.push(`${head}sk-ant-test-t`);
+    const first = buffer.push(`${head}example-aut`);
     expect(first.length).toBeGreaterThan(0);
     expect(first).toBe(head.slice(0, first.length));
-    const rest = buffer.push("oken+abc/def= tail") + buffer.flush();
+    const rest = buffer.push("h-token tail") + buffer.flush();
     expect(first + rest).toBe(`${head}[ANTHROPIC_AUTH_TOKEN] tail`);
   });
 
@@ -272,7 +272,7 @@ describe("claudeRedactions derived forms", () => {
     for (const probe of probes) {
       const out = redactSecrets(probe, secrets);
       expect(out, probe).toContain("[ANTHROPIC_AUTH_TOKEN]");
-      expect(out, probe).not.toContain("sk-ant");
+      expect(out, probe).not.toContain("example-auth");
       expect(out, probe).not.toContain(Buffer.from(TOKEN).toString("base64").slice(0, 12));
     }
   });
@@ -524,8 +524,8 @@ describe("claudeBackend.run", () => {
     const spawnFn = mockSpawn({
       exitCode: 0,
       stdoutChunks: [
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"x sk-ant-test-t',
-        'oken+abc/def="}]}}\n',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"x example-aut',
+        'h-token"}]}}\n',
         `{"type":"result","subtype":"success","result":"${TOKEN}"}`,
       ],
     });
@@ -848,8 +848,8 @@ describe("cursorAgentBackend.run", () => {
     const spawnFn = mockSpawn({
       exitCode: 0,
       stdoutChunks: [
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"bearer sk-ant-test-t',
-        `oken+abc/def="}]}}\n`,
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"bearer example-aut',
+        `h-token"}]}}\n`,
       ],
       stderr: `warn: ${TOKEN}\n`,
     });
