@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
-import { buildManifest, saveManifest, upsertIdList } from "../lifecycle/apply.js";
+import { type ApplyStats, buildManifest, saveManifest, upsertIdList } from "../lifecycle/apply.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
-import { logApplyStats } from "../lifecycle/report.js";
+import { formatSkippedSymlinks, logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
@@ -41,7 +41,7 @@ export const addCommand = defineCommand({
       throw new Error("Use only one of --skill or --pack");
     }
 
-    const existing = await loadAgentKitManifest(args.cwd);
+    const existing = await loadAgentKitManifest(args.cwd, { onWarning: logger.warn });
     const registry = await resolveRegistryFromCli({
       cwd: args.cwd,
       registry: args.registry,
@@ -66,6 +66,15 @@ export const addCommand = defineCommand({
             registryRef: registry.ref,
           });
 
+      // Symlinked targets outside the project were not written: fail loudly and
+      // do not record the id or the new version as if the add had landed.
+      const skipped = (stats: ApplyStats): boolean => {
+        if (stats.skippedSymlink.length === 0) return false;
+        logger.error(formatSkippedSymlinks(stats.skippedSymlink));
+        process.exitCode = 1;
+        return true;
+      };
+
       const finish = async (kind: "skill" | "pack", id: string) => {
         if (kind === "skill") base.skills = upsertIdList(base.skills, id);
         else base.packs = upsertIdList(base.packs, id);
@@ -83,6 +92,7 @@ export const addCommand = defineCommand({
         const skill = await findSkill(registry.root, args.id);
         const stats = await installSkill(registry.root, args.cwd, skill, { protectedGlobs });
         logApplyStats(stats);
+        if (skipped(stats)) return;
         await finish("skill", skill.id);
         logger.success(`Skill '${skill.id}' added.`);
         return;
@@ -91,6 +101,7 @@ export const addCommand = defineCommand({
         const pack = await findPack(registry.root, args.id);
         const stats = await installPack(registry.root, args.cwd, pack.id, { protectedGlobs });
         logApplyStats(stats);
+        if (skipped(stats)) return;
         await finish("pack", pack.id);
         logger.success(`Pack '${pack.id}' added.`);
         return;
@@ -104,6 +115,7 @@ export const addCommand = defineCommand({
       if (asSkill) {
         const stats = await installSkill(registry.root, args.cwd, asSkill, { protectedGlobs });
         logApplyStats(stats);
+        if (skipped(stats)) return;
         await finish("skill", asSkill.id);
         logger.success(`Skill '${asSkill.id}' added.`);
         return;
@@ -111,6 +123,7 @@ export const addCommand = defineCommand({
       if (asPack) {
         const stats = await installPack(registry.root, args.cwd, asPack.id, { protectedGlobs });
         logApplyStats(stats);
+        if (skipped(stats)) return;
         await finish("pack", asPack.id);
         logger.success(`Pack '${asPack.id}' added.`);
         return;

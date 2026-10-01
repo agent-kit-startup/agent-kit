@@ -4,7 +4,7 @@
 // Scans .cursor/plans, HANDOFF, memory, config, git status, terminals, processes
 // Outputs JSON to stdout (consumed by dashboard.html)
 
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
@@ -14,6 +14,9 @@ import {
   resolveSnapshotRepoRoot,
   truncateStr,
 } from "./lib/guards.mjs";
+import { projectSlugFromRoot } from "./lib/live-refresh.mjs";
+import { PIPELINE_CACHE_ENV, readCachedPipeline } from "./lib/pipeline-cache.mjs";
+import { selectWorkspaceProcesses } from "./lib/processes.mjs";
 import {
   EXTERNAL_REPORT_FILE_RE,
   FIELD_REPORT_CADENCE_LEDGER_REL,
@@ -46,6 +49,8 @@ import { MAX_TERMINAL_BYTES, buildTerminalSnapshotFields } from "./lib/terminal-
 const KIT_ROOT = resolve(import.meta.dirname, "..");
 /** Snapshot root: consumer workspace when MISSION_CONTROL_REPO_ROOT is set, else kit tree. */
 const ROOT = resolveSnapshotRepoRoot(process.env, KIT_ROOT);
+/** serve.mjs next to this script; its process is in scope even when ROOT is a consumer tree. */
+const SERVE_PATH = resolve(import.meta.dirname, "serve.mjs");
 const MAX_TERMINALS = 20;
 const MAX_PROCESSES = 25;
 const MAX_GIT_GRAPH_LINES = 25;
@@ -140,7 +145,7 @@ const SNAPSHOT = {
         "Memory records: error count, decision count, recent decisions, recent parsed errors, error-o-meter stats",
       git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[], promotion flow vs staging/main, graph lines, staging hygiene",
       devops:
-        "Best-effort DevOps signal: pipeline ({available, runs[], reason?} recent gh run list rows; reason is 'budget' when the shared snapshot budget ran out before gh was attempted, or 'call-failed' when gh was attempted and missing/unauthenticated/timed out/errored; reason is only present when available is false) and deploy ({tags[], changelog} v* git tags + latest CHANGELOG release entry as a 'what shipped recently' proxy, not a live infra poll)",
+        "Best-effort DevOps signal: pipeline ({available, runs[], reason?} recent gh run list rows; reason is 'budget' when the shared snapshot budget ran out before gh was attempted, or 'call-failed' when gh was attempted and missing/unauthenticated/timed out/errored; reason is only present when available is false; fetchedAt is the ISO time gh was last attempted, reused from serve.mjs for up to 60s) and deploy ({tags[], changelog} v* git tags + latest CHANGELOG release entry as a 'what shipped recently' proxy, not a live infra poll)",
       terminals:
         "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
       processes:
@@ -473,29 +478,19 @@ if (existsSync(memoryDecisionsDir)) {
 
 // 6. Git
 try {
-  const gitOpts = { cwd: ROOT, encoding: "utf-8", timeout: 5000 };
-  const branch = execSync("git rev-parse --abbrev-ref HEAD", gitOpts).trim();
+  const gitOpts = {
+    cwd: ROOT,
+    encoding: "utf-8",
+    timeout: 5000,
+    stdio: ["ignore", "pipe", "ignore"],
+  };
+  const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], gitOpts).trim();
   // Only strip the trailing newline(s) here — `git status --short` uses
   // positional XY status columns, so an unstaged-only row starts with a
   // literal leading space (e.g. " M path"). A full-string .trim() eats that
   // leading space on line 1 only, shifting parseGitStatusShort's staged /
   // unstaged read for the first row.
-  const status = execSync("git status --short", gitOpts).replace(/\n+$/, "");
-  const lastCommit = execSync("git log -1 --oneline", gitOpts).trim();
-  let ahead = 0;
-  let behind = 0;
-  try {
-    ahead =
-      Number.parseInt(execSync("git rev-list --count origin/main..HEAD", gitOpts).trim(), 10) || 0;
-  } catch {
-    /* no upstream */
-  }
-  try {
-    behind =
-      Number.parseInt(execSync("git rev-list --count HEAD..origin/main", gitOpts).trim(), 10) || 0;
-  } catch {
-    /* no upstream */
-  }
+  const status = execFileSync("git", ["status", "--short"], gitOpts).replace(/\n+$/, "");
 
   const parsed = parseGitStatusShort(status);
   let recentLog = [];
@@ -528,6 +523,10 @@ try {
     vsMain: countDivergence("origin/main...HEAD"),
     stagingVsMain: countDivergence("origin/main...origin/staging"),
   };
+  // Derived from the calls above instead of three more git spawns.
+  const lastCommit = recentLog[0] ?? "";
+  const ahead = flow.vsMain?.ahead ?? 0;
+  const behind = flow.vsMain?.behind ?? 0;
 
   // Readable graph (branch lanes + merges) as pre-rendered text lines.
   let graphLines = [];
@@ -589,6 +588,11 @@ function collectPipelineRuns() {
   // above; the budget reserve must cover its own timeout, not just a nominal
   // buffer (see .cursor/memory/errors/2026-07-26_mission-control-dashboard-data-timeout.md
   // for why this file's soft-budget guards exist).
+  // serve.mjs hands back the last attempted result; reuse it while fresh so a
+  // snapshot every few seconds does not re-run the network call. Checked
+  // before the budget guard so a fresh cache never reads as "budget".
+  const cached = readCachedPipeline(process.env[PIPELINE_CACHE_ENV], Date.now());
+  if (cached) return cached;
   if (!withinSnapshotBudget(GH_RUN_LIST_TIMEOUT_MS + 400)) {
     // `gh` was never even attempted this snapshot — the shared budget ran out
     // first. Distinguished from a failed/timed-out call below so the UI does
@@ -597,6 +601,8 @@ function collectPipelineRuns() {
     // and the residual note this fix landed from) to an auth/install problem.
     return { available: false, runs: [], reason: "budget" };
   }
+  // fetchedAt marks an attempted call (cacheable); the budget miss above has none.
+  const fetchedAt = new Date().toISOString();
   try {
     // Trimmed to the fields renderDevopsPipelineCard() / navDevopsDot actually
     // read (workflow, status, conclusion, branch, event, createdAt). databaseId
@@ -616,7 +622,9 @@ function collectPipelineRuns() {
       { cwd: ROOT, encoding: "utf-8", timeout: GH_RUN_LIST_TIMEOUT_MS },
     );
     const rows = JSON.parse(out);
-    if (!Array.isArray(rows)) return { available: false, runs: [], reason: "call-failed" };
+    if (!Array.isArray(rows)) {
+      return { available: false, runs: [], reason: "call-failed", fetchedAt };
+    }
     const runs = rows.slice(0, MAX_PIPELINE_RUNS).map((r) => ({
       workflow: truncateStr(String(r.workflowName || ""), MAX_PIPELINE_NAME_CHARS),
       status: String(r.status || ""),
@@ -625,14 +633,14 @@ function collectPipelineRuns() {
       event: String(r.event || ""),
       createdAt: r.createdAt || null,
     }));
-    return { available: true, runs };
+    return { available: true, runs, fetchedAt };
   } catch {
-    // gh missing, unauthenticated, its own execSync timeout, or non-repo cwd
+    // gh missing, unauthenticated, its own execFileSync timeout, or non-repo cwd
     // all read the same to the caller: no pipeline signal for this snapshot.
     // Not further split (e.g. timeout vs auth) — that would need parsing the
-    // execSync error shape, which is more taxonomy than the empty-state copy
+    // execFileSync error shape, which is more taxonomy than the empty-state copy
     // needs; "call-failed" is enough to stop the UI from guessing "auth".
-    return { available: false, runs: [], reason: "call-failed" };
+    return { available: false, runs: [], reason: "call-failed", fetchedAt };
   }
 }
 
@@ -668,7 +676,12 @@ function parseLatestChangelogEntryForDeploySignal(changelog) {
 
 function collectDeploySignal() {
   if (!withinSnapshotBudget(400)) return { tags: [], changelog: null };
-  const gitOpts = { cwd: ROOT, encoding: "utf-8", timeout: 5000 };
+  const gitOpts = {
+    cwd: ROOT,
+    encoding: "utf-8",
+    timeout: 5000,
+    stdio: ["ignore", "pipe", "ignore"],
+  };
   let tags = [];
   try {
     // v*-only: an archive/* or other non-release tag under "what shipped
@@ -719,7 +732,7 @@ function collectDeploySignal() {
 // 7. Terminals (read from Cursor terminal files)
 const terminalsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
 // Derive project path from ROOT rather than hardcoding a specific slug
-const projectSlug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+const projectSlug = projectSlugFromRoot(ROOT);
 const terminalProjectPath = join(terminalsDir, projectSlug, "terminals");
 
 if (existsSync(terminalProjectPath)) {
@@ -831,38 +844,23 @@ try {
   if (!withinSnapshotBudget(500)) {
     SNAPSHOT.processes = [];
   } else {
-    const psOutput = execSync("ps -axo pid=,pcpu=,pmem=,etime=,command=", {
+    const psOutput = execFileSync("ps", ["-axo", "pid=,pcpu=,pmem=,etime=,command="], {
       encoding: "utf-8",
       timeout: 3000,
     }).trim();
     if (psOutput) {
-      const interesting = [];
-      for (const line of psOutput.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (!/node|git|serve\.mjs|dashboard/i.test(trimmed)) continue;
-        if (/grep|dashboard-data/.test(trimmed)) continue;
-        const parts = trimmed.split(/\s+/);
-        const pid = parts[0];
-        const cpu = parts[1];
-        const mem = parts[2];
-        const etime = parts[3];
-        const cmd = parts.slice(4).join(" ") || "unknown";
-        let label = "other";
-        if (cmd.includes("serve.mjs") || cmd.includes("node dashboard")) label = "dashboard-server";
-        else if (/\bgit\b/.test(cmd)) label = "git";
-        else if (cmd.includes("node")) label = "node";
-        interesting.push({
-          pid,
-          cpu,
-          mem,
-          etime,
-          command: truncateStr(cmd, MAX_STRING.processCommand),
-          label,
-          description: describeProcess({ label, command: cmd, cpu, etime }),
-        });
-        if (interesting.length >= MAX_PROCESSES) break;
-      }
+      // Workspace-scoped + redacted (lib/processes.mjs): never ship host-wide argv.
+      const interesting = selectWorkspaceProcesses(psOutput, {
+        root: ROOT,
+        servePath: SERVE_PATH,
+        redact: redactTerminalOutput,
+        truncate: truncateStr,
+        maxCommandChars: MAX_STRING.processCommand,
+        maxProcesses: MAX_PROCESSES,
+      }).map(({ fullCommand: cmd, ...row }) => {
+        const { label, cpu, etime } = row;
+        return { ...row, description: describeProcess({ label, command: cmd, cpu, etime }) };
+      });
       SNAPSHOT.processes = interesting;
     }
   }
@@ -881,8 +879,9 @@ try {
     const auditAges = [];
     const nowEpoch = Math.floor(Date.now() / 1000);
     try {
-      const tmuxOut = execSync(
-        "tmux list-sessions -F '#{session_name} #{session_attached} #{session_created}'",
+      const tmuxOut = execFileSync(
+        "tmux",
+        ["list-sessions", "-F", "#{session_name} #{session_attached} #{session_created}"],
         { encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
       );
       for (const line of tmuxOut.split("\n")) {
@@ -897,12 +896,17 @@ try {
       // tmux missing or no server: fail-open
     }
     try {
-      // `screen -ls` exits 1 while successfully listing, so soften the exit code.
-      const screenOut = execSync("screen -ls || true", {
-        encoding: "utf-8",
-        timeout: 2000,
-        stdio: ["ignore", "pipe", "ignore"],
-      });
+      // `screen -ls` exits 1 while successfully listing, so keep stdout from the error.
+      let screenOut = "";
+      try {
+        screenOut = execFileSync("screen", ["-ls"], {
+          encoding: "utf-8",
+          timeout: 2000,
+          stdio: ["ignore", "pipe", "ignore"],
+        });
+      } catch (err) {
+        screenOut = typeof err?.stdout === "string" ? err.stdout : "";
+      }
       // The "N Sockets in <dir>." line trails the session list; socket mtime ~ start time.
       let sockdir = null;
       for (const line of screenOut.split("\n")) {
@@ -984,7 +988,7 @@ SNAPSHOT.health.status = checks.every((c) => c.ok)
 function collectAgentPrompts() {
   if (!withinSnapshotBudget(800)) return [];
   const projectsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
-  const slug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+  const slug = projectSlugFromRoot(ROOT);
   const transcriptsDir = join(projectsDir, slug, "agent-transcripts");
   if (!existsSync(transcriptsDir)) return [];
 
@@ -1123,7 +1127,7 @@ function collectExternalReports() {
 function collectSubagentRuns() {
   if (!withinSnapshotBudget(700)) return [];
   const projectsDir = resolve(process.env.HOME || "~", ".cursor", "projects");
-  const slug = ROOT.replace(/\//g, "-").replace(/^-/, "");
+  const slug = projectSlugFromRoot(ROOT);
   const transcriptsDir = join(projectsDir, slug, "agent-transcripts");
   if (!existsSync(transcriptsDir)) return [];
 

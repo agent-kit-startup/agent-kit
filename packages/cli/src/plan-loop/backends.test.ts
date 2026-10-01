@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
 import {
   CLAUDE_ENV_PASSTHROUGH,
   CLAUDE_MAX_BUDGET_USD_ENV,
@@ -375,6 +376,8 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "--input-format",
       "stream-json",
       "--replay-user-messages",
+      "--disallowedTools",
+      ...HEADLESS_DENY_RULES,
     ]);
     expect(claudeTickArgs({ model: "sonnet" })).toEqual([
       "-p",
@@ -389,7 +392,26 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "--replay-user-messages",
       "--model",
       "sonnet",
+      "--disallowedTools",
+      ...HEADLESS_DENY_RULES,
     ]);
+  });
+
+  it("appends every headless deny rule after --disallowedTools as the last flag", () => {
+    const args = claudeHeadlessArgs({ model: "sonnet", maxTurns: 3 });
+    const at = args.indexOf("--disallowedTools");
+    expect(at).toBeGreaterThan(-1);
+    expect(args.slice(at + 1)).toEqual([...HEADLESS_DENY_RULES]);
+    for (const rule of [
+      "Bash(git push * main)",
+      "Bash(git push *:main*)",
+      "Bash(ALLOW_MAIN_PUSH=*)",
+      "Bash(git push --force*)",
+      "Skill(git-prod)",
+      "Skill(kit-prod)",
+    ]) {
+      expect(args, rule).toContain(rule);
+    }
   });
 
   it("appends the opt-in caps only when set", () => {
@@ -408,6 +430,8 @@ describe("claudeHeadlessArgs / claudeTickArgs", () => {
       "25",
       "--max-budget-usd",
       "2",
+      "--disallowedTools",
+      ...HEADLESS_DENY_RULES,
     ]);
   });
 });
@@ -472,7 +496,18 @@ describe("claudeBackend.run", () => {
       versionFn: versionOk,
     });
 
-    expect(result).toEqual({ exitCode: 0, hitl: { replies: [], fallbackDetections: 0 } });
+    // The relay's watched result (redacted, like the log) rides on the run result.
+    expect(result).toEqual({
+      exitCode: 0,
+      hitl: { replies: [], fallbackDetections: 0 },
+      lastResult: {
+        resultText: "LOOP_TICK_RESULT: continue",
+        assistantTexts: ["bearer [ANTHROPIC_AUTH_TOKEN] at [ANTHROPIC_BASE_URL]"],
+        isError: false,
+        subtype: null,
+        errors: [],
+      },
+    });
     expect(spawnFn).toHaveBeenCalledTimes(1);
     expect(spawnFn.mock.calls[0]?.[0]).toBe("claude");
     expect(spawnFn.mock.calls[0]?.[1]).toEqual(claudeTickArgs({ model: "sonnet" }));
@@ -552,6 +587,41 @@ describe("claudeBackend.run", () => {
     expect(logText).not.toContain(TOKEN);
     // The unterminated final line is still rendered on stream end.
     expect(echoed).toBe("x [ANTHROPIC_AUTH_TOKEN]\n✦ result success\n");
+  });
+
+  it("reports an unterminated final result held by redaction as lastResult", async () => {
+    const logPath = await tmpLog();
+    const spawnFn = mockSpawn({
+      exitCode: 0,
+      stdoutChunks: [
+        '{"type":"result","subtype":"success","result":"first"}\n',
+        `{"type":"result","subtype":"success","result":"LOOP_TICK_RESULT: done ${TOKEN}"}`,
+      ],
+    });
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const result = await claudeBackend.run({
+      workspace: "/repo",
+      prompt: "tick",
+      logPath,
+      env: {
+        ANTHROPIC_AUTH_TOKEN: TOKEN,
+        ANTHROPIC_BASE_URL: undefined,
+        ANTHROPIC_API_KEY: undefined,
+      },
+      spawnFn: spawnFn as unknown as SpawnFn,
+      log: () => {},
+      versionFn: versionOk,
+    });
+    write.mockRestore();
+    // The tail reaches the watcher in the redaction flush, after the child's
+    // close; the relay must still see it before it ends the watcher.
+    expect(result.lastResult).toEqual({
+      resultText: "LOOP_TICK_RESULT: done [ANTHROPIC_AUTH_TOKEN]",
+      assistantTexts: [],
+      isError: false,
+      subtype: "success",
+      errors: [],
+    });
   });
 
   it("redacts a gateway host split across two stderr chunks", async () => {

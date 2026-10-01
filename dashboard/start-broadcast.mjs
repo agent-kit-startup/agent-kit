@@ -39,6 +39,7 @@ import {
   resolveContextConfigPath,
   resolveSnapshotRepoRoot,
 } from "./lib/guards.mjs";
+import { probeListenerRoot } from "./lib/identity-probe.mjs";
 import { openBrowser, readPreferredBrowserFromConfig } from "./lib/open-browser.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -99,18 +100,7 @@ function probeHttp(url) {
 
 /** Snapshot root reported by a listener that accepts our token, else null. */
 function snapshotRootAt(port, token) {
-  const url = `http://127.0.0.1:${port}/dashboard-data.json?token=${encodeURIComponent(token)}`;
-  try {
-    const raw = execFileSync("curl", ["-sf", url], {
-      encoding: "utf8",
-      timeout: 8000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    const root = JSON.parse(raw)?.system?.repoRoot;
-    return typeof root === "string" && root.trim() ? resolve(root.trim()) : null;
-  } catch {
-    return null;
-  }
+  return probeListenerRoot(`http://127.0.0.1:${port}`, `?token=${encodeURIComponent(token)}`);
 }
 
 /**

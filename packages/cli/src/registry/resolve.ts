@@ -242,14 +242,19 @@ async function hasRegistryIndex(root: string): Promise<boolean> {
 }
 
 async function cloneRegistry(url: string, ref: string, dest: string): Promise<void> {
-  const { mkdir } = await import("node:fs/promises");
+  const { mkdir, rm } = await import("node:fs/promises");
   await mkdir(path.dirname(dest), { recursive: true });
+  // A killed or failed clone leaves a partial dest that makes every later clone fail
+  // with "already exists". The caller holds `${dest}.lock`, so clearing dest is safe.
+  const clearPartial = () => rm(dest, { recursive: true, force: true });
+  await clearPartial();
   try {
     await execFileAsync("git", ["clone", "--depth", "1", "--branch", ref, "--", url, dest], {
       env: gitEnv(),
     });
   } catch (firstErr) {
     try {
+      await clearPartial();
       await execFileAsync("git", ["clone", "--depth", "1", "--", url, dest], { env: gitEnv() });
       await execFileAsync("git", ["checkout", ref, "--"], { cwd: dest, env: gitEnv() });
     } catch (secondErr) {
@@ -271,9 +276,11 @@ async function cloneRegistry(url: string, ref: string, dest: string): Promise<vo
   }
 }
 
-async function refreshCache(cacheDir: string): Promise<void> {
+async function refreshCache(cacheDir: string, ref: string): Promise<void> {
   try {
-    await execFileAsync("git", ["fetch", "--depth", "1", "origin"], {
+    // Fetch the pinned ref explicitly: a bare fetch follows the clone's default-branch
+    // refspec, and the reset below would silently move a pinned cache to that tip.
+    await execFileAsync("git", ["fetch", "--depth", "1", "origin", ref], {
       cwd: cacheDir,
       env: gitEnv(),
     });
@@ -332,7 +339,7 @@ export async function resolveRegistryRoot(options: {
   let ownershipTransferred = false;
   try {
     if (await hasRegistryIndex(dest)) {
-      await refreshCache(dest);
+      await refreshCache(dest, ref);
     } else {
       await cloneRegistry(url, ref, dest);
       if (!(await hasRegistryIndex(dest))) {

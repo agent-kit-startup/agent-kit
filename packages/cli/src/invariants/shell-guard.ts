@@ -39,14 +39,33 @@ export function normalizeShellCommand(command: string): string {
   return command.replace(/\s+/g, " ").trim();
 }
 
-/** Split on shell combinators; keeps leading `ENV=val` on each segment. */
+/**
+ * Join backslash-newline line continuations: an odd run of backslashes before the newline
+ * (`\\\\` is an escaped backslash, not a continuation). No quote, heredoc or comment parsing.
+ */
+export function joinNonTerminatingNewlines(command: string): string {
+  // The shell deletes the backslash-newline pair (no space), so `ma\\<NL>in` reads `main`.
+  return command.replace(/(?<!\\)((?:\\\\)*)\\\r?\n/g, "$1");
+}
+
+const SEGMENT_SPLIT = /\r?\n|&&|\|\||[;|]|(?<![<>])&(?![<>])/;
+
+function splitSegments(command: string): string[] {
+  return command.split(SEGMENT_SPLIT).map(normalizeShellCommand).filter(Boolean);
+}
+
+/**
+ * Fail-closed segment view: the union of segments with line continuations joined (catches
+ * `git push origin \<NL>main`) and of the raw split on every newline (catches anything a
+ * join could hide, such as `# note \<NL>git push origin main`). Rules deny when any segment
+ * matches, so a join can only add denials, never remove one. Combinators (`&&`, `||`, `;`,
+ * `|`, and a bare background `&` not adjacent to `<`/`>`) split in both views. Keeps leading
+ * `ENV=val` on each segment.
+ */
 export function shellSegments(command: string): string[] {
-  const normalized = normalizeShellCommand(command);
-  if (!normalized) return [];
-  return normalized
-    .split(/(?:&&|\|\||[;|])/)
-    .map((part) => part.trim())
-    .filter(Boolean);
+  const joined = splitSegments(joinNonTerminatingNewlines(command));
+  const raw = splitSegments(command);
+  return [...new Set([...joined, ...raw])];
 }
 
 /**
@@ -57,12 +76,85 @@ export function stripLeadingEnvAssignments(segment: string): string {
   return segment.replace(/^(?:\w+=\S+\s+)*/, "");
 }
 
+/** Command wrappers that run their argument; value = flags that take a separate argument. */
+const WRAPPER_ARG_FLAGS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["sudo", new Set(["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T"])],
+  ["env", new Set(["-u", "-C", "-S", "--unset", "--chdir", "--split-string"])],
+  ["command", new Set<string>()],
+  ["exec", new Set(["-a"])],
+  ["nohup", new Set<string>()],
+  ["time", new Set(["-f", "-o", "--format", "--output"])],
+]);
+
+/** git global options before the subcommand; value = takes a separate argument. */
+const GIT_GLOBAL_OPTS: ReadonlyMap<string, boolean> = new Map([
+  ["-C", true],
+  ["-c", true],
+  ["--git-dir", true],
+  ["--work-tree", true],
+  ["--namespace", true],
+  ["--no-pager", false],
+  ["-P", false],
+  ["--literal-pathspecs", false],
+]);
+
 /**
- * Split into shell segments and strip leading env assignments so
- * `node … --command "git checkout -- x"` does not false-positive.
+ * Canonical invocation head for one segment: strips a leading `(` / `{`, env assignments,
+ * the wrappers `sudo`, `env`, `command`, `exec`, `nohup`, `time` (and their flags), and git
+ * global options (`-C <p>`, `-c <k=v>`, `--git-dir`, `--work-tree`, `--no-pager`, `-P`,
+ * `--namespace`, `--literal-pathspecs`), so `sudo git -C . push origin main` reads as
+ * `git push origin main`.
+ */
+export function canonicalGitHead(segment: string): string {
+  let tokens = normalizeShellCommand(segment).split(" ").filter(Boolean);
+  for (;;) {
+    const t = tokens[0];
+    if (t === undefined) break;
+    if (/^[({]/.test(t)) {
+      const rest = t.replace(/^[({]+/, "");
+      tokens = rest ? [rest, ...tokens.slice(1)] : tokens.slice(1);
+      continue;
+    }
+    if (/^\w+=/.test(t)) {
+      tokens = tokens.slice(1);
+      continue;
+    }
+    const argFlags = WRAPPER_ARG_FLAGS.get(t);
+    if (argFlags) {
+      let i = 1;
+      while (i < tokens.length && tokens[i]?.startsWith("-")) {
+        i += argFlags.has(tokens[i] as string) ? 2 : 1;
+      }
+      tokens = tokens.slice(i);
+      continue;
+    }
+    break;
+  }
+  // A group can open in an earlier segment: `(cd x && git push origin main)` ends in `main)`.
+  if (tokens.length > 0) {
+    const last = (tokens[tokens.length - 1] as string).replace(/[)}]+$/, "");
+    tokens = last ? [...tokens.slice(0, -1), last] : tokens.slice(0, -1);
+  }
+  if (tokens.length > 0 && /^(?:[\w./-]+\/)?git$/.test(tokens[0] as string)) {
+    let i = 1;
+    while (i < tokens.length) {
+      const t = tokens[i] as string;
+      const name = t.includes("=") ? t.slice(0, t.indexOf("=")) : t;
+      const takesArg = GIT_GLOBAL_OPTS.get(name);
+      if (takesArg === undefined) break;
+      i += takesArg && !t.includes("=") ? 2 : 1;
+    }
+    tokens = [tokens[0] as string, ...tokens.slice(i)];
+  }
+  return tokens.join(" ");
+}
+
+/**
+ * Split into shell segments and canonicalize each head (env / wrappers / git global options)
+ * so `node … --command "git checkout -- x"` does not false-positive.
  */
 export function shellInvocationHeads(command: string): string[] {
-  return shellSegments(command).map(stripLeadingEnvAssignments).filter(Boolean);
+  return shellSegments(command).map(canonicalGitHead).filter(Boolean);
 }
 
 /** True when ALLOW_MAIN_PUSH=1 is set inline on the segment or in process.env. */
@@ -89,6 +181,18 @@ function hasForbiddenMainPushFlags(head: string): boolean {
   return false;
 }
 
+/** The only flags an authorized /git-prod main push may carry. */
+const AUTHORIZED_MAIN_PUSH_FLAGS: ReadonlySet<string> = new Set([
+  "-u",
+  "--set-upstream",
+  "-v",
+  "--verbose",
+  "-q",
+  "--quiet",
+  "--progress",
+  "--no-progress",
+]);
+
 /**
  * Documented /git-prod push shapes only: `git push <remote> main` or
  * `git push <remote> HEAD:main` (optional refs/heads/ on dest). No force
@@ -101,7 +205,11 @@ function isAuthorizedProdMainPush(head: string): boolean {
   const after = head.replace(/^(?:[\w./-]+\/)?git\s+push\b/, "").trim();
   const positional: string[] = [];
   for (const t of after.split(/\s+/).filter(Boolean)) {
-    if (t.startsWith("-")) continue;
+    if (t.startsWith("-")) {
+      // Allowlist: any other flag (--mirror, -d, -fu, --force-if-includes, …) is unauthorized.
+      if (!AUTHORIZED_MAIN_PUSH_FLAGS.has(t)) return false;
+      continue;
+    }
     positional.push(t);
   }
   // Documented forms are exactly <remote> <refspec>.
@@ -201,7 +309,7 @@ export function normalizePushRefspecToken(token: string): string {
 
 /** Protected push destination after refspec normalization (+ / refs/heads/). */
 function pushHeadHasProtectedDest(head: string): boolean {
-  if (/HEAD:(?:refs\/heads\/)?(?:main|master|prod)\b/.test(head)) return true;
+  if (/(?:HEAD|@):(?:refs\/heads\/)?(?:main|master|prod)\b/.test(head)) return true;
   if (/(?:^|\s)-(?:u|--set-upstream)\s+\S+\s+(?:main|master|prod)(?:\s|$)/.test(head)) {
     return true;
   }
@@ -226,7 +334,7 @@ function isBareOrHeadPushToCurrent(head: string): boolean {
     /(?:^|\s)\+?(?:refs\/heads\/)?(?:origin\/)?(?:staging|develop|homologacao)(?:\s|$|:)/.test(
       head,
     ) ||
-    /HEAD:(?:refs\/heads\/)?(?!main|master|prod)[A-Za-z0-9._/-]+/.test(head)
+    /(?:HEAD|@):(?:refs\/heads\/)?(?!main|master|prod)[A-Za-z0-9._/-]+/.test(head)
   ) {
     return false;
   }
@@ -238,10 +346,12 @@ function isBareOrHeadPushToCurrent(head: string): boolean {
     .trim();
   if (!withoutFlags) return true; // bare git push / git push --force
   const tokens = withoutFlags.split(/\s+/);
-  // remote only (origin) or remote + HEAD
+  // remote only (origin) or remote + HEAD (`@` is git's alias for HEAD)
   if (tokens.length === 1) return true;
-  if (tokens.length >= 2 && tokens[1] === "HEAD") return true;
-  if (/\bHEAD\b/.test(withoutFlags) && !/HEAD:/.test(withoutFlags)) return true;
+  if (tokens.length >= 2 && (tokens[1] === "HEAD" || tokens[1] === "@")) return true;
+  if (/\bHEAD\b|(?:^|\s)@(?:\s|$)/.test(withoutFlags) && !/(?:HEAD|@):/.test(withoutFlags)) {
+    return true;
+  }
   return false;
 }
 
@@ -278,11 +388,15 @@ export const SHELL_DENY_RULES: Array<{
     id: "git-clean-fd",
     description: "git clean -fd removes untracked files",
     test: (cmd) =>
-      shellInvocationHeads(cmd).some(
-        (head) =>
-          /^(?:[\w./-]+\/)?git\s+clean\b/.test(head) &&
-          /(?:^|\s)-(?:[a-z]*f[a-z]*d|[a-z]*d[a-z]*f)(?:\s|$)/.test(head),
-      ),
+      shellInvocationHeads(cmd).some((head) => {
+        if (!/^(?:[\w./-]+\/)?git\s+clean\b/.test(head)) return false;
+        // Force and -d may ride in one bundle (-fd) or separate tokens (-f -d, --force -d).
+        const tokens = head.split(/\s+/);
+        const shortBundle = (t: string) => /^-[a-zA-Z]+$/.test(t);
+        const hasForce = tokens.some((t) => t === "--force" || (shortBundle(t) && t.includes("f")));
+        const hasD = tokens.some((t) => shortBundle(t) && t.includes("d"));
+        return hasForce && hasD;
+      }),
   },
   {
     id: "public-repo-direct-write",
@@ -291,7 +405,7 @@ export const SHELL_DENY_RULES: Array<{
     test: (cmd, opts) =>
       shellSegments(cmd).some((segment) => {
         if (segmentHasAllowPublicPushEnv(segment)) return false;
-        const head = stripLeadingEnvAssignments(segment);
+        const head = canonicalGitHead(segment);
         return pushTargetsPublicRepo(head, opts?.remotes) || ghTargetsPublicRepo(head);
       }),
   },
@@ -302,7 +416,7 @@ export const SHELL_DENY_RULES: Array<{
       shellSegments(cmd).some((segment) => {
         // Authorized /git-prod path (parity with git-hooks/pre-push).
         if (segmentAllowsMainPush(segment)) return false;
-        const head = stripLeadingEnvAssignments(segment);
+        const head = canonicalGitHead(segment);
         if (!/^(?:[\w./-]+\/)?git\s+push\b/.test(head)) return false;
         if (pushHeadHasProtectedDest(head)) {
           return true;
@@ -325,7 +439,8 @@ export function evaluateShellCommand(
     return { permission: "allow" };
   }
   for (const rule of SHELL_DENY_RULES) {
-    if (rule.test(normalized, opts)) {
+    // Raw command: rules split on newlines before normalizing each segment.
+    if (rule.test(command, opts)) {
       const agent_message = `Denied by ${CITE}: ${rule.description} (rule \`${rule.id}\`). Use /git-staging; never discard human hunks or push protected branches from the agent.`;
       return {
         permission: "deny",

@@ -24,43 +24,4 @@ Base: [CURSOR-SKILLS](https://github.com/araguaci/cursor-skills). Apply the repo
 
 ## Git
 
-Recommended flow: **never** commit directly to `main`. Always promote via staging once the project adopts this flow.
-
-1. **Local development** -> `origin/staging` via **`git staging`** (commit on a working branch, MR to staging, merge).
-2. **Approved staging** -> `origin/main` (production) via **`git prod`** (merge staging -> main, push main).
-
-- **BLOCKED** (when applicable): direct commit/push to `main`; direct merge to `main`.
-- **ALLOWED**: only the `origin/staging` -> `origin/main` promotion via `git prod`.
-
-Commit messages: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Details and technical prompts in `autogit/gitupdate.md` when it exists.
-
-## Recommended configuration (JSON)
-
-```json
-{
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": { "source.fixAll": true },
-  "files.autoSave": "afterDelay",
-  "editor.tabSize": 2,
-  "editor.insertSpaces": true
-}
-```
-
-## Shortcuts
-
-- `Ctrl+Shift+P` - Command Palette
-- `` Ctrl+` `` - Terminal
-- `F5` - Debug
-- `Ctrl+Shift+F` - Find in Files
-
-## QA and Review
-
-- [ ] Code follows environment standards
-- [ ] Error handling and documentation
-- [ ] Tests (unit, integration, E2E as applicable)
-- [ ] Performance and security considered
-
-## Avoid
-
-- Misconfigured environment, ignored linting, confusing structure, missing docs/tests.
-- Configure the IDE, format, handle errors, test, and document.
+Flow, branch guards, and Conventional Commits: `cursor-skills-git-workflow` (SoT `autogit/gitupdate.md`).

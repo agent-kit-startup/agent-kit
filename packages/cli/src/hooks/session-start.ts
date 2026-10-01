@@ -1,10 +1,18 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { validateHandoffText } from "../invariants/handoff-schema.js";
+import { stampLastCheckedAt } from "../lifecycle/check-updates.js";
 import { loadContextConfig } from "../lifecycle/context-config.js";
-import { CHANGELOG_FETCH_TIMEOUT_MS } from "../lifecycle/cursor-update-awareness.js";
-import { shouldEmitPublicInboundNudge } from "../lifecycle/public-inbound-radar.js";
+import {
+  CHANGELOG_FETCH_TIMEOUT_MS,
+  resolveInventoryRoot,
+  stampCursorUpdateCheck,
+} from "../lifecycle/cursor-update-awareness.js";
+import {
+  shouldEmitPublicInboundNudge,
+  stampPublicInboundCheck,
+} from "../lifecycle/public-inbound-radar.js";
 import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
 import { READINESS_SNAPSHOT_RELATIVE_PATH } from "../scanner/snapshot.js";
@@ -217,22 +225,127 @@ async function loadUpdateCheckPrefs(root: string): Promise<Record<string, unknow
   return uc as Record<string, unknown>;
 }
 
-function runUpdateCheckJson(root: string): Promise<Record<string, unknown> | null> {
+/** Registers a spawned child so a section deadline can kill it. */
+export type SectionChildTracker = (child: ChildProcess) => void;
+
+export interface SessionStartSpawnDeps {
+  spawnFn?: CursorAwarenessSpawn;
+  runFallback?: (
+    root: string,
+    track?: SectionChildTracker,
+  ) => Promise<Record<string, unknown> | null>;
+  track?: SectionChildTracker;
+  /** Receives the child's parsed JSON (or null) once the section's check settles. */
+  onResult?: (result: Record<string, unknown> | null) => void;
+}
+
+/**
+ * What one spawn-backed section did, for the parent's post-run stamp. `spawned` is
+ * false when prefs gated the section off; `timedOut` when the deadline cut it.
+ */
+export interface SectionAttempt {
+  spawned: boolean;
+  timedOut: boolean;
+  result: Record<string, unknown> | null;
+}
+
+/** Per-section ceiling for the update / cursor-awareness / public-inbound spawns. */
+export const SESSION_START_SECTION_DEADLINE_MS = 6_000;
+
+/** Resolve `work`, or null once `ms` elapses (calling `onDeadline` first). Never rejects. */
+export function withDeadline<T>(
+  work: Promise<T>,
+  ms: number,
+  onDeadline?: () => void,
+): Promise<T | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      try {
+        onDeadline?.();
+      } catch {
+        // Cleanup is best-effort; the null result still stands.
+      }
+      resolve(null);
+    }, ms);
+    const settle = (value: T | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    work.then(settle, () => settle(null));
+  });
+}
+
+/**
+ * Run one spawn-backed section under a deadline that kills its children. Killing the
+ * primary makes it close, which can start a fallback after the deadline; that late
+ * child is released at once instead of holding the hook open.
+ */
+export function runSectionWithDeadline(
+  section: (root: string, sectionDeps: SessionStartSpawnDeps) => Promise<string | null>,
+  root: string,
+  spawnFn: CursorAwarenessSpawn | undefined,
+  deadlineMs: number,
+  attempt?: SectionAttempt,
+): Promise<string | null> {
+  const children: ChildProcess[] = [];
+  let expired = false;
+  const track: SectionChildTracker = (child) => {
+    if (attempt) attempt.spawned = true;
+    if (expired) releaseChild(child);
+    else children.push(child);
+  };
+  const onResult = (result: Record<string, unknown> | null) => {
+    if (attempt && !expired) attempt.result = result;
+  };
+  return withDeadline(section(root, { spawnFn, track, onResult }), deadlineMs, () => {
+    expired = true;
+    if (attempt) attempt.timedOut = true;
+    for (const child of children) releaseChild(child);
+  });
+}
+
+/**
+ * True when the parent should stamp lastCheckedAt for a section: a child ran and did
+ * not skip on prefs (interval / disabled / not applicable). Deadline cuts, errors and
+ * unparseable output count as attempts so a slow network does not retry every session.
+ */
+export function sectionAttemptNeedsStamp(attempt: SectionAttempt): boolean {
+  if (!attempt.spawned) return false;
+  if (attempt.timedOut || !attempt.result) return true;
+  const status = attempt.result.status;
+  if (typeof status !== "string") return true;
+  return status === "skipped-offline" || !status.startsWith("skipped-");
+}
+
+function releaseChild(child: ChildProcess): void {
+  try {
+    child.kill();
+  } catch {
+    // already gone
+  }
+  try {
+    child.unref();
+  } catch {
+    // already gone
+  }
+}
+
+function runUpdateCheckJson(
+  root: string,
+  track?: SectionChildTracker,
+): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const child = spawn(
       process.execPath,
-      [
-        process.argv[1] ?? "",
-        "update",
-        "--check",
-        "--json",
-        "--respect-prefs",
-        "--stamp",
-        "--cwd",
-        root,
-      ],
+      [process.argv[1] ?? "", "update", "--check", "--json", "--respect-prefs", "--cwd", root],
       { stdio: ["ignore", "pipe", "ignore"], timeout: 12_000 },
     );
+    track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
@@ -249,34 +362,58 @@ function runUpdateCheckJson(root: string): Promise<Record<string, unknown> | nul
   });
 }
 
-async function updateCheckSection(root: string): Promise<string | null> {
+/**
+ * sessionStart update-check section. Primary spawn is `agent-kit`; on ENOENT /
+ * empty failure, exactly one fallback via `process.execPath` + argv[1].
+ */
+export async function updateCheckSection(
+  root: string,
+  deps: SessionStartSpawnDeps = {},
+): Promise<string | null> {
   if ((await loadUpdateCheckPrefs(root)) === null) return null;
+  const spawnFn = deps.spawnFn ?? spawn;
+  const runFallback = deps.runFallback ?? runUpdateCheckJson;
   // Prefer PATH agent-kit when available; fall back to re-invoking this binary.
   const result = await new Promise<Record<string, unknown> | null>((resolve) => {
-    const child = spawn(
+    let settled = false;
+    let fallbackStarted = false;
+    const finish = (value: Record<string, unknown> | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const startFallback = () => {
+      if (settled || fallbackStarted) return;
+      fallbackStarted = true;
+      void runFallback(root, deps.track).then(finish);
+    };
+    const child = spawnFn(
       "agent-kit",
-      ["update", "--check", "--json", "--respect-prefs", "--stamp", "--cwd", root],
+      ["update", "--check", "--json", "--respect-prefs", "--cwd", root],
       { stdio: ["ignore", "pipe", "ignore"], timeout: 12_000, shell: false },
     );
+    deps.track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
     });
     child.on("error", () => {
-      void runUpdateCheckJson(root).then(resolve);
+      startFallback();
     });
     child.on("close", (code) => {
+      if (settled || fallbackStarted) return;
       if (code !== 0 && !out.trim()) {
-        void runUpdateCheckJson(root).then(resolve);
+        startFallback();
         return;
       }
       try {
-        resolve(JSON.parse(out.trim()) as Record<string, unknown>);
+        finish(JSON.parse(out.trim()) as Record<string, unknown>);
       } catch {
-        void runUpdateCheckJson(root).then(resolve);
+        startFallback();
       }
     });
   });
+  deps.onResult?.(result);
   if (!result || result.status !== "update-available") return null;
   if (result.applyRecommended === true) return null;
   const installed = String(result.installedVersion ?? "?");
@@ -294,7 +431,10 @@ async function loadCursorUpdateCheckPrefs(root: string): Promise<Record<string, 
   return uc as Record<string, unknown>;
 }
 
-function runCursorAwarenessJson(root: string): Promise<Record<string, unknown> | null> {
+function runCursorAwarenessJson(
+  root: string,
+  track?: SectionChildTracker,
+): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const child = spawn(
       process.execPath,
@@ -304,12 +444,12 @@ function runCursorAwarenessJson(root: string): Promise<Record<string, unknown> |
         "--check",
         "--json",
         "--respect-prefs",
-        "--stamp",
         "--cwd",
         root,
       ],
       { stdio: ["ignore", "pipe", "ignore"], timeout: CURSOR_AWARENESS_SPAWN_TIMEOUT_MS },
     );
+    track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
@@ -345,10 +485,7 @@ export type CursorAwarenessSpawn = typeof spawn;
  */
 export async function cursorAwarenessSection(
   root: string,
-  deps: {
-    spawnFn?: CursorAwarenessSpawn;
-    runFallback?: (root: string) => Promise<Record<string, unknown> | null>;
-  } = {},
+  deps: SessionStartSpawnDeps = {},
 ): Promise<string | null> {
   if ((await loadCursorUpdateCheckPrefs(root)) === null) return null;
   const spawnFn = deps.spawnFn ?? spawn;
@@ -364,17 +501,18 @@ export async function cursorAwarenessSection(
     const startFallback = () => {
       if (settled || fallbackStarted) return;
       fallbackStarted = true;
-      void runFallback(root).then(finish);
+      void runFallback(root, deps.track).then(finish);
     };
     const child = spawnFn(
       "agent-kit",
-      ["cursor-awareness", "--check", "--json", "--respect-prefs", "--stamp", "--cwd", root],
+      ["cursor-awareness", "--check", "--json", "--respect-prefs", "--cwd", root],
       {
         stdio: ["ignore", "pipe", "ignore"],
         timeout: CURSOR_AWARENESS_SPAWN_TIMEOUT_MS,
         shell: false,
       },
     );
+    deps.track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
@@ -395,6 +533,7 @@ export async function cursorAwarenessSection(
       }
     });
   });
+  deps.onResult?.(result);
   if (!shouldEmitCursorAwarenessNudge(result)) return null;
   return CURSOR_AWARENESS_NUDGE;
 }
@@ -412,21 +551,17 @@ async function loadPublicInboundCheckPrefs(root: string): Promise<Record<string,
   return uc as Record<string, unknown>;
 }
 
-function runPublicInboundJson(root: string): Promise<Record<string, unknown> | null> {
+function runPublicInboundJson(
+  root: string,
+  track?: SectionChildTracker,
+): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const child = spawn(
       process.execPath,
-      [
-        process.argv[1] ?? "",
-        "public-inbound-radar",
-        "--json",
-        "--respect-prefs",
-        "--stamp",
-        "--cwd",
-        root,
-      ],
+      [process.argv[1] ?? "", "public-inbound-radar", "--json", "--respect-prefs", "--cwd", root],
       { stdio: ["ignore", "pipe", "ignore"], timeout: PUBLIC_INBOUND_SPAWN_TIMEOUT_MS },
     );
+    track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
@@ -449,10 +584,7 @@ function runPublicInboundJson(root: string): Promise<Record<string, unknown> | n
  */
 export async function publicInboundSection(
   root: string,
-  deps: {
-    spawnFn?: CursorAwarenessSpawn;
-    runFallback?: (root: string) => Promise<Record<string, unknown> | null>;
-  } = {},
+  deps: SessionStartSpawnDeps = {},
 ): Promise<string | null> {
   if ((await loadPublicInboundCheckPrefs(root)) === null) return null;
   const spawnFn = deps.spawnFn ?? spawn;
@@ -468,17 +600,18 @@ export async function publicInboundSection(
     const startFallback = () => {
       if (settled || fallbackStarted) return;
       fallbackStarted = true;
-      void runFallback(root).then(finish);
+      void runFallback(root, deps.track).then(finish);
     };
     const child = spawnFn(
       "agent-kit",
-      ["public-inbound-radar", "--json", "--respect-prefs", "--stamp", "--cwd", root],
+      ["public-inbound-radar", "--json", "--respect-prefs", "--cwd", root],
       {
         stdio: ["ignore", "pipe", "ignore"],
         timeout: PUBLIC_INBOUND_SPAWN_TIMEOUT_MS,
         shell: false,
       },
     );
+    deps.track?.(child);
     let out = "";
     child.stdout?.on("data", (chunk: Buffer) => {
       out += chunk.toString("utf8");
@@ -499,6 +632,7 @@ export async function publicInboundSection(
       }
     });
   });
+  deps.onResult?.(result);
   if (!shouldEmitPublicInboundNudge(result)) {
     return null;
   }
@@ -653,6 +787,7 @@ export async function detachedAuditSessionsSection(
 export async function buildSessionStartAdditionalContext(
   rootDir: string,
   _payload: SessionStartPayload = {},
+  deps: { spawnFn?: CursorAwarenessSpawn; deadlineMs?: number } = {},
 ): Promise<{ additional_context: string }> {
   const root = path.resolve(rootDir);
   const handoffPath = path.join(root, HANDOFF_REL);
@@ -668,13 +803,28 @@ export async function buildSessionStartAdditionalContext(
   const dogfood = await dogfoodInboxSection(root);
   if (dogfood) parts.push(dogfood);
 
-  const updateNudge = await updateCheckSection(root);
+  // The three spawn-backed nudges run concurrently, each capped by a deadline that
+  // kills its children, so one hung check cannot stall sessionStart. parts[] order
+  // is unchanged. Children run without --stamp: the parent is the single writer of
+  // config.json and stamps sequentially afterwards (no lost read-modify-writes).
+  const deadlineMs = deps.deadlineMs ?? SESSION_START_SECTION_DEADLINE_MS;
+  const newAttempt = (): SectionAttempt => ({ spawned: false, timedOut: false, result: null });
+  const updateAttempt = newAttempt();
+  const cursorAttempt = newAttempt();
+  const inboundAttempt = newAttempt();
+  const runSection = (
+    section: (root: string, sectionDeps: SessionStartSpawnDeps) => Promise<string | null>,
+    attempt: SectionAttempt,
+  ): Promise<string | null> =>
+    runSectionWithDeadline(section, root, deps.spawnFn, deadlineMs, attempt);
+  const [updateNudge, cursorNudge, inboundNudge] = await Promise.all([
+    runSection(updateCheckSection, updateAttempt),
+    runSection(cursorAwarenessSection, cursorAttempt),
+    runSection(publicInboundSection, inboundAttempt),
+  ]);
+  await stampSectionAttempts(root, updateAttempt, cursorAttempt, inboundAttempt);
   if (updateNudge) parts.push(updateNudge);
-
-  const cursorNudge = await cursorAwarenessSection(root);
   if (cursorNudge) parts.push(cursorNudge);
-
-  const inboundNudge = await publicInboundSection(root);
   if (inboundNudge) parts.push(inboundNudge);
 
   // Belt and suspenders on top of the section's own try/catch: this section has no
@@ -691,9 +841,10 @@ export async function buildSessionStartAdditionalContext(
   }
 
   if (handoff.text) {
-    const capped = handoff.truncatedLines > 0 || handoff.droppedLines > 0;
+    const truncated = handoff.truncatedLines + handoff.machineTruncated;
+    const capped = truncated > 0 || handoff.droppedLines > 0;
     const note = capped
-      ? `\n\n_Excerpt capped at ${Math.round(HANDOFF_EXCERPT_MAX_BYTES / 1024)} KB (${handoff.truncatedLines} lines truncated, ${handoff.droppedLines} dropped); read \`.cursor/HANDOFF.md\` for the full entries._`
+      ? `\n\n_Excerpt capped at ${Math.round(HANDOFF_EXCERPT_MAX_BYTES / 1024)} KB (${truncated} lines truncated, ${handoff.droppedLines} dropped); read \`.cursor/HANDOFF.md\` for the full entries._`
       : "";
     parts.push(`## Current HANDOFF.md (excerpt)\n\n${handoff.text}${note}`);
   } else {
@@ -706,6 +857,42 @@ export async function buildSessionStartAdditionalContext(
   if (pendingPlans) parts.push(pendingPlans);
 
   return { additional_context: parts.join("\n\n") };
+}
+
+/** Sequential, fail-open stamps for the attempted spawn-backed sections. */
+async function stampSectionAttempts(
+  root: string,
+  updateAttempt: SectionAttempt,
+  cursorAttempt: SectionAttempt,
+  inboundAttempt: SectionAttempt,
+): Promise<void> {
+  if (sectionAttemptNeedsStamp(updateAttempt)) {
+    try {
+      await stampLastCheckedAt(root);
+    } catch {
+      // Stamp is best-effort; sessionStart never fails on it.
+    }
+  }
+  if (sectionAttemptNeedsStamp(cursorAttempt)) {
+    try {
+      // Same target and baseline the child used: prefs live at the inventory root;
+      // only a string latest version moves lastSeenCursorVersion (null would wipe it).
+      const latest = cursorAttempt.result?.latestCursorVersion;
+      await stampCursorUpdateCheck(
+        (await resolveInventoryRoot(root)) ?? root,
+        typeof latest === "string" ? { lastSeenCursorVersion: latest } : {},
+      );
+    } catch {
+      // Stamp is best-effort; sessionStart never fails on it.
+    }
+  }
+  if (sectionAttemptNeedsStamp(inboundAttempt)) {
+    try {
+      await stampPublicInboundCheck(root);
+    } catch {
+      // Stamp is best-effort; sessionStart never fails on it.
+    }
+  }
 }
 
 async function pendingPlansSection(root: string): Promise<string | null> {

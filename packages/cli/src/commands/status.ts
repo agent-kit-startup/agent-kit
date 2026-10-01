@@ -49,7 +49,7 @@ export const statusCommand = defineCommand({
   async run({ args }) {
     const rootDir = path.resolve(args.cwd);
     const [manifest, rawProfile, scan, env] = await Promise.all([
-      loadAgentKitManifest(rootDir),
+      loadAgentKitManifest(rootDir, args.json ? {} : { onWarning: logger.warn }),
       readJson<RepositoryProfile | Record<string, unknown>>(
         path.join(rootDir, ".cursor", "agent-kit.config.json"),
       ),

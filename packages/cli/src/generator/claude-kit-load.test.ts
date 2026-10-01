@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { detectContext } from "../scanner/detect-repository.js";
 import { fileExists } from "../utils/fs.js";
+import { CLAUDE_HITL_FALLBACK } from "./claude-command-adapters.js";
 import {
   AGENT_KIT_COMMAND_REL,
   CLAUDE_MD_REL,
@@ -21,13 +22,21 @@ const factoryCommandPath = path.join(REPO_ROOT, AGENT_KIT_COMMAND_REL);
 const factoryKitLoadPresent = existsSync(factoryClaudePath) && existsSync(factoryCommandPath);
 
 describe("generateClaudeKitLoadArtifacts", () => {
-  it("carves out the sanctioned SessionStart adapter without reopening rules/agents mirrors (ADR 2026-08-13, amended 2026-08-21)", () => {
+  it("keeps consumer Non-goals to one line without factory references", () => {
     const claudeMd = renderClaudeMd();
     expect(claudeMd).toContain(
-      "Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`)",
+      "## Non-goals\n\nDo not clone other Cursor hooks (Claude gets only the SessionStart context and PreToolUse(Bash) guard hooks); never `/git-prod` from a headless tick.\n",
     );
-    expect(claudeMd).toContain("no `.claude/rules/` mirrors");
-    expect(claudeMd).toContain("no `.claude/agents/` generated from the registry");
+    for (const rendered of [claudeMd, renderAgentKitCommand()]) {
+      expect(rendered).not.toContain("A7");
+      expect(rendered).not.toContain("ADR");
+    }
+  });
+
+  it("shares the adapter HITL fallback sentence", () => {
+    expect(renderClaudeMd()).toContain(
+      `${CLAUDE_HITL_FALLBACK} Skip or cancel means stop. Never \`/git-prod\` without an explicit operator yes.`,
+    );
   });
 
   it("matches the pack-contract canonical fences", async () => {

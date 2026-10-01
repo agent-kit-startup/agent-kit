@@ -1,12 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { type ApplyStats, emptyStats, mergeStats } from "../lifecycle/apply.js";
 import type { AgentKitManifest } from "../manifest/types.js";
 import { allPacks, allSkills } from "../registry/client.js";
 import {
   installPack,
   installSkill,
   loadPackManifest,
-  packMemberTargets,
+  packMemberFileTargets,
+  skillTargetDir,
 } from "../registry/install.js";
 import type { RegistryIndex } from "../registry/types.js";
 import { detectIde } from "../scanner/detect-ide.js";
@@ -317,7 +319,13 @@ async function createOwnedFile(
 
 async function packTargets(registryRoot: string, packId: string): Promise<string[]> {
   const manifest = await loadPackManifest(registryRoot, packId);
-  return manifest.members.map((member) => packMemberTargets(member).targetRel);
+  const targets: string[] = [];
+  for (const member of manifest.members) {
+    for (const { targetRel } of await packMemberFileTargets(registryRoot, member)) {
+      targets.push(targetRel);
+    }
+  }
+  return targets;
 }
 
 async function existingTargets(projectRoot: string, targets: string[]): Promise<string[]> {
@@ -347,12 +355,22 @@ export async function applyPersonalization(input: {
    * --claude`.
    */
   claudeAdapters?: boolean;
-}): Promise<{ result: PersonalizationResult; manifest: AgentKitManifest }> {
+}): Promise<{
+  result: PersonalizationResult;
+  manifest: AgentKitManifest;
+  stats: ApplyStats;
+  /** Skill/pack ids left out of the manifest because their install skipped symlinks. */
+  notRecorded: string[];
+}> {
   const planned = buildPersonalizationPlan(input.profile, input.report, input.registry);
+  // Merged install stats: callers must fail loudly on stats.skippedSymlink
+  // (see formatSkippedSymlinks); an id whose install skipped symlinks is not recorded.
+  const stats = emptyStats();
   const componentResults: PersonalizationItem[] = [];
   const protectedPaths = new Set(input.manifest.protected ?? []);
   const packs = new Set(input.manifest.packs ?? []);
   const skills = new Set(input.manifest.skills ?? []);
+  const notRecorded: string[] = [];
 
   for (const item of planned) {
     if (item.status !== "applied") {
@@ -365,31 +383,36 @@ export async function applyPersonalization(input: {
         componentResults.push({ ...item, status: "unavailable" });
         continue;
       }
-      const target = path.posix.join(
-        ".cursor",
-        "skills",
-        skill.path.includes("/core/") ? "core" : "community",
-        skill.id,
-        "SKILL.md",
-      );
+      const target = path.posix.join(skillTargetDir(skill.path, skill.id), "SKILL.md");
       if (await fileExists(path.join(input.rootDir, target))) {
         componentResults.push({ ...item, status: "skipped-customized", path: target });
         protectedPaths.add(target);
         continue;
       }
-      await installSkill(input.registryRoot, input.rootDir, skill);
+      const skillStats = await installSkill(input.registryRoot, input.rootDir, skill);
+      mergeStats(stats, skillStats);
+      if (skillStats.skippedSymlink.length > 0) {
+        notRecorded.push(item.id);
+        componentResults.push({ ...item, status: "unavailable", path: target });
+        continue;
+      }
       skills.add(item.id);
-      protectedPaths.add(target);
       componentResults.push({ ...item, path: target });
       continue;
     }
     if (item.kind === "pack") {
       const targets = await packTargets(input.registryRoot, item.id);
       const customizedTargets = await existingTargets(input.rootDir, targets);
-      await installPack(input.registryRoot, input.rootDir, item.id, {
+      const packStats = await installPack(input.registryRoot, input.rootDir, item.id, {
         protectedGlobs: customizedTargets,
       });
-      for (const target of targets) protectedPaths.add(target);
+      mergeStats(stats, packStats);
+      for (const target of customizedTargets) protectedPaths.add(target);
+      if (packStats.skippedSymlink.length > 0) {
+        notRecorded.push(item.id);
+        componentResults.push({ ...item, status: "unavailable" });
+        continue;
+      }
       packs.add(item.id);
       componentResults.push(
         customizedTargets.length > 0 ? { ...item, status: "skipped-customized" } : item,
@@ -449,9 +472,15 @@ export async function applyPersonalization(input: {
         // or already current reads as "applied"; a hand-edited adapter left
         // alone reads as "skipped-customized" (same meaning as elsewhere in
         // this file — never silently clobbered).
-        status: artifact.status === "preserved-customized" ? "skipped-customized" : "applied",
+        status:
+          artifact.status === "skipped-symlink"
+            ? "unavailable"
+            : artifact.status === "preserved-customized"
+              ? "skipped-customized"
+              : "applied",
         evidence: profileEvidence,
       });
+      if (artifact.status === "skipped-symlink") stats.skippedSymlink.push(artifact.relativePath);
     }
 
     const hookResult = await writeClaudeSessionStartHook(input.rootDir);
@@ -463,9 +492,23 @@ export async function applyPersonalization(input: {
       // "unavailable" (existing .claude/settings.json unparseable) is a real
       // PersonalizationStatus value already; every other hook status folds
       // onto "applied" the same way the command-adapter statuses do above.
-      status: hookResult.status === "unavailable" ? "unavailable" : "applied",
+      status:
+        hookResult.status === "unavailable" || hookResult.status === "skipped-symlink"
+          ? "unavailable"
+          : "applied",
       evidence: profileEvidence,
     });
+    if (hookResult.status === "skipped-symlink") stats.skippedSymlink.push(hookResult.relativePath);
+    if (hookResult.ledgerPath) {
+      protectedPaths.add(hookResult.ledgerPath);
+      claudeCommandItems.push({
+        kind: "file",
+        id: hookResult.ledgerPath,
+        path: hookResult.ledgerPath,
+        status: "applied",
+        evidence: profileEvidence,
+      });
+    }
     if (hookResult.status === "unavailable" && hookResult.instructions) {
       claudeSessionStartInstructions = hookResult.instructions;
     }
@@ -496,8 +539,6 @@ export async function applyPersonalization(input: {
       ide: ideDetection,
       infra: input.profile.infra,
       services: input.profile.services,
-      installHooks: false,
-      selectedCoreComponents: [],
     };
     const vscodeResults = await generateVSCodeArtifacts(projectProfile);
     const ideEvidence: DetectionEvidence[] = [
@@ -527,6 +568,8 @@ export async function applyPersonalization(input: {
 
   return {
     result,
+    stats,
+    notRecorded,
     manifest: {
       ...input.manifest,
       packs: [...packs].sort(),

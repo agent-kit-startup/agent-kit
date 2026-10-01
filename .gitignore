@@ -57,9 +57,9 @@
 .env
 .env.*
 
-# Major Tom XPS Kitchan inbox (runtime; never commit)
-infra/xps/kitchan-inbox.md
-infra/xps/kitchan-inbox.cursor
+# XPS inbox (runtime; never commit)
+infra/xps/*-inbox.md
+infra/xps/*-inbox.cursor
 *.pem
 *.key
 credentials.json

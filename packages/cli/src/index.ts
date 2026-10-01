@@ -1,28 +1,5 @@
 #!/usr/bin/env node
 import { defineCommand, runMain, showUsage } from "citty";
-import { addCommand } from "./commands/add.js";
-import { contributeCommand } from "./commands/contribute.js";
-import { cursorAwarenessCommand } from "./commands/cursor-awareness.js";
-import { dashboardBroadcastCommand } from "./commands/dashboard-broadcast.js";
-import { dashboardCommand } from "./commands/dashboard.js";
-import { diffCommand } from "./commands/diff.js";
-import { doctorCommand } from "./commands/doctor.js";
-import { guardCommand } from "./commands/guard.js";
-import { handoffCommand } from "./commands/handoff.js";
-import { hookCommand } from "./commands/hook.js";
-import { initCommand } from "./commands/init.js";
-import { installCommand } from "./commands/install.js";
-import { missionControlCommand } from "./commands/mission-control.js";
-import { monitorsCommand } from "./commands/monitors.js";
-import { planIndexCommand } from "./commands/plan-index.js";
-import { publicInboundRadarCommand } from "./commands/public-inbound-radar.js";
-import { runPlanCommand } from "./commands/run-plan.js";
-import { runCommand, runPlanAllCommand } from "./commands/run.js";
-import { scanCommand } from "./commands/scan.js";
-import { setupGlobalCommand } from "./commands/setup-global.js";
-import { statusCommand } from "./commands/status.js";
-import { updateCommand } from "./commands/update.js";
-import { validateCommand } from "./commands/validate.js";
 import { KIT_VERSION } from "./lifecycle/version.js";
 import { rewriteRootArgvToRun } from "./plan-loop/dispatch.js";
 import { renderGroupedRootHelp } from "./welcome/help-groups.js";
@@ -39,30 +16,36 @@ const main = defineCommand({
     version: KIT_VERSION,
   },
   subCommands: {
-    init: initCommand,
-    install: installCommand,
-    scan: scanCommand,
-    add: addCommand,
-    doctor: doctorCommand,
-    "setup-global": setupGlobalCommand,
-    status: statusCommand,
-    update: updateCommand,
-    "cursor-awareness": cursorAwarenessCommand,
-    "public-inbound-radar": publicInboundRadarCommand,
-    diff: diffCommand,
-    contribute: contributeCommand,
-    handoff: handoffCommand,
-    "plan-index": planIndexCommand,
-    run: runCommand,
-    "run-plan": runPlanCommand,
-    "run-plan-all": runPlanAllCommand,
-    dashboard: dashboardCommand,
-    "dashboard-broadcast": dashboardBroadcastCommand,
-    "mission-control": missionControlCommand,
-    hook: hookCommand,
-    guard: guardCommand,
-    monitors: monitorsCommand,
-    validate: validateCommand,
+    init: () => import("./commands/init.js").then((m) => m.initCommand),
+    install: () => import("./commands/install.js").then((m) => m.installCommand),
+    scan: () => import("./commands/scan.js").then((m) => m.scanCommand),
+    add: () => import("./commands/add.js").then((m) => m.addCommand),
+    doctor: () => import("./commands/doctor.js").then((m) => m.doctorCommand),
+    "setup-global": () => import("./commands/setup-global.js").then((m) => m.setupGlobalCommand),
+    status: () => import("./commands/status.js").then((m) => m.statusCommand),
+    update: () => import("./commands/update.js").then((m) => m.updateCommand),
+    "cursor-awareness": () =>
+      import("./commands/cursor-awareness.js").then((m) => m.cursorAwarenessCommand),
+    "public-inbound-radar": () =>
+      import("./commands/public-inbound-radar.js").then((m) => m.publicInboundRadarCommand),
+    "remote-issues": () => import("./commands/remote-issues.js").then((m) => m.remoteIssuesCommand),
+    dogfood: () => import("./commands/dogfood.js").then((m) => m.dogfoodCommand),
+    diff: () => import("./commands/diff.js").then((m) => m.diffCommand),
+    contribute: () => import("./commands/contribute.js").then((m) => m.contributeCommand),
+    handoff: () => import("./commands/handoff.js").then((m) => m.handoffCommand),
+    "plan-index": () => import("./commands/plan-index.js").then((m) => m.planIndexCommand),
+    run: () => import("./commands/run.js").then((m) => m.runCommand),
+    "run-plan": () => import("./commands/run-plan.js").then((m) => m.runPlanCommand),
+    "run-plan-all": () => import("./commands/run.js").then((m) => m.runPlanAllCommand),
+    dashboard: () => import("./commands/dashboard.js").then((m) => m.dashboardCommand),
+    "dashboard-broadcast": () =>
+      import("./commands/dashboard-broadcast.js").then((m) => m.dashboardBroadcastCommand),
+    "mission-control": () =>
+      import("./commands/mission-control.js").then((m) => m.missionControlCommand),
+    hook: () => import("./commands/hook.js").then((m) => m.hookCommand),
+    guard: () => import("./commands/guard.js").then((m) => m.guardCommand),
+    monitors: () => import("./commands/monitors.js").then((m) => m.monitorsCommand),
+    validate: () => import("./commands/validate.js").then((m) => m.validateCommand),
   },
   async run({ rawArgs }) {
     // citty also invokes parent `run` after a subcommand; skip when one was selected.

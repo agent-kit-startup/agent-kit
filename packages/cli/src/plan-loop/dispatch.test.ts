@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
 import {
   claudeHeadlessArgs,
   cursorAgentHeadlessArgs,
@@ -186,6 +187,8 @@ describe("dispatch prompt and spawn args", () => {
       "--input-format",
       "stream-json",
       "--replay-user-messages",
+      "--disallowedTools",
+      ...HEADLESS_DENY_RULES,
     ]);
     expect(claudeDispatchArgs({ model: "sonnet", maxTurns: 5 })).toEqual(
       claudeHeadlessArgs({ model: "sonnet", maxTurns: 5 }),

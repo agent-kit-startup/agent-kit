@@ -3,6 +3,13 @@ import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineCommand } from "citty";
 import { pruneHandoffText } from "../invariants/handoff-prune.js";
+import {
+  HANDOFF_REL,
+  extractFieldBlock,
+  extractHandoffNamedPlans,
+  namedPlanCandidatePaths,
+  parsePlanFrontmatter,
+} from "../plan-index/plan-index.js";
 import type { ProjectProfile } from "../types.js";
 import { PM_TOOL_LABELS } from "../types.js";
 import { ensureDir, fileExists, readJson } from "../utils/fs.js";
@@ -63,27 +70,55 @@ export async function runPrune(cwd: string, keep: number): Promise<void> {
   );
 }
 
-interface PlanFrontmatter {
-  name?: string;
-  todos?: { id: string; content: string; status: string }[];
+type PlanFrontmatter = ReturnType<typeof parsePlanFrontmatter>;
+
+/** Queue fields the regenerated HANDOFF keeps verbatim from the previous file. */
+const PRESERVED_FIELDS = [
+  "Run queue",
+  "Queue cursor",
+  "Queue status",
+  "Queue outcomes",
+  "Backlog plans",
+  "Parked plans",
+];
+
+function hasFrontmatter(raw: string): boolean {
+  return /^---\r?\n[\s\S]*?\r?\n---/.test(raw);
 }
 
-function parsePlanFrontmatter(raw: string): PlanFrontmatter | null {
-  const match = raw.match(/^---\n([\s\S]*?)\n---/);
-  if (!match?.[1]) return null;
-  const block = match[1];
-  const name = block.match(/^name:\s*(.+)$/m)?.[1]?.trim();
-  const todos: PlanFrontmatter["todos"] = [];
-  const todoBlocks = block.matchAll(/- id:\s*(\S+)\s*\n\s*content:\s*(.+)\n\s*status:\s*(\S+)/g);
-  for (const m of todoBlocks) {
-    if (m[1] && m[2] && m[3]) {
-      todos.push({ id: m[1], content: m[2].replace(/^["']|["']$/g, ""), status: m[3] });
+function todoText(t: PlanFrontmatter["todos"][number]): string {
+  return (t.content ?? t.id).replace(/^["']|["']$/g, "");
+}
+
+/** Verbatim `- **Label:** ...` line plus its indented continuation lines, or null. */
+function copyFieldBlock(text: string, label: string): string | null {
+  if (extractFieldBlock(text, label) === null) return null;
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => l.startsWith(`- **${label}:**`));
+  if (start < 0) return null;
+  let end = start + 1;
+  while (end < lines.length) {
+    const line = lines[end] ?? "";
+    if (/^- \*\*[^*:\n]+:\*\*/.test(line) || (line.trim() && !/^\s+\S/.test(line))) break;
+    end += 1;
+  }
+  while (end > start + 1 && !lines[end - 1]?.trim()) end -= 1;
+  return lines.slice(start, end).join("\n");
+}
+
+async function findActivePlan(
+  root: string,
+  handoff: string,
+): Promise<{ file: string; raw: string } | null> {
+  const active = extractHandoffNamedPlans(handoff).active;
+  if (active) {
+    for (const candidate of namedPlanCandidatePaths(root, active)) {
+      if (await fileExists(candidate)) {
+        return { file: active, raw: await readFile(candidate, "utf8") };
+      }
     }
   }
-  return { name, todos };
-}
-
-async function findActivePlan(plansDir: string): Promise<{ file: string; raw: string } | null> {
+  const plansDir = path.join(root, ".cursor", "plans");
   if (!(await fileExists(plansDir))) return null;
   const files = (await readdir(plansDir))
     .filter((f) => f.endsWith(".plan.md"))
@@ -105,7 +140,8 @@ function now(): string {
   return new Date().toISOString().replace("T", " ").slice(0, 16);
 }
 
-async function loadProfile(rootDir: string): Promise<ProjectProfile | null> {
+/** Reads `.cursor/agent-kit.config.json`; unknown legacy fields are tolerated. */
+export async function loadProfile(rootDir: string): Promise<ProjectProfile | null> {
   const configPath = path.join(rootDir, ".cursor", "agent-kit.config.json");
   try {
     return await readJson<ProjectProfile>(configPath);
@@ -147,6 +183,7 @@ function buildHandoff(
   planFile: string,
   fm: PlanFrontmatter,
   profile: ProjectProfile | null,
+  preserved: string[] = [],
 ): string {
   const completed = fm.todos?.filter((t) => t.status === "completed") ?? [];
   const pending = fm.todos?.filter((t) => t.status === "pending") ?? [];
@@ -163,24 +200,27 @@ function buildHandoff(
     `- **Plan:** ${planFile}`,
     `- **Last updated:** ${now()}`,
     `- **Progress:** ${completedPhase}/${totalPhases} todos completed`,
+    ...preserved,
     "",
     "## Completed",
     ...(completed.length > 0
-      ? completed.map((t) => `- [x] \`${t.id}\`: ${t.content}`)
+      ? completed.map((t) => `- [x] \`${t.id}\`: ${todoText(t)}`)
       : ["- (none)"]),
     "",
     "## In progress",
     ...(inProgress.length > 0
-      ? inProgress.map((t) => `- [ ] \`${t.id}\`: ${t.content}`)
+      ? inProgress.map((t) => `- [ ] \`${t.id}\`: ${todoText(t)}`)
       : ["- (none)"]),
     "",
     "## Pending",
-    ...(pending.length > 0 ? pending.map((t) => `- [ ] \`${t.id}\`: ${t.content}`) : ["- (none)"]),
+    ...(pending.length > 0
+      ? pending.map((t) => `- [ ] \`${t.id}\`: ${todoText(t)}`)
+      : ["- (none)"]),
     "",
     "## Instruction for Next Agent",
     "",
     nextTodo
-      ? `Continue from todo \`${nextTodo.id}\`: ${nextTodo.content}.`
+      ? `Continue from todo \`${nextTodo.id}\`: ${todoText(nextTodo)}.`
       : closingInstruction(profile),
     "",
     "## Suggested routines",
@@ -245,15 +285,18 @@ export const handoffCommand = defineCommand({
       return;
     }
     const profile = await loadProfile(args.cwd);
-    const plansDir = path.join(args.cwd, ".cursor", "plans");
-    const handoffPath = path.join(args.cwd, ".cursor", "HANDOFF.md");
+    const handoffPath = path.join(args.cwd, HANDOFF_REL);
+    const previous = (await fileExists(handoffPath)) ? await readFile(handoffPath, "utf8") : "";
 
-    const plan = await findActivePlan(plansDir);
+    const plan = await findActivePlan(args.cwd, previous);
     if (plan) {
-      const fm = parsePlanFrontmatter(plan.raw);
-      if (fm) {
+      if (hasFrontmatter(plan.raw)) {
+        const fm = parsePlanFrontmatter(plan.raw);
+        const preserved = PRESERVED_FIELDS.map((label) => copyFieldBlock(previous, label)).filter(
+          (block): block is string => block !== null,
+        );
         await ensureDir(path.join(args.cwd, ".cursor"));
-        const content = buildHandoff(plan.file, fm, profile);
+        const content = buildHandoff(plan.file, fm, profile, preserved);
         await writeFile(handoffPath, content, "utf8");
 
         logger.success("HANDOFF.md updated: .cursor/HANDOFF.md");

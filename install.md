@@ -107,6 +107,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/backlog-edit.md` | idem |
 | `.cursor/commands/backlog-delete.md` | idem |
 | `.cursor/commands/backlog-cancel.md` | idem |
+| `.cursor/commands/archive-plan.md` | idem |
 | `.cursor/commands/agent-kit-onboard.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |
 | `.cursor/commands/run-plan.md` | idem |
@@ -133,6 +134,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/context/templates/handoff.md` | idem |
 | `.cursor/context/templates/adr.md` | idem |
 | `.cursor/context/templates/plan-monitor.md` | idem |
+| `.cursor/context/templates/memory-entry.md` | idem |
 | `.cursor/context/templates/plan-external-review-prompt.md` | idem |
 | `.cursor/context/config.example.json` | idem |
 | `.cursor/scripts/plan-external-review.sh` | idem |
@@ -148,6 +150,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/hooks/agent/secrets-prompt.sh` | idem |
 | `autogit/gitupdate.md` | `autogit/gitupdate.md` |
 | `autogit/plan-routine.md` | `autogit/plan-routine.md` |
+| `git-hooks/prepare-commit-msg` | idem |
 
 After copying the agent hook scripts by hand (Port B), make them executable so Cursor can run them:
 
@@ -155,7 +158,7 @@ After copying the agent hook scripts by hand (Port B), make them executable so C
 chmod +x .cursor/hooks/agent/*.sh .cursor/hooks/pre-commit/check-secrets.sh
 ```
 
-Managed `agent-kit install` / `update` already preserves the executable bit via `copyFile`.
+Managed `agent-kit install` / `update` already preserves the executable bit via `copyFile`. `git-hooks/prepare-commit-msg` needs no chmod: the signature gate runs it as `sh git-hooks/prepare-commit-msg --check -`.
 
 If the agent has the Agent Kit monorepo open as workspace, use those paths. If only in consumer project, prefer **Port A** (`npx @dadado/agent-kit-cli@latest install`) so files come from the integrity-checked npm package. Port B raw fetches have **no package checksum**: treat them as a fallback only.
 

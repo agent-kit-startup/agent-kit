@@ -191,7 +191,8 @@ export function readUpdateApplyPrefs(config: unknown): UpdateApplyPrefs {
   };
 }
 
-async function stampLastCheckedAt(cwd: string): Promise<void> {
+/** Persist updateCheck.lastCheckedAt (also the sessionStart parent's single-writer stamp). */
+export async function stampLastCheckedAt(cwd: string): Promise<void> {
   const existing = (await loadContextConfig(cwd)) ?? {};
   const prev =
     existing.updateCheck && typeof existing.updateCheck === "object"

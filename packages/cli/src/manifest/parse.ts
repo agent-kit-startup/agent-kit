@@ -88,8 +88,11 @@ function parseOverrides(value: unknown, issues: string[]): AgentKitManifestOverr
 /**
  * Validate and normalize an unknown JSON value into AgentKitManifest.
  * Throws ManifestValidationError when required fields or types fail.
+ * Unknown top-level fields (e.g. written by a newer CLI) are kept in
+ * `unknownFields` so a save round-trips them, and reported through `warnings`,
+ * so an older CLI still reads the file without deleting what it cannot parse.
  */
-export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
+export function parseAgentKitManifest(raw: unknown, warnings: string[] = []): AgentKitManifest {
   const issues: string[] = [];
   if (!isPlainObject(raw)) {
     throw new ManifestValidationError("Manifest must be a JSON object", ["root must be object"]);
@@ -177,9 +180,11 @@ export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
     "personalization",
     "installedAt",
   ]);
+  const unknownFields: Record<string, unknown> = {};
   for (const key of Object.keys(rest)) {
     if (!allowed.has(key)) {
-      issues.push(`unknown field: ${key}`);
+      warnings.push(`unknown field: ${key}`);
+      unknownFields[key] = rest[key];
     }
   }
 
@@ -199,5 +204,6 @@ export function parseAgentKitManifest(raw: unknown): AgentKitManifest {
   if (registry) manifest.registry = registry;
   if (personalization) manifest.personalization = personalization;
   if (typeof rest.installedAt === "string") manifest.installedAt = rest.installedAt;
+  if (Object.keys(unknownFields).length > 0) manifest.unknownFields = unknownFields;
   return manifest;
 }

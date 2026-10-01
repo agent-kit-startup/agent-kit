@@ -2,7 +2,7 @@
 
 Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, what is missing, and how VS Code and Windsurf compare. Living audit; last refreshed **2026-09-16** (changelog keep-up: Aug 17–Sep 10 surfaces plus desktop 3.20.x classify; plugin pin 5.9.0). A6/A7 status lines re-verified true at HEAD.
 
-**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. The check reports open Action items, a version-number delta, and a **feature-keyword digest** (changelog headings and slash commands missing from this file or `docs/cursor-3-features.md`). Version-prose and Marketplace packaging were refreshed on 2026-08-05; only the live submission stays on the Marketplace plan (publisher HITL). See [cursor-update-awareness.md](cursor-update-awareness.md) and [`docs/research/cursor-changelog-keep-up-2026-09.md`](research/cursor-changelog-keep-up-2026-09.md).
+**Awareness check (advisory):** `agent-kit cursor-awareness --check` and `/cursor-update-awareness` diff Cursor changelog signals against this inventory without mutating it. The check reports open Action items, a version-number delta, and a **feature-keyword digest** (changelog headings and slash commands missing from this file or `docs/cursor-3-features.md`). Version-prose and Marketplace packaging were refreshed on 2026-08-05; only the live submission stays on the Marketplace plan (publisher HITL). See [cursor-update-awareness.md](cursor-update-awareness.md).
 
 ## Summary
 
@@ -20,7 +20,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | `git-hooks/prepare-commit-msg` | Present | Strips coding-agent signatures and session links (Cursor, Claude Code, Copilot, peers); `--check` mode for the staging/prod gate |
 | `AGENTS.md` (dogfood) | **Present** | Root cross-IDE contract; points at `.cursor/project-context.md` |
 | `mcp.json` | Absent | No project-level MCP config in core |
-| Cursor Projects (beta, 2026-09-10) | Not integrated (Cursor-native only) | Cloud coordinator + subagents, synced project files, Slack/schedule/PR subscriptions. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change. See [cursor-3-features.md](cursor-3-features.md) and [research/cursor-projects-study.md](research/cursor-projects-study.md) |
+| Cursor Projects (beta, 2026-09-10) | Not integrated (Cursor-native only) | Cloud coordinator + subagents, synced project files, Slack/schedule/PR subscriptions. ADR `2026-09-12_cursor-projects-thin-adapter.md`: no structural change. See [cursor-3-features.md](cursor-3-features.md) |
 | Custom modes (2026-08-19) | Not integrated (thin-adapter) | Pin a skill as an always-on chat mode. Kit `agentPersona` stays chat chrome only. |
 | `/goal` / `/loop` (2026-08-19) | Not integrated (thin-adapter) | Native long-lived objective and recurring check-ins. Do not replace kit plan to-dos or `/run-plan`. |
 | Origin / start from scratch, without a repo (2026-08-17 / 2026-08-27) | Not integrated (Cursor-native only) | Origin Repos; Bring your GitHub repos; Pull requests; Agents in every repo; App extensions for Cursor repos; live preview; Vercel publish. Not the kit git spine. |
@@ -113,14 +113,14 @@ These run on every agent turn in Cursor:
 | Path | Trigger | Class |
 |------|---------|-------|
 | `pre-commit/pre-commit` | Git pre-commit (manual install to `.git/hooks/`) | Core orchestrator |
-| `pre-commit/check-secrets.sh` | Staged files | Core - security |
+| `pre-commit/check-secrets.sh` | Staged diff (added lines) | Core - security |
 | `pre-commit/validate-all-json.sh` | Staged JSON | Core |
 | `lib/json-validator.js` | Shared (pre-commit) | Core |
 | `lib/n8n-checker.js` | Manual / stack skill | Stack |
 
 **Removed:** unwired `pre-edit/validate-json.sh` and `post-edit/validate-n8n.sh` (never attached to Cursor agent events). JSON validation stays on git pre-commit; HANDOFF/plan schema is advisory via `afterFileEdit` → `agent-kit validate after-edit`.
 
-**Install model:** Documented copy-to-`.git/hooks/pre-commit`. CLI `generateGitHooks` writes a **simpler** secrets-only hook - not the full `.cursor/hooks/pre-commit/` chain.
+**Install model:** Documented copy-to-`.git/hooks/pre-commit`. The CLI does not generate a pre-commit hook; the full `.cursor/hooks/pre-commit/` chain is the only secrets hook.
 
 ### Native Cursor hooks (`.cursor/hooks.json`)
 
@@ -210,15 +210,14 @@ Total `SKILL.md` files on disk: 12. Registry `core/` used to be two skills; `hit
 
 ## CLI generators - multi-IDE parity
 
-**Entry:** `packages/cli/src/generator/index.ts`
+**Entry:** `packages/cli/src/generator/personalization.ts` (`applyPersonalization`, called by `install`)
 
 | IDE | Generator | Artifacts | Parity vs Cursor workspace |
 |-----|-----------|-----------|----------------------------|
 | Cursor | `cursor.ts` | `.cursor/rules/` (3–4 rules), optional agent, `/agent-kit-status` | Low - subset only |
 | VS Code | `vscode.ts` | `.vscode/settings.json`, `.github/copilot-instructions.md`, optional `.agent.md` | Low - no handoff commands, no hooks |
 | Windsurf | `windsurf.ts` | `.windsurfrules` (short bullet list) | Minimal |
-| Cross-IDE | `agents-md.ts` | `AGENTS.md` | Medium - flow summary, no full rule corpus |
-| Git | `git-hooks.ts` | `.git/hooks/pre-commit` (rg secrets) | Simpler than repo's `.cursor/hooks/` |
+| Cross-IDE | `personalization.ts` | `AGENTS.md` | Medium - flow summary, no full rule corpus |
 
 **Templates:** `templates/cursor/`, `templates/vscode/`, `templates/windsurf/` - README stubs only; generators inline strings, not template files.
 
@@ -288,8 +287,7 @@ Acceptable for private SoT until Phase B registry cutover defines minimum dogfoo
 - [Cursor Native Features](cursor-3-features.md)
 - [Cursor update awareness](cursor-update-awareness.md)
 - [Coherence inventory](coherence-inventory.md)
-- [Cursor changelog keep-up (2026-09)](research/cursor-changelog-keep-up-2026-09.md)
-- [Cursor Projects study](research/cursor-projects-study.md); ADR `2026-09-12_cursor-projects-thin-adapter.md`
+- ADR `2026-09-12_cursor-projects-thin-adapter.md` (Cursor Projects study)
 - Plan Mode vs kit plans: ADR `2026-09-15_kit-plans-sot-over-host-plan-mode.md`
 - Mission Control protocol-open (superseded, do not reopen): ADR `2026-07-24_mission-control-cursor-native-open.md`
 - Decision: structural harness vs stack (maintainers' decision log, private repo)

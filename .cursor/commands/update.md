@@ -22,7 +22,7 @@ Update the Agent Kit layer (L0 + packs + skills) from the public registry, treat
 
 1. **Never confuse with the dev sync.** This command updates `.cursor/` content only — it does not push code to the public repo or trigger the public sync pipeline.
 2. **Do not change `origin` or `public` remote URLs.** This is a manifest-level update only.
-3. **Respect protected paths** (`.cursor/agent-kit.json` `protected` array). No overwrite, no warning override.
+3. **Respect protected paths** (`.cursor/agent-kit.json` `protected` array). No overwrite, no warning override. One scoped exception: the operator-typed `agent-kit update --claude` applies the ledger-aware merge to `.claude/settings.json` and `.cursor/agent-kit.claude-settings.json` only (install --claude authority; never edits `protected`; symlinks -> exit 1). Plain `update` only prints Claude settings drift. Never from hooks, cron or plan-loop.
 4. **Ask before applying.** Show what will change and let the user decide. Never silent apply; never honor `updateApply.auto` from a background/session path.
 5. **Do not run on `main` checkout.** The repo should be on `staging` or a working branch.
 6. **Factory/dev registry.** If the manifest points at `agent-kit-dev` or a pre-prod ref (`staging` / `develop` / …), warn and do not treat the install as a public consumer unless the operator explicitly switches to the public URL/ref.

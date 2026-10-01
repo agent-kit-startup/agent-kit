@@ -115,6 +115,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/backlog-cancel.md",
   },
   {
+    source: ".cursor/commands/archive-plan.md",
+    target: ".cursor/commands/archive-plan.md",
+  },
+  {
     source: ".cursor/commands/agent-kit-onboard.md",
     target: ".cursor/commands/agent-kit-onboard.md",
   },
@@ -223,6 +227,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/context/templates/plan-monitor.md",
   },
   {
+    source: ".cursor/context/templates/memory-entry.md",
+    target: ".cursor/context/templates/memory-entry.md",
+  },
+  {
     source: ".cursor/context/config.example.json",
     target: ".cursor/context/config.example.json",
   },
@@ -281,5 +289,12 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: "autogit/plan-routine.md",
     target: "autogit/plan-routine.md",
+  },
+  // Signature gate script: the staging/prod routines run
+  // `sh git-hooks/prepare-commit-msg --check -`, so the file must exist in the
+  // checkout. Installing it into .git/hooks stays optional (issue #89).
+  {
+    source: "git-hooks/prepare-commit-msg",
+    target: "git-hooks/prepare-commit-msg",
   },
 ];

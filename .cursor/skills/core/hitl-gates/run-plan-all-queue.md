@@ -102,18 +102,16 @@ When the operator runs `/run-plan-all` and HANDOFF already has `Mode: run-plan-a
 
 1. Run the same Unprocessed / audit preflights as a fresh start (Confirm Queue preflight).
 2. Compare current Gate-A Backlog basenames to `- **Confirmed backlog:**` ([Adjustment-class hard drift](#adjustment-class-hard-drift-start-and-resume)). Missing Confirmed backlog on an older HANDOFF: treat current Backlog as unconfirmed and Ask (safe default).
-3. **No new Backlog since confirm** and queued files valid: resume the frozen queue. Dispatch the next plan as a Task. Do not re-synthesize. Do not scramble the approved order. Do not auto-append Backlog into Run queue. A stable eligible-not-queued Backlog that was already listed at confirm is **not** drift.
+3. **No new Backlog since confirm** and queued files valid: resume the frozen queue. Re-probe `deferred-operator` rows first (gate open: re-dispatch that plan), then dispatch the next plan as a Task. Do not re-synthesize. Do not scramble the approved order. Do not auto-append Backlog into Run queue. A stable eligible-not-queued Backlog that was already listed at confirm is **not** drift.
 4. **New Backlog since confirm** (or invalid queued item): do not silently resume. **Ask questions** (one question; chat numbered-list fallback) with labels exactly:
 
 | Option | Behavior |
 |--------|----------|
-| `Resume frozen queue` | Keep stored Run queue, cursor, status, outcomes, and Confirmed backlog. Leave new-since-confirm Backlog off the queue. Dispatch the next queued Task only when Queue status still allows execution. |
+| `Resume frozen queue` | Keep stored Run queue, cursor, status, outcomes, and Confirmed backlog. Leave new-since-confirm Backlog off the queue. Dispatch the next queued Task only when Queue status still allows execution. A stored `blocked` on an operator gate converts to `deferred-operator` (agent-inferred, no operator unblock); dispatch the next non-deferred plan. |
 | `Insert new backlog` | Revise the proposal to include new-since-confirm Backlog. Do not silent-append a default slot. Show the revised order, then continue into the queue confirm (rewrites Confirmed backlog). |
 | `Re-synthesize` | Ignore freeze. Run full PO synthesis and the queue confirm as a fresh queue. |
 
-Skipped or cancelled Ask means **stop**. No CLI `eligiblePlans` scanner. No silent auto-append.
-
-**Explore / PO workers:** `kind: resume` is **not** a supported worker contract.
+Skipped or cancelled Ask means **stop**. No CLI `eligiblePlans` scanner. No silent auto-append. **Explore / PO workers:** `kind: resume` is **not** a supported worker contract.
 
 This 3-way Ask is in addition to the queue confirm on a true fresh synthesis (no stored queue, or after `Re-synthesize`).
 
@@ -199,8 +197,8 @@ The orchestrator **must not** implement to-dos, edit product code, run tests, wr
 ```
 
    Missing or malformed summary: **Ask the user** before advancing the cursor. Do not invent an outcome.
-5. **Record the outcome**  -  write HANDOFF `Queue outcomes` (plan basename, `outcome`, `lastTodoId`, optional notes from `failures`).
-6. **Ship lane, then advance**  -  when outcome is `completed`, run the [ship lane](#ship-lane-after-each-completed-plan) before incrementing `Queue cursor`. Advance only on a benign skip (`plans_only`, `staging_not_ahead`, `no_product_diff`) or a Done ship. Then repeat from step 1 until a stop condition.
+5. **Record the outcome**  -  write HANDOFF `Queue outcomes` (plan basename, `outcome`, `lastTodoId`, optional notes from `failures`). When `outcome` is `completed`: Remove the plan basename from `- **Backlog plans:**` (empty -> none); file stays, no Ask.
+6. **Ship lane, then advance**  -  when outcome is `completed`, run the [ship lane](#ship-lane-after-each-completed-plan) before incrementing `Queue cursor`. Advance only on a benign skip (`plans_only`, `staging_not_ahead`, `no_product_diff`) or a Done ship. `blocked` / `partial` goes through `decideBlockedPlanDisposition`: an operator gate (and its PO-map `A blocks B` dependents) records `deferred-operator (gate: <what>)` agent-inferred, skips the ship lane, and advances with Queue status `running`; any other blocker hits [Stop conditions](#stop-conditions). Then repeat from step 1 until a stop condition.
 
 ### Ship lane (after each completed plan)
 
@@ -292,12 +290,13 @@ Do not dispatch the next plan when:
 
 | Condition | Action |
 |-----------|--------|
-| Next plan depends on a prior plan's unfinished deliverable | HANDOFF with blocked status; stop. `/git-staging` only if there is a diff (orchestrator may stage queue-meta only; product staging belongs to the subagent tick) |
+| Worker `blocked` / `partial` on an operator-only gate (account checkout, host panel, credential, billing) | Defer, not stop: outcome `deferred-operator (gate: <what>)` agent-inferred, plan stays in Run queue, no ship, cursor advances, Queue status stays `running`. Dependents via PO-map `A blocks B` defer with gate = blocking plan. No new Ask |
+| Next plan depends on a prior plan's unfinished deliverable (not an operator gate) | HANDOFF with blocked status; stop. `/git-staging` only if there is a diff (orchestrator may stage queue-meta only; product staging belongs to the subagent tick) |
 | Next plan requires Gate B (was opted in) | HANDOFF + stop (Gate B not yet granted; manual `/start-project` or re-run with explicit opt-in) |
 | User asked to stop | Do not reschedule; HANDOFF with current queue position |
 | API / usage hit limit (quota, rate-limit signal, Task dispatch failure, auto model switch) | Hard stop: revert to-do to `pending`; HANDOFF with stop reason + cursor + queue position; operator message to wait for reset or switch off Auto to a named model (Claude Opus / Sonnet 4.6 / Composer 2.5 Fast); do not advance queue cursor; do not dispatch the next plan |
 | Prior HANDOFF still records an API/usage limit hard stop and operator has not confirmed recovery | Refuse auto-reschedule and refuse next-plan Task dispatch until named-model switch and/or quota wait; same pre-flight as `/run-plan` (HANDOFF stop-reason check only; no remaining-quota API) |
-| Queue exhausted (all plans completed) | Final HANDOFF; run `.cursor/scripts/field-report-cadence-bump.sh batch-complete`; queue-end audits arm (autonomous or paste per config; not a mid-queue paste Ask); `plans-only` suggests `/git-prod` if staging is ahead of `main` (separate HITL). `per-plan-release` does not ship again |
+| Queue exhausted (all plans completed or deferred) | Final HANDOFF; with deferred rows Queue status is `exhausted (deferred: <plan> -> <gate>; ...)` (`formatQueueEndStatus`) and the report lists each gate; the next `/run-plan-all` re-probes those gates first; run `.cursor/scripts/field-report-cadence-bump.sh batch-complete`; queue-end audits arm (autonomous or paste per config; not a mid-queue paste Ask); `plans-only` suggests `/git-prod` if staging is ahead of `main` (separate HITL). `per-plan-release` does not ship again |
 | Subagent summary missing/malformed and user does not authorize advance | HANDOFF with blocked/partial marker; stop or re-dispatch after Ask |
 
 ### Context checkpoint (plan boundaries)
@@ -320,7 +319,7 @@ Every queue mutation updates `.cursor/HANDOFF.md` with these fields:
 Mode: run-plan-all
 Run queue: [plan-a.plan.md, plan-b.plan.md, plan-c.plan.md]
 Queue cursor: 1 (current: plan-b.plan.md)
-Queue status: running | paused | blocked | exhausted
+Queue status: running | paused | blocked | exhausted | exhausted (deferred: plan-b.plan.md -> <gate>)
 Confirmed backlog: [plan-a.plan.md, plan-b.plan.md, plan-c.plan.md, eligible-not-queued.plan.md]
 Queue outcomes:
   plan-a.plan.md: completed (to-dos: id-1, id-2, id-3)

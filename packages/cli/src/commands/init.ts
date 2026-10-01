@@ -1,6 +1,7 @@
 import { intro, outro } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
+import { SkippedSymlinkError, logApplyStats } from "../lifecycle/report.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { assessEnvironment } from "../readiness/env-checks.js";
 import { logger } from "../utils/logger.js";
@@ -85,10 +86,19 @@ export const initCommand = defineCommand({
         logger.info(nextStep);
       }
     } catch (err) {
+      if (err instanceof SkippedSymlinkError) {
+        logApplyStats(err.stats);
+        logger.error(err.message);
+        process.exitCode = 1;
+        return;
+      }
       const hint = classifyInstallError(err);
       logger.error(hint.message);
       console.error(`\n${hint.recovery}\n`);
-      process.exit(1);
+      // exitCode + return (not process.exit): matches install.ts so the
+      // recovery hint is not truncated when stderr is a pipe.
+      process.exitCode = 1;
+      return;
     }
   },
 });

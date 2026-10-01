@@ -34,6 +34,12 @@ export interface AgentKitManifest {
   registry?: AgentKitManifestRegistry;
   personalization?: AgentKitPersonalizationMetadata;
   installedAt?: string;
+  /**
+   * Top-level fields this CLI does not understand (e.g. written by a newer
+   * CLI). Kept in memory so saveManifest writes them back instead of dropping
+   * them; never serialized under this key.
+   */
+  unknownFields?: Record<string, unknown>;
 }
 
 export const MANIFEST_FILENAME = "agent-kit.json";

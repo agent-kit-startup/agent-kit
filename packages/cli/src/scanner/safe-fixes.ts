@@ -11,6 +11,7 @@ import type {
   ScanResult,
 } from "../types.js";
 import { ensureDir, fileExists, readJson, writeJson } from "../utils/fs.js";
+import { detectGitDirty } from "./detect-git.js";
 import { KIT_OWNED_IGNORE_PATTERNS, REQUIRED_SECRET_PATTERNS } from "./detect-repository.js";
 import { REPOSITORY_PROFILE_REL } from "./paths.js";
 import { createReadinessReport } from "./readiness.js";
@@ -438,7 +439,15 @@ export async function executeSafeReadinessFixes(
     ),
   );
 
-  const afterScan = dryRun ? beforeScan : await runScanner(beforeScan.rootDir);
+  // No detector reads the context config, so only git dirtiness can change after
+  // the write above; refresh that instead of paying for a third full scan.
+  const afterScan =
+    contextConfigChanged && !dryRun && evidenceScan.git.mode !== "none"
+      ? {
+          ...evidenceScan,
+          git: { ...evidenceScan.git, isDirty: await detectGitDirty(evidenceScan.rootDir) },
+        }
+      : evidenceScan;
   const after = createReadinessReport(afterScan, {
     generatorVersion: options.generatorVersion,
     generatedAt,

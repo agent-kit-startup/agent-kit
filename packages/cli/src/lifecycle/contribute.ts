@@ -1,11 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentKitManifest } from "../manifest/types.js";
-import { allSkills, loadRegistry } from "../registry/client.js";
-import { loadPackManifest, packMemberTargets, skillFileTargets } from "../registry/install.js";
 import { type GateIssue, gateContributeContent, gateContributePath } from "./contribute-gate.js";
-import { L0_ARTIFACTS } from "./l0.js";
+import { normalizeRelPath } from "./glob.js";
 import { resolveContained } from "./paths.js";
+import { managedPairs } from "./targets.js";
 
 export type ContributeKind = "drift" | "path";
 
@@ -38,37 +37,8 @@ export async function buildRegistryPathMap(
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
-  for (const a of L0_ARTIFACTS) {
-    map.set(a.target.split(path.sep).join("/"), a.source.split(path.sep).join("/"));
-  }
-
-  for (const packId of manifest.packs ?? []) {
-    const pack = await loadPackManifest(registryRoot, packId);
-    for (const member of pack.members) {
-      const pairs =
-        member.kind === "skill"
-          ? await skillFileTargets(registryRoot, member.source, member.id)
-          : [packMemberTargets(member)];
-      for (const { sourceRel, targetRel } of pairs) {
-        map.set(targetRel.split(path.sep).join("/"), sourceRel.split(path.sep).join("/"));
-      }
-    }
-  }
-
-  if ((manifest.skills ?? []).length > 0) {
-    const index = await loadRegistry(registryRoot);
-    const pool = allSkills(index);
-    for (const id of manifest.skills ?? []) {
-      const skill = pool.find((s) => s.id === id);
-      if (!skill) continue;
-      for (const { sourceRel, targetRel } of await skillFileTargets(
-        registryRoot,
-        skill.path,
-        skill.id,
-      )) {
-        map.set(targetRel, sourceRel);
-      }
-    }
+  for (const { sourceRel, targetRel } of (await managedPairs(registryRoot, manifest)).pairs) {
+    map.set(targetRel, sourceRel);
   }
 
   return map;
@@ -160,8 +130,21 @@ export async function planContribute(options: {
   }
 
   for (const raw of options.extraPaths ?? []) {
-    const projectPath = raw.split(path.sep).join("/");
-    const blocked = gateContributePath(projectPath);
+    // Normalize first so `.cursor/rules/../../.env` is gated as `.env`, not as a rules path.
+    const projectPath = path.posix.normalize(normalizeRelPath(raw));
+    const escapes =
+      path.posix.isAbsolute(projectPath) ||
+      /^[A-Za-z]:\//.test(projectPath) ||
+      projectPath === ".." ||
+      projectPath.startsWith("../");
+    const blocked: GateIssue[] = escapes
+      ? [
+          {
+            code: "path-blocked",
+            message: `Path is absolute or escapes the project root — cannot contribute: ${projectPath}`,
+          },
+        ]
+      : gateContributePath(projectPath);
     if (blocked.length > 0) {
       if (!seen.has(projectPath)) {
         seen.add(projectPath);

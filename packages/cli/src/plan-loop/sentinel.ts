@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import type { TurnResult } from "./hitl-relay.js";
 
 const SENTINEL_RE = /LOOP_TICK_RESULT:\s*(continue|stop(?:\s*[—\-].*)?)/i;
 
@@ -24,11 +25,16 @@ function takeFromText(text: string): TickSentinel | null {
 }
 
 /**
- * Prefer the final stream-json `result` event; fall back to any streamed text.
+ * Prefer the final stream-json `result` event; fall back to assistant text.
+ * Only assistant events are scanned: a `user` event echoes TICK_PROMPT, which
+ * quotes the sentinel literally. Plain-text lines count only when the log has
+ * no JSON lines at all (non-stream output).
  * Mirrors the Python block in scripts/plan-loop.sh (pre-CLI).
  */
 export function parseSentinelFromLog(content: string): TickSentinel {
-  let last: TickSentinel | null = null;
+  let lastJson: TickSentinel | null = null;
+  let lastText: TickSentinel | null = null;
+  let sawJson = false;
 
   for (const line of content.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -36,7 +42,7 @@ export function parseSentinelFromLog(content: string): TickSentinel {
 
     if (!trimmed.startsWith("{")) {
       const hit = takeFromText(trimmed);
-      if (hit) last = hit;
+      if (hit) lastText = hit;
       continue;
     }
 
@@ -46,11 +52,12 @@ export function parseSentinelFromLog(content: string): TickSentinel {
         result?: unknown;
         message?: { content?: unknown[] };
       };
+      sawJson = true;
       if (ev.type === "result" && typeof ev.result === "string") {
         const hit = takeFromText(ev.result);
-        if (hit) last = hit;
+        if (hit) lastJson = hit;
       }
-      const parts = ev.message?.content;
+      const parts = ev.type === "assistant" ? ev.message?.content : undefined;
       if (Array.isArray(parts)) {
         for (const part of parts) {
           if (
@@ -60,17 +67,17 @@ export function parseSentinelFromLog(content: string): TickSentinel {
             typeof (part as { text?: unknown }).text === "string"
           ) {
             const hit = takeFromText((part as { text: string }).text);
-            if (hit) last = hit;
+            if (hit) lastJson = hit;
           }
         }
       }
     } catch {
       const hit = takeFromText(trimmed);
-      if (hit) last = hit;
+      if (hit) lastText = hit;
     }
   }
 
-  return last ?? { kind: "missing" };
+  return (sawJson ? lastJson : lastText) ?? { kind: "missing" };
 }
 
 /**
@@ -139,4 +146,58 @@ export function formatSentinelLine(sentinel: TickSentinel): string {
   if (sentinel.kind === "continue") return "LOOP_TICK_RESULT: continue";
   if (sentinel.kind === "stop") return `LOOP_TICK_RESULT: stop - ${sentinel.reason}`;
   return "";
+}
+
+/**
+ * Sentinel of the last turn the relay watched (`BackendRunResult.lastResult`).
+ * Same precedence as `parseSentinelFromLog` on that turn: the result line
+ * follows the turn's assistant lines, so its hit wins, then the last
+ * assistant text block with one. Null when the turn carries none.
+ */
+export function sentinelFromTurn(
+  turn: Pick<TurnResult, "resultText" | "assistantTexts">,
+): TickSentinel | null {
+  const fromResult = takeFromText(turn.resultText);
+  if (fromResult) return fromResult;
+  for (let i = turn.assistantTexts.length - 1; i >= 0; i--) {
+    const hit = takeFromText(turn.assistantTexts[i] ?? "");
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** `TickResultStatus` of the last watched result event. */
+export function tickResultStatusFromTurn(
+  turn: Pick<TurnResult, "isError" | "subtype" | "errors">,
+): TickResultStatus {
+  return {
+    isError: turn.isError,
+    ...(turn.subtype !== null ? { subtype: turn.subtype } : {}),
+    errors: turn.errors,
+  };
+}
+
+/** Tick result status from the watched turn; the log file only when there is none. */
+export async function resolveTickResultStatus(
+  lastResult: TurnResult | undefined,
+  logPath: string,
+  fromFile: (
+    logPath: string,
+  ) => Promise<TickResultStatus | null> = parseTickResultStatusFromLogFile,
+): Promise<TickResultStatus | null> {
+  if (lastResult) return tickResultStatusFromTurn(lastResult);
+  return fromFile(logPath);
+}
+
+/**
+ * Tick sentinel from the watched turn; the log file when there is no watched
+ * turn or it carries no sentinel (e.g. only an earlier, pre-gate turn did).
+ */
+export async function resolveTickSentinel(
+  lastResult: TurnResult | undefined,
+  logPath: string,
+  fromFile: (logPath: string) => Promise<TickSentinel> = parseSentinelFromLogFile,
+): Promise<TickSentinel> {
+  const fromTurn = lastResult ? sentinelFromTurn(lastResult) : null;
+  return fromTurn ?? fromFile(logPath);
 }

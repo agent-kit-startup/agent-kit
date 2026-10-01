@@ -1,15 +1,19 @@
+import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { formatSessionStartOutput } from "./format-session-start.js";
 import { HANDOFF_EXCERPT_MAX_BYTES } from "./handoff-excerpt.js";
-import { CURSOR_AWARENESS_NUDGE } from "./hard-rules.js";
+import { CURSOR_AWARENESS_NUDGE, HARD_RULES } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
   type AuditSessionCommandRunner,
   type CursorAwarenessSpawn,
+  type SectionAttempt,
+  type SectionChildTracker,
+  type SessionStartSpawnDeps,
   buildSessionStartAdditionalContext,
   cursorAwarenessSection,
   detachedAuditSessionsSection,
@@ -17,7 +21,11 @@ import {
   parseScreenDetachedAuditSessions,
   parseTmuxDetachedAuditSessions,
   parseUnprocessedDogfoodItems,
+  runSectionWithDeadline,
+  sectionAttemptNeedsStamp,
   shouldEmitCursorAwarenessNudge,
+  updateCheckSection,
+  withDeadline,
 } from "./session-start.js";
 
 describe("parseUnprocessedDogfoodItems", () => {
@@ -547,5 +555,226 @@ describe("cursor awareness sessionStart gate (T4)", () => {
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(runFallback).toHaveBeenCalledTimes(1);
     expect(section).toBe(CURSOR_AWARENESS_NUDGE);
+  });
+});
+
+describe("sessionStart spawn sections: parallel + deadline", () => {
+  async function enabledRoot(): Promise<string> {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-session-deadline-"));
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(path.join(root, ".cursor", "agent-kit.json"), '{"schemaVersion":1}\n', "utf8");
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({
+        updateCheck: { enabled: true },
+        cursorUpdateCheck: { enabled: true },
+        publicInboundCheck: { enabled: true },
+      }),
+      "utf8",
+    );
+    return root;
+  }
+
+  it("a hanging spawnFn is cut off by the deadline and the context still assembles", async () => {
+    const root = await enabledRoot();
+    await writeFile(
+      path.join(root, ".cursor", "HANDOFF.md"),
+      "# Handoff - hang\n\n- **Plan:** `hang.plan.md`\n",
+      "utf8",
+    );
+    const killed: number[] = [];
+    const spawnMock = vi.fn(() => {
+      // Never emits data / error / close: a hung child.
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        kill: () => boolean;
+        unref: () => void;
+      };
+      child.stdout = new EventEmitter();
+      child.kill = () => {
+        killed.push(1);
+        return true;
+      };
+      child.unref = () => {};
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    });
+    const started = Date.now();
+    const { additional_context } = await buildSessionStartAdditionalContext(
+      root,
+      {},
+      { spawnFn: spawnMock as unknown as CursorAwarenessSpawn },
+    );
+    expect(Date.now() - started).toBeLessThan(8_000);
+    // All three sections spawned (concurrently) and all three were killed.
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+    expect(killed).toHaveLength(3);
+    expect(additional_context.startsWith(HARD_RULES)).toBe(true);
+    expect(additional_context).toContain("## Current HANDOFF.md (excerpt)");
+    expect(additional_context).toContain("`hang.plan.md`");
+  }, 15_000);
+
+  it("releases a fallback child that a section starts after the deadline", async () => {
+    const released: string[] = [];
+    const fakeChild = (name: string) =>
+      ({
+        kill: () => {
+          released.push(`${name}:kill`);
+          return true;
+        },
+        unref: () => released.push(`${name}:unref`),
+      }) as unknown as ChildProcess;
+    let lateTrack: SectionChildTracker | undefined;
+    const section = (_root: string, sectionDeps: SessionStartSpawnDeps) => {
+      sectionDeps.track?.(fakeChild("primary"));
+      lateTrack = sectionDeps.track;
+      return new Promise<string | null>(() => {});
+    };
+    await expect(runSectionWithDeadline(section, "/tmp", undefined, 10)).resolves.toBeNull();
+    expect(released).toEqual(["primary:kill", "primary:unref"]);
+    // The primary's close would start a fallback now; it must not outlive the deadline.
+    lateTrack?.(fakeChild("fallback"));
+    expect(released).toEqual(["primary:kill", "primary:unref", "fallback:kill", "fallback:unref"]);
+  });
+
+  it("withDeadline passes a settled value through and nulls a late one", async () => {
+    await expect(withDeadline(Promise.resolve("ok"), 1_000)).resolves.toBe("ok");
+    const onDeadline = vi.fn();
+    await expect(withDeadline(new Promise(() => {}), 10, onDeadline)).resolves.toBeNull();
+    expect(onDeadline).toHaveBeenCalledTimes(1);
+  });
+
+  async function readConfig(root: string): Promise<Record<string, Record<string, unknown>>> {
+    return JSON.parse(await readFile(path.join(root, ".cursor", "context", "config.json"), "utf8"));
+  }
+
+  /** Fresh child per call; emits the JSON `bodies[args[0]]` (or hangs when absent). */
+  function jsonSpawn(bodies: Record<string, Record<string, unknown>>) {
+    return vi.fn((_cmd: string, args: string[]) => {
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        kill: () => boolean;
+        unref: () => void;
+      };
+      child.stdout = new EventEmitter();
+      child.kill = () => true;
+      child.unref = () => {};
+      const body = bodies[args[0] ?? ""];
+      if (body) {
+        queueMicrotask(() => {
+          child.stdout.emit("data", Buffer.from(JSON.stringify(body)));
+          child.emit("close", 0);
+        });
+      }
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    });
+  }
+
+  it("parent stamps all three sections once they run in parallel, children without --stamp", async () => {
+    const root = await enabledRoot();
+    const spawnMock = jsonSpawn({
+      update: { status: "up-to-date" },
+      "cursor-awareness": { status: "current", gaps: [], latestCursorVersion: "1.2.3" },
+      "public-inbound-radar": { status: "ok" },
+    });
+    await buildSessionStartAdditionalContext(
+      root,
+      {},
+      { spawnFn: spawnMock as unknown as CursorAwarenessSpawn },
+    );
+    expect(spawnMock).toHaveBeenCalledTimes(3);
+    for (const call of spawnMock.mock.calls) expect(call[1]).not.toContain("--stamp");
+    const cfg = await readConfig(root);
+    expect(typeof cfg.updateCheck?.lastCheckedAt).toBe("string");
+    expect(typeof cfg.cursorUpdateCheck?.lastCheckedAt).toBe("string");
+    expect(cfg.cursorUpdateCheck?.lastSeenCursorVersion).toBe("1.2.3");
+    expect(typeof cfg.publicInboundCheck?.lastCheckedAt).toBe("string");
+    expect(cfg.updateCheck?.enabled).toBe(true);
+  });
+
+  it("a section cut by the deadline still gets its lastCheckedAt stamped", async () => {
+    const root = await enabledRoot();
+    // update + public-inbound answer; cursor-awareness hangs past the deadline.
+    const spawnMock = jsonSpawn({
+      update: { status: "up-to-date" },
+      "public-inbound-radar": { status: "ok" },
+    });
+    await buildSessionStartAdditionalContext(
+      root,
+      {},
+      { spawnFn: spawnMock as unknown as CursorAwarenessSpawn, deadlineMs: 50 },
+    );
+    const cfg = await readConfig(root);
+    expect(typeof cfg.cursorUpdateCheck?.lastCheckedAt).toBe("string");
+    expect(cfg.cursorUpdateCheck?.lastSeenCursorVersion ?? null).toBeNull();
+    expect(typeof cfg.updateCheck?.lastCheckedAt).toBe("string");
+    expect(typeof cfg.publicInboundCheck?.lastCheckedAt).toBe("string");
+  });
+
+  it("does not move lastCheckedAt when the child skipped on interval", async () => {
+    const root = await enabledRoot();
+    const stale = "2020-01-01T00:00:00.000Z";
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({
+        updateCheck: { enabled: true, lastCheckedAt: stale },
+        cursorUpdateCheck: { enabled: true, lastCheckedAt: stale },
+        publicInboundCheck: { enabled: true, lastCheckedAt: stale },
+      }),
+      "utf8",
+    );
+    const spawnMock = jsonSpawn({
+      update: { status: "skipped-interval" },
+      "cursor-awareness": { status: "skipped-interval", gaps: [] },
+      "public-inbound-radar": { status: "skipped-interval" },
+    });
+    await buildSessionStartAdditionalContext(
+      root,
+      {},
+      { spawnFn: spawnMock as unknown as CursorAwarenessSpawn },
+    );
+    const cfg = await readConfig(root);
+    expect(cfg.updateCheck?.lastCheckedAt).toBe(stale);
+    expect(cfg.cursorUpdateCheck?.lastCheckedAt).toBe(stale);
+    expect(cfg.publicInboundCheck?.lastCheckedAt).toBe(stale);
+  });
+
+  it("sectionAttemptNeedsStamp: spawned + not a prefs skip", () => {
+    const a = (over: Partial<SectionAttempt>): SectionAttempt => ({
+      spawned: true,
+      timedOut: false,
+      result: null,
+      ...over,
+    });
+    expect(sectionAttemptNeedsStamp(a({ spawned: false, timedOut: true }))).toBe(false);
+    expect(sectionAttemptNeedsStamp(a({ timedOut: true }))).toBe(true);
+    expect(sectionAttemptNeedsStamp(a({ result: { status: "error" } }))).toBe(true);
+    expect(sectionAttemptNeedsStamp(a({ result: { status: "skipped-offline" } }))).toBe(true);
+    expect(sectionAttemptNeedsStamp(a({ result: { status: "skipped-disabled" } }))).toBe(false);
+  });
+
+  it("updateCheckSection: error then close on the primary starts exactly one fallback", async () => {
+    const root = await enabledRoot();
+    const child = new EventEmitter() as EventEmitter & { stdout: EventEmitter };
+    child.stdout = new EventEmitter();
+    const spawnMock = vi.fn(() => {
+      queueMicrotask(() => {
+        child.emit("error", Object.assign(new Error("not found"), { code: "ENOENT" }));
+        child.emit("close", 1);
+      });
+      return child as unknown as ReturnType<typeof import("node:child_process").spawn>;
+    });
+    const runFallback = vi.fn(async () => ({
+      status: "update-available",
+      installedVersion: "1.0.0",
+      latestVersion: "1.1.0",
+    }));
+
+    const section = await updateCheckSection(root, {
+      spawnFn: spawnMock as unknown as CursorAwarenessSpawn,
+      runFallback,
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(runFallback).toHaveBeenCalledTimes(1);
+    expect(section).toContain("1.1.0");
   });
 });

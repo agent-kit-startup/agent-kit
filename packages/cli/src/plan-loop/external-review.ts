@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
+import { RedactingStreamBuffer, claudeRedactions, redactSecrets } from "./backends.js";
 
 /** Canonical L0 launcher (preferred). */
 const CANONICAL_REL = path.join(".cursor", "scripts", "plan-external-review.sh");
@@ -105,28 +106,43 @@ export async function armExternalPlanReview(
       env: { ...process.env, AGENT_KIT_HEADLESS: "1" },
     });
 
+    // The launcher runs `claude -p` with the caller's env: elide Anthropic
+    // credentials (and their derived forms) from both the terminal and `output`.
+    const redact = claudeRedactions(process.env);
+    const outBuffer = new RedactingStreamBuffer(redact);
+    const errBuffer = new RedactingStreamBuffer(redact);
     let output = "";
-    const append = (chunk: unknown) => {
-      const s = String(chunk);
+    const emitOut = (s: string) => {
+      if (!s) return;
       output += s;
       process.stdout.write(s);
     };
-
-    child.stdout?.on("data", append);
-    child.stderr?.on("data", (chunk: unknown) => {
-      const s = String(chunk);
+    const emitErr = (s: string) => {
+      if (!s) return;
       output += s;
       process.stderr.write(s);
-    });
+    };
+    let flushed = false;
+    const flush = () => {
+      if (flushed) return;
+      flushed = true;
+      emitOut(outBuffer.flush());
+      emitErr(errBuffer.flush());
+    };
+
+    child.stdout?.on("data", (chunk: Buffer | string) => emitOut(outBuffer.push(chunk)));
+    child.stderr?.on("data", (chunk: Buffer | string) => emitErr(errBuffer.push(chunk)));
 
     child.on("error", (err: Error) => {
+      flush();
       log(
-        `tip: external plan review launcher failed (${err.message}). Manual: ${scriptRel} or /plan-external-review`,
+        `tip: external plan review launcher failed (${redactSecrets(err.message, redact)}). Manual: ${scriptRel} or /plan-external-review`,
       );
       resolve({ invoked: true, exitCode: null, output });
     });
 
     child.on("close", (code: number | null) => {
+      flush();
       if (code !== 0 && code !== null) {
         log(
           `tip: external plan review exited ${code} (ignored; does not fail the loop). Manual: ${scriptRel} or /plan-external-review`,

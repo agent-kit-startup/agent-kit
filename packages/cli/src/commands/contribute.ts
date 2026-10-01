@@ -49,7 +49,7 @@ export const contributeCommand = defineCommand({
     ...REGISTRY_CLI_ARGS,
   },
   async run({ args }) {
-    const manifest = await loadAgentKitManifest(args.cwd);
+    const manifest = await loadAgentKitManifest(args.cwd, { onWarning: logger.warn });
     if (!manifest) {
       logger.warn("No .cursor/agent-kit.json — run agent-kit install first.");
       return;

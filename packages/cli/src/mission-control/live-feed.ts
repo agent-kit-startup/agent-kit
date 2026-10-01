@@ -11,6 +11,7 @@
 
 import { StringDecoder } from "node:string_decoder";
 import type { HitlGate } from "../plan-loop/hitl-relay.js";
+import { LineSplitter } from "../plan-loop/line-splitter.js";
 import { parseStreamLine } from "../plan-loop/stream-events.js";
 import { type StreamSink, renderStreamEvent } from "../plan-loop/stream-render.js";
 import { type InputLine, ScrollRegion } from "./render.js";
@@ -50,9 +51,6 @@ export interface LiveCrew {
 /** Default Flight Log capacity (lines kept in memory). */
 export const LIVE_LOG_CAPACITY = 500;
 
-/** A held partial line longer than this is dropped from the feed (the log keeps it). */
-const PENDING_MAX_CHARS = 4 * 1024 * 1024;
-
 export interface LiveRunFeedOptions {
   columns?: number;
   now?: () => number;
@@ -72,8 +70,7 @@ export class LiveRunFeed implements StreamSink {
   readonly crew: LiveCrew;
   gate: HitlGate | null = null;
   hitlReplies = 0;
-  private pending = "";
-  private dropped = false;
+  private readonly lines = new LineSplitter();
   private readonly decoder = new StringDecoder("utf8");
   private readonly columns: number;
   private version = 0;
@@ -136,20 +133,7 @@ export class LiveRunFeed implements StreamSink {
     try {
       const text = typeof chunk === "string" ? chunk : this.decoder.write(chunk);
       if (!text) return;
-      const combined = this.pending + text;
-      const lines = combined.split("\n");
-      this.pending = lines.pop() ?? "";
-      for (const line of lines) {
-        if (this.dropped) {
-          this.dropped = false;
-          continue;
-        }
-        this.takeLine(line);
-      }
-      if (this.pending.length > PENDING_MAX_CHARS) {
-        this.pending = "";
-        this.dropped = true;
-      }
+      this.lines.feed(text, (line) => this.takeLine(line));
     } catch {
       // The tee must never see a feed failure; the log has the bytes.
     }
@@ -157,10 +141,9 @@ export class LiveRunFeed implements StreamSink {
 
   end(): void {
     try {
-      const rest = this.pending + this.decoder.end();
-      this.pending = "";
-      if (rest && !this.dropped) this.takeLine(rest);
-      this.dropped = false;
+      this.lines.feed(this.decoder.end(), (line) => this.takeLine(line));
+      const rest = this.lines.end();
+      if (rest) this.takeLine(rest);
       this.crew.currentTool = null;
       if (this.crew.phase !== "done") this.crew.phase = "done";
       this.version += 1;

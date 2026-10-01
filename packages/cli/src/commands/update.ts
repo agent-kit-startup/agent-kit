@@ -1,4 +1,10 @@
 import { defineCommand } from "citty";
+import {
+  CLAUDE_SETTINGS_REL,
+  formatClaudeSettingsDrift,
+  planClaudeSettingsDrift,
+  writeClaudeSessionStartHook,
+} from "../generator/claude-session-start-hook.js";
 import { buildManifest, saveManifest } from "../lifecycle/apply.js";
 import {
   checkForUpdates,
@@ -8,7 +14,8 @@ import {
 } from "../lifecycle/check-updates.js";
 import { seedManagedHashLedger } from "../lifecycle/overlay.js";
 import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
-import { logApplyStats } from "../lifecycle/report.js";
+import { isProtectedPath, resolveProtectedGlobs } from "../lifecycle/protected.js";
+import { formatSkippedSymlinks, logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_PACKAGE_SPEC, KIT_VERSION } from "../lifecycle/version.js";
@@ -63,6 +70,12 @@ export const updateCommand = defineCommand({
         "Apply even when this CLI is older than the registry it is syncing from; the manifest is then stamped with this CLI's version, not the registry's (factory/dev only)",
       default: false,
     },
+    claude: {
+      type: "boolean",
+      description:
+        "Also apply the ledger-aware Claude settings merge (.claude/settings.json + ledger) with install --claude authority; operator opt-in, never from hooks or plan-loop",
+      default: false,
+    },
     ...NON_INTERACTIVE_ROOT_ARGS,
     ...REGISTRY_CLI_ARGS,
   },
@@ -110,7 +123,7 @@ export const updateCommand = defineCommand({
       throw err;
     }
 
-    const existing = await loadAgentKitManifest(projectRoot);
+    const existing = await loadAgentKitManifest(projectRoot, { onWarning: logger.warn });
     if (!existing) {
       logger.warn("No .cursor/agent-kit.json — run agent-kit install first.");
       return;
@@ -189,6 +202,7 @@ export const updateCommand = defineCommand({
       });
       // Preserve optional metadata from existing manifest
       if (existing.overrides?.length) next.overrides = existing.overrides;
+      if (existing.unknownFields) next.unknownFields = existing.unknownFields;
       if (next.version === existing.version && existing.installedAt) {
         next.installedAt = existing.installedAt;
       }
@@ -200,6 +214,39 @@ export const updateCommand = defineCommand({
       const stats = await withCliProgress("update", () =>
         syncFromManifest(registry.root, projectRoot, next),
       );
+      if (stats.skippedSymlink.length > 0) {
+        // Some kit content did not land; stamping the new version would claim
+        // it did. Keep the manifest as-is and fail loudly.
+        logApplyStats(stats);
+        logger.error(formatSkippedSymlinks(stats.skippedSymlink));
+        process.exitCode = 1;
+        return;
+      }
+      if (args.claude) {
+        // Scoped opt-in: install --claude authority over settings.json + ledger only.
+        // manifest.protected is never edited.
+        const claude = await writeClaudeSessionStartHook(projectRoot, { authorized: true });
+        if (claude.status === "skipped-symlink") {
+          logApplyStats(stats);
+          logger.error(
+            `Claude settings not written: ${CLAUDE_SETTINGS_REL}, .claude/ or the ledger resolves outside the project (symlink). Nothing was changed there.`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+        if (claude.status === "unavailable") {
+          logger.warn(claude.instructions ?? `${CLAUDE_SETTINGS_REL} could not be merged.`);
+        } else {
+          console.log(`Claude settings ${claude.status}: ${claude.relativePath}`);
+        }
+      } else {
+        // Report-only: never writes settings.json or the ledger (`--claude` is the opt-in).
+        const drift = await planClaudeSettingsDrift(projectRoot);
+        if (drift) {
+          const protectedPath = isProtectedPath(CLAUDE_SETTINGS_REL, resolveProtectedGlobs(next));
+          for (const line of formatClaudeSettingsDrift(drift, { protectedPath })) console.log(line);
+        }
+      }
       await saveManifest(projectRoot, next);
       logApplyStats(stats);
       // State the version actually written: a run that changes no version is a

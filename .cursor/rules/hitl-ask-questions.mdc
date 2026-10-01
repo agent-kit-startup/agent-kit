@@ -19,14 +19,4 @@ Exact Ask labels, per-command gates, and numbered fallback as **path 1**: [`.cur
 
 ## CLI exception
 
-`agent-kit init` / wizard in `packages/cli/src/utils/prompts.ts` already uses `@clack/prompts`. Keep that. Do not call IDE `AskQuestion` from the CLI.
-
-## `/qa`
-
-Mode (when ambiguous): `QA this release` / `Repro this bug` / `Claims only` / `Cancel`. Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel`. Playbook: `.cursor/skills/core/qa/SKILL.md`.
-
-## References
-
-- [Agent tools - Ask questions](https://cursor.com/docs/agent/overview.md)
-- [ACP ask_question](https://cursor.com/docs/cli/acp.md)
-- [Skills](https://cursor.com/docs/skills.md)
+`agent-kit init` and other interactive CLI confirmations already use `@clack/prompts`. Keep that. Do not call IDE `AskQuestion` from the CLI.

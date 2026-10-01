@@ -45,8 +45,6 @@ function minimalProfile(
       ciRunCommands: [],
     },
     services: {},
-    installHooks: false,
-    selectedCoreComponents: [],
   };
 }
 

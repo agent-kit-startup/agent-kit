@@ -261,7 +261,7 @@ Install writes a thin root `CLAUDE.md` and `.claude/commands/agent-kit.md` so Cl
 
 HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not available). Never `/git-prod` from kit-load.
 
-Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** the headless tick loop (`agent-kit run-plan --backend claude`, shipped 2026-09-06 as plan `major-tom` Phase 1 — see the [consumer-configuration.md](consumer-configuration.md) CLI table), and **not** Action A7 (Windsurf / VS Code generators).
+Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** the headless tick loop (`agent-kit run-plan --backend claude`, shipped 2026-09-06 — see the [consumer-configuration.md](consumer-configuration.md) CLI table), and **not** Action A7 (Windsurf / VS Code generators).
 
 #### Opt-in: slash commands and auto-loaded session context (`--claude`)
 

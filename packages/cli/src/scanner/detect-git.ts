@@ -158,17 +158,26 @@ export function inferWorkflow(
   return "feature-pr";
 }
 
+/** `git ls-files` on a large repo overflows Node's 1 MiB default (ENOBUFS). */
+const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
 async function runGit(args: string[], rootDir: string): Promise<string | undefined> {
   try {
-    const { stdout } = await exec("git", args, { cwd: rootDir });
+    const { stdout } = await exec("git", args, { cwd: rootDir, maxBuffer: GIT_MAX_BUFFER });
     return stdout.trim();
   } catch {
     return undefined;
   }
 }
 
-export async function listTrackedFiles(rootDir: string): Promise<string[]> {
-  return (await runGit(["ls-files"], rootDir))?.split("\n").filter(Boolean) ?? [];
+/** Tracked paths, or undefined when `git ls-files` fails (unknown, not "none tracked"). */
+export async function listTrackedFiles(rootDir: string): Promise<string[] | undefined> {
+  return (await runGit(["ls-files"], rootDir))?.split("\n").filter(Boolean);
+}
+
+/** Worktree dirtiness via one `git status --porcelain` (same rule as detectGit). */
+export async function detectGitDirty(rootDir: string): Promise<boolean> {
+  return Boolean(await runGit(["status", "--porcelain"], rootDir));
 }
 
 export async function detectGit(rootDir: string): Promise<GitDetection> {
@@ -220,8 +229,7 @@ export async function detectGit(rootDir: string): Promise<GitDetection> {
         : undefined);
   const hasLocalStaging = localBranches?.includes("staging") ?? false;
   const hasRemoteStaging =
-    remoteBranches?.some((branch) => branch === "origin/staging" || branch.endsWith("/staging")) ??
-    false;
+    remoteBranches?.some((branch) => remoteNames.some((r) => branch === `${r}/staging`)) ?? false;
 
   return {
     provider: provider.provider,

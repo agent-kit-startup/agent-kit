@@ -29,6 +29,7 @@ import {
   resolveSnapshotRepoRoot,
   sameRepoRoot,
 } from "./lib/guards.mjs";
+import { probeListenerRoot } from "./lib/identity-probe.mjs";
 import { openBrowser, readPreferredBrowserFromConfig } from "./lib/open-browser.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -83,19 +84,7 @@ function listeningPids(port = PORT) {
 
 /** @returns {string | null} */
 function runningSnapshotRoot(port = PORT) {
-  const dataUrl = `http://${DISPLAY_HOST}:${port}/dashboard-data.json`;
-  try {
-    const raw = execFileSync("curl", ["-sf", dataUrl], {
-      encoding: "utf8",
-      timeout: 8000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    const data = JSON.parse(raw);
-    const root = data?.system?.repoRoot;
-    return typeof root === "string" && root.trim() ? resolve(root.trim()) : null;
-  } catch {
-    return null;
-  }
+  return probeListenerRoot(`http://${DISPLAY_HOST}:${port}`);
 }
 
 /**

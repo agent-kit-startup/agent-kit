@@ -188,6 +188,107 @@ describe("evaluateShellCommand", () => {
     );
   });
 
+  it("splits on newlines and a bare background & before matching", () => {
+    expect(evaluateShellCommand("echo hi\ngit push origin main").rule).toBe("git-push-main");
+    expect(evaluateShellCommand("true & git push origin main").rule).toBe("git-push-main");
+    expect(evaluateShellCommand("git push origin feat 2>&1").permission).toBe("allow");
+  });
+
+  it("denies deny-rule commands wrapped with a backslash-newline continuation", () => {
+    const opts = { currentBranch: "feat/x" };
+    expect(evaluateShellCommand("git push origin \\\nmain", opts).rule).toBe("git-push-main");
+    expect(evaluateShellCommand("git push \\\n  origin HEAD:main", opts).rule).toBe(
+      "git-push-main",
+    );
+    expect(evaluateShellCommand("git reset \\\r\n  --hard HEAD~1", opts).rule).toBe(
+      "git-reset-hard",
+    );
+    expect(evaluateShellCommand("git clean \\\n -fd", opts).rule).toBe("git-clean-fd");
+    expect(evaluateShellCommand("git checkout \\\n -- src/", opts).rule).toBe("git-checkout-path");
+  });
+
+  it("keeps every other newline a command boundary (no partial quote/heredoc/comment parsing)", () => {
+    const opts = { currentBranch: "feat/x" };
+    for (const [cmd, rule] of [
+      ['bash -c "cd x\ngit push origin main"', "git-push-main"],
+      ["sh -c 'true\ngit push --force origin main'", "git-push-main"],
+      ['echo "$(\ngit push origin main\n)"', "git-push-main"],
+      ["# don't do this\ngit push origin main", "git-push-main"],
+      ['# say "hi\ngit push origin main', "git-push-main"],
+      ["# it's fine\ngit restore .", "git-restore"],
+      ["echo $'it\\'s'\ngit push origin main", "git-push-main"],
+      ["cat <<<x\ngit push origin main", "git-push-main"],
+      ["echo $((1<<2))\ngit push origin main", "git-push-main"],
+      ["(( x = 1 << 2 ))\ngit reset --hard HEAD~1", "git-reset-hard"],
+      ["# usage: cat <<EOF\ngit push origin main", "git-push-main"],
+      ["git commit -F - <<'EOF'\nnotes\nEOF\ngit push origin main", "git-push-main"],
+      ['bash -c "cd x; git push origin main"', "git-push-main"],
+      // An escaped backslash is not a continuation; a comment's trailing backslash does not
+      // continue it (the raw newline view still sees the next command).
+      ["echo done \\\\\ngit push origin main", "git-push-main"],
+      ["# note \\\ngit push origin main", "git-push-main"],
+      ["echo x \\\\\ngit reset --hard HEAD~1", "git-reset-hard"],
+      // Mid-token continuations: the shell joins the halves with nothing in between.
+      ["git push origin ma\\\nin", "git-push-main"],
+      ["gi\\\nt push origin main", "git-push-main"],
+      ["git pu\\\nsh origin main", "git-push-main"],
+      ["git reset --ha\\\nrd", "git-reset-hard"],
+      ["git re\\\nstore .", "git-restore"],
+    ] as const) {
+      expect(evaluateShellCommand(cmd, opts).rule, cmd).toBe(rule);
+    }
+    // Fail-closed: an env prefix split off by a continuation is denied (git-prod.md: one line).
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 \\\ngit push origin main", opts).rule).toBe(
+      "git-push-main",
+    );
+    // The authorized /git-prod form still passes when wrapped with a continuation.
+    expect(
+      evaluateShellCommand("ALLOW_MAIN_PUSH=1 git push origin \\\nmain", opts).permission,
+    ).toBe("allow");
+    // A multi-line message is fine as long as no line starts with a denied command.
+    expect(
+      evaluateShellCommand('git commit -m "fix: guard\n\nkeeps pushes safe"', opts).permission,
+    ).toBe("allow");
+  });
+
+  it("canonicalizes wrappers, subshells and git global options before matching", () => {
+    const denyForms: Array<[string, string]> = [
+      ["git -C . push origin main", "git-push-main"],
+      ["sudo git push origin main", "git-push-main"],
+      ["(git push origin main)", "git-push-main"],
+      ["env git reset --hard", "git-reset-hard"],
+      ["git --no-pager reset --hard", "git-reset-hard"],
+      ["(cd x && git push origin main)", "git-push-main"],
+      ["toString -x; git push origin main", "git-push-main"],
+      ["hasOwnProperty -a && git reset --hard", "git-reset-hard"],
+    ];
+    for (const [cmd, rule] of denyForms) {
+      const r = evaluateShellCommand(cmd);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe(rule);
+    }
+  });
+
+  it("allowlists main-push flags, tokenizes git clean, and treats @ as HEAD", () => {
+    for (const cmd of [
+      "ALLOW_MAIN_PUSH=1 git push origin main --mirror",
+      "ALLOW_MAIN_PUSH=1 git push -d origin main",
+      "ALLOW_MAIN_PUSH=1 git push -fu origin main",
+      "ALLOW_MAIN_PUSH=1 git push --force-if-includes origin main",
+    ]) {
+      expect(evaluateShellCommand(cmd).rule, cmd).toBe("git-push-main");
+    }
+    expect(evaluateShellCommand("git clean -f -d").rule).toBe("git-clean-fd");
+    expect(evaluateShellCommand("git clean --force -d").rule).toBe("git-clean-fd");
+    expect(evaluateShellCommand("git push origin @", { currentBranch: "main" }).rule).toBe(
+      "git-push-main",
+    );
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 git push origin main").permission).toBe("allow");
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 git push -u origin HEAD:main").permission).toBe(
+      "allow",
+    );
+  });
+
   it("denies git push directly targeting the public repo by URL or -R/--repo", () => {
     const denyForms = [
       "git push https://github.com/agent-kit-startup/agent-kit.git HEAD:main",

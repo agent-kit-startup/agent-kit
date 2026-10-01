@@ -2,11 +2,15 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { bold, cyan, green, options as koloristOptions } from "kolorist";
 import { applyPersonalization, readRepositoryProfile } from "../generator/personalization.js";
-import { type ApplyStats, buildManifest, saveManifest } from "../lifecycle/apply.js";
+import { type ApplyStats, buildManifest, mergeStats, saveManifest } from "../lifecycle/apply.js";
 import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { npxPinned, pathCliStatus, syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
-import { logApplyStats } from "../lifecycle/report.js";
+import {
+  SkippedSymlinkError,
+  formatPersonalizationSkippedSymlinks,
+  logApplyStats,
+} from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { installL0, syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
@@ -179,7 +183,7 @@ async function printPostInstallSummary(result: InstallResult): Promise<void> {
 export async function performInstall(options: InstallOptions): Promise<InstallResult> {
   const projectRoot = path.resolve(options.cwd);
   const packs = parsePackList(options.pack);
-  const existing = await loadAgentKitManifest(projectRoot);
+  const existing = await loadAgentKitManifest(projectRoot, { onWarning: logger.warn });
   const registry = await resolveRegistryFromCli({
     cwd: projectRoot,
     registry: options.registry,
@@ -199,11 +203,16 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
       registryUrl: registry.url ?? existing?.registry?.url,
       registryRef: registry.ref ?? existing?.registry?.ref,
     });
+    // Keep fields a newer CLI wrote; saveManifest writes them back verbatim.
+    if (existing?.unknownFields) draft.unknownFields = existing.unknownFields;
 
     const stats =
       (draft.packs?.length ?? 0) > 0 || (draft.skills?.length ?? 0) > 0
         ? await syncFromManifest(registry.root, projectRoot, draft)
         : await installL0(registry.root, projectRoot, resolveProtectedGlobs(draft));
+    // Symlinked targets outside the project were not written: do not record
+    // this version in the manifest as if the install had landed.
+    if (stats.skippedSymlink.length > 0) throw new SkippedSymlinkError(stats);
     const manifestPath = await saveManifest(projectRoot, draft);
     const readinessExecution = await executeSafeReadinessFixes(projectRoot, {
       generatorVersion: KIT_VERSION,
@@ -223,12 +232,26 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
         generatorVersion: KIT_VERSION,
         claudeAdapters: options.claudeAdapters,
       });
+      // This manifest already leaves out skill/pack ids whose install skipped
+      // symlinks and keeps protected entries: save it and the snapshot even
+      // when failing on those skips below.
       await saveManifest(projectRoot, personalization.manifest);
       claudeSessionStartInstructions = personalization.result.claudeSessionStartInstructions;
       readiness = createReadinessReport(await runScanner(projectRoot), {
         generatorVersion: KIT_VERSION,
       });
       readiness.appliedSafeFixes = readinessExecution.after.appliedSafeFixes;
+      if (personalization.stats.skippedSymlink.length > 0) {
+        await writeReadinessSnapshot(projectRoot, readiness);
+        throw new SkippedSymlinkError(
+          mergeStats(stats, personalization.stats),
+          formatPersonalizationSkippedSymlinks(
+            personalization.stats.skippedSymlink,
+            personalization.notRecorded,
+          ),
+          claudeSessionStartInstructions,
+        );
+      }
     }
     await writeReadinessSnapshot(projectRoot, readiness);
 
@@ -328,6 +351,16 @@ export const installCommand = defineCommand({
         console.log(`\n${result.claudeSessionStartInstructions}\n`);
       }
     } catch (err) {
+      if (err instanceof SkippedSymlinkError) {
+        logApplyStats(err.stats);
+        logger.error(err.message);
+        if (err.claudeSessionStartInstructions) {
+          logger.warn("Could not merge the Claude Code SessionStart hook automatically:");
+          console.log(`\n${err.claudeSessionStartInstructions}\n`);
+        }
+        process.exitCode = 1;
+        return;
+      }
       const hint = classifyInstallError(err);
       logger.error(hint.message);
       console.error(`\n${hint.recovery}\n`);

@@ -153,6 +153,8 @@ export interface SafetyDetection {
   ignoredSecretPatterns: string[];
   missingSecretPatterns: string[];
   trackedSensitiveFiles: string[];
+  /** True when the tracked-file list could not be read (e.g. `git ls-files` failed). */
+  trackedFilesUnknown?: boolean;
   hasHooks: boolean;
   hasMainBranchGuard: boolean;
 }
@@ -290,12 +292,6 @@ export interface AgentPersonaConfig {
   };
 }
 
-/** Wizard choice: mode defaults, one persona for all modes, or skip writing. */
-export type AgentPersonaChoice =
-  | { kind: "mode-defaults" }
-  | { kind: "persona"; id: AgentPersonaId }
-  | { kind: "skip" };
-
 export interface ProjectProfile {
   rootDir: string;
   stack: StackDetection;
@@ -303,10 +299,6 @@ export interface ProjectProfile {
   ide: IdeDetection;
   infra: InfraDetection;
   services: ServicesDetection;
-  installHooks: boolean;
-  selectedCoreComponents: string[];
-  /** Optional: from init wizard; written to `.cursor/context/config.json` when not skip. */
-  agentPersonaChoice?: AgentPersonaChoice;
 }
 
 /**

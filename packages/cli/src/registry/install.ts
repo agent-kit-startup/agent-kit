@@ -7,7 +7,11 @@ import {
   mergeStats,
   recordOutcome,
 } from "../lifecycle/apply.js";
-import { loadManagedHashLedger, saveManagedHashLedger } from "../lifecycle/overlay.js";
+import {
+  type ManagedHashLedger,
+  loadManagedHashLedger,
+  saveManagedHashLedger,
+} from "../lifecycle/overlay.js";
 import { resolveContained } from "../lifecycle/paths.js";
 import { readJson } from "../utils/fs.js";
 import { allSkills, findPack, loadRegistry } from "./client.js";
@@ -32,6 +36,11 @@ export interface PackManifest {
 
 export interface InstallOptions {
   protectedGlobs?: readonly string[];
+  /**
+   * Caller-owned managed-hash ledger. When set, the install neither loads nor
+   * saves the ledger; the caller reads it once and persists it once.
+   */
+  managedHashes?: ManagedHashLedger;
 }
 
 /** Where a skill's files land in a consumer tree: `.cursor/skills/<category>/<id>/`. */
@@ -143,7 +152,7 @@ export async function installSkill(
   options: InstallOptions = {},
 ): Promise<ApplyStats> {
   const stats = emptyStats();
-  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const managedHashes = options.managedHashes ?? (await loadManagedHashLedger(projectRoot));
   for (const { sourceRel, targetRel } of await skillFileTargets(
     registryRoot,
     skill.path,
@@ -159,7 +168,7 @@ export async function installSkill(
     );
     recordOutcome(stats, targetRel, outcome);
   }
-  await saveManagedHashLedger(projectRoot, managedHashes);
+  if (!options.managedHashes) await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;
 }
 
@@ -178,13 +187,19 @@ export async function installSkillsByIds(
   if (!index) return stats;
 
   const pool = allSkills(index);
-  for (const id of skillIds) {
-    const skill = pool.find((s) => s.id === id);
-    if (!skill) {
-      stats.missing.push(id);
-      continue;
+  const managedHashes = options.managedHashes ?? (await loadManagedHashLedger(projectRoot));
+  const skillOpts = { ...options, managedHashes };
+  try {
+    for (const id of skillIds) {
+      const skill = pool.find((s) => s.id === id);
+      if (!skill) {
+        stats.missing.push(id);
+        continue;
+      }
+      mergeStats(stats, await installSkill(registryRoot, projectRoot, skill, skillOpts));
     }
-    mergeStats(stats, await installSkill(registryRoot, projectRoot, skill, options));
+  } finally {
+    if (!options.managedHashes) await saveManagedHashLedger(projectRoot, managedHashes);
   }
   return stats;
 }
@@ -211,15 +226,11 @@ export async function installPack(
   const packManifest = await loadPackManifest(registryRoot, packId);
   const stats = emptyStats();
   const protectedGlobs = options.protectedGlobs ?? [];
-  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const managedHashes = options.managedHashes ?? (await loadManagedHashLedger(projectRoot));
   const copyOpts = { managedHashes, persistManagedHashes: false as const };
 
   for (const member of packManifest.members) {
-    const pairs =
-      member.kind === "skill"
-        ? await skillFileTargets(registryRoot, member.source, member.id)
-        : [targetForMember(member)];
-    for (const { sourceRel, targetRel } of pairs) {
+    for (const { sourceRel, targetRel } of await packMemberFileTargets(registryRoot, member)) {
       const outcome = await copyRegistryFile(
         registryRoot,
         projectRoot,
@@ -231,7 +242,7 @@ export async function installPack(
       recordOutcome(stats, targetRel, outcome);
     }
   }
-  await saveManagedHashLedger(projectRoot, managedHashes);
+  if (!options.managedHashes) await saveManagedHashLedger(projectRoot, managedHashes);
   return stats;
 }
 
@@ -244,4 +255,17 @@ export async function readPackJson(packDir: string): Promise<PackManifest> {
 /** Paths a pack would write (for diff). */
 export function packMemberTargets(member: PackMember): { sourceRel: string; targetRel: string } {
   return targetForMember(member);
+}
+
+/**
+ * Every file a pack member installs: all of a skill's files (SKILL.md plus
+ * companions, via skillFileTargets) or the single pair of any other kind.
+ */
+export async function packMemberFileTargets(
+  registryRoot: string,
+  member: PackMember,
+): Promise<{ sourceRel: string; targetRel: string }[]> {
+  return member.kind === "skill"
+    ? skillFileTargets(registryRoot, member.source, member.id)
+    : [targetForMember(member)];
 }

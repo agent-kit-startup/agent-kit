@@ -13,6 +13,7 @@ export { HANDOFF_REL };
 
 const NONE = /^(none|n\/a|empty|nil)$/i;
 const OPEN_STATUSES = new Set(["pending", "in_progress"]);
+const DONE_STATUSES = new Set(["completed", "cancelled"]);
 
 export type PlanIndexRole = "active" | "backlog" | "parked" | "pending";
 
@@ -29,6 +30,8 @@ export interface PlanIndexEntry {
   name?: string;
   openTodos: boolean;
   pendingTodoIds: string[];
+  /** Present, has to-dos, and every to-do is completed or cancelled. */
+  exhausted: boolean;
   missing?: boolean;
 }
 
@@ -104,26 +107,42 @@ export function classifyPlanRole(
   return null;
 }
 
+export interface PlanFrontmatterTodo {
+  id: string;
+  status: string;
+  content?: string;
+}
+
 export function parsePlanFrontmatter(raw: string): {
   name?: string;
-  todos: { id: string; status: string }[];
+  todos: PlanFrontmatterTodo[];
 } {
-  const match = raw.match(/^---\n([\s\S]*?)\n---/);
+  const match = raw.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---/);
   if (!match?.[1]) return { todos: [] };
   const block = match[1];
   const name = block.match(/^name:\s*(.+)$/m)?.[1]?.trim();
-  const todos: { id: string; status: string }[] = [];
+  const todos: PlanFrontmatterTodo[] = [];
   let currentId: string | undefined;
-  for (const line of block.split(/\r?\n/)) {
+  let currentContent: string | undefined;
+  for (const line of block.split("\n")) {
     const idMatch = line.match(/^\s*- id:\s*(\S+)/);
     if (idMatch?.[1]) {
-      currentId = idMatch[1];
+      currentId = idMatch[1].replace(/^["']|["']$/g, "");
+      currentContent = undefined;
+      continue;
+    }
+    const contentMatch = line.match(/^\s*content:\s*(.+)$/);
+    if (contentMatch?.[1] && currentId) {
+      currentContent = contentMatch[1].trim();
       continue;
     }
     const statusMatch = line.match(/^\s*status:\s*(\S+)/);
     if (statusMatch?.[1] && currentId) {
-      todos.push({ id: currentId, status: statusMatch[1] });
+      const todo: PlanFrontmatterTodo = { id: currentId, status: statusMatch[1] };
+      if (currentContent !== undefined) todo.content = currentContent;
+      todos.push(todo);
       currentId = undefined;
+      currentContent = undefined;
     }
   }
   return { name, todos };
@@ -146,11 +165,14 @@ export async function buildPlanIndex(
     const openTodos = pendingTodoIds.length > 0;
     const role = classifyPlanRole(file, named, openTodos);
     if (!role) continue;
+    const exhausted =
+      text !== null && fm.todos.length > 0 && fm.todos.every((t) => DONE_STATUSES.has(t.status));
     const entry: PlanIndexEntry = {
       file,
       role,
       openTodos,
       pendingTodoIds,
+      exhausted,
     };
     if (fm.name) entry.name = fm.name;
     if (!text) entry.missing = true;
@@ -178,11 +200,17 @@ export async function writePlanIndex(
   return index;
 }
 
+/** Exhausted entries collapse into one trailing `- exhausted (retire): ...` line. */
 export function formatPlanIndexLines(index: PlanIndex): string[] {
-  return index.plans.map((p) => {
-    const open = p.openTodos ? ` (${p.pendingTodoIds.length} open)` : "";
-    return `- ${p.role}: \`${p.file}\`${open}`;
-  });
+  const lines = index.plans
+    .filter((p) => !p.exhausted)
+    .map((p) => {
+      const open = p.openTodos ? ` (${p.pendingTodoIds.length} open)` : "";
+      return `- ${p.role}: \`${p.file}\`${open}`;
+    });
+  const exhausted = index.plans.filter((p) => p.exhausted).map((p) => `\`${p.file}\``);
+  if (exhausted.length > 0) lines.push(`- exhausted (retire): ${exhausted.join(", ")}`);
+  return lines;
 }
 
 export function formatPlanIndexSection(index: PlanIndex): string | null {
@@ -212,7 +240,7 @@ function extractActivePlan(content: string): string | null {
   return raw.match(/([A-Za-z0-9._-]+\.plan\.md)/i)?.[1] ?? null;
 }
 
-function extractFieldBlock(content: string, label: string): string | null {
+export function extractFieldBlock(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`^- \\*\\*${escaped}:\\*\\*\\s*(.*)$`, "m");
   const match = content.match(re);

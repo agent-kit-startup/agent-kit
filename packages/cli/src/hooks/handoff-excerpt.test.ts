@@ -148,6 +148,51 @@ describe("capHandoffExcerpt", () => {
     expect(truncated).not.toContain("�");
   });
 
+  it("replaces an over-budget inline JSON prose value with an entry-count marker", () => {
+    const runbook = JSON.stringify(
+      Array.from({ length: 12 }, (_, i) => ({ step: i, cmd: `run ${"x".repeat(400)}` })),
+    );
+    const r = capHandoffExcerpt(`- **Plan:** \`x.plan.md\`\n- **Ship runbook:** ${runbook}\n`, {
+      maxBytes: 600,
+    });
+    expect(r.bytes).toBeLessThanOrEqual(600);
+    expect(r.text.split("\n")).toContain("- **Ship runbook:** (JSON, 12 entries; read HANDOFF)");
+    expect(r.text).not.toContain('{"step"');
+    expect(r.truncatedLines).toBe(1);
+  });
+
+  it("keeps prose truncation for Markdown checkbox and link bullets", () => {
+    for (const line of [
+      `- [x] Shipped ${"y".repeat(2_000)}`,
+      `- **Evidence:** [PR #12](https://example.com) ${"y".repeat(2_000)}`,
+      `  - [link](u) ${"y".repeat(2_000)}`,
+    ]) {
+      const r = capHandoffExcerpt(`- **Plan:** \`x.plan.md\`\n${line}\n`, { maxBytes: 600 });
+      expect(r.text, line).not.toContain("(JSON,");
+      expect(r.text, line).toContain("[truncated");
+    }
+  });
+
+  it("truncates the longest machine lines last so a 40,000-char Queue outcomes fits", () => {
+    const source = [
+      "# Handoff - huge queue",
+      "",
+      "- **Plan:** `q.plan.md`",
+      "- **Queue status:** running",
+      "- **Notes:** short prose",
+      `- **Queue outcomes:** ${"a.plan.md: completed; ".repeat(40_000 / 22)}`,
+      "",
+    ].join("\n");
+    expect(source.length).toBeGreaterThan(40_000);
+    const r = capHandoffExcerpt(source);
+    expect(r.bytes).toBeLessThanOrEqual(HANDOFF_EXCERPT_MAX_BYTES);
+    expect(B(r.text)).toBe(r.bytes);
+    expect(r.machineTruncated).toBe(1);
+    expect(r.text).toContain("- **Plan:** `q.plan.md`");
+    expect(r.text).toContain("- **Queue status:** running");
+    expect(r.text).toMatch(/- \*\*Queue outcomes:\*\* a\.plan\.md.* …\[truncated \d+ chars\]/);
+  });
+
   it("does not treat look-alike labels as machine fields", () => {
     const stale = `- **Mode (prior, stale):** ${"x".repeat(3_000)}`;
     const r = capHandoffExcerpt(`- **Mode:** run-plan\n${stale}\n`, { maxBytes: 400 });
