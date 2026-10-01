@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,7 @@ import { loadManagedHashLedger } from "../lifecycle/overlay.js";
 import {
   CLAUDE_COMMANDS_DIR_REL,
   CURSOR_COMMANDS_DIR_REL,
+  MODEL_INVOCATION_DISABLED,
   discoverInstalledCommands,
   generateClaudeCommandAdapters,
   parseCommandFrontmatter,
@@ -59,6 +60,29 @@ describe("renderClaudeCommandAdapter", () => {
     expect(out).toContain("immediately followed by the same labels as one numbered list");
     expect(out).toContain("`HITL_REPLY: <ask-id> | operator reply <n> | <label>`");
     expect(out).toContain(".cursor/skills/core/hitl-gates/SKILL.md");
+  });
+
+  it("renders disable-model-invocation only for promote/destructive/multi-plan commands", () => {
+    expect([...MODEL_INVOCATION_DISABLED].sort()).toEqual([
+      "archive-plan",
+      "backlog-cancel",
+      "backlog-delete",
+      "git-prod",
+      "hotfix",
+      "kit-prod",
+      "run-plan-all",
+    ]);
+    // The headless tick runs /git-staging itself, so staging adapters stay model-invocable.
+    for (const name of ["git-staging", "kit-staging"]) {
+      expect(renderClaudeCommandAdapter({ name, description: "Stage." })).not.toContain(
+        "disable-model-invocation",
+      );
+    }
+    const gated = renderClaudeCommandAdapter({ name: "git-prod", description: "Promote." });
+    expect(gated).toMatch(/^---\ndescription: Promote\.\ndisable-model-invocation: true\n---\n/);
+    const open = renderClaudeCommandAdapter({ name: "run-plan", description: "Run." });
+    expect(open).toMatch(/^---\ndescription: Run\.\n---\n/);
+    expect(open).not.toContain("disable-model-invocation");
   });
 
   it.skipIf(!factoryAdaptersPresent)(
@@ -158,5 +182,35 @@ describe("generateClaudeCommandAdapters", () => {
 
     const ledger = await loadManagedHashLedger(root);
     expect(ledger.hashes[".claude/commands/foo.md"]).toBeDefined();
+  });
+
+  it("refuses a .claude/commands/x.md symlink outside the project; target unchanged, nothing else blocked", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-claude-cmds-link-"));
+    const outside = await mkdtemp(path.join(tmpdir(), "ak-claude-cmds-outside-"));
+    const target = path.join(outside, "x.md");
+    await writeFile(target, "outside\n", "utf8");
+    await mkdir(path.join(root, ".claude/commands"), { recursive: true });
+    await symlink(target, path.join(root, ".claude/commands/x.md"));
+    await seedCursorCommand(root, "x", "X command.");
+    await seedCursorCommand(root, "y", "Y command.");
+
+    const results = await generateClaudeCommandAdapters(root);
+    expect(results).toEqual([
+      { relativePath: ".claude/commands/x.md", status: "skipped-symlink" },
+      { relativePath: ".claude/commands/y.md", status: "applied" },
+    ]);
+    expect(await readFile(target, "utf8")).toBe("outside\n");
+  });
+
+  it("refuses when .claude/commands is a symlink to a directory outside the project", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-claude-cmds-dirlink-"));
+    const outside = await mkdtemp(path.join(tmpdir(), "ak-claude-cmds-dirout-"));
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    await symlink(outside, path.join(root, ".claude/commands"));
+    await seedCursorCommand(root, "x", "X command.");
+
+    const results = await generateClaudeCommandAdapters(root);
+    expect(results).toEqual([{ relativePath: ".claude/commands/x.md", status: "skipped-symlink" }]);
+    await expect(readFile(path.join(outside, "x.md"), "utf8")).rejects.toThrow();
   });
 });

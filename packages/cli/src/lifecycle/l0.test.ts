@@ -63,12 +63,20 @@ describe("canonical L0 inventory", () => {
       ]),
     );
     expect(targets).not.toContain(".cursor/commands/onboard.md");
+    expect(targets).toContain(".cursor/commands/archive-plan.md");
     // Factory-only maintainer triage; never install/update to consumers.
     expect(targets).not.toContain(".cursor/commands/public-issue-triage.md");
     expect(targets).not.toContain(".cursor/commands/public-inbound-radar.md");
     // Factory landing wraps; not consumer L0.
     expect(targets).not.toContain(".cursor/commands/kit-staging.md");
     expect(targets).not.toContain(".cursor/commands/kit-prod.md");
+  });
+
+  it("ships the signature gate script so /git-staging runs without hook install (#89)", () => {
+    expect(L0_ARTIFACTS).toContainEqual({
+      source: "git-hooks/prepare-commit-msg",
+      target: "git-hooks/prepare-commit-msg",
+    });
   });
 
   it("ships /qa as an L0 command and does not promote test-suites", () => {

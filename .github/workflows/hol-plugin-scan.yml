@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# Superseded PR runs are cancelled; main and staging runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   scan:
     runs-on: ubuntu-latest

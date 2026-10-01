@@ -7,6 +7,7 @@ function deriveKind(source: string): string {
   if (source.includes("registry/rules/")) return "rule";
   if (source === ".cursor/hooks.json") return "hook";
   if (source.includes(".cursor/hooks/")) return "hook";
+  if (source.startsWith("git-hooks/")) return "hook";
   if (source.includes(".cursor/context/")) return "template";
   if (source.includes(".cursor/scripts/")) return "script";
   if (source.includes("autogit/")) return "documentation";

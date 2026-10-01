@@ -12,6 +12,7 @@ import {
   hitlExitCode,
   operatorQuitStop,
 } from "../plan-loop/hitl-relay.js";
+import { formatQueueEndStatus } from "../plan-loop/run-plan-all-orchestrator.js";
 import type { LiveRunFeed } from "./live-feed.js";
 import {
   type LiveMissionIo,
@@ -216,6 +217,31 @@ describe("readLiveMission (HANDOFF queue fields and plan frontmatter, read-only)
     expect(state.checklist.every((r) => r.state === "done")).toBe(true);
   });
 
+  it("a queue exhausted with deferred operator gates counts every plan as done", async () => {
+    const status = formatQueueEndStatus({
+      "b.plan.md": "operator merge",
+      "d.plan.md": "b.plan.md",
+    });
+    const state = await readLiveMission(
+      "/r",
+      io({ "/r/.cursor/HANDOFF.md": HANDOFF.replace("running", status) }),
+    );
+    expect(status).toBe(
+      "exhausted (deferred: b.plan.md -> operator merge; d.plan.md -> b.plan.md)",
+    );
+    expect(state.mission.queue?.status).toBe("exhausted");
+    expect(state.mission.queue?.done).toBe(4);
+    expect(state.checklist.every((r) => r.state === "done")).toBe(true);
+  });
+
+  it("a hyphenated exhausted-with-deferred status does not read as done", async () => {
+    const state = await readLiveMission(
+      "/r",
+      io({ "/r/.cursor/HANDOFF.md": HANDOFF.replace("running", "exhausted-with-deferred") }),
+    );
+    expect(state.mission.queue?.done).toBe(2);
+  });
+
   it("without a queue: the active plan and its to-dos as the checklist", async () => {
     const state = await readLiveMission(
       "/r",
@@ -256,6 +282,63 @@ describe("readLiveMission (HANDOFF queue fields and plan frontmatter, read-only)
     t = 150;
     await loader();
     expect(reads).toBe(2);
+  });
+
+  it("a failing read keeps the cached mission and waits out the ttl", async () => {
+    let finds = 0;
+    let t = 0;
+    const files: Record<string, string> = {
+      [path.join("/r", ".cursor", "HANDOFF.md")]: "- **Mode:** run-plan\n",
+    };
+    const loader = createLiveMissionLoader("/r", {
+      ttlMs: 100,
+      now: () => t,
+      io: {
+        readFile: async (file) => files[file] ?? null,
+        findActivePlan: async () => {
+          finds += 1;
+          if (finds > 1) throw new Error("plans dir unreadable");
+          return null;
+        },
+      },
+    });
+    const first = await loader();
+    t = 150;
+    // Stale read: the cached state is served while the failing read settles.
+    expect(await loader()).toBe(first);
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    const finding = finds;
+    // Every frame inside the ttl after the failure is served from the cache.
+    for (const at of [160, 200, 249]) {
+      t = at;
+      expect(await loader()).toBe(first);
+    }
+    expect(finds).toBe(finding);
+    t = 300;
+    expect(await loader()).toBe(first);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(finds).toBe(finding + 1);
+  });
+
+  it("a failing first read yields an empty mission, not a rejection", async () => {
+    let finds = 0;
+    const loader = createLiveMissionLoader("/r", {
+      ttlMs: 100,
+      now: () => 0,
+      io: {
+        readFile: async () => null,
+        findActivePlan: async () => {
+          finds += 1;
+          throw new Error("boom");
+        },
+      },
+    });
+    const state = await loader();
+    expect(state.mission.planFile).toBeNull();
+    expect(state.checklist).toEqual([]);
+    await loader();
+    expect(finds).toBe(1);
   });
 });
 

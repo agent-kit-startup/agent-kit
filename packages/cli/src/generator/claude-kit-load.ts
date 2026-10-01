@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureDir, fileExists } from "../utils/fs.js";
+import { CLAUDE_HITL_FALLBACK } from "./claude-command-adapters.js";
 
 export const CLAUDE_MD_REL = "CLAUDE.md";
 export const AGENT_KIT_COMMAND_REL = ".claude/commands/agent-kit.md";
@@ -26,7 +27,7 @@ Mid-session refresh: \`/agent-kit\`.
 
 ## HITL
 
-Cursor Ask questions is not available in this CLI. When a command requires a choice, list the same labels as a numbered list and wait. Skip or cancel means stop. Never \`/git-prod\` without an explicit operator yes.
+${CLAUDE_HITL_FALLBACK} Skip or cancel means stop. Never \`/git-prod\` without an explicit operator yes.
 
 ## Commit messages
 
@@ -34,10 +35,7 @@ Never append \`Co-Authored-By: Claude ...\` or \`Claude-Session: https://claude.
 
 ## Non-goals
 
-- Not Action A7 (Windsurf / VS Code generator parity)
-- Not Claude external plan-review audits (\`/plan-external-review\`)
-- Not a second tick dialect: \`agent-kit run-plan --backend claude\` runs the same one-tick contract as \`cursor-agent\` (shipped 2026-09-06, plan \`major-tom\` Phase 1 under ADR \`2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13\`; ADR \`2026-09-04_major-tom-autonomous-mode.md\`); never \`/git-prod\` from a headless tick
-- Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (\`agent-kit hook session-start --format claude\`); no \`.claude/rules/\` mirrors, no \`.claude/agents/\` generated from the registry
+Do not clone other Cursor hooks (Claude gets only the SessionStart context and PreToolUse(Bash) guard hooks); never \`/git-prod\` from a headless tick.
 `;
 }
 
@@ -60,7 +58,7 @@ If HANDOFF is missing, say so and point at \`/agent-kit-onboard\` or \`/start-pr
 
 HITL: numbered-list fallback for Ask questions labels. Never \`/git-prod\` from this skill.
 
-Non-goals: not audits / \`/plan-external-review\`, not a second tick dialect (\`run-plan --backend claude\` is the shipped headless tick since 2026-09-06, plan \`major-tom\`), not A7, not Cursor hook clones, not a continuous TUI loop.
+Non-goals: not audits / \`/plan-external-review\`, not a second tick dialect, not Cursor hook clones beyond the SessionStart and PreToolUse(Bash) adapters, not a continuous TUI loop.
 `;
 }
 

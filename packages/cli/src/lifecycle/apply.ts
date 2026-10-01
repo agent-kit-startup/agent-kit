@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentKitManifest } from "../manifest/types.js";
 import {
@@ -15,7 +15,12 @@ import {
   saveManagedHashLedger,
   shouldPreserveCustomizedOverlay,
 } from "./overlay.js";
-import { resolveContained, toPosixRel } from "./paths.js";
+import {
+  assertRealContained,
+  assertRealParentContained,
+  resolveContained,
+  toPosixRel,
+} from "./paths.js";
 import { isProtectedPath, normalizeProtectedGlobs } from "./protected.js";
 
 export type CopyOutcome =
@@ -23,7 +28,8 @@ export type CopyOutcome =
   | "skipped-protected"
   | "missing-source"
   | "unchanged"
-  | "preserved-customized";
+  | "preserved-customized"
+  | "skipped-symlink";
 
 export interface ApplyStats {
   written: string[];
@@ -33,6 +39,7 @@ export interface ApplyStats {
   missing: string[];
   unchanged: string[];
   preservedCustomized: string[];
+  skippedSymlink: string[];
 }
 
 export function emptyStats(): ApplyStats {
@@ -44,6 +51,7 @@ export function emptyStats(): ApplyStats {
     missing: [],
     unchanged: [],
     preservedCustomized: [],
+    skippedSymlink: [],
   };
 }
 
@@ -55,6 +63,7 @@ export function mergeStats(into: ApplyStats, from: ApplyStats): ApplyStats {
   into.missing.push(...from.missing);
   into.unchanged.push(...from.unchanged);
   into.preservedCustomized.push(...from.preservedCustomized);
+  into.skippedSymlink.push(...from.skippedSymlink);
   return into;
 }
 
@@ -87,6 +96,18 @@ export async function copyRegistryFile(
 
   const sourceAbs = resolveContained(registryRoot, sourceRel);
   const targetAbs = resolveContained(projectRoot, targetRel);
+
+  // Lexical containment above does not stop a symlink from pointing outside
+  // the registry/project; never read or overwrite through one.
+  for (const [root, abs] of [
+    [registryRoot, sourceAbs],
+    [projectRoot, targetAbs],
+  ] as const) {
+    const contained = (await pathExists(abs))
+      ? await isRealContained(root, abs)
+      : await isRealParentContained(root, abs);
+    if (!contained) return "skipped-symlink";
+  }
 
   try {
     await readFile(sourceAbs);
@@ -147,6 +168,33 @@ export async function copyRegistryFile(
   return "written";
 }
 
+async function isRealContained(root: string, abs: string): Promise<boolean> {
+  try {
+    await assertRealContained(root, abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isRealParentContained(root: string, abs: string): Promise<boolean> {
+  try {
+    await assertRealParentContained(root, abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pathExists(abs: string): Promise<boolean> {
+  try {
+    await lstat(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function touchOverlayHash(
   projectRoot: string,
   targetNorm: string,
@@ -183,6 +231,9 @@ export function recordOutcome(stats: ApplyStats, targetRel: string, outcome: Cop
     case "preserved-customized":
       stats.preservedCustomized.push(rel);
       break;
+    case "skipped-symlink":
+      stats.skippedSymlink.push(rel);
+      break;
   }
 }
 
@@ -191,13 +242,19 @@ export async function saveManifest(
   manifest: AgentKitManifest,
 ): Promise<string> {
   const target = path.join(projectRoot, MANIFEST_RELATIVE_PATH);
-  const payload = {
-    ...manifest,
+  const { unknownFields, ...known } = manifest;
+  const payload: Record<string, unknown> = {
+    ...known,
     schemaVersion: MANIFEST_SCHEMA_VERSION,
     // Preserve installedAt on no-op updates (ADR factory-pseudo-consumer
     // decision 4); a version change earns a fresh install timestamp.
     installedAt: manifest.installedAt ?? new Date().toISOString(),
   };
+  // Write fields a newer CLI added back after the known ones, so an older CLI
+  // never deletes them; a known key always wins over a same-named extra.
+  for (const [key, value] of Object.entries(unknownFields ?? {})) {
+    if (!(key in payload)) payload[key] = value;
+  }
   await writeJson(target, payload);
   return toPosixRel(projectRoot, target);
 }

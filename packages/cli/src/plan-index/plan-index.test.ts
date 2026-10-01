@@ -11,8 +11,10 @@ import {
   buildPlanIndex,
   collectNamedPlanBasenames,
   extractHandoffNamedPlans,
+  formatPlanIndexLines,
   formatPlanIndexSection,
   namedPlanCandidatePaths,
+  parsePlanFrontmatter,
   writePlanIndex,
 } from "./plan-index.js";
 
@@ -68,6 +70,21 @@ describe("extractHandoffNamedPlans", () => {
 
   it("treats Plan none as no active file", () => {
     expect(extractHandoffNamedPlans("- **Plan:** none\n").active).toBeNull();
+  });
+});
+
+describe("parsePlanFrontmatter", () => {
+  it("parses CRLF frontmatter, captures content, and strips quoted ids", () => {
+    const raw = planFile("Crlf", [
+      { id: '"q1"', status: "completed" },
+      { id: "'q2'", status: "pending" },
+    ]).replace(/\n/g, "\r\n");
+    const fm = parsePlanFrontmatter(raw);
+    expect(fm.name).toBe("Crlf");
+    expect(fm.todos).toEqual([
+      { id: "q1", status: "completed", content: '"q1"' },
+      { id: "q2", status: "pending", content: "'q2'" },
+    ]);
   });
 });
 
@@ -128,7 +145,9 @@ describe("buildPlanIndex", () => {
     expect(index.plans.find((p) => p.file === "backlog-exhausted.plan.md")).toMatchObject({
       role: "backlog",
       openTodos: false,
+      exhausted: true,
     });
+    expect(index.plans.find((p) => p.file === "backlog-open.plan.md")?.exhausted).toBe(false);
     expect(index.plans.find((p) => p.file === "parked.plan.md")?.role).toBe("parked");
     expect(index.plans.find((p) => p.file === "queue-only-open.plan.md")).toMatchObject({
       role: "pending",
@@ -136,6 +155,31 @@ describe("buildPlanIndex", () => {
       pendingTodoIds: ["q1"],
     });
     expect(formatPlanIndexSection(index)).toContain("## Pending plans (index)");
+    const lines = formatPlanIndexLines(index);
+    expect(lines).toContain("- exhausted (retire): `backlog-exhausted.plan.md`");
+    expect(lines.some((l) => l.startsWith("- backlog: `backlog-exhausted.plan.md`"))).toBe(false);
+  });
+
+  it("does not mark a zero-todo or missing named plan exhausted", async () => {
+    const root = await fixtureRoot();
+    const handoff =
+      "- **Plan:** none\n- **Backlog plans:**\n  - `empty.plan.md`\n  - `gone.plan.md`\n";
+    await writeFile(path.join(root, ".cursor", "HANDOFF.md"), handoff, "utf8");
+    await writeFile(
+      path.join(root, ".cursor", "plans", "empty.plan.md"),
+      "---\nname: Empty\ntodos: []\n---\n",
+      "utf8",
+    );
+    const index = await buildPlanIndex(root);
+    expect(index.plans.find((p) => p.file === "empty.plan.md")).toMatchObject({
+      role: "backlog",
+      exhausted: false,
+    });
+    expect(index.plans.find((p) => p.file === "gone.plan.md")).toMatchObject({
+      missing: true,
+      exhausted: false,
+    });
+    expect(formatPlanIndexLines(index).some((l) => l.includes("exhausted"))).toBe(false);
   });
 
   it("reads only named candidate paths and never a directory listing", async () => {

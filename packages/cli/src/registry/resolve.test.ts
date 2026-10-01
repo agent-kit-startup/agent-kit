@@ -31,6 +31,13 @@ function execCallback(args: unknown[]): ExecCb | undefined {
   return typeof last === "function" ? (last as ExecCb) : undefined;
 }
 
+async function pathExists(p: string): Promise<boolean> {
+  return stat(p).then(
+    () => true,
+    () => false,
+  );
+}
+
 function gitArgs(args: unknown[]): string[] {
   return Array.isArray(args[1]) ? (args[1] as string[]) : [];
 }
@@ -113,7 +120,7 @@ describe("resolveRegistryRoot remote-cache", () => {
     expect(resolved.root).toBe(dest);
     expect(execFileMock).toHaveBeenCalledWith(
       "git",
-      ["fetch", "--depth", "1", "origin"],
+      ["fetch", "--depth", "1", "origin", DEFAULT_REGISTRY_REF],
       expect.objectContaining({ cwd: dest }),
       expect.any(Function),
     );
@@ -170,6 +177,34 @@ describe("resolveRegistryRoot remote-cache", () => {
     );
     const fetchCalls = execFileMock.mock.calls.filter((call) => gitArgs(call)[0] === "fetch");
     expect(fetchCalls).toHaveLength(0);
+  });
+
+  it("clears a partial cache dir left by an interrupted clone before cloning", async () => {
+    const dest = await seedRemoteCache();
+    await rm(path.join(dest, "registry"), { recursive: true, force: true });
+    await writeFile(path.join(dest, "half-cloned"), "x", "utf8");
+    execFileMock.mockImplementation((...args: unknown[]) => {
+      const cb = execCallback(args);
+      const argv = gitArgs(args);
+      queueMicrotask(async () => {
+        if (argv[0] === "clone") {
+          const target = argv[argv.length - 1] as string;
+          if (await pathExists(target)) {
+            cb?.(new Error(`destination path '${target}' already exists`), "", "");
+            return;
+          }
+          await mkdir(path.join(target, "registry"), { recursive: true });
+          await writeFile(path.join(target, "registry", "registry.json"), "{}\n", "utf8");
+        }
+        cb?.(null, "", "");
+      });
+    });
+
+    const resolved = await resolveRegistryRoot({ cwd: projectCwd });
+
+    expect(resolved.root).toBe(dest);
+    expect(await pathExists(path.join(dest, "half-cloned"))).toBe(false);
+    await resolved.unlock?.();
   });
 
   it("returns an unlock function for remote-cache (caller releases after copy)", async () => {

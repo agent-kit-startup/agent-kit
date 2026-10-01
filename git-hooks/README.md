@@ -18,7 +18,6 @@ Factory source of truth is this folder (`git-hooks/`). Updating a tracked hook d
 |------|--------|-------------------|----------------|
 | Factory SoT | `git-hooks/pre-commit` via the copy loop or `core.hooksPath git-hooks` | Yes (first) | Yes, when `.cursor/hooks/pre-commit/` exists; skip (exit 0 after the guard) when it does not |
 | Alternate | `.cursor/hooks/pre-commit/pre-commit` copied to `.git/hooks/pre-commit` | No | Yes (`validate-all-json.sh` then `check-secrets.sh`). Resolves repo root via `dirname $0/../..`, which breaks under `core.hooksPath git-hooks` |
-| CLI generator | `packages/cli/src/generator/git-hooks.ts` | No | Skip if `.git/hooks/pre-commit` already exists; otherwise writes a simpler `rg` scan, not this chain |
 
 Repo root for the factory hook is `git rev-parse --show-toplevel`, so both install methods above resolve `.cursor/hooks/pre-commit/` helpers.
 

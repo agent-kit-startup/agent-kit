@@ -11,12 +11,11 @@ const CITE = "agent-kit guard prompt (docs/cursor-native-audit.md)";
  * Prompt-leak pattern set. Its relationship to pre-commit `check-secrets` is
  * **one-way**: this set is a strict superset of the hook, never a mirror of it.
  *
- * `.cursor/hooks/pre-commit/check-secrets.sh` greps exactly one expression — the
- * `json-secret-kv` equivalent — and only under `case "$f" in *.json|*.js|*.ts|*.env)`.
- * So `env-assignment`, `aws-access-key`, `github-pat`, `sk-hyphenated-vendor` and
- * `openai-sk` have **no** pre-commit counterpart, and a committed `.md` / `.yaml` /
- * `.sh` / dotfile is scanned by neither lane. A clean `guard prompt` result is not
- * evidence that a commit would be blocked downstream.
+ * `.cursor/hooks/pre-commit/check-secrets.sh` greps lines added by the staged diff (every
+ * path) for the ERE equivalents of `json-secret-kv` (case-sensitive there), `aws-access-key`,
+ * `github-pat`, `pem-private-key`, `slack-token`, `sk-hyphenated-vendor` and `openai-sk`.
+ * Only `env-assignment` has **no** pre-commit counterpart (too noisy for commits). A clean
+ * `guard prompt` result is not evidence that a commit would be blocked downstream.
  *
  * `secrets-scan.test.ts` pins this sentence against the hook file: widening
  * `check-secrets.sh` must update the test and this comment in the same change.
@@ -35,8 +34,18 @@ export const SECRET_PATTERNS: Array<{ id: string; re: RegExp }> = [
     re: /\bAKIA[0-9A-Z]{16}\b/,
   },
   {
+    // Classic (`ghp_`), OAuth (`gho_`), user-to-server (`ghu_`), server-to-server
+    // (`ghs_`), refresh (`ghr_`) and fine-grained (`github_pat_`) tokens.
     id: "github-pat",
-    re: /\bghp_[A-Za-z0-9_]{36,}\b/,
+    re: /\b(?:gh[pousr]_[A-Za-z0-9_]{36,}|github_pat_[A-Za-z0-9_]{22,})\b/,
+  },
+  {
+    id: "pem-private-key",
+    re: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/,
+  },
+  {
+    id: "slack-token",
+    re: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/,
   },
   // Hyphenated vendor keys (`sk-ant-api03-…`, `sk-proj-…`) cannot be matched by
   // `openai-sk`: its body class excludes `-`, so it stops at the first separator.
@@ -58,9 +67,15 @@ function maskSecretExcerpt(raw: string): string {
       // Body class keeps `-` so hyphenated vendor keys (`sk-ant-api03-…`) are masked too;
       // without it the mask needs 4+ non-hyphen chars after `sk-` and `ant` is 3, so the
       // raw key body would survive into `SecretHit.excerpt`.
-      .replace(/\b(ghp_|sk-|AKIA)([A-Za-z0-9_-]{4,})/g, (_m, p1: string, p2: string) => {
-        return `${p1}${"*".repeat(Math.min(8, p2.length))}`;
-      })
+      .replace(
+        /\b(github_pat_|gh[pousr]_|xox[abposr]-|sk-|AKIA)([A-Za-z0-9_-]{4,})/g,
+        (_m, p1: string, p2: string) => `${p1}${"*".repeat(Math.min(8, p2.length))}`,
+      )
+      // PEM header: mask the start of the base64 body that the excerpt window pulls in.
+      .replace(
+        /(PRIVATE KEY-----\s*)([A-Za-z0-9+/=]+)/g,
+        (_m, p1: string, p2: string) => `${p1}${"*".repeat(Math.min(8, p2.length))}`,
+      )
       .replace(
         /(=\s*['"]?)([^\s'"]{4,})/g,
         (_m, p1: string, p2: string) => `${p1}${"*".repeat(Math.min(8, p2.length))}`,

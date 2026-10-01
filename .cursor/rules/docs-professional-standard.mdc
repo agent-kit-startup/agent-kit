@@ -33,16 +33,12 @@ Write-time **Verifiable** (below) is the authoring half. Evidence: `errors/2026-
 
 ## Forbidden (transient / outside the project)
 
+Everything forbidden in `agent-output-hygiene` applies. Additionally:
+
 | Forbidden | Instead |
 |-----------|---------|
-| People's names | Role ("maintainer") or omit |
-| Projects/clients that are **not this repository** | Generic concept or omit |
-| Unrelated employers/brands | "external integration" / "provider", or name only if a real dependency |
-| Conversation urgency/drama | Technical requirement or omit |
-| Agent meta-language / chat reasoning | Fact about the software |
 | Client-specific IDs / workspace names in examples | Placeholder (`YOUR_LIST_ID`) |
 | "As we discussed", "previous chat", "agent WIP" | Current system state |
-| Em dash as sentence connector (AI slop) | Hyphen, colon, comma, or parentheses; keep only in a required literal quote |
 
 ## Inheritance test
 
@@ -52,7 +48,4 @@ If not, or if it would be embarrassing on public GitHub, rewrite.
 
 ## Relation to other rules
 
-- **agent-output-hygiene** - chat is not the repo.
-- **This rule** - product/project documentation standard (write-time voice + read-time delivery truth).
-- **docs-repo** skill/agent - writing process; must follow this rule.
-- **ux-tone** - chat only.
+`agent-output-hygiene` (chat vs repo), `docs-repo` (writing process, follows this rule), `ux-tone` (chat only).

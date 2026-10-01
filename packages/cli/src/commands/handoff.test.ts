@@ -4,9 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { extractHandoffNamedPlans } from "../plan-index/plan-index.js";
 import { detectGit } from "../scanner/detect-git.js";
 import type { ProjectProfile } from "../types.js";
-import { buildRoutines, runPrune } from "./handoff.js";
+import { buildRoutines, handoffCommand, loadProfile, runPrune } from "./handoff.js";
 
 const exec = promisify(execFile);
 
@@ -73,6 +74,30 @@ describe("buildRoutines", () => {
   }, 15_000);
 });
 
+describe("loadProfile legacy config compat", () => {
+  it("reads a config that still carries dropped wizard fields and ignores them", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-compat-"));
+    await mkdir(path.join(root, ".cursor"), { recursive: true });
+    const current = {
+      git: { workflow: "homolog-prod" },
+      services: { projectManagement: ["jira"] },
+    };
+    const legacy = {
+      ...current,
+      installHooks: true,
+      selectedCoreComponents: ["handoff"],
+      agentPersonaChoice: { kind: "mode-defaults" },
+    };
+    await writeFile(path.join(root, ".cursor", "agent-kit.config.json"), JSON.stringify(legacy));
+
+    const profile = await loadProfile(root);
+
+    expect(profile).not.toBeNull();
+    expect(profile?.git.workflow).toBe("homolog-prod");
+    expect(buildRoutines(profile)).toEqual(buildRoutines(current as unknown as ProjectProfile));
+  });
+});
+
 function synthHandoffFile(narrativeCount: number): string {
   const narrative = Array.from(
     { length: narrativeCount },
@@ -131,5 +156,53 @@ describe("runPrune", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-prune-missing-"));
     await runPrune(root, 5);
     // No throw; nothing written. Covered implicitly by absence of errors.
+  });
+});
+
+describe("handoff regenerate", () => {
+  const plan = (name: string, status: string) =>
+    `---\nname: ${name}\ntodos:\n  - id: t1\n    content: "Do ${name}"\n    status: ${status}\n---\n`;
+
+  it("keeps Run queue, Backlog plans and Parked plans verbatim and the HANDOFF-named plan", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-regen-"));
+    const plansDir = path.join(root, ".cursor", "plans");
+    await mkdir(plansDir, { recursive: true });
+    await writeFile(path.join(plansDir, "aaa.plan.md"), plan("Aaa", "completed"), "utf8");
+    await writeFile(path.join(plansDir, "mmm.plan.md"), plan("Mmm", "pending"), "utf8");
+    await writeFile(path.join(plansDir, "zzz.plan.md"), plan("Zzz", "pending"), "utf8");
+    const queueFields = [
+      "- **Run queue:** [mmm.plan.md, aaa.plan.md]",
+      "- **Queue cursor:** 1 (current: aaa.plan.md)",
+      "- **Queue status:** running",
+      "- **Queue outcomes:**",
+      "  - mmm.plan.md: completed (shipped v1.2.3)",
+      "- **Backlog plans:**",
+      "  - `aaa.plan.md`",
+      "  - `zzz.plan.md` (next)",
+      "- **Parked plans:** none",
+    ];
+    const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
+    await writeFile(
+      handoffPath,
+      ["# Handoff", "", "- **Plan:** `mmm.plan.md`", ...queueFields, "", "## Notes", ""].join("\n"),
+      "utf8",
+    );
+
+    await handoffCommand.run?.({
+      args: { _: [], cwd: root, prune: false },
+      rawArgs: [],
+      cmd: handoffCommand,
+    } as never);
+
+    const out = await readFile(handoffPath, "utf8");
+    expect(out).toContain("- **Plan:** mmm.plan.md");
+    expect(out).toContain("`t1`: Do Mmm");
+    expect(out).toContain(queueFields.join("\n"));
+    expect(extractHandoffNamedPlans(out)).toMatchObject({
+      active: "mmm.plan.md",
+      backlog: ["aaa.plan.md", "zzz.plan.md"],
+      parked: [],
+      runQueue: ["mmm.plan.md", "aaa.plan.md"],
+    });
   });
 });

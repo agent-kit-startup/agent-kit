@@ -66,6 +66,17 @@ describe("visual-kit color and motion gates", () => {
     expect(shouldUseVisualMotion({ stdoutIsTTY: true })).toBe(false);
   });
 
+  it("honors an explicit color request in CI and ignores CI=false", () => {
+    clearEnv("NO_COLOR");
+    clearEnv("FORCE_COLOR");
+    setEnv("CI", "true");
+    expect(shouldUseWelcomeColor({ color: true, stdoutIsTTY: false })).toBe(true);
+    setEnv("CI", "false");
+    expect(shouldUseWelcomeColor({ stdoutIsTTY: true })).toBe(true);
+    setEnv("NO_COLOR", "1");
+    expect(shouldUseWelcomeColor({ color: true, stdoutIsTTY: true })).toBe(false);
+  });
+
   it("disables color when stdout is not a TTY", () => {
     clearEnv("NO_COLOR");
     clearEnv("CI");

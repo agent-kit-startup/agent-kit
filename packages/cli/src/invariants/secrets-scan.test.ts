@@ -65,6 +65,26 @@ describe("scanTextForSecrets", () => {
     expect(hit?.excerpt).toContain("*");
   });
 
+  it("detects github_pat_, gho_, PEM private keys and slack tokens", () => {
+    // Split so no contiguous token / key literal exists in the repo (public-sync content guard).
+    const fineGrained = `${"github"}_${"pat"}_${"11ABCDEFG0123456789abcdefghijklmnop"}`;
+    const oauth = `${"gho"}_${"abcdefghijklmnopqrstuvwxyz0123456789"}`;
+    const pem = `-----${"BEGIN"} RSA ${"PRIVATE"} KEY-----\nMIIEowIBAAKCAQEAabcdefgh\n-----END RSA PRIVATE KEY-----`;
+    const slack = `${"xoxb"}-${"1234567890-abcdefghijkl"}`;
+    const hits = scanTextForSecrets(`a ${fineGrained} b ${oauth} c\n${pem}\nd ${slack} e`);
+    expect(hits).toHaveLength(4);
+    expect(hits.map((h) => h.patternId).sort()).toEqual([
+      "github-pat",
+      "github-pat",
+      "pem-private-key",
+      "slack-token",
+    ]);
+    const joined = hits.map((h) => h.excerpt).join(" ");
+    expect(joined).not.toMatch(/0123456789abcdef/);
+    expect(joined).not.toMatch(/MIIEow/);
+    expect(joined).not.toMatch(/1234567890/);
+  });
+
   it("masks json-secret-kv values in excerpts", () => {
     const sample = 'config: {"apiKey": "A1b2C3d4E5f6G7h8J9k0"} end';
     const hits = scanTextForSecrets(sample);
@@ -79,30 +99,40 @@ describe("scanTextForSecrets", () => {
 describe("pre-commit check-secrets parity is one-way", () => {
   const hook = readFileSync(resolve(repoRoot, ".cursor/hooks/pre-commit/check-secrets.sh"), "utf8");
 
-  it("pins the hook to the single json-secret-kv expression", () => {
-    // The comment above SECRET_PATTERNS states the hook greps exactly one expression.
-    const greps = hook.split("\n").filter((line) => /^\s*if grep -E /.test(line));
-    expect(greps).toHaveLength(1);
-    expect(greps[0]).toContain('"(password|apiKey|api_key|secret|token|auth)"');
+  it("pins the hook to the staged added-lines diff, with no extension allowlist", () => {
+    // The comment above SECRET_PATTERNS states the hook scans the staged diff of every path.
+    expect(hook).toContain(
+      "git diff --cached --no-ext-diff --no-textconv --no-color -U0 --diff-filter=ACMR",
+    );
+    expect(hook).not.toMatch(/^\s*case /m);
   });
 
-  it("pins the hook to its extension allowlist", () => {
-    expect(hook).toContain("*.json|*.js|*.ts|*.env)");
-    // No second `case` arm: .md / .yaml / .sh / dotfiles are not scanned.
-    expect(hook.match(/^\s*\*[^)]*\)\s*$/gm) ?? []).toHaveLength(1);
+  it("pins the hook ERE to every credential pattern plus json-secret-kv", () => {
+    for (const fragment of [
+      '"(password|apiKey|api_key|secret|token|auth)"',
+      "AKIA[0-9A-Z]{16}",
+      "gh[pousr]_[A-Za-z0-9_]{36,}",
+      "github_pat_[A-Za-z0-9_]{22,}",
+      "-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----",
+      "xox[abposr]-[A-Za-z0-9-]{10,}",
+      "sk-[A-Za-z0-9]{2,12}-[A-Za-z0-9_-]{16,}",
+      "sk-[A-Za-z0-9]{20,}",
+    ]) {
+      expect(hook).toContain(fragment);
+    }
   });
 
-  it("keeps the superset direction true: only json-secret-kv has a hook counterpart", () => {
-    const withCounterpart = SECRET_PATTERNS.filter(({ id }) => id === "json-secret-kv");
-    const withoutCounterpart = SECRET_PATTERNS.filter(({ id }) => id !== "json-secret-kv");
-    expect(withCounterpart).toHaveLength(1);
+  it("keeps the superset direction true: only env-assignment lacks a hook counterpart", () => {
     // Named in the comment; if this list changes the comment must change with it.
-    expect(withoutCounterpart.map((p) => p.id)).toEqual([
-      "env-assignment",
+    expect(SECRET_PATTERNS.filter(({ id }) => id !== "env-assignment").map((p) => p.id)).toEqual([
+      "json-secret-kv",
       "aws-access-key",
       "github-pat",
+      "pem-private-key",
+      "slack-token",
       "sk-hyphenated-vendor",
       "openai-sk",
     ]);
+    expect(hook).not.toMatch(/API_KEY\|SECRET\|PASSWORD/);
   });
 });

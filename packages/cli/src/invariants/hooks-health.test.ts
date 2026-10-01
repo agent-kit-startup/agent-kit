@@ -1,8 +1,13 @@
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { assessGitHooksInstallDrift, assessHooksHealth } from "./hooks-health.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  assessClaudeGuardProbe,
+  assessGitHooksInstallDrift,
+  assessHooksHealth,
+  assessSignatureGateHook,
+} from "./hooks-health.js";
 
 const ADAPTERS = [
   "session-start.sh",
@@ -185,5 +190,135 @@ describe("assessGitHooksInstallDrift", () => {
       await writeFile(path.join(root, ".git", "hooks", name), body, "utf8");
     }
     expect(await assessGitHooksInstallDrift(root)).toEqual([]);
+  });
+});
+
+describe("assessClaudeGuardProbe", () => {
+  const DENY = JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "blocked",
+    },
+  });
+
+  beforeEach(() => {
+    vi.stubEnv("AGENT_KIT_HOOK_BIN", "");
+    vi.stubEnv("PATH", "/usr/bin:/bin");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function setup(settings: unknown | null, cliStdout?: string) {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-guard-probe-"));
+    if (settings !== null) {
+      await mkdir(path.join(root, ".claude"), { recursive: true });
+      await writeFile(
+        path.join(root, ".claude", "settings.json"),
+        JSON.stringify(settings),
+        "utf8",
+      );
+    }
+    if (cliStdout !== undefined) {
+      const bin = path.join(root, "node_modules", ".bin");
+      await mkdir(bin, { recursive: true });
+      const script = path.join(bin, "agent-kit");
+      await writeFile(script, `#!/bin/sh\nprintf '%s' '${cliStdout}'\n`, "utf8");
+      await chmod(script, 0o755);
+    }
+    return root;
+  }
+
+  const withGuard = {
+    hooks: {
+      SessionStart: [{ hooks: [{ command: "x hook session-start --format claude" }] }],
+      PreToolUse: [{ matcher: "Bash", hooks: [{ command: "x guard shell --format claude" }] }],
+    },
+  };
+
+  it("is silent without .claude/settings.json", async () => {
+    expect(await assessClaudeGuardProbe(await setup(null))).toEqual([]);
+  });
+
+  it("is silent when the guard hook is active and the CLI denies", async () => {
+    expect(await assessClaudeGuardProbe(await setup(withGuard, DENY))).toEqual([]);
+  });
+
+  it("advises when the resolved CLI answers in the Cursor format (old CLI)", async () => {
+    const root = await setup(withGuard, '{"permission":"deny","user_message":"blocked"}');
+    const tips = await assessClaudeGuardProbe(root);
+    expect(tips).toHaveLength(1);
+    expect(tips[0]).toContain("too old or stale dist");
+  });
+
+  it("advises when the resolved CLI prints nothing", async () => {
+    const tips = await assessClaudeGuardProbe(await setup(withGuard, ""));
+    expect(tips[0]).toContain("too old or stale dist");
+  });
+
+  it("advises when the CLI cannot be resolved", async () => {
+    const tips = await assessClaudeGuardProbe(await setup(withGuard));
+    expect(tips[0]).toContain("too old or stale dist");
+  });
+
+  it("advises to run install --claude when only the SessionStart marker is present", async () => {
+    const root = await setup({ hooks: { SessionStart: withGuard.hooks.SessionStart } });
+    const tips = await assessClaudeGuardProbe(root);
+    expect(tips).toHaveLength(1);
+    expect(tips[0]).toContain("agent-kit install --claude");
+  });
+
+  it("is silent when settings carry no kit marker", async () => {
+    expect(await assessClaudeGuardProbe(await setup({ permissions: {} }))).toEqual([]);
+  });
+
+  it("surfaces through assessHooksHealth advisories", async () => {
+    const root = await setup(withGuard, '{"permission":"deny"}');
+    const report = await assessHooksHealth(root);
+    expect(report.advisories.some((a) => a.includes("too old or stale dist"))).toBe(true);
+  });
+});
+
+describe("assessSignatureGateHook", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), "sig-gate-"));
+  });
+
+  async function kitMarker() {
+    await mkdir(path.join(root, "autogit"), { recursive: true });
+    await writeFile(path.join(root, "autogit", "gitupdate.md"), "# gitupdate\n", "utf8");
+  }
+
+  it("is silent without the kit marker", async () => {
+    expect(await assessSignatureGateHook(root)).toEqual([]);
+  });
+
+  it("flags a missing hook file with the update remedy when git-hooks/ is absent", async () => {
+    await kitMarker();
+    const tips = await assessSignatureGateHook(root);
+    expect(tips).toHaveLength(1);
+    expect(tips[0]).toContain("git-hooks/prepare-commit-msg");
+    expect(tips[0]).toContain("agent-kit update");
+  });
+
+  it("flags a missing hook file when git-hooks/ exists without it", async () => {
+    await kitMarker();
+    await mkdir(path.join(root, "git-hooks"), { recursive: true });
+    await writeFile(path.join(root, "git-hooks", "pre-commit"), "#!/bin/sh\n", "utf8");
+    expect(await assessSignatureGateHook(root)).toHaveLength(1);
+  });
+
+  it("is silent when the hook file is present", async () => {
+    await kitMarker();
+    await mkdir(path.join(root, "git-hooks"), { recursive: true });
+    await writeFile(path.join(root, "git-hooks", "prepare-commit-msg"), "#!/bin/sh\n", "utf8");
+    expect(await assessSignatureGateHook(root)).toEqual([]);
+  });
+
+  it("surfaces through assessHooksHealth advisories even with no hooks.json", async () => {
+    await kitMarker();
+    const report = await assessHooksHealth(root);
+    expect(report.status).toBe("missing");
+    expect(report.advisories.some((a) => a.includes("prepare-commit-msg"))).toBe(true);
   });
 });

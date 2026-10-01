@@ -53,6 +53,7 @@ Before proposing or writing a new plan, **scan** these sources (read/skim; do no
 | **Decisions** | ADRs that constrain the goal | `.cursor/memory/decisions/`, `_index.md` Decisions table |
 | **Memory** | Errors, audits, consolidations, review logs, plan-monitors, findings audits | `.cursor/memory/errors/`, `.cursor/memory/plan-monitor-*.md`, theme-matched `plan-review-*.md`, `_index.md` (Audits + Decisions) |
 | **Unprocessed dogfood** | Factory/consumer inbox notes awaiting triage (not sessionStart-only) | `dogfood/README.md` or `.cursor/dogfood/README.md` under `##` or `### Unprocessed Files`; skim titles/summaries only. Missing/empty inbox → no findings. Labels: ignore (owned by open plan), error/include (kit gap), note (inbox evidence only). Never auto-analyze or memory WRITE (ADR `decisions/2026-08-11_dogfood-unprocessed-broad-intake-bucket.md`) |
+| **Remote issues and dogfood** | Dogfood/findings filed as remote issues, both lanes | `agent-kit remote-issues --json` (read-only). Factory: origin + public; consumer: own origin only (gh/glab). Filter: provenance label or `[Dogfood]` title (per ADR). Its `notes` (no CLI/auth/offline) → one `note`, never blocks. Same labels; no comment/label/close, no auto-analyze (ADR `decisions/2026-09-28_broad-intake-remote-issues-both-lanes.md`) |
 | **Local docs** | SoT / inventories / getting-started that the goal touches | `docs/**`, especially files named in the payload or related SoT |
 | **Working tree** | Uncommitted local work that would collide | `git status`, `git diff` (staged + unstaged); do not commit |
 | **Recent commits** | What already shipped for this theme | `git log` (short, recent), related PR titles if available |
@@ -76,7 +77,7 @@ When the operator payload (attachment, cited document, or inline text) mixes per
 3. Point the plan at the extract. Later ticks read the extract, not the session origin.
 4. Do not commit raw operator attachments. Do not graft an interview loop onto intake.
 
-Skip when no mixed source exists. Do not treat Major Tom / autonomous scheduled mode as intake (ADR `2026-09-04_major-tom-autonomous-mode.md`).
+Skip when no mixed source exists. Do not treat autonomous scheduled mode as intake.
 
 ## What to Do
 
@@ -87,7 +88,7 @@ The actual scanning and triage is delegated to a **Task(explore) subagent** usin
 1. **Fill the template**  -  set these parameters:
    - **Repo:** `[absolute repo path]`
    - **Command:** `/start-project`
-   - **Task description:** "Scan the Broad Intake buckets listed in this command (prepared repository, active session, plans from index + HANDOFF only, archived context, decisions, memory, Unprocessed dogfood, local docs, working tree, recent commits, product version) and return a structured triage report with findings per bucket, each labeled ignore/error/include/note. For Plans: read `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md`; do not glob `.cursor/plans/*.plan.md`. For Unprocessed dogfood: skim `dogfood/README.md` or `.cursor/dogfood/README.md` `##` or `### Unprocessed Files` only; never auto-analyze."
+   - **Task description:** "Scan the Broad Intake buckets listed in this command (prepared repository, active session, plans from index + HANDOFF only, archived context, decisions, memory, Unprocessed dogfood, local docs, working tree, recent commits, product version) and return a structured triage report with findings per bucket, each labeled ignore/error/include/note. For Plans: read `.cursor/context/plan-index.json` and `.cursor/HANDOFF.md`; do not glob `.cursor/plans/*.plan.md`. For Unprocessed dogfood: skim `dogfood/README.md` or `.cursor/dogfood/README.md` `### Unprocessed Files` only; never auto-analyze. Remote issues: `agent-kit remote-issues --json` (read-only)."
    - **read_scope:** `[".cursor/agent-kit.config.json", ".cursor/context/readiness.json", ".cursor/HANDOFF.md", ".cursor/context/current/", ".cursor/context/plan-index.json", ".cursor/context/archive/**", ".cursor/memory/decisions/", ".cursor/memory/errors/", ".cursor/memory/plan-monitor-*.md", ".cursor/memory/plan-review-*.md", ".cursor/memory/_index.md", "dogfood/README.md", ".cursor/dogfood/README.md", "docs/**", "package.json", "CHANGELOG.md"]`
    - **worker_contract:** "structured triage report: list of findings per bucket with triage labels (ignore/error/include/note)"
    - **max_ticks:** 2

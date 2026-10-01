@@ -235,6 +235,149 @@ export function decideCursorAdvance(input: CursorAdvanceInput): CursorAdvanceDec
   return { advance: false, reason: "malformed_summary_requires_ask" };
 }
 
+/** What stopped a plan worker. Only `operator_gate` defers; the rest still stop. */
+export type BlockerClass = "operator_gate" | "dependency" | "other";
+
+export type BlockedPlanDispositionInput = {
+  queue: string[];
+  cursor: number;
+  /** Worker summary for `queue[cursor]`. Not required when resuming a stored block. */
+  summary?: unknown;
+  blockerClass: BlockerClass;
+  /** Operator gate label (e.g. "GitHub Sponsors checkout"). Falls back to summary failures. */
+  gate?: string;
+  /** PO dependency map: plan basename → basenames it blocks (`A blocks B`). */
+  dependencyMap?: Readonly<Record<string, readonly string[]>>;
+  /** Plans already deferred in this run: basename → gate. */
+  deferred?: Readonly<Record<string, string>>;
+  /** HANDOFF `Queue status` as stored (resume path). */
+  storedQueueStatus?: string;
+};
+
+export type BlockedPlanDispositionAction = "advance" | "defer_advance" | "defer_dependent" | "stop";
+
+export type BlockedPlanDisposition = {
+  action: BlockedPlanDispositionAction;
+  reason:
+    | "empty_queue"
+    | "cursor_out_of_range"
+    | "malformed_summary_requires_ask"
+    | "completed"
+    | "operator_gate_deferred"
+    | "resume_converts_operator_gate"
+    | "dependent_of_deferred_plan"
+    | "true_dependency"
+    | "non_operator_blocker";
+  plan?: string;
+  /** Queue outcome token for `plan` (e.g. `deferred-operator (gate: ...)`). */
+  outcome?: string;
+  nextCursor?: number;
+  /** Queue status to write back: `running`, `blocked`, or the queue-end status. */
+  queueStatus: string;
+  /** Deferred plans after this decision: basename → gate. */
+  deferred: Record<string, string>;
+  /** Open gates, one line per deferred plan; non-empty only at queue end. */
+  gates: string[];
+};
+
+export function formatDeferredOperatorOutcome(gate: string): string {
+  return `deferred-operator (gate: ${gate})`;
+}
+
+/**
+ * Queue-end status. `exhausted` stays the first word so readers that only look at
+ * it (Mission Control `firstWord`) still see a finished queue.
+ */
+export function formatQueueEndStatus(deferred: Readonly<Record<string, string>>): string {
+  const entries = Object.entries(deferred);
+  if (entries.length === 0) return "exhausted";
+  return `exhausted (deferred: ${entries.map(([plan, gate]) => `${plan} -> ${gate}`).join("; ")})`;
+}
+
+function blockingDeferredPlan(
+  plan: string,
+  deferred: Readonly<Record<string, string>>,
+  dependencyMap: Readonly<Record<string, readonly string[]>>,
+): string | undefined {
+  return Object.keys(deferred).find((blocker) => dependencyMap[blocker]?.includes(plan));
+}
+
+/**
+ * Decide what the queue does with the plan at `cursor` when its worker stops
+ * (ADR 2026-09-28_run-plan-all-defer-operator-gates). An operator-only gate
+ * defers the plan and advances; a dependent of a deferred plan defers with
+ * gate = the blocking plan; a true dependency or any other blocker stops.
+ * Never performs or skips the operator step itself.
+ */
+export function decideBlockedPlanDisposition(
+  input: BlockedPlanDispositionInput,
+): BlockedPlanDisposition {
+  const { queue, cursor } = input;
+  const deferred: Record<string, string> = { ...(input.deferred ?? {}) };
+  const stop = (
+    reason: BlockedPlanDisposition["reason"],
+    plan?: string,
+  ): BlockedPlanDisposition => ({
+    action: "stop",
+    reason,
+    ...(plan ? { plan } : {}),
+    queueStatus: "blocked",
+    deferred,
+    gates: [],
+  });
+
+  if (!Array.isArray(queue) || queue.length === 0) return stop("empty_queue");
+  if (!Number.isInteger(cursor) || cursor < 0 || cursor >= queue.length) {
+    return stop("cursor_out_of_range");
+  }
+  const plan = queue[cursor] as string;
+
+  const advanceWith = (
+    action: BlockedPlanDispositionAction,
+    reason: BlockedPlanDisposition["reason"],
+    outcome: string,
+  ): BlockedPlanDisposition => {
+    const nextCursor = cursor + 1;
+    const queueEnd = nextCursor >= queue.length;
+    return {
+      action,
+      reason,
+      plan,
+      outcome,
+      nextCursor,
+      queueStatus: queueEnd ? formatQueueEndStatus(deferred) : "running",
+      deferred,
+      gates: queueEnd ? Object.entries(deferred).map(([p, gate]) => `${p}: ${gate}`) : [],
+    };
+  };
+
+  const blocker = blockingDeferredPlan(plan, deferred, input.dependencyMap ?? {});
+  if (blocker) {
+    deferred[plan] = blocker;
+    return advanceWith(
+      "defer_dependent",
+      "dependent_of_deferred_plan",
+      formatDeferredOperatorOutcome(blocker),
+    );
+  }
+
+  const resuming = input.storedQueueStatus?.trim().split(/\s+/)[0] === "blocked";
+  const summary = parsePlanWorkerSummary(input.summary);
+  if (!summary && !resuming) return stop("malformed_summary_requires_ask", plan);
+  if (summary?.outcome === "completed") return advanceWith("advance", "completed", "completed");
+
+  if (input.blockerClass === "dependency") return stop("true_dependency", plan);
+  if (input.blockerClass !== "operator_gate") return stop("non_operator_blocker", plan);
+
+  const gate = input.gate?.trim() || summary?.failures?.[0]?.trim() || "operator gate";
+  deferred[plan] = gate;
+  return advanceWith(
+    "defer_advance",
+    summary ? "operator_gate_deferred" : "resume_converts_operator_gate",
+    formatDeferredOperatorOutcome(gate),
+  );
+}
+
 const FORBIDDEN_KINDS = new Set<OrchestratorActionKind>([
   "product_edit",
   "run_tests",

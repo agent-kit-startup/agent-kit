@@ -34,7 +34,7 @@ Numbered-list fallback is **path 1** when Ask questions is missing (one list per
 ## Procedure
 
 1. Readiness: read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`. Unresolved `essential: true` checks block planning; point to `/agent-kit-onboard`. Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending is warnings only.
-2. Broad Intake (delegated). Triage ignore / error / include / note. Product-context extract only when the payload mixes personal and product. Major Tom (ADR `2026-09-04_major-tom-autonomous-mode.md`) is not intake.
+2. Broad Intake (delegated). Triage ignore / error / include / note. Product-context extract only when the payload mixes personal and product. Autonomous scheduled mode is not intake.
 3. Vague goal: Ask for 1-2 sentences, then Gate A.
 4. Gate A: write plan + HANDOFF per pick. Backlog paths skip Gate B (`Mode: STOPPED` or current plan stays active).
 5. Gate B (park or no-active-plan activate only): one unit, HANDOFF, stop. Suggest `/git-staging` if there is a diff. Manual mode: one phase per chat unless the operator used `/run-plan`.

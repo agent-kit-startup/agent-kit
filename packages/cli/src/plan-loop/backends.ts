@@ -3,10 +3,12 @@ import { createWriteStream } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
+import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
 import {
   type AnswerReader,
   type HitlRunRecord,
   type HitlStop,
+  type TurnResult,
   TurnWatcher,
   askOperator,
   createTerminalAnswerReader,
@@ -89,6 +91,12 @@ export interface BackendRunResult {
   exitCode: number;
   /** Gate replies and the stop record, when the run carried a relay. */
   hitl?: HitlRunRecord;
+  /**
+   * The last `result` event the relay's turn watcher saw (same redacted text
+   * as the log), so the loop can read the tick outcome without re-parsing
+   * the log file. Absent without a relay or when no result event arrived.
+   */
+  lastResult?: TurnResult;
 }
 
 export interface AgentBackend {
@@ -491,12 +499,19 @@ export function spawnLogged(
     child.on("close", (code) => {
       for (const buffer of buffers) emit(buffer.flush());
       render.end();
+      relay?.finish();
       const finish = () => {
         out.end((err?: Error | null) => {
           const failure = err ?? logError;
           if (failure) reject(redactedError(failure));
-          else if (relay) resolve({ exitCode: code ?? 1, hitl: relay.record });
-          else resolve({ exitCode: code ?? 1 });
+          else if (relay) {
+            const lastResult = relay.lastResult();
+            resolve({
+              exitCode: code ?? 1,
+              hitl: relay.record,
+              ...(lastResult ? { lastResult } : {}),
+            });
+          } else resolve({ exitCode: code ?? 1 });
         });
       };
       if (relay) relay.closed().then(finish, finish);
@@ -509,7 +524,11 @@ interface Relay {
   /** Set when the transport could not be attached (no writable stdin). */
   startError: Error | null;
   record: HitlRunRecord;
+  /** The last `result` event seen, if any. */
+  lastResult(): TurnResult | undefined;
   feed(text: string | Buffer): void;
+  /** End of input: parse the held tail. Called after the redaction flush. */
+  finish(): void;
   /** Resolves once the child has closed and any open prompt has settled. */
   closed(): Promise<void>;
   /** Operator stop outside a gate: record it, end stdin, signal past the grace. */
@@ -583,7 +602,12 @@ function createRelay(
     timers.push(term);
   };
 
-  const watcher = new TurnWatcher(({ resultText, assistantTexts }) => {
+  let lastResult: TurnResult | undefined;
+  const watcher = new TurnWatcher((turn) => {
+    // Recorded before the guard: a result can arrive in the redaction flush
+    // after the relay has already seen the child close.
+    lastResult = turn;
+    const { resultText, assistantTexts } = turn;
     if (record.stop || closed) return;
     const gate = detectHitlGate(resultText, assistantTexts);
     if (!gate) {
@@ -634,7 +658,6 @@ function createRelay(
     closed = true;
     for (const t of timers) clearTimeout(t);
     abort.abort();
-    watcher.end();
     const settle = () => resolveClosed();
     if (pendingAsk) pendingAsk.then(settle, settle);
     else settle();
@@ -643,7 +666,9 @@ function createRelay(
   return {
     startError,
     record,
+    lastResult: () => lastResult,
     feed: (text) => watcher.feed(text),
+    finish: () => watcher.end(),
     closed: () => closedPromise,
     stop: (stop) => {
       if (closed || record.stop) return;
@@ -804,6 +829,12 @@ export function resetClaudeVersionCache(): void {
  *   `.claude/commands` adapters take their numbered-list HITL branch.
  * - `--max-turns` / `--max-budget-usd` (print-only): opt-in runaway caps from
  *   `AGENT_KIT_CLAUDE_MAX_TURNS` / `AGENT_KIT_CLAUDE_MAX_BUDGET_USD`; no default.
+ * - `--disallowedTools <rules...>` (last: the flag is variadic):
+ *   HEADLESS_DENY_RULES from generator/claude-permissions.ts. Deny rules hold
+ *   under `--dangerously-skip-permissions`. In a claude tick they and
+ *   git-hooks/pre-push are the only guard for main pushes and /git-prod
+ *   (the PreToolUse guard is interactive verified; headless pending smoke),
+ *   so they are a best-effort glob backstop, not a refspec parser.
  * No `--cwd` exists on the root command: the working directory is set on spawn.
  */
 export function claudeHeadlessArgs(opts: { model?: string } & ClaudeRunCaps = {}): string[] {
@@ -828,6 +859,7 @@ export function claudeHeadlessArgs(opts: { model?: string } & ClaudeRunCaps = {}
   if (opts.model) {
     args.push("--model", opts.model);
   }
+  args.push("--disallowedTools", ...HEADLESS_DENY_RULES);
   return args;
 }
 
@@ -863,7 +895,7 @@ export async function missingClaudeAdapter(
  * History: reserved (threw "not implemented") since ADR
  * 2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13 ("headless
  * kit ticks stay cursor-agent until an explicit later plan implements
- * --backend claude"); plan major-tom `phase1-claude-backend` wired it.
+ * --backend claude"); a later plan wired it.
  *
  * Collision, named not merged: `externalPlanReview.backend: "claude"` in
  * .cursor/context/config.json selects the post-hoc audits REVIEWER

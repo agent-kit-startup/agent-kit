@@ -2,7 +2,12 @@ import { execFile } from "node:child_process";
 import { constants, access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { RESOLVE_AGENT_KIT_REL } from "../generator/claude-session-start-hook.js";
+import {
+  CLAUDE_SETTINGS_REL,
+  GUARD_SHELL_HOOK_MARKER,
+  RESOLVE_AGENT_KIT_REL,
+  SESSION_START_HOOK_MARKER,
+} from "../generator/claude-session-start-hook.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -159,6 +164,94 @@ export async function assessGitHooksInstallDrift(rootDir: string): Promise<strin
 }
 
 /**
+ * Soft advisory: the /git-staging signature gate runs `sh git-hooks/prepare-commit-msg --check -`
+ * and a missing file exits 127 (red). `assessGitHooksInstallDrift` returns early when
+ * `git-hooks/` is absent, so consumers never saw it. Kit marker = `autogit/gitupdate.md`
+ * (the staging routine that runs the gate); silent without it.
+ */
+export async function assessSignatureGateHook(rootDir: string): Promise<string[]> {
+  const root = path.resolve(rootDir);
+  if (!(await exists(path.join(root, "autogit", "gitupdate.md")))) return [];
+  if (await exists(path.join(root, "git-hooks", "prepare-commit-msg"))) return [];
+  return [
+    "signature gate hook missing: `git-hooks/prepare-commit-msg` (/git-staging runs `sh git-hooks/prepare-commit-msg --check -`; a missing file exits 127 and reads as red). Run `agent-kit update` to restore it.",
+  ];
+}
+
+/** Same order as `resolve-agent-kit.sh`; returns argv (`[bin]` or `["node", script]`) or null. */
+async function resolveGuardProbeArgv(root: string): Promise<string[] | null> {
+  const hookBin = process.env.AGENT_KIT_HOOK_BIN;
+  if (hookBin && (await isExecutable(hookBin))) return [hookBin];
+  const local = path.join(root, "node_modules", ".bin", "agent-kit");
+  if (await isExecutable(local)) return [local];
+  const dist = path.join(root, "packages", "cli", "dist", "index.js");
+  if (await exists(dist)) return [process.execPath, dist];
+  try {
+    const { stdout } = await execFileAsync("which", ["agent-kit"], { encoding: "utf8" });
+    const hit = stdout.trim().split("\n")[0]?.trim();
+    if (hit) return [hit];
+  } catch {
+    /* not on PATH */
+  }
+  return null;
+}
+
+/**
+ * Capability probe for the Claude PreToolUse(Bash) guard. Silent when
+ * `.claude/settings.json` is absent or unreadable. With the guard marker present, runs
+ * the resolved CLI on a force-push to main and requires a `deny` decision; an older
+ * or stale CLI would fail open at runtime, so this surfaces it. SessionStart marker
+ * without the guard marker means the settings predate the guard hook.
+ */
+export async function assessClaudeGuardProbe(rootDir: string): Promise<string[]> {
+  const root = path.resolve(rootDir);
+  let text: string;
+  try {
+    text = await readFile(path.join(root, CLAUDE_SETTINGS_REL), "utf8");
+  } catch {
+    return [];
+  }
+  if (!text.includes(GUARD_SHELL_HOOK_MARKER)) {
+    return text.includes(SESSION_START_HOOK_MARKER)
+      ? [
+          "Claude SessionStart hook is installed but the PreToolUse guard hook is absent from `.claude/settings.json`. Run `agent-kit install --claude`.",
+        ]
+      : [];
+  }
+  const stale =
+    "Claude guard hook active but resolved CLI is too old or stale dist; update the CLI / rebuild.";
+  const argv = await resolveGuardProbeArgv(root);
+  if (!argv) return [`${stale} (agent-kit CLI not resolvable)`];
+  const [bin, ...lead] = argv as [string, ...string[]];
+  try {
+    const { stdout } = await execFileAsync(
+      bin,
+      [
+        ...lead,
+        "guard",
+        "shell",
+        "--format",
+        "claude",
+        "--command",
+        "git push --force origin main",
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 10_000,
+        env: { ...process.env, ALLOW_MAIN_PUSH: "" },
+      },
+    );
+    const decision = (
+      JSON.parse(stdout) as { hookSpecificOutput?: { permissionDecision?: string } }
+    ).hookSpecificOutput?.permissionDecision;
+    return decision === "deny" ? [] : [stale];
+  } catch {
+    return [stale];
+  }
+}
+
+/**
  * Visible fail-open posture: active when hooks.json wires Node adapters that
  * exist, are executable, and the CLI resolves; degraded otherwise; missing
  * when no hooks.json. Git-hooks install drift is advisory only.
@@ -169,7 +262,11 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
   const hooksJsonAbs = path.join(root, hooksJsonPath);
   const reasons: string[] = [];
   const wiredEvents: string[] = [];
-  const advisories = await assessGitHooksInstallDrift(root);
+  const advisories = [
+    ...(await assessGitHooksInstallDrift(root)),
+    ...(await assessSignatureGateHook(root)),
+    ...(await assessClaudeGuardProbe(root)),
+  ];
 
   if (!(await exists(hooksJsonAbs))) {
     return {
@@ -250,7 +347,7 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
   const cli = await resolveAgentKitCli(root);
   if (!cli) {
     reasons.push(
-      "agent-kit CLI not resolvable (PATH, node_modules/.bin/agent-kit, or packages/cli/dist)",
+      "agent-kit CLI not resolvable (node_modules/.bin/agent-kit, packages/cli/dist, or PATH)",
     );
   }
 

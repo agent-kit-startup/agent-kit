@@ -234,22 +234,30 @@ describe("size-budgets: large procedure page (target ceiling: 400 lines / 49152 
 
 describe("size-budgets: alwaysApply rule (per-file target 100 lines / 4096 B / 500 chars; aggregate toward 32 KiB)", () => {
   // Per-file: session-starter Phase 1 closed the named 4 KiB leftovers
-  // (git-workflow, docs-professional). plan-handoff and context-guardian
-  // remain over 4 KiB (lazy-layers Phase 3 folds already applied); they
-  // still pass this current-state ceiling until a later shrink.
+  // (git-workflow, docs-professional); the 2026-09-27 token pass folded
+  // context-guardian, cursor-plan-handoff and memory-loop under it.
   const MAX_LINES = 150;
   const MAX_BYTES = 8192;
   const MAX_LONGEST_LINE = 500;
   /** Named leftovers this plan claimed under 4 KiB. */
   const MUST_BE_UNDER_4KIB = new Set([
+    ".cursor/rules/agent-output-hygiene.mdc",
+    ".cursor/rules/context-guardian.mdc",
+    ".cursor/rules/cursor-plan-handoff.mdc",
+    ".cursor/rules/cursor-skills-general.mdc",
     ".cursor/rules/cursor-skills-git-workflow.mdc",
     ".cursor/rules/docs-professional-standard.mdc",
+    ".cursor/rules/git-secrets-safety.mdc",
+    ".cursor/rules/hitl-ask-questions.mdc",
+    ".cursor/rules/memory-loop.mdc",
+    ".cursor/rules/ux-tone.mdc",
   ]);
-  // Aggregate ceiling: session-starter Phase 1 brought measured total to
-  // ~34,925 B (git-workflow + docs-professional under 4 KiB). Pin under
-  // 36 KiB toward the ADR 32 KiB class target without claiming that target
-  // is closed (plan-handoff + context-guardian remain over 4 KiB).
-  const MAX_AGGREGATE_BYTES = 36000;
+  // Aggregate ceiling: the 2026-09-27 folds took the measured total from
+  // 35,817 B to 31,231 B; the token pass (context-guardian, plan-handoff,
+  // memory-loop formats moved to templates/memory-entry.md) took it to
+  // 27,131 B; the memory-loop missing-template fallback line took it to
+  // 27,302 B, pinned here rounded up to the next 256 B.
+  const MAX_AGGREGATE_BYTES = 27392;
 
   const ruleFiles = L0_ARTIFACTS.map((a) => a.target).filter((t) => t.startsWith(".cursor/rules/"));
   const alwaysApplyFiles = ruleFiles.filter(isAlwaysApply);
@@ -277,6 +285,22 @@ describe("size-budgets: alwaysApply rule (per-file target 100 lines / 4096 B / 5
 
   it("keeps the aggregate alwaysApply fixed-load under the current-state ceiling", () => {
     const total = alwaysApplyFiles.reduce((sum, t) => sum + measureFile(t).bytes, 0);
+    expect(total).toBeLessThanOrEqual(MAX_AGGREGATE_BYTES);
+  });
+});
+
+describe("size-budgets: agent catalog (session-starter Phase 2: 18,684 B before, 16,347 B after)", () => {
+  const MAX_AGGREGATE_BYTES = 16384; // measured 16,347 B, pinned rounded up to 16 KiB
+  const agentFiles = readdirSync(resolve(repoRoot, ".cursor/agents"))
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => `.cursor/agents/${f}`);
+
+  it("has the expected non-empty membership", () => {
+    expect(agentFiles.length).toBe(14);
+  });
+
+  it("keeps the aggregate agent catalog under the post-shrink ceiling", () => {
+    const total = agentFiles.reduce((sum, t) => sum + measureFile(t).bytes, 0);
     expect(total).toBeLessThanOrEqual(MAX_AGGREGATE_BYTES);
   });
 });

@@ -129,6 +129,11 @@ export function mergeConfigAllowlist(
 ): Record<string, unknown>;
 export function allowlistConfig(raw: unknown): Record<string, unknown>;
 export function isAllowedOrigin(origin: unknown, port: unknown): boolean;
+export function isAllowedHostHeader(
+  hostHeader: unknown,
+  port: unknown,
+  opts?: { broadcast?: boolean; lanAddresses?: string[]; bindHost?: string },
+): boolean;
 export function applyCorsHeaders(
   req: GuardRequest,
   res: { setHeader: (name: string, value: string) => unknown },

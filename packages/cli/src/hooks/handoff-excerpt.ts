@@ -9,7 +9,10 @@
  * Within the selected lines, machine fields stay whole under the byte cap:
  * prose is water-filled, truncated at a code-point boundary with a visible
  * marker, and dropped last-first only when the per-line floor still does not
- * fit. Headings and blank lines are structural.
+ * fit. Headings and blank lines are structural. An over-budget prose value
+ * that is inline JSON becomes a `(JSON, N entries; read HANDOFF)` marker
+ * instead of a mid-JSON slice. Last resort: when machine lines alone still
+ * exceed the byte cap, the longest ones are truncated (`machineTruncated`).
  *
  * Both hook formats (`--format cursor` JSON and `--format claude` plain
  * text) wrap the same excerpt, so the cap applies to both.
@@ -59,6 +62,8 @@ export interface HandoffExcerptResult {
   lines: number;
   truncatedLines: number;
   droppedLines: number;
+  /** Machine lines truncated because they alone exceeded the byte cap. */
+  machineTruncated: number;
 }
 
 type LineKind = "machine" | "structural" | "prose";
@@ -159,6 +164,83 @@ function truncationMarker(removedChars: number): string {
   return ` …[truncated ${removedChars} chars]`;
 }
 
+/** Value after a `- **Label:**` prefix (or bullet dash) when it opens inline JSON. */
+function jsonValue(text: string): { prefix: string; value: string } | null {
+  const head = (FIELD_BULLET.exec(text) ?? /^\s*(?:[-*]\s+)?/.exec(text))?.[0] ?? "";
+  const value = text.slice(head.length).trimStart();
+  if (!value.startsWith("{") && !value.startsWith("[")) return null;
+  // Markdown checkboxes and links start with `[` too; keep normal prose truncation for them.
+  if (/^\[[ xX]\](\s|$)|^\[[^\]\n]*\]\(/.test(value)) return null;
+  return { prefix: head.trimEnd(), value };
+}
+
+/** Top-level entry count of a (possibly malformed) JSON array or object. */
+function countJsonEntries(value: string): number {
+  let depth = 0;
+  let entries = 0;
+  let inString = false;
+  let seenValue = false;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i] ?? "";
+    if (inString) {
+      if (ch === "\\") i += 1;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === "{" || ch === "[") {
+      depth += 1;
+      if (depth === 1) continue;
+    } else if (ch === "}" || ch === "]") {
+      depth -= 1;
+      if (depth === 0) break;
+    } else if (ch === "," && depth === 1) {
+      entries += 1;
+      seenValue = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    if (depth >= 1 && ch.trim()) seenValue = true;
+  }
+  return entries + (seenValue ? 1 : 0);
+}
+
+function jsonMarker(entries: number): string {
+  return `(JSON, ${entries} ${entries === 1 ? "entry" : "entries"}; read HANDOFF)`;
+}
+
+/**
+ * Last resort after the prose pass: truncate the longest machine lines until
+ * the joined excerpt fits, never below the per-line floor.
+ */
+function capMachineLines(
+  items: Entry[],
+  maxBytes: number,
+  floor: number,
+  join: (items: Entry[]) => string,
+): { items: Entry[]; machineTruncated: number } {
+  const out = [...items];
+  const touched = new Set<number>();
+  let over = byteLength(join(out)) - maxBytes;
+  while (over > 0) {
+    let idx = -1;
+    for (let i = 0; i < out.length; i++) {
+      const e = out[i];
+      if (e?.kind === "machine" && (idx < 0 || e.bytes > (out[idx]?.bytes ?? 0))) idx = i;
+    }
+    const e = out[idx];
+    if (!e || e.bytes <= floor) break;
+    const target = Math.max(floor, e.bytes - over);
+    const { kept, removedChars } = truncateToBytes(e.text, target - MARKER_RESERVE_BYTES);
+    const text = kept + truncationMarker(removedChars);
+    const bytes = byteLength(text);
+    if (bytes >= e.bytes) break;
+    out[idx] = { text, kind: e.kind, bytes };
+    touched.add(idx);
+    over = byteLength(join(out)) - maxBytes;
+  }
+  return { items: out, machineTruncated: touched.size };
+}
+
 function droppedMarker(dropped: number): string {
   return `…[${dropped} prose ${dropped === 1 ? "line" : "lines"} omitted by the excerpt byte cap; read .cursor/HANDOFF.md]`;
 }
@@ -208,6 +290,7 @@ export function capHandoffExcerpt(
       lines: entries.length,
       truncatedLines: 0,
       droppedLines: 0,
+      machineTruncated: 0,
     };
   }
 
@@ -223,6 +306,13 @@ export function capHandoffExcerpt(
   let truncatedLines = 0;
   const shaped: Entry[] = entries.map((e) => {
     if (e.kind !== "prose" || e.bytes <= share) return e;
+    const json = jsonValue(e.text);
+    if (json) {
+      const marker = jsonMarker(countJsonEntries(json.value));
+      const text = json.prefix ? `${json.prefix} ${marker}` : marker;
+      truncatedLines += 1;
+      return { text, kind: e.kind, bytes: byteLength(text) };
+    }
     const { kept, removedChars } = truncateToBytes(e.text, share - MARKER_RESERVE_BYTES);
     const text = kept + truncationMarker(removedChars);
     truncatedLines += 1;
@@ -244,10 +334,26 @@ export function capHandoffExcerpt(
     }
     const remaining = shaped.filter((_, i) => keep.has(i));
     remaining.push({ text: droppedMarker(droppedLines), kind: "structural", bytes: 0 });
-    const text = join(remaining);
-    return { text, bytes: byteLength(text), lines: entries.length, truncatedLines, droppedLines };
+    const capped = capMachineLines(remaining, maxBytes, floor, join);
+    const text = join(capped.items);
+    return {
+      text,
+      bytes: byteLength(text),
+      lines: entries.length,
+      truncatedLines,
+      droppedLines,
+      machineTruncated: capped.machineTruncated,
+    };
   }
 
-  const text = join(shaped);
-  return { text, bytes: byteLength(text), lines: entries.length, truncatedLines, droppedLines };
+  const capped = capMachineLines(shaped, maxBytes, floor, join);
+  const text = join(capped.items);
+  return {
+    text,
+    bytes: byteLength(text),
+    lines: entries.length,
+    truncatedLines,
+    droppedLines,
+    machineTruncated: capped.machineTruncated,
+  };
 }

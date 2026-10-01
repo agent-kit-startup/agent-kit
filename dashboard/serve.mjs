@@ -18,6 +18,7 @@ import {
   applyCorsHeaders,
   authorizeMissionControlRequest,
   broadcastAuthCookieHeader,
+  isAllowedHostHeader,
   isAllowedOrigin,
   isLoopbackAddress,
   listLanIPv4Addresses,
@@ -35,6 +36,7 @@ import {
   resolveAgentTranscriptsWatchPath,
   resolveWatchPaths,
 } from "./lib/live-refresh.mjs";
+import { PIPELINE_CACHE_ENV, pipelineCacheJsonFromSnapshot } from "./lib/pipeline-cache.mjs";
 import { buildInventoryBaseline } from "./lib/semantic-model.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,6 +55,10 @@ const PORT = Number.parseInt(process.env.PORT || "3333", 10);
 const TOKEN_REQUIRED = authResolved.tokenRequired;
 const AUTH_TOKEN = authResolved.token;
 const DASHBOARD_REAL = realpathSync(DASHBOARD_DIR);
+// Resolved once at startup: the Host guard runs on every request, and an
+// os.networkInterfaces() walk per request is wasted work. Restart to pick up
+// a new LAN address (Wi-Fi rejoin).
+const LAN_ADDRESSES = authResolved.broadcast ? listLanIPv4Addresses() : [];
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -69,6 +75,8 @@ const dataScript = join(__dirname, "dashboard-data.mjs");
 
 /** Compact inventory baseline fed back into the next data-script run via env. */
 let previousInventoryJson = null;
+/** Last attempted devops.pipeline (with fetchedAt); the data script reuses it while fresh. */
+let previousPipelineJson = null;
 
 /**
  * @param {string} payload
@@ -86,6 +94,19 @@ function inventoryBaselineJsonFromPayload(payload) {
         memory: data.memory,
       }),
     );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} payload
+ * @returns {string|null}
+ */
+function pipelineCacheJsonFromPayload(payload) {
+  try {
+    const data = JSON.parse(payload);
+    return data && !data.error ? pipelineCacheJsonFromSnapshot(data) : null;
   } catch {
     return null;
   }
@@ -262,6 +283,7 @@ function runDataScript() {
       [REPO_ROOT_ENV]: ROOT,
       // Empty string = cold start (dashboard-data treats falsy as no previous).
       AGENT_KIT_PREV_INVENTORY: previousInventoryJson || "",
+      [PIPELINE_CACHE_ENV]: previousPipelineJson || "",
     };
     execFile(
       process.execPath,
@@ -284,6 +306,8 @@ function runDataScript() {
         }
         const baseline = inventoryBaselineJsonFromPayload(stdout);
         if (baseline) previousInventoryJson = baseline;
+        const pipelineCache = pipelineCacheJsonFromPayload(stdout);
+        if (pipelineCache) previousPipelineJson = pipelineCache;
         resolve(stdout);
       },
     );
@@ -400,6 +424,18 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const path = url.pathname;
 
+  // DNS-rebinding guard: refuse foreign Host headers before any route runs.
+  if (
+    !isAllowedHostHeader(req.headers?.host, PORT, {
+      broadcast: authResolved.broadcast,
+      bindHost: HOST,
+      lanAddresses: LAN_ADDRESSES,
+    })
+  ) {
+    sendJson(res, 421, { error: "misdirected request: host not allowed" });
+    return;
+  }
+
   setCorsHeaders(req, res);
 
   if (path === "/api/config" && req.method === "OPTIONS") {
@@ -436,6 +472,12 @@ const server = createServer((req, res) => {
   }
   if (auth.viaQuery && AUTH_TOKEN) {
     res.setHeader("Set-Cookie", broadcastAuthCookieHeader(AUTH_TOKEN));
+  }
+
+  // Cheap identity probe for start scripts: no snapshot work, same Host/auth gates.
+  if (path === "/api/identity" && req.method === "GET") {
+    sendJson(res, 200, { repoRoot: ROOT, tokenGated: TOKEN_REQUIRED });
+    return;
   }
 
   // SSE endpoint
@@ -530,7 +572,7 @@ server.listen(PORT, HOST, () => {
     console.log(`  Events:  ${url}/api/events (SSE)`);
     console.log(`  Config:  ${url}/api/config (PUT/PATCH, loopback)`);
   } else {
-    const lan = listLanIPv4Addresses();
+    const lan = LAN_ADDRESSES;
     const tokenQ = AUTH_TOKEN ? `?token=${encodeURIComponent(AUTH_TOKEN)}` : "";
     console.log(`  Bind:    ${HOST}:${PORT} (token-gated)`);
     console.log(`  Local:   http://127.0.0.1:${PORT}/${tokenQ}`);

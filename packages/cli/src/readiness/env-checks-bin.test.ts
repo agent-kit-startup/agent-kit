@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -43,5 +43,45 @@ describe("readBinVersion", () => {
     await writeFile(binPath, `#!/bin/sh\nexec node "$basedir/${rel}" "$@"\n`);
     await chmod(binPath, 0o755);
     expect(await readBinVersion(binPath)).toBe("5.8.0");
+  });
+
+  /** Package dir with a bundle well past the shim size cap, plus a read spy. */
+  async function bundleLayout(pkgDir: string, version: string) {
+    await mkdir(path.join(pkgDir, "dist"), { recursive: true });
+    await writeFile(path.join(pkgDir, "package.json"), JSON.stringify({ version }));
+    await writeFile(path.join(pkgDir, "dist", "index.js"), `// ${"x".repeat(64 * 1024)}\n`);
+    const reads: string[] = [];
+    const readFileImpl = async (filePath: string) => {
+      reads.push(filePath);
+      return readFile(filePath, "utf8");
+    };
+    return { reads, readFileImpl };
+  }
+
+  it("follows a local node_modules/.bin symlink to the package without reading the bundle", async () => {
+    tmpDir = await mkdtemp(path.join(os.tmpdir(), "agent-kit-binver-"));
+    const nm = path.join(tmpDir, "node_modules");
+    const pkgDir = path.join(nm, "@dadado", "agent-kit-cli");
+    const { reads, readFileImpl } = await bundleLayout(pkgDir, "6.1.0");
+    await mkdir(path.join(nm, ".bin"), { recursive: true });
+    const binPath = path.join(nm, ".bin", "agent-kit");
+    await symlink(path.join("..", "@dadado", "agent-kit-cli", "dist", "index.js"), binPath);
+    expect(await readBinVersion(binPath, { readFileImpl })).toBe("6.1.0");
+    expect(reads).toHaveLength(1);
+    expect(reads[0]?.endsWith("package.json")).toBe(true);
+  });
+
+  it("follows a global-style bin symlink without reading the bundle", async () => {
+    tmpDir = await mkdtemp(path.join(os.tmpdir(), "agent-kit-binver-"));
+    const pkgDir = path.join(tmpDir, "lib", "node_modules", "@dadado", "agent-kit-cli");
+    const { reads, readFileImpl } = await bundleLayout(pkgDir, "6.2.0");
+    await mkdir(path.join(tmpDir, "bin"), { recursive: true });
+    const binPath = path.join(tmpDir, "bin", "agent-kit");
+    await symlink(
+      path.join("..", "lib", "node_modules", "@dadado", "agent-kit-cli", "dist", "index.js"),
+      binPath,
+    );
+    expect(await readBinVersion(binPath, { readFileImpl })).toBe("6.2.0");
+    expect(reads.some((item) => item.endsWith("index.js") || item === binPath)).toBe(false);
   });
 });

@@ -153,6 +153,21 @@ describe("renderGroupedRootHelp", () => {
       expect(g.commands.length).toBeGreaterThan(0);
     }
   });
+
+  it("resolves lazy subcommand loaders so every group and command is listed", async () => {
+    // index.ts registers `() => import(...)` resolvers; help must still list all of them.
+    const names = CLI_HELP_GROUPS.flatMap((g) => g.commands);
+    const subCommands = Object.fromEntries(
+      names.map((n) => [
+        n,
+        () => Promise.resolve(defineCommand({ meta: { name: n, description: `${n} lazy help` } })),
+      ]),
+    );
+    const cmd = defineCommand({ meta: { name: "agent-kit", version: "1.2.3" }, subCommands });
+    const text = await renderGroupedRootHelp(cmd);
+    for (const g of CLI_HELP_GROUPS) expect(text).toContain(g.title);
+    for (const n of names) expect(text).toContain(`${n} lazy help`);
+  });
 });
 
 describe("hasCliSubcommand", () => {

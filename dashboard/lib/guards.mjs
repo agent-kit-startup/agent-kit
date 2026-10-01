@@ -1072,6 +1072,37 @@ export function isAllowedOrigin(origin, port) {
   }
 }
 
+/**
+ * DNS-rebinding guard: accept only a Host header naming this server by a
+ * loopback literal (`localhost`, `127.0.0.1`, `[::1]`) on `port`. In broadcast
+ * mode a LAN IPv4 literal of this machine (or the IPv4 bind host) on `port` is
+ * accepted too. A hostname that merely resolves here (rebinding) never is.
+ * @param {unknown} hostHeader
+ * @param {unknown} port
+ * @param {{ broadcast?: boolean, lanAddresses?: string[], bindHost?: string }} [opts]
+ */
+export function isAllowedHostHeader(hostHeader, port, opts = {}) {
+  if (!hostHeader || typeof hostHeader !== "string") return false;
+  let url;
+  try {
+    url = new URL(`http://${hostHeader.trim()}`);
+  } catch {
+    return false;
+  }
+  if (url.username || url.password || url.pathname !== "/") return false;
+  const resolvedPort = url.port || "80";
+  if (resolvedPort !== String(port)) return false;
+  const name = url.hostname.toLowerCase();
+  if (name === "localhost" || name === "127.0.0.1" || name === "[::1]") return true;
+  if (!opts.broadcast) return false;
+  // The operator-chosen bind host (not a wildcard) names this server by definition.
+  const bind = typeof opts.bindHost === "string" ? opts.bindHost.trim().toLowerCase() : "";
+  if (bind && bind !== "0.0.0.0" && bind !== "::" && bind === name) return true;
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(name)) return false;
+  const lan = opts.lanAddresses ?? listLanIPv4Addresses();
+  return lan.includes(name);
+}
+
 export function applyCorsHeaders(req, res, port) {
   const origin = req.headers?.origin;
   if (isAllowedOrigin(origin, port)) {

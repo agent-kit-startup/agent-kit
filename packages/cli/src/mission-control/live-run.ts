@@ -11,7 +11,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { extractHandoffNamedPlans, parsePlanFrontmatter } from "../plan-index/plan-index.js";
+import { HANDOFF_REL, parsePlanFrontmatter } from "../plan-index/plan-index.js";
 import type { HitlRunOptions, SpawnInfo } from "../plan-loop/backends.js";
 import {
   type AnswerReader,
@@ -19,7 +19,11 @@ import {
   type RawAnswer,
   operatorQuitStop,
 } from "../plan-loop/hitl-relay.js";
-import { findActivePlanFile } from "../plan-loop/plan-state.js";
+import {
+  findActivePlanFile,
+  readRunQueueState,
+  resolveActivePlanFromHandoff,
+} from "../plan-loop/plan-state.js";
 import type { StreamSink } from "../plan-loop/stream-render.js";
 import { shouldUseWelcomeColor } from "../welcome/visual-kit.js";
 import {
@@ -87,10 +91,7 @@ function defaultMissionIo(): LiveMissionIo {
   };
 }
 
-const QUEUE_CURSOR_RE = /^- \*\*Queue cursor:\*\*\s*(.+)$/m;
-const QUEUE_STATUS_RE = /^- \*\*Queue status:\*\*\s*(.+)$/m;
 const MODE_RE = /^- \*\*Mode:\*\*\s*(.+)$/m;
-const QUEUE_DONE_STATUSES = new Set(["exhausted", "completed", "done"]);
 
 function firstWord(raw: string | undefined): string | null {
   const word = raw?.trim().split(/\s+/)[0]?.replace(/[`*]/g, "");
@@ -107,36 +108,17 @@ export async function readLiveMission(
   io: LiveMissionIo = defaultMissionIo(),
 ): Promise<LiveMissionState> {
   const mission = emptyLiveMission();
-  const handoff = (await io.readFile(path.join(root, ".cursor", "HANDOFF.md"))) ?? "";
-  const named = extractHandoffNamedPlans(handoff);
+  const handoff = (await io.readFile(path.join(root, HANDOFF_REL))) ?? "";
   mission.mode = firstWord(MODE_RE.exec(handoff)?.[1]);
 
-  let cursorIndex: number | null = null;
-  let cursorPlan: string | null = null;
-  const cursorRaw = QUEUE_CURSOR_RE.exec(handoff)?.[1]?.trim() ?? "";
-  const indexMatch = /^(\d+)\b/.exec(cursorRaw);
-  if (indexMatch?.[1]) cursorIndex = Number(indexMatch[1]);
-  const currentMatch = /current:\s*`?([^`()]+?)`?\s*\)/i.exec(cursorRaw);
-  if (currentMatch?.[1]) {
-    const base = currentMatch[1].trim().split("/").pop() ?? "";
-    if (/\.plan\.md$/i.test(base)) cursorPlan = base;
-  }
-  const queueStatus = firstWord(QUEUE_STATUS_RE.exec(handoff)?.[1]);
-  const queue = named.runQueue;
-  const finished = queueStatus !== null && QUEUE_DONE_STATUSES.has(queueStatus.toLowerCase());
+  const { queue, cursor, current, status: queueStatus, finished } = readRunQueueState(handoff);
   let checklist: McLiveChecklistRow[] = [];
   if (queue.length > 0) {
-    let cursor: number | null = null;
-    if (cursorIndex !== null && cursorIndex >= 0 && cursorIndex < queue.length) {
-      cursor = cursorIndex;
-    } else if (cursorPlan && queue.includes(cursorPlan)) {
-      cursor = queue.indexOf(cursorPlan);
-    }
     const done = finished ? queue.length : (cursor ?? 0);
     mission.queue = {
       done,
       total: queue.length,
-      current: cursor !== null ? (queue[cursor] ?? null) : cursorPlan,
+      current,
       status: queueStatus,
     };
     checklist = queue.map((file, i) => ({
@@ -146,10 +128,8 @@ export async function readLiveMission(
     }));
   }
 
-  const plansDir = path.join(root, ".cursor", "plans");
   // A finished queue no longer names the plan being worked; the HANDOFF Plan field does.
-  const planBase = (mission.queue && !finished ? mission.queue.current : null) ?? named.active;
-  const planPath = planBase ? path.join(plansDir, planBase) : await io.findActivePlan(plansDir);
+  const planPath = await resolveActivePlanFromHandoff(root, handoff, io);
   if (planPath) {
     const raw = await io.readFile(planPath);
     if (raw !== null) {
@@ -194,6 +174,14 @@ export function createLiveMissionLoader(
         cached = state;
         readAt = now();
         return state;
+      })
+      // A failing read keeps the last good state (or an empty one) and waits
+      // out the same ttl, so the paint loop never retries it every frame and
+      // the rejection never goes unhandled.
+      .catch(() => {
+        cached = cached ?? { mission: emptyLiveMission(), checklist: [] };
+        readAt = now();
+        return cached;
       })
       .finally(() => {
         inFlight = null;

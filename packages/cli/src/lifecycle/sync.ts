@@ -10,16 +10,17 @@ import {
 } from "./apply.js";
 import { L0_ARTIFACTS } from "./l0.js";
 import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
-import { loadManagedHashLedger, saveManagedHashLedger } from "./overlay.js";
+import { type ManagedHashLedger, loadManagedHashLedger, saveManagedHashLedger } from "./overlay.js";
 import { resolveProtectedGlobs } from "./protected.js";
 
 export async function installL0(
   registryRoot: string,
   projectRoot: string,
   protectedGlobs: readonly string[],
+  ledger?: ManagedHashLedger,
 ): Promise<ApplyStats> {
   const stats = emptyStats();
-  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const managedHashes = ledger ?? (await loadManagedHashLedger(projectRoot));
   const copyOpts = { managedHashes, persistManagedHashes: false as const };
   for (const artifact of L0_ARTIFACTS) {
     const outcome = await copyRegistryFile(
@@ -32,7 +33,7 @@ export async function installL0(
     );
     recordOutcome(stats, artifact.target, outcome);
   }
-  await saveManagedHashLedger(projectRoot, managedHashes);
+  if (!ledger) await saveManagedHashLedger(projectRoot, managedHashes);
   const migration = await migrateLegacyOnboardCommand(projectRoot);
   if (migration === "removed-managed") {
     stats.removed.push(".cursor/commands/onboard.md");
@@ -42,7 +43,10 @@ export async function installL0(
   return stats;
 }
 
-/** Re-apply L0 + manifest packs + manifest skills (skips protected). */
+/**
+ * Re-apply L0 + manifest packs + manifest skills (skips protected). The
+ * managed-hash ledger is read once up front and saved once at the end.
+ */
 export async function syncFromManifest(
   registryRoot: string,
   projectRoot: string,
@@ -50,22 +54,25 @@ export async function syncFromManifest(
 ): Promise<ApplyStats> {
   const protectedGlobs = resolveProtectedGlobs(manifest);
   const stats = emptyStats();
+  const managedHashes = await loadManagedHashLedger(projectRoot);
+  const installOpts = { protectedGlobs, managedHashes };
 
-  mergeStats(stats, await installL0(registryRoot, projectRoot, protectedGlobs));
+  try {
+    mergeStats(stats, await installL0(registryRoot, projectRoot, protectedGlobs, managedHashes));
 
-  for (const packId of manifest.packs ?? []) {
-    mergeStats(stats, await installPack(registryRoot, projectRoot, packId, { protectedGlobs }));
+    for (const packId of manifest.packs ?? []) {
+      mergeStats(stats, await installPack(registryRoot, projectRoot, packId, installOpts));
+    }
+
+    const skillIds = manifest.skills ?? [];
+    if (skillIds.length > 0) {
+      await loadRegistry(registryRoot);
+      mergeStats(stats, await installSkillsByIds(registryRoot, projectRoot, skillIds, installOpts));
+    }
+  } finally {
+    // Persist hashes for files already written even when a later step throws.
+    await saveManagedHashLedger(projectRoot, managedHashes);
   }
-
-  const skillIds = manifest.skills ?? [];
-  if (skillIds.length > 0) {
-    await loadRegistry(registryRoot);
-    mergeStats(
-      stats,
-      await installSkillsByIds(registryRoot, projectRoot, skillIds, { protectedGlobs }),
-    );
-  }
-
   return stats;
 }
 

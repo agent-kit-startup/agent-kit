@@ -234,9 +234,30 @@ export const KIT_OWNED_IGNORE_PATTERNS = [
   ".cursor/context/mission-timing.json",
 ] as const;
 
+/** Basename glob (`*` only, no `/`) -> anchored, case-insensitive RegExp. */
+function globToRegExp(glob: string): RegExp {
+  const body = glob
+    .split("*")
+    .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+    .join("[^/]*");
+  return new RegExp(`^${body}$`, "i");
+}
+
+const SECRET_FILE_MATCHERS = REQUIRED_SECRET_PATTERNS.map(globToRegExp);
+
+/** Committed env templates (`.env.example`, `.env.local.sample`, ...) hold no secrets. */
+const ENV_TEMPLATE_RE = /^\.env(?:\..+)?\.(?:example|sample|template|dist)$/i;
+
+/** True when a tracked path's basename matches a REQUIRED_SECRET_PATTERNS glob. */
+export function isTrackedSecretFile(file: string): boolean {
+  const base = file.slice(file.lastIndexOf("/") + 1);
+  if (ENV_TEMPLATE_RE.test(base)) return false;
+  return SECRET_FILE_MATCHERS.some((matcher) => matcher.test(base));
+}
+
 export async function detectSafety(
   rootDir: string,
-  trackedFiles: string[],
+  trackedFiles: string[] | undefined,
 ): Promise<SafetyDetection> {
   const gitignorePath = path.join(rootDir, ".gitignore");
   const hasGitignore = await fileExists(gitignorePath);
@@ -248,9 +269,7 @@ export async function detectSafety(
   const ignoredSecretPatterns = REQUIRED_SECRET_PATTERNS.filter((pattern) =>
     lines.includes(pattern),
   );
-  const trackedSensitiveFiles = trackedFiles.filter((file) =>
-    /(^|\/)(\.env(\..+)?|.*\.(key|pem|p12|pfx)|.*credentials.*\.json)$/i.test(file),
-  );
+  const trackedSensitiveFiles = (trackedFiles ?? []).filter(isTrackedSecretFile);
   const hookPaths = [".husky", ".git/hooks/pre-commit", "git-hooks/pre-commit"];
   const hasHooks = (
     await Promise.all(hookPaths.map((item) => fileExists(path.join(rootDir, item))))
@@ -276,6 +295,7 @@ export async function detectSafety(
       (pattern) => !ignoredSecretPatterns.includes(pattern),
     ),
     trackedSensitiveFiles,
+    ...(trackedFiles === undefined ? { trackedFilesUnknown: true } : {}),
     hasHooks,
     hasMainBranchGuard: guardContents.some(
       (content) => content.includes("main") || content.includes("master"),

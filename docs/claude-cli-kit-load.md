@@ -34,7 +34,7 @@ Use backticked paths in `CLAUDE.md`. Do **not** use Claude `@path` imports for t
 
 Cursor **Ask questions** is an IDE tool. Claude Code in the terminal does not have it.
 
-When a kit command says to Ask, Claude Code must present the **same option labels** as a numbered list, wait for a reply (number, label, or a typed Other), and treat skip/cancel as stop. CLI wizards (`agent-kit init`) stay on `@clack/prompts`. Never invent a second confirmation dialect.
+When a kit command says to Ask, Claude Code must present the **same option labels** as a numbered list, wait for a reply (number, label, or a typed Other), and treat skip/cancel as stop. Interactive CLI confirmations (`agent-kit init`) stay on `@clack/prompts`. Never invent a second confirmation dialect.
 
 `/git-prod` remains explicit operator confirmation. Kit-load must not promote to `main`.
 
@@ -48,15 +48,15 @@ These lines are part of the generated `CLAUDE.md` so a Claude session does not i
 
 - Not multi-IDE generator parity (Windsurf `.windsurfrules` / VS Code instructions). That is Action A7 in [cursor-native-audit.md](cursor-native-audit.md).
 - Not opt-in **audits** / external plan review (`docs/external-plan-review.md`, `/plan-external-review`). Session kit-load is not that backend.
-- Not a second tick dialect. `agent-kit run-plan --backend claude` is implemented since 2026-09-06 (plan `major-tom` Phase 1, fulfilling ADR `2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13`; `packages/cli/src/plan-loop/backends.ts`) and runs the same one-tick contract as `cursor-agent`; session kit-load is still not that runner. Keep this line consistent with the emitted bullet in the canonical `CLAUDE.md` block below.
-- Not a Claude copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`, CLI-owned, fail-open; sanctioned by the 2026-08-21 amendment to ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`, mechanism per ADR `2026-07-29_cli-invariants-thin-hook-adapters.md`). Other Cursor hook types (`preCompact`, shell/edit/prompt guards) stay Cursor-only; `.claude/rules/` mirrors of `.cursor/rules` and `.claude/agents/` generated from the registry stay closed. Invariants stay in the CLI; hooks and adapters both stay thin.
+- Not a second tick dialect. `agent-kit run-plan --backend claude` is implemented since 2026-09-06 (`packages/cli/src/plan-loop/backends.ts`) and runs the same one-tick contract as `cursor-agent`; session kit-load is still not that runner. Keep this line consistent with the emitted bullet in the canonical `CLAUDE.md` block below.
+- Not a Claude copy of Cursor hooks beyond two opt-in CLI-owned, fail-open adapters: SessionStart context (`agent-kit hook session-start --format claude`) and PreToolUse(Bash) guard (`agent-kit guard shell --format claude`, matcher `Bash`, deny JSON on stdout, exit 0; headless enforcement still pending the P6 smoke, so the deny rows stay as backstop). Sanctioned by the 2026-08-21 and 2026-09-27 amendments to ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`, mechanism per ADR `2026-07-29_cli-invariants-thin-hook-adapters.md`). Other Cursor hook types (`preCompact`, edit/prompt guards) stay Cursor-only; `.claude/rules/` mirrors of `.cursor/rules` and `.claude/agents/` generated from the registry stay closed. Invariants stay in the CLI; hooks and adapters both stay thin.
 
 ## Generator wiring
 
 - Emit on install/personalization **always**, same as `AGENTS.md`, not gated on `detectIde`. Claude CLI inside Cursor is the target.
 - Skip each target independently if it already exists (`skipped-customized`).
 - Register both paths on `protectedPaths`.
-- Call from `applyPersonalization` and from `generateFromProfile` (compat `init` path).
+- Call from `applyPersonalization` (install/personalization path).
 - Do not add `.claude/` to scanner `CONTEXT_PATHS`; root `CLAUDE.md` is enough for honesty.
 - Factory dogfood: commit the same two files in this repository so a Claude Code session here loads the pack without running install.
 
@@ -78,7 +78,7 @@ Mid-session refresh: `/agent-kit`.
 
 ## HITL
 
-Cursor Ask questions is not available in this CLI. When a command requires a choice, list the same labels as a numbered list and wait. Skip or cancel means stop. Never `/git-prod` without an explicit operator yes.
+Cursor "Ask questions" is unavailable here: use AskUserQuestion when possible, else print one line `HITL_GATE: <ask-id> | <label 1> | <label 2> | ...` immediately followed by the same labels as one numbered list, one list per message, and WAIT for the answer (ask-id and labels: `.cursor/skills/core/hitl-gates/SKILL.md`). A headless reply arrives as `HITL_REPLY: <ask-id> | operator reply <n> | <label>`; cite that line as the Ask provenance. Skip or cancel means stop. Never `/git-prod` without an explicit operator yes.
 
 ## Commit messages
 
@@ -86,10 +86,7 @@ Never append `Co-Authored-By: Claude ...` or `Claude-Session: https://claude.ai/
 
 ## Non-goals
 
-- Not Action A7 (Windsurf / VS Code generator parity)
-- Not Claude external plan-review audits (`/plan-external-review`)
-- Not a second tick dialect: `agent-kit run-plan --backend claude` runs the same one-tick contract as `cursor-agent` (shipped 2026-09-06, plan `major-tom` Phase 1 under ADR `2026-08-13_claude-cli-ultracode-orchestration-thin-adapter.md:13`; ADR `2026-09-04_major-tom-autonomous-mode.md`); never `/git-prod` from a headless tick
-- Not a copy of Cursor hooks beyond the opt-in SessionStart context adapter (`agent-kit hook session-start --format claude`); no `.claude/rules/` mirrors, no `.claude/agents/` generated from the registry
+Do not clone other Cursor hooks (Claude gets only the SessionStart context and PreToolUse(Bash) guard hooks); never `/git-prod` from a headless tick.
 ```
 
 ## Canonical `.claude/commands/agent-kit.md`
@@ -113,10 +110,10 @@ If HANDOFF is missing, say so and point at `/agent-kit-onboard` or `/start-proje
 
 HITL: numbered-list fallback for Ask questions labels. Never `/git-prod` from this skill.
 
-Non-goals: not audits / `/plan-external-review`, not a second tick dialect (`run-plan --backend claude` is the shipped headless tick since 2026-09-06, plan `major-tom`), not A7, not Cursor hook clones, not a continuous TUI loop.
+Non-goals: not audits / `/plan-external-review`, not a second tick dialect, not Cursor hook clones beyond the SessionStart and PreToolUse(Bash) adapters, not a continuous TUI loop.
 ```
 
-## Opt-in surfaces: command adapters and the SessionStart hook
+## Opt-in surfaces: command adapters and the SessionStart and PreToolUse hooks
 
 Everything above is always-on kit-load. Two more surfaces are **opt-in only** (`install --claude`; default install output is unchanged without the flag) — see `claude-code-consumer-adapters.plan.md` and the 2026-08-21 amendment on ADR `2026-08-13_claude-cli-kit-load-bootstrap.md` for the full decision trail.
 
@@ -131,9 +128,18 @@ Everything above is always-on kit-load. Two more surfaces are **opt-in only** (`
 
 - Generator: `packages/cli/src/generator/claude-session-start-hook.ts` (`writeClaudeSessionStartHook`).
 - Idempotent JSON merge into `.claude/settings.json`, touching only `hooks.SessionStart` — every other key and hook type in the file is preserved untouched. A marker substring in the generated command (`hook session-start --format claude`) makes the entry findable for refresh-in-place and prevents duplicates on re-run.
-- Command line: `. "${CLAUDE_PROJECT_DIR}/.cursor/hooks/agent/resolve-agent-kit.sh" 2>/dev/null && resolve_agent_kit && exec $AGENT_KIT_RESOLVED hook session-start --format claude; printf '%s' '<degraded-mode text>'` — reuses the existing L0 resolver (env override → PATH → `node_modules/.bin/agent-kit` → factory dist fallback) rather than a new `.claude/hooks/` script. `exec` on success replaces the shell process; the trailing `printf` only runs when resolution or exec itself fails, so the command's own exit status is always 0.
+- Command line: `_AGENT_KIT_HOOK_ROOT="${CLAUDE_PROJECT_DIR}"; . "${CLAUDE_PROJECT_DIR}/.cursor/hooks/agent/resolve-agent-kit.sh" 2>/dev/null && resolve_agent_kit && { if command -v run_agent_kit >/dev/null 2>&1; then run_agent_kit hook session-start --format claude; else exec $AGENT_KIT_RESOLVED hook session-start --format claude; fi; }; printf '%s' '<degraded-mode text>'` — reuses the existing L0 resolver (`AGENT_KIT_HOOK_BIN` → `node_modules/.bin/agent-kit` → `packages/cli/dist` → `PATH`) rather than a new `.claude/hooks/` script. The hook-private `_AGENT_KIT_HOOK_ROOT` pins the resolver's root to the project, since under `sh -c` its `$0` is the shell rather than the script; the resolver does not read a user's exported `AGENT_KIT_ROOT`, so that variable cannot redirect the Cursor adapters. `run_agent_kit` quotes arguments and returns non-zero instead of exec when a `packages/cli/dist` CLI resolved but `node` is not on `PATH`; the `exec $AGENT_KIT_RESOLVED` branch only runs for an older resolver without `run_agent_kit`. `exec` on success replaces the shell process; the trailing `printf` runs when resolution fails or `run_agent_kit` returns non-zero, and the command then exits 0. A failed `exec` itself (the older-resolver branch with a missing binary) exits the shell before `printf`.
 - If an existing `.claude/settings.json` cannot be parsed as JSON, nothing is written — `install` prints the hook entry as copy-paste JSON instead (never guess at repairing a file the kit cannot parse).
 - Not `.claude/settings.local.json`: that file is routinely auto-created by Claude Code itself on the first permission approval and is conventionally gitignored, so a skip-if-exists write there would silently no-op for most real users and would not ship as a team default.
+
+### PreToolUse(Bash) shell guard (`.claude/settings.json`)
+
+- Same merge as the SessionStart hook, touching `hooks.PreToolUse`: one group `{"matcher": "Bash", "hooks": [{"type": "command", "timeout": 10, ...}]}`, found by the marker `guard shell --format claude`. Your own groups are kept; re-runs are idempotent.
+- The command runs `agent-kit guard shell --format claude` through the same resolver as above. It reads `tool_input.command` and `cwd` from stdin. A blocked command prints one JSON object with `hookSpecificOutput.permissionDecision: "deny"` and a reason, exit 0; an allowed command prints nothing. The guard never answers `allow` and never uses exit 2.
+- Fail-open: if the CLI cannot be resolved, needs a missing `node`, or errors, stdout stays empty and the exit code is 0, so the tool call proceeds. The `permissions.deny` rows stay as a backstop. Headless (`claude -p`) enforcement of the hook is still unverified; do not rely on it there.
+- `agent-kit doctor` probes the hook (it expects a deny for a force push to `main`) and warns when the resolved CLI is too old or a stale build.
+- Ledger: `.cursor/agent-kit.claude-settings.json` records the deny rows and hook entries the kit has written (grow-only). Commit it. `install --claude` and `update --claude` add only rows and entries the ledger has not recorded, so a row or hook you delete stays deleted. Plain `agent-kit update` only prints what is missing and never writes settings or the ledger.
+- Symlinks: install and update refuse to read or write `.claude/settings.json`, `.claude/commands/` or the ledger through a symlink and exit 1 naming the path.
 
 ### `agent-kit hook session-start --format claude`
 

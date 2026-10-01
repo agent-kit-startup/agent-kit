@@ -12,7 +12,6 @@ File a private dogfood note from the current chat or explicit arguments into the
 ## When to Use
 
 - You hit Agent Kit friction, a bug, or a surprising behavior and want it tracked for internal analysis.
-- You want a dated record of a session pattern without turning it into a public issue or PR.
 - A memory WRITE is not yet warranted; the note is raw material for later triage.
 
 ## Usage
@@ -42,6 +41,10 @@ Without arguments, summarize the current chat turn into the topic and body.
 3. **Session origin ≠ product use case.** The note describes an Agent Kit system pattern, not a specific consumer's business process. See `2026-07-17_session-origin-not-product-usecase.md`.
 4. **No public issue or PR without explicit HITL.** If the operator wants a public issue, use `/dogfood` → local save first, then offer a separate `/contribute` or `gh issue create` step after the hygiene strip is verified.
 5. **No Field Report cards.** Routine dogfood filing does not create or update Field Report cadence.
+
+## Headless CLI
+
+`agent-kit dogfood add "<topic>" --summary ...` runs Steps 1-3 (flags `needs-anonymization`). `agent-kit dogfood file-issue --visibility private|public --title ... --body ...` adds the `[Dogfood]` marker: private = own origin (GitLab confidential); public = factory-only, needs `--approve-public` (Step 5 Ask) and a clean strip. JSON, no PRs.
 
 ## What to Do
 
@@ -132,7 +135,7 @@ If the operator chooses `Keep local only`, stop. The local file is the record.
 
 ### Step 6: Respond
 
-> Dogfood filed: `dogfood/cursor_<topic>_<date>.md` (factory) or `.cursor/dogfood/cursor_<topic>_<date>.md` (consumer). This command stays file-only. Analysis is offered from `/continue-plan`, `/run-plan`, `/run-plan-all`, or `/backlog-add` preflight Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`), not from `/dogfood`. Notes become plans/memory after HITL, never `plan-monitor-*.md`.
+> Dogfood filed: `dogfood/cursor_<topic>_<date>.md` (factory) or `.cursor/dogfood/cursor_<topic>_<date>.md` (consumer). This command stays file-only. Analysis is offered from `/continue-plan`, `/run-plan`, `/run-plan-all`, or `/backlog-add` preflight Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`), not from `/dogfood`.
 
 ## Related
 
@@ -141,5 +144,4 @@ If the operator chooses `Keep local only`, stop. The local file is the record.
 - `.cursor/memory/decisions/2026-07-31_dogfood-ingest-contract.md` — ingest contract
 - `.cursor/memory/decisions/2026-08-14_main-command-dogfood-audit-routing.md` — main-command daily path; this slash stays file-only
 - `.cursor/memory/decisions/2026-07-17_session-origin-not-product-usecase.md` — hygiene
-- Cursor product-update gaps may route here via `/cursor-update-awareness` (Ask → `/dogfood`)
 - Incoming **public** issue triage (factory-only) is `/public-issue-triage`, not this command

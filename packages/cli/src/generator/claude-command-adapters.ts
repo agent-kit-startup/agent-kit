@@ -31,6 +31,7 @@ import {
   saveManagedHashLedger,
   shouldPreserveCustomizedOverlay,
 } from "../lifecycle/overlay.js";
+import { isRealWriteTargetContained, resolveContained } from "../lifecycle/paths.js";
 import { ensureDir, fileExists } from "../utils/fs.js";
 
 export const CURSOR_COMMANDS_DIR_REL = ".cursor/commands";
@@ -48,7 +49,8 @@ export type ClaudeCommandAdapterStatus =
   | "applied"
   | "unchanged"
   | "refreshed"
-  | "preserved-customized";
+  | "preserved-customized"
+  | "skipped-symlink";
 
 export interface ClaudeCommandAdapterResult {
   relativePath: string;
@@ -67,15 +69,38 @@ export function parseCommandFrontmatter(name: string, raw: string): SourceComman
   return { name, description };
 }
 
+/** Numbered-list HITL fallback shared by every Claude Code adapter and the kit-load CLAUDE.md. */
+export const CLAUDE_HITL_FALLBACK = `Cursor "Ask questions" is unavailable here: use AskUserQuestion when possible, else print one line \`HITL_GATE: <ask-id> | <label 1> | <label 2> | ...\` immediately followed by the same labels as one numbered list, one list per message, and WAIT for the answer (ask-id and labels: \`.cursor/skills/core/hitl-gates/SKILL.md\`). A headless reply arrives as \`HITL_REPLY: <ask-id> | operator reply <n> | <label>\`; cite that line as the Ask provenance.`;
+
+/**
+ * Production promote, destructive, and multi-plan commands: rendered with
+ * `disable-model-invocation: true` so Claude Code never runs them on its own
+ * through the Skill tool; the operator still types the slash to run one.
+ * git-staging / kit-staging stay model-invocable: the headless tick contract
+ * (plan-loop/run-loop.ts TICK_PROMPT) has the agent run /git-staging itself.
+ */
+export const MODEL_INVOCATION_DISABLED = new Set([
+  "git-prod",
+  "kit-prod",
+  "backlog-delete",
+  "backlog-cancel",
+  "archive-plan",
+  "hotfix",
+  "run-plan-all",
+]);
+
 export function renderClaudeCommandAdapter(command: SourceCommand): string {
+  const invocation = MODEL_INVOCATION_DISABLED.has(command.name)
+    ? "disable-model-invocation: true\n"
+    : "";
   return `---
 description: ${command.description}
----
+${invocation}---
 
 Read \`.cursor/commands/${command.name}.md\` now and follow that contract exactly — it is the source of truth for /${command.name}; this file is only a thin adapter for Claude Code.
 
 Adapter rules (Claude Code CLI):
-- Cursor "Ask questions" is unavailable here: use AskUserQuestion when possible, else print one line \`HITL_GATE: <ask-id> | <label 1> | <label 2> | ...\` immediately followed by the same labels as one numbered list, one list per message, and WAIT for the answer (ask-id and labels: \`.cursor/skills/core/hitl-gates/SKILL.md\`). A headless reply arrives as \`HITL_REPLY: <ask-id> | operator reply <n> | <label>\`; cite that line as the Ask provenance.
+- ${CLAUDE_HITL_FALLBACK}
 - Skip or cancel means stop.
 - Never \`/git-prod\` without an explicit operator yes.
 - Do not clone Cursor hooks or invent behavior beyond the SoT file.
@@ -130,7 +155,13 @@ export async function generateClaudeCommandAdapters(
   for (const command of commands) {
     const relPath = path.posix.join(CLAUDE_COMMANDS_DIR_REL, `${command.name}.md`);
     const rendered = renderClaudeCommandAdapter(command);
-    const abs = path.join(rootDir, relPath);
+    const abs = resolveContained(rootDir, relPath);
+
+    // Never read or write through a symlinked adapter file or .claude/ dirs.
+    if (!(await isRealWriteTargetContained(rootDir, abs))) {
+      results.push({ relativePath: relPath, status: "skipped-symlink" });
+      continue;
+    }
 
     if (!(await fileExists(abs))) {
       await ensureDir(path.dirname(abs));

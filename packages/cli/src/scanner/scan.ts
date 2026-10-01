@@ -36,7 +36,8 @@ export async function runScanner(rootDir: string): Promise<ScanResult> {
     detectAgentKit(normalizedRoot),
     listTrackedFiles(normalizedRoot),
   ]);
-  const safety = await detectSafety(normalizedRoot, trackedFiles);
+  // Outside a work tree nothing is tracked; inside one, a failed ls-files stays unknown.
+  const safety = await detectSafety(normalizedRoot, git.mode === "none" ? [] : trackedFiles);
 
   const isGreenfield = isGreenfieldByEntries(entries) && purpose.value === "unknown";
 

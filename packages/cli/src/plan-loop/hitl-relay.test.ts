@@ -252,8 +252,8 @@ describe("TurnWatcher", () => {
     watcher.feed(Buffer.from(stream.slice(half)));
     watcher.end();
     expect(seen).toEqual([
-      { resultText: "r1", assistantTexts: ["one"], isError: false, subtype: null },
-      { resultText: "r2", assistantTexts: ["two"], isError: false, subtype: null },
+      { resultText: "r1", assistantTexts: ["one"], isError: false, subtype: null, errors: [] },
+      { resultText: "r2", assistantTexts: ["two"], isError: false, subtype: null, errors: [] },
     ]);
   });
 });
@@ -466,7 +466,11 @@ describe("claude relay with the fake claude (stream-json stdin transport)", () =
     async (mode) => {
       const { result, asked, log } = await run({ mode, answers: [line("1")] });
       expect(asked).toEqual([]);
-      expect(result).toEqual({ exitCode: 0, hitl: { replies: [], fallbackDetections: 0 } });
+      expect(result).toEqual({
+        exitCode: 0,
+        hitl: { replies: [], fallbackDetections: 0 },
+        lastResult: expect.objectContaining({ isError: false, subtype: "success", errors: [] }),
+      });
       expect(log).toContain('"type":"result"');
     },
   );
@@ -532,6 +536,17 @@ describe("cursor-agent has no relay", () => {
       spawnFn: fakeSpawn(FAKE_CURSOR),
       hitl: { isTTY: true, readAnswer: async () => line("1"), write: () => {} },
     });
-    expect(result).toEqual({ exitCode: 0, hitl: { replies: [], fallbackDetections: 0 } });
+    // The watched result rides along so the loop skips re-parsing the log.
+    expect(result).toEqual({
+      exitCode: 0,
+      hitl: { replies: [], fallbackDetections: 0 },
+      lastResult: {
+        resultText: "Done.\n\nLOOP_TICK_RESULT: continue",
+        assistantTexts: ["Done.\n\nLOOP_TICK_RESULT: continue"],
+        isError: false,
+        subtype: "success",
+        errors: [],
+      },
+    });
   });
 });

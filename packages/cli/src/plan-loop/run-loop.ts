@@ -10,14 +10,10 @@ import {
   isPlanExhaustedReason,
   shouldArmExternalPlanReview,
 } from "./external-review.js";
-import { formatHitlSummary } from "./hitl-relay.js";
+import { type TurnResult, formatHitlSummary } from "./hitl-relay.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
-import { countPendingTodos, findActivePlanFile, readPlan } from "./plan-state.js";
-import {
-  formatSentinelLine,
-  parseSentinelFromLogFile,
-  parseTickResultStatusFromLogFile,
-} from "./sentinel.js";
+import { countPendingTodos, readPlan, resolveActivePlanPath } from "./plan-state.js";
+import { formatSentinelLine, resolveTickResultStatus, resolveTickSentinel } from "./sentinel.js";
 
 export const TICK_PROMPT =
   '/run-plan - single tick from the headless runner (agent-kit run-plan). Read .cursor/HANDOFF.md and the active plan in .cursor/plans/. Mark the next to-do as in_progress in the frontmatter, execute ONLY that to-do, mark completed and update HANDOFF. If there is a commitable diff: run /git-staging without asking for confirmation. NEVER /git-prod. Do NOT re-arm an internal Loop skill - the external runner starts the next agent. End the response with exactly one line: "LOOP_TICK_RESULT: continue" if implementable to-dos remain, or "LOOP_TICK_RESULT: stop - <reason>" (plan exhausted, external blocker, or human decision needed).';
@@ -91,11 +87,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
-  const plansDir = path.join(opts.root, ".cursor", "plans");
   const stopFile = path.join(opts.root, ".cursor", "loop.stop");
   const logDir = path.join(opts.root, ".cursor", "loop-logs");
 
-  const planPath = await findActivePlanFile(plansDir);
+  const planPath = await resolveActivePlanPath(opts.root);
   if (!planPath) {
     logger.error("No active plan in .cursor/plans/");
     return 1;
@@ -183,6 +178,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
 
       let agentExit = 0;
       let hitlStop: { message: string; exitCode: number } | undefined;
+      let lastResult: TurnResult | undefined;
       try {
         const result = await runTickWithSpinner(
           `tick ${tick}`,
@@ -199,6 +195,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         agentExit = result.exitCode;
         for (const line of formatHitlSummary(result.hitl)) console.log(line);
         hitlStop = result.hitl?.stop;
+        lastResult = result.lastResult;
       } catch (err) {
         logger.error(String(err));
         return 1;
@@ -236,7 +233,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       // max-turns) whether the CLI exited 0 or not; without it the tick would
       // stop as "no sentinel" or "exited with code N" and the cause would sit
       // only in the log. The log is already redacted, so quoting it is safe.
-      const status = await parseTickResultStatusFromLogFile(logPath);
+      // The relay's watched result is the same text; the file is the fallback.
+      const status = await resolveTickResultStatus(lastResult, logPath);
       if (status?.isError) {
         const detail = status.errors[0] ? `: ${status.errors[0].split("\n")[0]}` : "";
         const msg = `${opts.backend.id} tick failed (${status.subtype ?? "is_error"}${detail}) - stopping. See log: ${relLog}`;
@@ -260,7 +258,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         break;
       }
 
-      const sentinel = await parseSentinelFromLogFile(logPath);
+      const sentinel = await resolveTickSentinel(lastResult, logPath);
       const after = await pending();
 
       if (banners) {

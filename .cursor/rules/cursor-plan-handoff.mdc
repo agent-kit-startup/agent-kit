@@ -7,78 +7,39 @@ alwaysApply: true
 
 When working from a **plan** (file in `.cursor/plans/`, or a reference to a plan with to-dos):
 
-0. **Plan first:** if there is no plan with to-dos, create/update one via plan-routine or `/start-project` before implementing. During execution, keep the to-dos' `status` up to date (`pending` -> `in_progress` -> `completed`) so the human can follow along in the panel.
+0. **Plan first:** no plan with to-dos -> create/update one via plan-routine or `/start-project` before implementing. Keep to-do `status` current (`pending` -> `in_progress` -> `completed`) for the panel.
 
-0b. **Manual mode hard stop (default):** same as session hard rule 1-2 (one phase per chat; never burn the window in one conversation without `/run-plan` or its deprecated aliases `/run-plan-loop` / `/run-plan-orchestrated`).
+0b. **Manual mode hard stop (default):** session hard rules 1-2 (one phase per chat; never burn the window without `/run-plan` or its deprecated aliases).
 
-0c. **`/start-project` two gates (HITL):** same as session hard rule 7 (Broad Intake Review before Gate A's single composite question; Gate B after an explicit second yes). Two effects hard rule 7 does not spell out: `Add to backlog` (a Gate B option) lists under Backlog plans with Mode STOPPED; `Stop here` leaves the plan active without starting the unit. Gates use Ask questions per `.cursor/skills/core/hitl-gates/SKILL.md` and `.cursor/rules/hitl-ask-questions.mdc`.
+0c. **`/start-project` two gates (HITL):** same as session hard rule 7; Gate B option effects (`Add to backlog` vs `Stop here`) live in `.cursor/skills/core/hitl-gates/start-project-intake.md`. Gates use Ask questions per `.cursor/skills/core/hitl-gates/SKILL.md` and `.cursor/rules/hitl-ask-questions.mdc`.
 
 0d. **Backlog CRUD (enqueue without activation):** same as session hard rule 10. Distinct from `/archive-plan` (parked-list only). Ask questions on every mutate; chat numbered-list fallback.
 
-1. **Execute to-dos by phase** following the plan's "Phases and to-dos by context" section (when it exists). Respect the order Phase 0 -> 1 -> 2 -> 3 -> 4 -> 5.
+1. **Execute to-dos by phase** following the plan's "Phases and to-dos by context" section (when it exists), in order Phase 0 -> 5.
 
-2. **At the end of each phase:** create or update `.cursor/HANDOFF.md` with:
-   - Plan name (file)
-   - Last updated (timestamp)
-   - Phase completed (0 to 5)
-   - Completed to-dos (ids)
-   - Next phase
-   - Next to-dos (ids)
-   - Instruction for the next agent (1-3 sentences)
+2. **At the end of each phase:** create or update `.cursor/HANDOFF.md` (fields per the template below).
    - **Manual mode:** if the phase produced commitable code, **suggest** `/git-staging` (do not run without being asked). Production only via `/git-prod`.
- - **Continuous mode** (`/run-plan`): run `/git-staging` at the end of the tick if there is a diff; update to-do status in the plan every tick; **never** `/git-prod`. In the orchestrated strategy the main window does not implement: it dispatches a Task/worker, reviews the summary, writes the HANDOFF, and stages. No Task: in-session loop strategy.
- - **Queue mode** (`/run-plan-all`): one release per completed plan when Ship auth is `per-plan-release`. `Run plans only` does not promote. A red public sync stops the queue.
+   - **Continuous mode** (`/run-plan`): run `/git-staging` at the end of the tick if there is a diff; update to-do status in the plan every tick; **never** `/git-prod`. Orchestrated: the main window does not implement (dispatch a Task/worker, review, write HANDOFF, stage). No Task: in-session loop.
+   - **Queue mode** (`/run-plan-all`): one release per completed plan when Ship auth is `per-plan-release`. `Run plans only` does not promote. A red public sync stops the queue.
 
-3. **If context is getting full** before the phase is done (manual mode):
-   - Update `.cursor/HANDOFF.md` with the current state (phase, last completed to-do, next to-do, clear instruction).
-   - **Trigger the handoff flow:** tell the user to **open a new conversation** (fresh agent, fresh context) and say something like: *"Continue the plan"* or *"Read .cursor/HANDOFF.md and resume from the next to-do"*.
-   - Suggested message: *"Context is close to the limit. HANDOFF.md updated. Open a **new conversation** and say: 'Continue the plan' or '@.cursor/HANDOFF.md resume from the next to-do'. The next agent will have a fresh context and should read HANDOFF.md first."*
-   - In **continuous loop** mode, prefer HANDOFF + stop/reschedule per the command; if the window is critical, stop the loop and ask for a new conversation.
+3. **If context is getting full** (manual mode): HANDOFF + new conversation per `context-guardian` (Running a Handoff). In **continuous loop** mode, prefer HANDOFF + stop/reschedule per the command; if the window is critical, stop the loop and ask for a new conversation.
 
-4. **In a new conversation** (fresh agent, fresh context), if the user says *"continue the plan"* or opens the plan: **read `.cursor/HANDOFF.md` first** and resume from the indicated next phase/to-do. Do not start over.
+4. **New conversation** ("continue the plan" or plan opened): **read `.cursor/HANDOFF.md` first**, resume at the indicated next phase/to-do. Do not start over.
 
-5. **Plans always have to-dos:** when creating plans in planner mode, **always include to-dos** in the frontmatter (template: `.cursor/context/templates/plan.md`). If a plan without to-dos is detected, flag it: "Heads up, this plan has no to-dos. Want me to create some based on the sections?"
+5. **Plans always have to-dos** in the frontmatter (`.cursor/context/templates/plan.md`). None? Flag it: "Heads up, this plan has no to-dos. Want me to create some based on the sections?"
 
-6. **Context budget (optional per to-do):** `read_scope` (globs), `worker_contract` (return format), `max_ticks` (limit before a forced HANDOFF). Documented in `autogit/plan-routine.md`. In orchestrated mode, pass it to the worker; if `max_ticks` is exceeded, HANDOFF + new conversation.
-
-7. **Execution modes:** see `autogit/plan-routine.md` - manual (`/continue-plan`) or continuous (`/run-plan`, strategy auto-selected).
+6. **Context budget (optional per to-do)** and **execution modes** (manual `/continue-plan`, continuous `/run-plan`): `read_scope`, `worker_contract`, `max_ticks` in `autogit/plan-routine.md`. In orchestrated mode pass them to the worker; over `max_ticks`, HANDOFF + new conversation.
 
 ## HANDOFF.md template
 
-Mission Control parses **machine fields** as bullets, not headings; same as session hard rule 11 for the exact field list and canonical `- **Plan:**` format. Prefer backticked `*.plan.md` basenames.
+**SoT:** `.cursor/context/templates/handoff.md` (provenance, Gaps voice, Mode vocabulary incl. the quota stop per `context-guardian`, queue fields, growth contract).
 
-```markdown
-# Handoff - [Plan name]
+Mission Control parses **machine fields** as `- **Field:**` bullets, never `##` headings (hard rule 11): Plan (backticked `*.plan.md` or `none`), Last updated, Mode, Phase completed, Completed to-dos, Next phase, Next to-dos, Gaps, Instruction for the next agent (1-3 sentences), Backlog plans, Parked plans.
 
-- **Plan:** `plan-file-name.plan.md`
-- **Last updated:** [YYYY-MM-DD HH:MM]
-- **Mode:** [manual | run-plan (orchestrated) | run-plan (in-session loop) | run-plan-all]
-- **Phase completed:** [0 to 5]
-- **Completed to-dos:** [list of ids]
-- **Next phase:** [N]
-- **Next to-dos:** [ids]
-- **Gaps:** [none | open residuals, blockers, or stop reasons]
-- **Instruction for the next agent:** [1-3 sentences]
-- **Backlog plans:**
-  - `other-plan.plan.md`
-- **Parked plans:** none
-```
+**Gaps:** short operator residuals, no monitor paths or `/git-prod` boilerplate; exact `none` when only audit/queue plumbing changed.
 
-**Gaps voice:** `- **Gaps:**` is short operator residuals for Flight Log (NOW / Earlier), not mid-batch monitor paths, cadence WARNING ids, or `/git-prod` boilerplate. Prefer exact `none` when only audit/queue plumbing changed. Do not write `none. Residuals…` as Gaps body when the intent is OK (put pointers in Instruction). Say/avoid examples: `.cursor/context/templates/handoff.md` and ADR `2026-07-27_mc-flight-log-panel.md`.
-
-**Mode on API/usage limit hard stop:** set `- **Mode:**` to the prior run mode plus `— STOPPED: API/usage limit` (example: `run-plan (orchestrated) — STOPPED: API/usage limit`). Mission Control matches `STOPPED` in Mode. Mirror the stop reason in `- **Gaps:**` and `- **Instruction for the next agent:**` (recovery: named model switch and/or wait; resume via `/continue-plan` or `/run-plan` after confirm).
-
-For `/run-plan-all`, keep queue fields as bullets too (`- **Run queue:**`, `- **Queue cursor:**`, `- **Queue status:**`, `- **Queue outcomes:**`). See `.cursor/context/templates/handoff.md`.
-
-The `.cursor/HANDOFF.md` file can be added to `.gitignore` if you do not want to version it.
-
-**Growth contract:** keep the file at or under 200 lines, no line over 2,000 chars (bytes/lines/longest-line only, never a token count). Machine fields always survive a prune, wherever they sit. Over the limit: `agent-kit handoff --prune [--keep N]` (default `N=5`) archives older narrative entries to `.cursor/context/archive/`; `agent-kit validate handoff` warns when either limit is crossed. ADR `decisions/2026-09-20_contract-read-budget-and-laziness.md`.
+**Growth contract:** <= 200 lines, no line over 2,000 chars; machine fields survive a prune. Over: `agent-kit handoff --prune [--keep N]`; `agent-kit validate handoff` warns. `.cursor/HANDOFF.md` may be gitignored.
 
 ## Context Memory System
 
-For long or multi-phase tasks, use the **Context Memory System**:
-- **Context Pack:** `.cursor/context/current/[task-id].md` - state, decisions, constraints, checklists.
-- **Templates:** `.cursor/context/templates/` - plan.md, context-pack.md, task-brief.md, handoff.md, adr.md.
-- **CLI:** `./cursor-handoff new|update|status|handoff|archive|resume` - creates/updates the Context Pack and HANDOFF.md.
-- **Archive:** when a task is done, `cursor-handoff archive` moves the Context Pack to `.cursor/context/archive/YYYY-MM/`.
-- In a new conversation: read `.cursor/HANDOFF.md` and, if it exists, the Context Pack in `current/` or `archive/` to resume.
+Context Pack `.cursor/context/current/[task-id].md`; CLI `./cursor-handoff new|update|status|handoff|archive|resume` (archive -> `.cursor/context/archive/YYYY-MM/`). On resume, read HANDOFF, then the Context Pack if present.

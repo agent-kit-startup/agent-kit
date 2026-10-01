@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildManifest } from "../lifecycle/apply.js";
 import { loadRegistry } from "../registry/client.js";
+import { loadPackManifest, packMemberTargets } from "../registry/install.js";
 import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
 import type { RepositoryProfile } from "../types.js";
 import { fileExists } from "../utils/fs.js";
@@ -130,6 +131,90 @@ describe("repository personalization", () => {
     expect(await fileExists(path.join(root, ".cursor/context/personalization.json"))).toBe(true);
   });
 
+  it("does not protect freshly installed skills or pack targets", async () => {
+    const { root, profile, report } = await preparedNodeRepository();
+    const registry = await loadRegistry(REPOSITORY_ROOT);
+
+    const applied = await applyPersonalization({
+      rootDir: root,
+      registryRoot: REPOSITORY_ROOT,
+      profile,
+      report,
+      registry,
+      manifest: buildManifest({ version: "4.4.7" }),
+      generatorVersion: "4.4.7",
+    });
+
+    expect(applied.manifest.skills).toContain("cursor-skills-node");
+    expect(applied.manifest.packs).toContain("quality");
+    const quality = applied.result.items.find((item) => item.kind === "pack");
+    expect(quality?.status).toBe("applied");
+    const packTargets = (await loadPackManifest(REPOSITORY_ROOT, "quality")).members.map(
+      (member) => packMemberTargets(member).targetRel,
+    );
+    expect(packTargets.length).toBeGreaterThan(0);
+    const protectedPaths = applied.manifest.protected ?? [];
+    expect(protectedPaths.filter((p) => p.startsWith(".cursor/skills/"))).toEqual([]);
+    expect(protectedPaths.filter((p) => packTargets.includes(p))).toEqual([]);
+  });
+
+  it("detects an edited skill companion of a pack member as customized", async () => {
+    const { root, profile, report } = await preparedNodeRepository();
+    // Fixture registry: the planned `quality` pack ships one skill whose
+    // directory carries a companion file next to SKILL.md.
+    const registryRoot = await mkdtemp(path.join(os.tmpdir(), "agent-kit-personalization-reg-"));
+    const skillDir = path.join(registryRoot, "registry/skills/community/demo");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "# Demo\n\n[checklist](checklist.md)\n");
+    await writeFile(path.join(skillDir, "checklist.md"), "# Registry checklist\n");
+    const packDir = path.join(registryRoot, "registry/packs/quality");
+    await mkdir(packDir, { recursive: true });
+    await writeFile(
+      path.join(packDir, "pack.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "quality",
+        title: "Quality",
+        description: "Fixture pack.",
+        version: "0.1.0",
+        members: [{ kind: "skill", id: "demo", source: "registry/skills/community/demo" }],
+      }),
+    );
+    const registry = {
+      skills: { core: [], community: [] },
+      packs: [
+        {
+          id: "quality",
+          title: "Quality",
+          description: "Fixture pack.",
+          version: "0.1.0",
+          path: "registry/packs/quality",
+        },
+      ],
+    } as unknown as Awaited<ReturnType<typeof loadRegistry>>;
+    await writeFile(path.join(registryRoot, "registry/registry.json"), JSON.stringify(registry));
+
+    const companion = ".cursor/skills/community/demo/checklist.md";
+    await mkdir(path.join(root, path.dirname(companion)), { recursive: true });
+    await writeFile(path.join(root, companion), "# Edited locally\n");
+
+    const applied = await applyPersonalization({
+      rootDir: root,
+      registryRoot,
+      profile,
+      report,
+      registry,
+      manifest: buildManifest({ version: "4.4.7" }),
+      generatorVersion: "4.4.7",
+    });
+
+    const quality = applied.result.items.find((item) => item.kind === "pack");
+    expect(quality?.status).toBe("skipped-customized");
+    expect(applied.manifest.protected).toContain(companion);
+    expect(applied.manifest.protected).not.toContain(".cursor/skills/community/demo/SKILL.md");
+    expect(await readFile(path.join(root, companion), "utf8")).toBe("# Edited locally\n");
+  });
+
   it("does not generate .claude/commands/*.md adapters by default (opt-in only, byte-identical L0)", async () => {
     const { root, profile, report } = await preparedNodeRepository();
     const registry = await loadRegistry(REPOSITORY_ROOT);
@@ -196,6 +281,12 @@ describe("repository personalization", () => {
       "hook session-start --format claude",
     );
     expect(applied.result.claudeSessionStartInstructions).toBeUndefined();
+    const preToolUse = settings.hooks.PreToolUse as Array<{
+      matcher?: string;
+      hooks: Array<{ command: string }>;
+    }>;
+    const guardGroup = preToolUse.find((g) => g.matcher === "Bash");
+    expect(guardGroup?.hooks[0]?.command).toContain("guard shell --format claude");
   });
 
   it("omits unverified provider and legacy version claims", async () => {

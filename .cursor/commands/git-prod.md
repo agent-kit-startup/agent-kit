@@ -38,7 +38,7 @@ Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This 
    **On `Open staging→main PR instead`:** While on local `main`, `git reset --hard origin/main`, then `gh pr create --base main --head staging`. Prefer a merge commit. Wait for the operator to merge the PR.
    **On `Cancel`:** Stop. Do not tag, push, or open a PR.
 
-   **Other lanes:** Push with the authorized inline form `ALLOW_MAIN_PUSH=1 git push origin main`, then continue with the annotated tag. Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination.
+   **Other lanes:** Push with the authorized inline form `ALLOW_MAIN_PUSH=1 git push origin main`, then continue with the annotated tag. Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Keep it on one line (the guard denies an env prefix split off with a `\` continuation). Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination.
 
    Details: `autogit/gitupdate.md` Prompt git prod step 9.
 8. **Sync staging (mandatory):** immediately after `main` is pushed, if `git merge-base --is-ancestor origin/staging origin/main`, fast-forward staging with `git merge --ff-only origin/main` and push. Do not open a merge PR that only records `origin/main` as ancestor. If staging is not an ancestor, stop and report; do not back-merge in this prod session. Details: `autogit/gitupdate.md` step 10.

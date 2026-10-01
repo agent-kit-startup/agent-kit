@@ -79,3 +79,34 @@ describe("planContribute path mapping", () => {
     ).toBe("registry/skills/community/legacy/SKILL.md");
   });
 });
+
+describe("planContribute extra path normalization", () => {
+  async function plan(extra: string) {
+    const registryRoot = await fixtureRegistry();
+    const project = await mkdtemp(path.join(tmpdir(), "agent-kit-contribute-project-"));
+    await writeFile(path.join(project, ".env"), "X=1\n");
+    return planContribute({
+      registryRoot,
+      projectRoot: project,
+      manifest,
+      extraPaths: [extra],
+      includeDrift: false,
+    });
+  }
+
+  it("blocks a traversal that normalizes onto .env", async () => {
+    const result = await plan(".cursor/rules/../../.env");
+    expect(result.accepted).toEqual([]);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]?.projectPath).toBe(".env");
+    expect(result.candidates[0]?.issues.map((i) => i.code)).toContain("path-blocked");
+  });
+
+  it("rejects paths that escape the project root", async () => {
+    for (const extra of ["../a", "..", "/etc/passwd"]) {
+      const result = await plan(extra);
+      expect(result.accepted).toEqual([]);
+      expect(result.candidates[0]?.issues.map((i) => i.code)).toContain("path-blocked");
+    }
+  });
+});

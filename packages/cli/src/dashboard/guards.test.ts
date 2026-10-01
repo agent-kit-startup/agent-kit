@@ -10,6 +10,7 @@ import {
   allowlistConfig,
   applyCorsHeaders,
   escapePerlDoubleQuoted,
+  isAllowedHostHeader,
   isAllowedOrigin,
   isLoopbackAddress,
   isSafeRepoRelativePath,
@@ -575,6 +576,51 @@ describe("isAllowedOrigin", () => {
     expect(isAllowedOrigin("http://localhost:4444", port)).toBe(false);
     expect(isAllowedOrigin("http://evil.example:3333", port)).toBe(false);
     expect(isAllowedOrigin("", port)).toBe(false);
+  });
+});
+
+describe("isAllowedHostHeader", () => {
+  const port = 3333;
+
+  it("allows loopback literals on the configured port", () => {
+    expect(isAllowedHostHeader("localhost:3333", port)).toBe(true);
+    expect(isAllowedHostHeader("127.0.0.1:3333", port)).toBe(true);
+    expect(isAllowedHostHeader("[::1]:3333", port)).toBe(true);
+    expect(isAllowedHostHeader("LOCALHOST:3333", port)).toBe(true);
+  });
+
+  it("rejects rebinding hostnames, wrong ports and malformed values", () => {
+    expect(isAllowedHostHeader("evil.example:3333", port)).toBe(false);
+    expect(isAllowedHostHeader("localhost.evil.example:3333", port)).toBe(false);
+    expect(isAllowedHostHeader("localhost:4444", port)).toBe(false);
+    expect(isAllowedHostHeader("localhost", port)).toBe(false);
+    expect(isAllowedHostHeader("user@localhost:3333", port)).toBe(false);
+    expect(isAllowedHostHeader("", port)).toBe(false);
+    expect(isAllowedHostHeader(undefined, port)).toBe(false);
+  });
+
+  it("accepts LAN IPv4 only in broadcast mode", () => {
+    const lanAddresses = ["192.168.1.20"];
+    expect(isAllowedHostHeader("192.168.1.20:3333", port, { lanAddresses })).toBe(false);
+    expect(isAllowedHostHeader("192.168.1.20:3333", port, { broadcast: true, lanAddresses })).toBe(
+      true,
+    );
+    expect(isAllowedHostHeader("192.168.1.99:3333", port, { broadcast: true, lanAddresses })).toBe(
+      false,
+    );
+    expect(isAllowedHostHeader("192.168.1.20:4444", port, { broadcast: true, lanAddresses })).toBe(
+      false,
+    );
+    expect(isAllowedHostHeader("evil.example:3333", port, { broadcast: true, lanAddresses })).toBe(
+      false,
+    );
+    expect(
+      isAllowedHostHeader("10.0.0.5:3333", port, {
+        broadcast: true,
+        lanAddresses,
+        bindHost: "10.0.0.5",
+      }),
+    ).toBe(true);
   });
 });
 

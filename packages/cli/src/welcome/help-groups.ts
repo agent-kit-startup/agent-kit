@@ -42,6 +42,8 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
       "hook",
       "cursor-awareness",
       "public-inbound-radar",
+      "remote-issues",
+      "dogfood",
       "diff",
       "contribute",
     ],

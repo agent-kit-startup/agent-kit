@@ -14,6 +14,7 @@ const mockSyncFromManifest = vi.hoisted(() =>
     missing: [],
     unchanged: [".cursor/rules/ux-tone.mdc"],
     preservedCustomized: [],
+    skippedSymlink: [],
   })),
 );
 
@@ -85,6 +86,46 @@ describe("updateCommand", () => {
     // ADR factory-pseudo-consumer decision 4: no version change must keep the
     // original installedAt value, not a fresh timestamp.
     expect(saved.installedAt).toBe("2026-07-30T00:00:00.000Z");
+  }, 15_000);
+
+  it("keeps unknown top-level fields a newer CLI wrote through the update save", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-update-extras-"));
+    await mkdir(path.join(root, ".cursor"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "agent-kit.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        version: KIT_VERSION,
+        futureField: { x: 1 },
+        installedAt: "2026-07-30T00:00:00.000Z",
+      }),
+      "utf8",
+    );
+
+    await (
+      updateCommand.run as unknown as (ctx: { args: Record<string, unknown> }) => Promise<void>
+    )({
+      args: {
+        _: [],
+        cwd: root,
+        check: false,
+        json: false,
+        "respect-prefs": false,
+        stamp: false,
+        "seed-overlay": false,
+        registry: undefined as unknown as string,
+        url: undefined as unknown as string,
+        ref: undefined as unknown as string,
+        refresh: false,
+      },
+    });
+
+    const saved = JSON.parse(await readFile(path.join(root, ".cursor", "agent-kit.json"), "utf8"));
+    expect(saved.futureField).toEqual({ x: 1 });
+    expect(saved.unknownFields).toBeUndefined();
+    expect(saved.version).toBe(KIT_VERSION);
+    // Extras are written after the known fields.
+    expect(Object.keys(saved).at(-1)).toBe("futureField");
   }, 15_000);
 
   it("restamps personalization.generatorVersion with the applying CLI version", async () => {

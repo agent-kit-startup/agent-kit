@@ -84,6 +84,19 @@ describe("detectGit workflow", () => {
     expect(result.workflow).toBe("homolog-prod");
   }, 15_000);
 
+  it("does not treat origin/feature/staging as a remote staging branch", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-detect-git-nested-staging-"));
+    await writeFile(path.join(root, "README.md"), "# Repository\n");
+    await initializeGit(root);
+    await git(root, "remote", "add", "origin", "git@git.example.test:team/repo.git");
+    await git(root, "update-ref", "refs/remotes/origin/feature/staging", "HEAD");
+
+    const result = await detectGit(root);
+
+    expect(result.hasRemoteStaging).toBe(false);
+    expect(result.workflow).toBe("feature-pr");
+  }, 15_000);
+
   it("reports feature-pr on main when there is no staging branch anywhere", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-detect-git-no-staging-"));
     await writeFile(path.join(root, "README.md"), "# Repository\n");

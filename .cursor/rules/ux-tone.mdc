@@ -14,7 +14,7 @@ alwaysApply: true
 - **Avoid:** "dear user", "as previously mentioned", "we would like to inform you".
 - **Use:** "let's go", "nice", "done!", "next step:", "tip:", "heads up:".
 - **Emojis:** only when they add something (checkmarks, warnings). No overuse.
-- **No em dash ("-") as a sentence connector:** applies to chat too. Use a hyphen, colon, comma, or parentheses. Only keep it in a required literal quote. See the `clean-code` skill (pattern 6).
+- **No em dash ("—") as a sentence connector:** applies to chat too. Use a hyphen, colon, comma, or parentheses. Only keep it in a required literal quote. See the `clean-code` skill (pattern 6).
 
 ## Short, Actionable Instructions
 

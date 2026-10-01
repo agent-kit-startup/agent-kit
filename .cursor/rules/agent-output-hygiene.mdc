@@ -29,7 +29,7 @@ If the user brings urgency or personal context into the chat:
 4. **Venting or emotional motivation** used as a technical justification.
 5. **Transient references** - people, projects that are not this repo, orgs unrelated to the product, client workspace IDs. Prefer omitting them or using a generic domain term.
 6. **Commits that narrate the chat.**
-7. **Em dash ("-") as a sentence connector** in commit messages, PRs, docs, README, HANDOFF, memory, or comments. It reads as AI slop; replace with a hyphen, colon, comma, or parentheses. Eliminate it entirely; only keep it when quoting external text/data/API literally. See the `clean-code` skill (pattern 6).
+7. **Em dash ("—") as a sentence connector** in commit messages, PRs, docs, README, HANDOFF, memory, or comments. It reads as AI slop; replace with a hyphen, colon, comma, or parentheses. Eliminate it entirely; only keep it when quoting external text/data/API literally. See the `clean-code` skill (pattern 6).
 
 ## Required
 
@@ -47,7 +47,4 @@ If yes, rewrite it.
 
 ## Relation to other rules
 
-- **docs-professional-standard** - the project's inheritable documentation standard (write-time voice + read-time delivery truth: docs are indicative).
-- **code-deslop / clean-code** - code slop.
-- **ux-tone** - light tone, chat only.
-- **security-review** - secrets.
+`docs-professional-standard` (project docs), `code-deslop` / `clean-code` (code slop), `ux-tone` (chat only), `security-review` (secrets).

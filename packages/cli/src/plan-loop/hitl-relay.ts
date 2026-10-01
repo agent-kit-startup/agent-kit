@@ -16,6 +16,7 @@
 
 import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
+import { LineSplitter } from "./line-splitter.js";
 
 /** One line, column 0: `HITL_GATE: <kebab-id> | <label> | <label> ...`. */
 export const HITL_GATE_LINE_RE = /^HITL_GATE:\s*([a-z0-9-]+)\s*\|\s*(.+)$/;
@@ -430,37 +431,38 @@ export function userEventLine(text: string): string {
   return `${JSON.stringify({ type: "user", message: { role: "user", content: text } })}\n`;
 }
 
+/** One `result` event with the assistant text blocks of the turn it closed. */
+export interface TurnResult {
+  resultText: string;
+  assistantTexts: string[];
+  isError: boolean;
+  subtype: string | null;
+  /** The result's `errors` strings (claude reports in-run failures there). */
+  errors: string[];
+}
+
 /**
  * Turn watcher over the tee'd NDJSON text: collects the turn's assistant
  * text blocks and fires `onResult` at every `result` event, then resets.
- * Lines that are not JSON are ignored; a partial trailing line is held.
+ * Lines that are not JSON are ignored; a partial trailing line is held
+ * (up to the shared splitter cap).
  */
 export class TurnWatcher {
-  private pending = "";
+  private readonly lines = new LineSplitter();
   private assistantTexts: string[] = [];
   private readonly decoder = new StringDecoder("utf8");
 
-  constructor(
-    private readonly onResult: (info: {
-      resultText: string;
-      assistantTexts: string[];
-      isError: boolean;
-      subtype: string | null;
-    }) => void,
-  ) {}
+  constructor(private readonly onResult: (info: TurnResult) => void) {}
 
   feed(chunk: string | Buffer): void {
     const text = typeof chunk === "string" ? chunk : this.decoder.write(chunk);
     if (!text) return;
-    const combined = this.pending + text;
-    const lines = combined.split("\n");
-    this.pending = lines.pop() ?? "";
-    for (const line of lines) this.take(line);
+    this.lines.feed(text, (line) => this.take(line));
   }
 
   end(): void {
-    const rest = this.pending + this.decoder.end();
-    this.pending = "";
+    this.lines.feed(this.decoder.end(), (line) => this.take(line));
+    const rest = this.lines.end();
     if (rest.trim()) this.take(rest);
   }
 
@@ -479,6 +481,7 @@ export class TurnWatcher {
       result?: unknown;
       is_error?: unknown;
       subtype?: unknown;
+      errors?: unknown;
       message?: { content?: unknown };
     };
     if (ev.type === "assistant") {
@@ -507,6 +510,9 @@ export class TurnWatcher {
         assistantTexts: texts,
         isError: ev.is_error === true,
         subtype: typeof ev.subtype === "string" ? ev.subtype : null,
+        errors: Array.isArray(ev.errors)
+          ? ev.errors.filter((e): e is string => typeof e === "string")
+          : [],
       });
     }
   }

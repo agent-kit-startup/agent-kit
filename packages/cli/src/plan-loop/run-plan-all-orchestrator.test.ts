@@ -10,6 +10,7 @@ import {
   backlogAppearedSinceConfirm,
   canDispatchQueuedPlan,
   classifyOrchestratorAction,
+  decideBlockedPlanDisposition,
   decideContextCheckpointAsk,
   decideCursorAdvance,
   decideQueueDriftAsk,
@@ -116,6 +117,158 @@ describe("malformed Task summary does not advance cursor", () => {
     expect(authorized.nextCursor).toBe(1);
     expect(authorized.outcome).toBeUndefined();
     expect(authorized.reason).toBe("user_authorized_malformed");
+  });
+});
+
+describe("blocked plan disposition (operator gates defer)", () => {
+  const queue = ["a.plan.md", "b.plan.md", "c.plan.md"];
+  const blocked = (lastTodoId: string, failures?: string[]) => ({
+    outcome: "blocked",
+    lastTodoId,
+    filesTouched: [],
+    ...(failures ? { failures } : {}),
+  });
+
+  it("operator gate defers the plan and advances with the queue still running", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 0,
+      summary: blocked("phase3-sponsors"),
+      blockerClass: "operator_gate",
+      gate: "GitHub Sponsors checkout",
+    });
+    expect(d.action).toBe("defer_advance");
+    expect(d.reason).toBe("operator_gate_deferred");
+    expect(d.outcome).toBe("deferred-operator (gate: GitHub Sponsors checkout)");
+    expect(d.nextCursor).toBe(1);
+    expect(d.queueStatus).toBe("running");
+    expect(d.deferred).toEqual({ "a.plan.md": "GitHub Sponsors checkout" });
+    expect(d.gates).toEqual([]);
+  });
+
+  it("partial on an operator gate defers too; gate falls back to the first failure", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 0,
+      summary: { outcome: "partial", lastTodoId: "p2", filesTouched: [], failures: ["host panel"] },
+      blockerClass: "operator_gate",
+    });
+    expect(d.action).toBe("defer_advance");
+    expect(d.outcome).toBe("deferred-operator (gate: host panel)");
+  });
+
+  it("true dependency stops the queue", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 1,
+      summary: blocked("phase1"),
+      blockerClass: "dependency",
+    });
+    expect(d.action).toBe("stop");
+    expect(d.reason).toBe("true_dependency");
+    expect(d.queueStatus).toBe("blocked");
+    expect(d.nextCursor).toBeUndefined();
+  });
+
+  it("non-operator blocker still stops the queue", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 1,
+      summary: blocked("phase1", ["vitest red"]),
+      blockerClass: "other",
+      gate: "ignored",
+    });
+    expect(d.action).toBe("stop");
+    expect(d.reason).toBe("non_operator_blocker");
+    expect(d.queueStatus).toBe("blocked");
+    expect(d.deferred).toEqual({});
+  });
+
+  it("dependent of a deferred plan defers with gate = the blocking plan", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 1,
+      blockerClass: "other",
+      dependencyMap: { "a.plan.md": ["b.plan.md"] },
+      deferred: { "a.plan.md": "GitHub Sponsors checkout" },
+    });
+    expect(d.action).toBe("defer_dependent");
+    expect(d.reason).toBe("dependent_of_deferred_plan");
+    expect(d.outcome).toBe("deferred-operator (gate: a.plan.md)");
+    expect(d.nextCursor).toBe(2);
+    expect(d.queueStatus).toBe("running");
+  });
+
+  it("a plan with no edge to the deferred plan is not deferred", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 1,
+      summary: { outcome: "completed", lastTodoId: "close", filesTouched: [] },
+      blockerClass: "other",
+      dependencyMap: { "a.plan.md": ["c.plan.md"] },
+      deferred: { "a.plan.md": "GitHub Sponsors checkout" },
+    });
+    expect(d.action).toBe("advance");
+    expect(d.outcome).toBe("completed");
+  });
+
+  it("resume converts a stored operator-gate blocked status into deferred", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 0,
+      blockerClass: "operator_gate",
+      gate: "GitHub Sponsors checkout",
+      storedQueueStatus: "blocked",
+    });
+    expect(d.action).toBe("defer_advance");
+    expect(d.reason).toBe("resume_converts_operator_gate");
+    expect(d.nextCursor).toBe(1);
+    expect(d.queueStatus).toBe("running");
+  });
+
+  it("resume of a stored non-operator block still stops", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 0,
+      blockerClass: "other",
+      storedQueueStatus: "blocked",
+    });
+    expect(d.action).toBe("stop");
+    expect(d.reason).toBe("non_operator_blocker");
+  });
+
+  it("missing summary outside resume stops and requires the malformed-summary Ask", () => {
+    const d = decideBlockedPlanDisposition({ queue, cursor: 0, blockerClass: "operator_gate" });
+    expect(d.action).toBe("stop");
+    expect(d.reason).toBe("malformed_summary_requires_ask");
+  });
+
+  it("queue end with deferred rows reports the gates and reads as exhausted", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 2,
+      summary: blocked("phase2", ["billing"]),
+      blockerClass: "operator_gate",
+      deferred: { "a.plan.md": "GitHub Sponsors checkout" },
+    });
+    expect(d.action).toBe("defer_advance");
+    expect(d.nextCursor).toBe(3);
+    expect(d.gates).toEqual(["a.plan.md: GitHub Sponsors checkout", "c.plan.md: billing"]);
+    expect(d.queueStatus).toBe(
+      "exhausted (deferred: a.plan.md -> GitHub Sponsors checkout; c.plan.md -> billing)",
+    );
+    expect(d.queueStatus.split(/\s+/)[0]).toBe("exhausted");
+  });
+
+  it("queue end with no deferred rows is plain exhausted", () => {
+    const d = decideBlockedPlanDisposition({
+      queue,
+      cursor: 2,
+      summary: { outcome: "completed", lastTodoId: "close", filesTouched: [] },
+      blockerClass: "other",
+    });
+    expect(d.queueStatus).toBe("exhausted");
+    expect(d.gates).toEqual([]);
   });
 });
 

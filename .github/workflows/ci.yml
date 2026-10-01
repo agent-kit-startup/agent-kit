@@ -23,6 +23,11 @@ on:
         type: string
         default: ""
 
+# Read-only GITHUB_TOKEN by default. Public pushes and Releases use the
+# PUBLIC_REPO_TOKEN PAT; publish-npm adds id-token: write for provenance.
+permissions:
+  contents: read
+
 # Superseded PR runs are cancelled; main, staging and tag runs always finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -281,11 +286,17 @@ jobs:
             echo "::error::HOSTINGER_API_TOKEN is not configured. Tag and manual landing sync require this secret; missionkit.io was not updated."
             exit 1
           fi
-          if [ -n "${{ github.event.inputs.landing_version }}" ]; then
-            export LANDING_RELEASE_VERSION="${{ github.event.inputs.landing_version }}"
+          # Dispatch input arrives via env, never as an inline expression (script injection).
+          if [ -n "$LANDING_VERSION_INPUT" ]; then
+            if ! [[ "$LANDING_VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::landing_version must be X.Y.Z; missionkit.io was not updated."
+              exit 1
+            fi
+            export LANDING_RELEASE_VERSION="$LANDING_VERSION_INPUT"
           fi
           node scripts/sync-landing-release.mjs
         env:
+          LANDING_VERSION_INPUT: ${{ github.event.inputs.landing_version }}
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PUBLIC_LANDING_LATEST_ATTEMPTS: "24"

@@ -62,8 +62,9 @@ export function shouldUseWelcomeColor(opts: WelcomeRenderOptions = {}): boolean 
   if (env.NO_COLOR) return false;
   if (env.NODE_DISABLE_COLORS) return false;
   if (env.FORCE_COLOR === "0") return false;
-  if (env.CI != null && env.CI !== "") return false;
+  // An explicit color request beats the CI default (NO_COLOR above still wins).
   if (opts.color === true) return true;
+  if (env.CI != null && env.CI !== "" && env.CI !== "false" && env.CI !== "0") return false;
   const tty = opts.stdoutIsTTY ?? Boolean(process.stdout.isTTY);
   return tty;
 }

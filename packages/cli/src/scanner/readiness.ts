@@ -68,9 +68,11 @@ function buildPillars(scan: ScanResult): ReadinessPillarReport[] {
   const secretsStatus: ReadinessStatus =
     scan.safety.trackedSensitiveFiles.length > 0
       ? "blocked"
-      : scan.safety.missingSecretPatterns.length > 0
-        ? "auto_fix"
-        : "ready";
+      : scan.safety.trackedFilesUnknown
+        ? "manual"
+        : scan.safety.missingSecretPatterns.length > 0
+          ? "auto_fix"
+          : "ready";
   const contextStatus: ReadinessStatus = scan.context.sources.length > 0 ? "ready" : "needs_choice";
   const providerStatus: ReadinessStatus =
     scan.git.mode === "none"
@@ -203,14 +205,33 @@ function buildPillars(scan: ScanResult): ReadinessPillarReport[] {
                   "user",
                 ),
               ]
-            : [
-                action(
-                  "merge-secret-ignores",
-                  "auto_fix",
-                  "Merge required secret patterns into .gitignore",
-                  "system",
-                ),
-              ],
+            : secretsStatus === "manual"
+              ? [
+                  action(
+                    "verify-tracked-secrets",
+                    "manual",
+                    "Tracked files could not be listed (git ls-files failed); check for tracked secrets manually",
+                    "user",
+                  ),
+                  ...(scan.safety.missingSecretPatterns.length > 0
+                    ? [
+                        action(
+                          "merge-secret-ignores",
+                          "auto_fix",
+                          "Merge required secret patterns into .gitignore",
+                          "system",
+                        ),
+                      ]
+                    : []),
+                ]
+              : [
+                  action(
+                    "merge-secret-ignores",
+                    "auto_fix",
+                    "Merge required secret patterns into .gitignore",
+                    "system",
+                  ),
+                ],
       ),
     ]),
     pillar("stack-tooling", [

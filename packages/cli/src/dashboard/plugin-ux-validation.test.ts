@@ -4076,7 +4076,7 @@ describe("plugin-ux-validation: processes tab narration", () => {
 
   it("ships per-process narration fields from dashboard-data.mjs", () => {
     const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"), "utf8");
-    expect(dataSource).toContain("ps -axo pid=,pcpu=,pmem=,etime=,command=");
+    expect(dataSource).toContain('execFileSync("ps", ["-axo", "pid=,pcpu=,pmem=,etime=,command="]');
     expect(dataSource).toContain(
       "description: describeProcess({ label, command: cmd, cpu, etime })",
     );

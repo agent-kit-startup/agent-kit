@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { detectPurpose } from "./detect-repository.js";
+import { detectPurpose, detectSafety, isTrackedSecretFile } from "./detect-repository.js";
 import { detectStack } from "./detect-stack.js";
 import { createReadinessReport } from "./readiness.js";
 import { runScanner } from "./scan.js";
@@ -14,6 +14,40 @@ async function writeProfile(root: string, profile: Record<string, unknown>): Pro
     `${JSON.stringify(profile, null, 2)}\n`,
   );
 }
+
+describe("tracked secret matcher (derived from REQUIRED_SECRET_PATTERNS)", () => {
+  it("skips committed env templates", () => {
+    expect(isTrackedSecretFile(".env.example")).toBe(false);
+    expect(isTrackedSecretFile("apps/web/.env.sample")).toBe(false);
+    expect(isTrackedSecretFile(".env.template")).toBe(false);
+    expect(isTrackedSecretFile("config/.env.dist")).toBe(false);
+  });
+
+  it("flags real env files and credential json", () => {
+    expect(isTrackedSecretFile(".env")).toBe(true);
+    expect(isTrackedSecretFile(".env.production")).toBe(true);
+    expect(isTrackedSecretFile("gcp-service-account.json")).toBe(true);
+    expect(isTrackedSecretFile("infra/aws-credentials.json")).toBe(true);
+    expect(isTrackedSecretFile("certs/server.pem")).toBe(true);
+  });
+
+  it("does not flag ordinary files", () => {
+    expect(isTrackedSecretFile("src/env.ts")).toBe(false);
+    expect(isTrackedSecretFile("docs/keys.md")).toBe(false);
+  });
+
+  it("detectSafety reports only the real secrets from a tracked list", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-secret-matcher-"));
+    const safety = await detectSafety(root, [
+      ".env.example",
+      "apps/web/.env.sample",
+      ".env.production",
+      "gcp-service-account.json",
+      "README.md",
+    ]);
+    expect(safety.trackedSensitiveFiles).toEqual([".env.production", "gcp-service-account.json"]);
+  });
+});
 
 describe("detectPurpose", () => {
   it("falls back to directory heuristics when no profile is present", async () => {

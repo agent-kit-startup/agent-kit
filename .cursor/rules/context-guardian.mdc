@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Monitor the Context Window
 
-Monitor context size during the conversation (heuristic: message count, token estimate, system indicator if available). Native hooks also help: `sessionStart` injects HANDOFF + hard rules, and `preCompact` warns on compaction.
+Monitor context size (heuristic: message count, token estimate, system indicator if available). Hooks help: `sessionStart` injects HANDOFF + hard rules; `preCompact` warns on compaction.
 
 ## When the user asks about context
 
@@ -19,8 +19,6 @@ If the user asks about context / contexto / window / "are we full?":
 
 ## Proactive Warning (~80% of the limit)
 
-When the window looks close to the limit:
-
 1. **Warn the user:**
    > "Heads up: context is almost full. Want to do a handoff so we don't lose anything?"
 
@@ -30,65 +28,36 @@ When the window looks close to the limit:
 
 ## User Preferences
 
-- **First time:** use **Ask questions** tool to ask which they prefer (options: `Automatic handoff` / `Manual handoff`).
-- **Save the preference:** if the user picks automatic, save it in `.cursor/context/config.json`:
-  ```json
-  { "autoHandoff": true }
-  ```
+- **First time:** use **Ask questions** tool to ask which they prefer (options: `Automatic handoff` / `Manual handoff`; fallback per [`/handoff`](../commands/handoff.md) step 3).
+- **Save the preference:** if the user picks automatic, save `{ "autoHandoff": true }` in `.cursor/context/config.json`.
 - **Next times:** follow the saved preference without asking (but always announce it before acting).
 
 ## Running a Handoff
 
-When doing a handoff (automatic or manual):
+Automatic or manual:
 
 1. **Update `.cursor/HANDOFF.md`** with current state, phase, to-dos, instruction.
-
-2. **Copy the command to the clipboard:**
-   ```bash
-   # macOS
-   echo '/continue-plan' | pbcopy
-   # Linux (xclip)
-   echo '/continue-plan' | xclip -selection clipboard
-   # Windows (PowerShell)
-   echo '/continue-plan' | clip
-   ```
-
+2. **Copy `/continue-plan` to the clipboard** (`pbcopy` on macOS, `xclip -selection clipboard` or `xsel --clipboard --input` on Linux, `clip` on Windows; if detection fails, just print the command).
 3. **Tell the user:**
    > "Done! `/continue-plan` is on your clipboard. Open a new conversation and paste it (Cmd+V / Ctrl+V)."
 
-## OS Detection
-
-Try to detect the OS (via environment variable or the `uname` command):
-- macOS: use `pbcopy`
-- Linux: try `xclip -selection clipboard` or `xsel --clipboard --input`
-- Windows: use `clip`
-
-If detection fails, just tell the user the command without copying it.
-
 ## Repository Readiness
 
-**SoT:** [`/agent-kit-onboard`](../commands/agent-kit-onboard.md).
-
-- Do not block unrelated work because the legacy `onboarded` marker is missing.
-- Derive blockers from `pillars[].checks[]` with `essential: true` and `status` not `ready`. Do not treat `pendingActions` as essential-only.
-- Essential unresolved: surface the first one and offer `/agent-kit-onboard`. `/start-project` must stop until essentials are ready.
-- Non-essential unresolved (for example `confirm-provider` / `collaboration.provider` / local-only collaboration): advisory only; do not halt `/start-project`, `/backlog-add`, or active plan work. `/backlog-add` must not Ask on that check (one-line advisory or silence, then Broad Intake → write Ask).
-- Preserve an active plan and HANDOFF as the current work. Readiness guidance must not restart or replace them.
-- `/start-project` remains responsible for deliverable planning after essential readiness passes.
+**SoT:** [`/agent-kit-onboard`](../commands/agent-kit-onboard.md) (essential checks gate `/start-project`). Non-essential checks are advisory: never halt `/start-project`, `/backlog-add`, or plan work.
 
 ## Quota-blocked sessions
 
-When the session hits a Cursor API usage limit (quota exhaustion, rate-limit signal, Task dispatch failure, or automatic model fallback from Auto):
+On a Cursor API usage limit (quota exhaustion, rate-limit signal, Task dispatch failure, or automatic model fallback from Auto):
 
 1. **This is a stop condition, not "keep coding."** Do not continue the session as if nothing happened. A model auto-switch after a quota hit does not mean the to-do was delivered.
-2. **Hard stop + HANDOFF:** revert the current to-do to `pending` (or leave it `in_progress` with a HANDOFF note). Write `.cursor/HANDOFF.md` with the stop reason, cursor, and operator recovery instruction. Use canonical machine fields: `- **Mode:**` = prior mode plus `— STOPPED: API/usage limit`; `- **Gaps:**` = stop reason and open cursor; `- **Instruction for the next agent:**` = recovery steps (see template in `.cursor/context/templates/handoff.md`).
+2. **Hard stop + HANDOFF:** revert the current to-do to `pending` (or leave it `in_progress` with a HANDOFF note). Write `.cursor/HANDOFF.md`: `- **Mode:**` = prior mode plus `— STOPPED: API/usage limit`; `- **Gaps:**` = stop reason and open cursor; `- **Instruction for the next agent:**` = recovery steps (Mode vocabulary: `.cursor/context/templates/handoff.md`).
 3. **Operator message:**
  > "API/usage limit reached. The tick was aborted. To recover: (1) switch from Auto to a named model (Claude Opus, Sonnet 4.6, Composer 2.5 Fast), (2) wait for quota reset if applicable, (3) resume with `/continue-plan` or `/run-plan`."
 4. **Do not reschedule** the next tick or advance the queue cursor. The to-do was not completed.
-5. **`/run-plan` / `/run-plan-all` full recovery contract** (pre-dispatch refuse until the operator confirms recovery, Auto cooldown recommend, inline-first non-fallback, orchestrator no-co-pack hygiene): `.cursor/skills/core/hitl-gates/run-plan-tick-contract.md` (Pre-flight, Reschedule or stop, Orchestrator turn hygiene sections). This rule states the invariant that applies everywhere; that skill page owns the tick-loop mechanics.
+5. **`/run-plan` / `/run-plan-all` recovery contract** (pre-dispatch refuse until the operator confirms recovery, Auto cooldown, inline-first non-fallback, orchestrator hygiene): `.cursor/skills/core/hitl-gates/run-plan-tick-contract.md` (Pre-flight, Reschedule or stop, Orchestrator turn hygiene). This rule owns the invariant; that page owns the tick-loop mechanics.
 6. **Do not** treat Mission Control SSE/poll throttling as Agent quota remediation (local-only surfaces).
-7. **Cross-link:** this condition is distinct from the context-window warning (above). Both are handoff-worthy, but a quota hit is a hard stop: there is no "keep going" option.
+7. **Distinct from the context-window warning:** both are handoff-worthy, but a quota hit is a hard stop with no "keep going" option.
 
 ## Err on the Safe Side
 
-The limit-detection heuristic may not be 100% accurate. Always err on the safe side: **warning too early is better than too late**.
+The heuristic is not exact: **warning too early is better than too late**.

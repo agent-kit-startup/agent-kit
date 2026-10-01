@@ -12,7 +12,7 @@
  * caches), and this is a diagnostic that must stay fast and dependency-free.
  */
 
-import { constants, access, readFile, stat } from "node:fs/promises";
+import { constants, access, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -101,6 +101,9 @@ function expandBinDirVars(raw: string, binDir: string): string {
   return raw.replace(/\$\{basedir\}/g, binDir).replace(/\$basedir/g, binDir);
 }
 
+/** Bin shims are a few hundred bytes; anything bigger is the CLI bundle itself. */
+const SHIM_MAX_BYTES = 4096;
+
 function packageJsonFromDistIndex(distIndex: string): string {
   return path.join(path.dirname(distIndex), "..", "package.json");
 }
@@ -125,15 +128,30 @@ export async function readBinVersion(
 ): Promise<string | null> {
   const readFileImpl = options.readFileImpl ?? ((filePath: string) => readFile(filePath, "utf8"));
   const binDir = path.dirname(binPath);
-  const candidates = [
+  const candidates: string[] = [];
+  // npm links both the global bin and node_modules/.bin/agent-kit straight to
+  // dist/index.js; follow the link so the package.json sits right next to it.
+  let realBin = binPath;
+  try {
+    realBin = await realpath(binPath);
+  } catch {
+    // Dangling or unreadable link; fall back to the layout guesses below.
+  }
+  if (path.basename(realBin) === "index.js" && path.basename(path.dirname(realBin)) === "dist") {
+    candidates.push(packageJsonFromDistIndex(realBin));
+  }
+  candidates.push(
     path.join(binDir, "..", CLI_PACKAGE_JSON_REL),
     path.join(binDir, "..", "node_modules", "@dadado", "agent-kit-cli", "package.json"),
-  ];
+  );
   try {
-    const contents = await readFileImpl(binPath);
-    for (const raw of extractDistIndexFromBinScript(contents)) {
-      const distIndex = path.resolve(binDir, expandBinDirVars(raw, binDir));
-      candidates.push(packageJsonFromDistIndex(distIndex));
+    // Only a small shim is worth scanning; never pull in the whole CLI bundle.
+    if ((await stat(realBin)).size < SHIM_MAX_BYTES) {
+      const contents = await readFileImpl(binPath);
+      for (const raw of extractDistIndexFromBinScript(contents)) {
+        const distIndex = path.resolve(binDir, expandBinDirVars(raw, binDir));
+        candidates.push(packageJsonFromDistIndex(distIndex));
+      }
     }
   } catch {
     // Binary or unreadable shim; still try the npm-global layout candidates.
