@@ -3,6 +3,10 @@ import { constants, access, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
+  CLAUDE_COMMANDS_DIR_REL,
+  discoverInstalledCommands,
+} from "../generator/claude-command-adapters.js";
+import {
   CLAUDE_SETTINGS_REL,
   GUARD_SHELL_HOOK_MARKER,
   RESOLVE_AGENT_KIT_REL,
@@ -178,6 +182,30 @@ export async function assessSignatureGateHook(rootDir: string): Promise<string[]
   ];
 }
 
+/**
+ * Soft advisory: `.claude/` exists (kit-load always emits `.claude/commands/agent-kit.md`)
+ * but some installed `.cursor/commands/*.md` have no `.claude/commands/<name>.md`
+ * pointer adapter, so `/run-plan`, `/handoff` etc. are not recognized in Claude Code.
+ * Silent without `.claude/` or without installed kit commands to adapt. Read-only:
+ * adoption is the operator's `agent-kit update --claude` (issue #92).
+ */
+export async function assessClaudeCommandAdapters(rootDir: string): Promise<string[]> {
+  const root = path.resolve(rootDir);
+  if (!(await exists(path.join(root, ".claude")))) return [];
+  const sources = await discoverInstalledCommands(root);
+  if (sources.length === 0) return [];
+  const missing: string[] = [];
+  for (const { name } of sources) {
+    if (!(await exists(path.join(root, CLAUDE_COMMANDS_DIR_REL, `${name}.md`)))) missing.push(name);
+  }
+  if (missing.length === 0) return [];
+  const shown = missing.slice(0, 3).map((n) => `/${n}`);
+  const more = missing.length > shown.length ? `, +${missing.length - shown.length} more` : "";
+  return [
+    `Claude Code command adapters missing: ${missing.length} of ${sources.length} installed kit commands have no \`.claude/commands/<name>.md\` (${shown.join(", ")}${more}), so they are not recognized as slash commands. Run \`agent-kit update --claude\` to generate them (writes only \`.claude/commands/*\`).`,
+  ];
+}
+
 /** Same order as `resolve-agent-kit.sh`; returns argv (`[bin]` or `["node", script]`) or null. */
 async function resolveGuardProbeArgv(root: string): Promise<string[] | null> {
   const hookBin = process.env.AGENT_KIT_HOOK_BIN;
@@ -266,6 +294,7 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
     ...(await assessGitHooksInstallDrift(root)),
     ...(await assessSignatureGateHook(root)),
     ...(await assessClaudeGuardProbe(root)),
+    ...(await assessClaudeCommandAdapters(root)),
   ];
 
   if (!(await exists(hooksJsonAbs))) {

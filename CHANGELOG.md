@@ -10,6 +10,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [5.17.0] - 2026-10-08
+
+### Added
+
+- `agent-kit update --claude` now also generates the `.claude/commands/*` pointer adapters, so Claude Code slash commands (`/run-plan`, `/handoff`, `/continue-plan`, ...) can be adopted after install without reapplying L0. It writes only `.claude/commands/*`, the Claude settings files and the shared managed-hash ledger, is safe on a dirty working tree, preserves hand-edited adapters and refuses symlinked targets. Plain `update` still never writes them.
+- `agent-kit doctor` and `agent-kit status` run in a workspace folder (no kit of its own, but kit projects in its direct subfolders) now say "No Agent Kit here" and name the projects to run from, instead of readiness counts and a next step to install the kit. `doctor` writes nothing into that folder, and `--json` gains an additive `workspaceParent` field. Previously, opening Claude Code one level above your projects looked like an update had wiped the slash commands.
+- `agent-kit doctor` and `agent-kit install` (without `--claude`) now say when `.claude/` exists but the kit command adapters are missing, naming `agent-kit update --claude`. Previously Claude Code showed only `/agent-kit` with no hint why.
+- Claude Code plugin marketplace: `/plugin marketplace add agent-kit-startup/agent-kit` then `/plugin install agent-kit@agent-kit` installs Mission Kit's core skills. The repo now ships `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` (name, links, icon, screenshots), so plugin registries show Mission Kit instead of a bare `agent-kit`. Commands still come from `agent-kit install`.
+
+### Changed
+
+- `/git-prod` now says what to do when its agent-signature gate is red on a commit that is already merged on a protected `staging`, where no PR can reword it: stop, name the operator-owned options (an operator-run history rewrite, or an exception by SHA the operator records in an Accepted ADR) and wait. An agent may continue only when every red commit is a SHA the operator accepted, checked commit by commit; the scan commands and the hard stop are unchanged, and a PR body or an unmerged commit never gets an exception. `/git-staging` and `autogit/gitupdate.md` carry the same wording.
+
 ## [5.16.0] - 2026-09-30
 
 ### Added

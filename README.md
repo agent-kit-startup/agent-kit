@@ -12,7 +12,7 @@
 
 [Watch the demo on YouTube](https://www.youtube.com/watch?v=9mrAg6Mczfg) · [missionkit.io](https://missionkit.io) · [HOL Registry](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
 
-**Mission Kit** is the building gear pack for AI coding agent: orchestrated plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal: it writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
+**Mission Kit** is the building gear pack for AI coding agents: orchestrated plans with to-dos, human confirmation gates, and a staging-then-prod git flow. You describe the goal: it writes a plan, runs it one unit at a time, and never promotes to production without your explicit yes.
 
 Ships as **Agent Kit** on npm (`@dadado/agent-kit-cli`).
 

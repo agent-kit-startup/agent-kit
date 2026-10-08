@@ -1,5 +1,9 @@
 import { defineCommand } from "citty";
 import {
+  type ClaudeCommandAdapterResult,
+  generateClaudeCommandAdapters,
+} from "../generator/claude-command-adapters.js";
+import {
   CLAUDE_SETTINGS_REL,
   formatClaudeSettingsDrift,
   planClaudeSettingsDrift,
@@ -73,7 +77,7 @@ export const updateCommand = defineCommand({
     claude: {
       type: "boolean",
       description:
-        "Also apply the ledger-aware Claude settings merge (.claude/settings.json + ledger) with install --claude authority; operator opt-in, never from hooks or plan-loop",
+        "Also apply the ledger-aware Claude settings merge (.claude/settings.json + ledger) and generate the .claude/commands/* pointer adapters with install --claude authority; operator opt-in, never from hooks or plan-loop",
       default: false,
     },
     ...NON_INTERACTIVE_ROOT_ARGS,
@@ -239,6 +243,19 @@ export const updateCommand = defineCommand({
         } else {
           console.log(`Claude settings ${claude.status}: ${claude.relativePath}`);
         }
+        // Adopt the command adapters without reapplying L0: writes only
+        // .claude/commands/* (plus the shared managed-hash ledger), overlay-safe.
+        const adapters = await generateClaudeCommandAdapters(projectRoot);
+        const skipped = adapters.filter((a) => a.status === "skipped-symlink");
+        if (skipped.length > 0) {
+          logApplyStats(stats);
+          logger.error(
+            `Claude command adapters not written for: ${skipped.map((a) => a.relativePath).join(", ")} (symlink outside the project). Nothing was changed there.`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+        if (adapters.length > 0) console.log(formatClaudeAdapterSummary(adapters));
       } else {
         // Report-only: never writes settings.json or the ledger (`--claude` is the opt-in).
         const drift = await planClaudeSettingsDrift(projectRoot);
@@ -263,3 +280,16 @@ export const updateCommand = defineCommand({
     }
   },
 });
+
+function formatClaudeAdapterSummary(results: ClaudeCommandAdapterResult[]): string {
+  const count = (status: ClaudeCommandAdapterResult["status"]) =>
+    results.filter((r) => r.status === status).length;
+  const parts = [
+    `${count("applied")} written`,
+    `${count("refreshed")} refreshed`,
+    `${count("unchanged")} unchanged`,
+  ];
+  const customized = count("preserved-customized");
+  if (customized > 0) parts.push(`${customized} preserved (customized)`);
+  return `Claude command adapters: ${parts.join(", ")} (.claude/commands/)`;
+}

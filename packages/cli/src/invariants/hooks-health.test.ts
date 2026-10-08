@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  assessClaudeCommandAdapters,
   assessClaudeGuardProbe,
   assessGitHooksInstallDrift,
   assessHooksHealth,
@@ -320,5 +321,69 @@ describe("assessSignatureGateHook", () => {
     const report = await assessHooksHealth(root);
     expect(report.status).toBe("missing");
     expect(report.advisories.some((a) => a.includes("prepare-commit-msg"))).toBe(true);
+  });
+});
+
+describe("assessClaudeCommandAdapters", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), "ak-claude-adapters-"));
+  });
+
+  async function writeSource(name: string) {
+    await mkdir(path.join(root, ".cursor", "commands"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "commands", `${name}.md`),
+      `---\nname: ${name}\ndescription: ${name} command\n---\n`,
+      "utf8",
+    );
+  }
+
+  async function writeAdapter(name: string) {
+    await mkdir(path.join(root, ".claude", "commands"), { recursive: true });
+    await writeFile(path.join(root, ".claude", "commands", `${name}.md`), "x", "utf8");
+  }
+
+  it("is silent without .claude/", async () => {
+    await writeSource("run-plan");
+    expect(await assessClaudeCommandAdapters(root)).toEqual([]);
+  });
+
+  it("is silent when .claude/ exists but no kit commands are installed", async () => {
+    await writeAdapter("agent-kit");
+    expect(await assessClaudeCommandAdapters(root)).toEqual([]);
+  });
+
+  it("warns and names the adopt command when only agent-kit.md exists", async () => {
+    await writeSource("run-plan");
+    await writeSource("handoff");
+    await writeAdapter("agent-kit");
+    const [msg, ...rest] = await assessClaudeCommandAdapters(root);
+    expect(rest).toEqual([]);
+    expect(msg).toContain("2 of 2");
+    expect(msg).toContain("/handoff");
+    expect(msg).toContain("agent-kit update --claude");
+  });
+
+  it("warns for a partial set and truncates the name list", async () => {
+    for (const n of ["a", "b", "c", "d", "e"]) await writeSource(n);
+    await writeAdapter("a");
+    const [msg] = await assessClaudeCommandAdapters(root);
+    expect(msg).toContain("4 of 5");
+    expect(msg).toContain("+1 more");
+  });
+
+  it("is silent when every installed command has an adapter", async () => {
+    await writeSource("run-plan");
+    await writeAdapter("run-plan");
+    expect(await assessClaudeCommandAdapters(root)).toEqual([]);
+  });
+
+  it("surfaces through assessHooksHealth advisories even without hooks.json", async () => {
+    await writeSource("run-plan");
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    const report = await assessHooksHealth(root);
+    expect(report.status).toBe("missing");
+    expect(report.advisories.some((a) => a.includes("agent-kit update --claude"))).toBe(true);
   });
 });

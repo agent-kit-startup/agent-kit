@@ -259,6 +259,8 @@ Install writes a thin root `CLAUDE.md` and `.claude/commands/agent-kit.md` so Cl
 2. `CLAUDE.md` loads automatically. Mid-session refresh: type `/agent-kit`.
 3. `/agent-kit` prefers `agent-kit mission-control --once` (styled ASCII snapshot of Mission, Flight Log, Checklist, Crew Monitor) and falls back to reading `.cursor/HANDOFF.md`, `.cursor/project-context.md`, and `.cursor/commands/` if the CLI is missing. Do not start a live TUI loop from that slash (Claude Code cannot sustain one across turns).
 
+If you installed without `--claude`, Claude Code only knows `/agent-kit`: `/run-plan`, `/handoff` and the other kit commands are not recognized. `agent-kit doctor` and `agent-kit install` say so, and `npx @dadado/agent-kit-cli@latest update --claude` generates the `.claude/commands/*` adapters later (writes only those files plus the Claude settings; safe on a dirty tree; never reapplies L0). Without adapters you can still run any command headless: `agent-kit run <command>` or `agent-kit run-plan --backend claude`.
+
 HITL in Claude Code is a numbered-list fallback (Cursor Ask questions is not available). Never `/git-prod` from kit-load.
 
 Pack contract: [claude-cli-kit-load.md](claude-cli-kit-load.md). This is **not** audits, **not** the headless tick loop (`agent-kit run-plan --backend claude`, shipped 2026-09-06 — see the [consumer-configuration.md](consumer-configuration.md) CLI table), and **not** Action A7 (Windsurf / VS Code generators).

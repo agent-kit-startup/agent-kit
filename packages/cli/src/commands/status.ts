@@ -7,6 +7,10 @@ import { MANIFEST_RELATIVE_PATH, loadAgentKitManifest } from "../manifest/index.
 import { assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { runScanner } from "../scanner/scan.js";
+import {
+  detectWorkspaceParent,
+  workspaceParentAdvisoryLines,
+} from "../scanner/workspace-parent.js";
 import type { DetectionEvidence, RepositoryProfile } from "../types.js";
 import { readJson } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
@@ -48,6 +52,13 @@ export const statusCommand = defineCommand({
   },
   async run({ args }) {
     const rootDir = path.resolve(args.cwd);
+    const workspaceParent = await detectWorkspaceParent(rootDir);
+    if (workspaceParent && !args.json) {
+      for (const line of workspaceParentAdvisoryLines(rootDir, workspaceParent, "status")) {
+        console.log(line);
+      }
+      return;
+    }
     const [manifest, rawProfile, scan, env] = await Promise.all([
       loadAgentKitManifest(rootDir, args.json ? {} : { onWarning: logger.warn }),
       readJson<RepositoryProfile | Record<string, unknown>>(
@@ -69,6 +80,7 @@ export const statusCommand = defineCommand({
             readiness,
             pendingActions: readiness.pendingActions,
             profile,
+            ...(workspaceParent ? { workspaceParent } : {}),
           },
           null,
           2,

@@ -340,4 +340,7 @@ export const KNOWN_SHIPPED_OVERLAY_HASHES: ReadonlySet<string> = new Set([
   "80e11549ad3700d1e7345447aff1b3858e532e9347594ee4f028566c8c7b8a6a",
   "1ffbfa48a76d39f78db66f4ea250c451ae335c31d7e45d0fdc4d99bc714bae33",
   "19a5aa359e740fa18d7cc19f0b11243bc53d8d016545bce35837deac7fe2ef7e",
+  "f1c7beac6a619520d744fd984bc16b322f3d545b9d8490801aee628dabd94aff",
+  "14d919d01637aa6b5acc92804dbb4ab56cecc88281aedd5cb7b5dcf8f7da958e",
+  "a8decf7b78e2b2c833b0808c3e108322cfb895fadaec159467973a681028d92a",
 ]);

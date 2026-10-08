@@ -25,7 +25,7 @@ Audit of Cursor-specific artifacts in the Agent Kit repository: what exists, wha
 | `/goal` / `/loop` (2026-08-19) | Not integrated (thin-adapter) | Native long-lived objective and recurring check-ins. Do not replace kit plan to-dos or `/run-plan`. |
 | Origin / start from scratch, without a repo (2026-08-17 / 2026-08-27) | Not integrated (Cursor-native only) | Origin Repos; Bring your GitHub repos; Pull requests; Agents in every repo; App extensions for Cursor repos; live preview; Vercel publish. Not the kit git spine. |
 | Self-hosted machines (2026-09-02) | Not integrated (Cursor-native only) | My Machines, team pools, dynamic pool scheduling, run on your sandboxes, computer use on Linux and Mac. Operator infra. Cloud Agents stay audits-only. |
-| Steering / Automations / subagents on their own machines | Not integrated (Cursor-native only) | IDE follow-up UX, scheduled-agent UI, cloud-isolated subagents. No kit hook or third `BackendId`. |
+| Steering / Automations / subagents on their own machines | Not integrated (Cursor-native only) | IDE follow-up UX, scheduled-agent UI, cloud-isolated subagents. No kit hook or third `BackendId`. Kit scheduling: withdrawn 2026-09-10; a generic local lane (one-shot `agent-kit countdown` on an external timer) is Proposed in ADR `2026-10-08_countdown-coming-home-generic-lane.md`, not shipped. |
 
 ---
 

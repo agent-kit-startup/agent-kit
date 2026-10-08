@@ -7,7 +7,7 @@
   "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
   "keywords": ["agents", "hitl", "handoff", "git-staging", "context", "multi-ide", "anti-slop"],
   "license": "PolyForm-Noncommercial-1.0.0",
-  "version": "5.16.0",
+  "version": "5.17.0",
   "homepage": "https://github.com/agent-kit-startup/agent-kit",
   "websiteURL": "https://missionkit.io/",
   "privacyPolicyURL": "https://github.com/agent-kit-startup/agent-kit/blob/main/PRIVACY.md",

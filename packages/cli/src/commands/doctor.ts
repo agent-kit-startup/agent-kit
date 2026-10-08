@@ -8,6 +8,11 @@ import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
+import {
+  type WorkspaceParentDetection,
+  detectWorkspaceParent,
+  workspaceParentAdvisoryLines,
+} from "../scanner/workspace-parent.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
 import { readJson } from "../utils/fs.js";
 import { logger } from "../utils/logger.js";
@@ -30,6 +35,12 @@ export interface DoctorResult {
    * Amend 2026-09-20 (dogfood/cursor_stack_detection_no_dart_flutter_subdir_override_2026_09_15.md, defect 4/6).
    */
   deferredEssentials: Array<{ checkId: string; reason: string }>;
+  /**
+   * Present only when cwd is a workspace parent (no kit manifest, but direct
+   * child directories that have one). Nothing is written in that case.
+   * Hotfix: public issue #96 (parent cwd hides project commands).
+   */
+  workspaceParent?: WorkspaceParentDetection;
 }
 
 interface OnboardingConfigShape {
@@ -69,6 +80,24 @@ export async function runDoctor(
 ): Promise<DoctorResult> {
   const rootDir = path.resolve(cwd);
   const hooks = await assessHooksHealth(rootDir);
+  const workspaceParent = await detectWorkspaceParent(rootDir);
+  if (workspaceParent) {
+    // Not a project: report read-only. No snapshot, no --fix-safe / --refresh-profile
+    // writes, so `.cursor/` is never created in the parent folder.
+    const scan = await runScanner(rootDir);
+    const report = createReadinessReport(scan, {
+      generatorVersion: KIT_VERSION,
+      generatedAt: options.generatedAt,
+    });
+    return {
+      report,
+      safeChanges: [],
+      hooks,
+      env: await assessEnvironment(),
+      deferredEssentials: [],
+      workspaceParent,
+    };
+  }
   // Environment pillar is read-only diagnostics; --fix-safe never runs env
   // self-heal (that's the future setup-global command), it just reports.
   const env = await assessEnvironment();
@@ -123,7 +152,13 @@ export async function runDoctor(
   };
 }
 
-function printDoctorSummary(result: DoctorResult): void {
+export function printDoctorSummary(result: DoctorResult, rootDir: string): void {
+  if (result.workspaceParent) {
+    for (const line of workspaceParentAdvisoryLines(rootDir, result.workspaceParent, "doctor")) {
+      console.log(line);
+    }
+    return;
+  }
   const { summary, pendingActions } = result.report;
   const fixed = result.safeChanges.filter((change) => change.status === "applied").length;
   const nextAction = pendingActions[0];
@@ -231,6 +266,6 @@ export const doctorCommand = defineCommand({
       console.log(JSON.stringify(result, null, 2));
       return;
     }
-    printDoctorSummary(result);
+    printDoctorSummary(result, path.resolve(args.cwd));
   },
 });

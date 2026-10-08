@@ -1,0 +1,43 @@
+name: Signature scan
+
+# Agent signature scan for every PR into staging or main, the staging -> main
+# promote PR included (the CI `build` job skips that PR). Runs
+# scripts/ci-pr-signature-scan.sh: each PR commit message and the PR body through
+# `sh git-hooks/prepare-commit-msg --check -`, so a trailer is caught while the
+# commit can still be reworded on its working branch (a squash merge with the
+# COMMIT_MESSAGES default copies it into staging). `edited` re-runs the scan
+# after a PR body edit. ADR 2026-09-11_agent-signature-guard-strip-hook-check-gate
+# (Amend 2026-10-08). Making this a required check is operator-owned.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signature-scan:
+    # Private-origin allowlist (SoT: agent-kit-startup/agent-kit-dev): .github/**
+    # is public-synced, scripts/ci-pr-signature-scan.sh is not. Pinned in
+    # packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
+    if: github.repository == 'agent-kit-startup/agent-kit-dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+        with:
+          # The PR range base..head needs full history.
+          fetch-depth: 0
+
+      - name: Scan PR commits and body
+        # PR fields go through env, never interpolated into the script.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: sh scripts/ci-pr-signature-scan.sh "$BASE_SHA" "$HEAD_SHA"

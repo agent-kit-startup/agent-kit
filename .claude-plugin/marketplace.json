@@ -1,0 +1,15 @@
+{
+  "name": "agent-kit",
+  "owner": {
+    "name": "agent-kit-startup"
+  },
+  "description": "Mission Kit: HITL framework for AI-assisted IDEs.",
+  "plugins": [
+    {
+      "name": "agent-kit",
+      "source": "./",
+      "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
+      "strict": true
+    }
+  ]
+}

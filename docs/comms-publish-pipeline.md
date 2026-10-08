@@ -38,6 +38,7 @@ Do **not** create a committed `.env` file (`.env` and `.env.*` are gitignored). 
 | `MISSION_KIT_COMMS_SLACK_WEBHOOK` | Slack webhook | no | yes, if used |
 | `MISSION_KIT_COMMS_MEDIUM_TOKEN` | Medium | no | yes, if used |
 | `MISSION_KIT_COMMS_SUBSTACK_SESSION` | Substack | no | yes, if used |
+| `MISSION_KIT_GROK_API_KEY` | xAI API for the [Grok community manager bot](grok-community-manager.md) (triage/drafting only) | yes, for that bot | no |
 
 The draft script must not print env values. Webhooks that post without a recorded HITL decision are forbidden.
 

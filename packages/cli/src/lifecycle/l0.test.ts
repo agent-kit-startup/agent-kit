@@ -207,17 +207,22 @@ describe("canonical L0 inventory", () => {
   });
 
   it("uses the published package version across runtime manifests", async () => {
-    const [rootPackage, cliPackage, manifest, plugin] = await Promise.all([
-      readRepositoryFile("package.json"),
-      readRepositoryFile("packages/cli/package.json"),
-      readRepositoryFile(".cursor/agent-kit.json"),
-      readRepositoryFile(".cursor-plugin/plugin.json"),
-    ]);
+    const [rootPackage, cliPackage, manifest, plugin, claudePlugin, codexPlugin] =
+      await Promise.all([
+        readRepositoryFile("package.json"),
+        readRepositoryFile("packages/cli/package.json"),
+        readRepositoryFile(".cursor/agent-kit.json"),
+        readRepositoryFile(".cursor-plugin/plugin.json"),
+        readRepositoryFile(".claude-plugin/plugin.json"),
+        readRepositoryFile(".codex-plugin/plugin.json"),
+      ]);
 
     expect(KIT_VERSION).toBe(JSON.parse(cliPackage).version);
     expect(JSON.parse(rootPackage).version).toBe(KIT_VERSION);
     expect(JSON.parse(manifest).version).toBe(KIT_VERSION);
     expect(JSON.parse(plugin).version).toBe(KIT_VERSION);
+    expect(JSON.parse(claudePlugin).version).toBe(KIT_VERSION);
+    expect(JSON.parse(codexPlugin).version).toBe(KIT_VERSION);
   });
 
   it("wires citty meta.version to KIT_VERSION for --version", async () => {

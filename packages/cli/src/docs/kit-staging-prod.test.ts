@@ -200,6 +200,8 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       expect(kitProd).toMatch(/publish-npm/);
       expect(kitProd).toMatch(/sync-public/);
       expect(kitProd).toMatch(/\.cursor-plugin\/plugin\.json/);
+      expect(kitProd).toMatch(/\.claude-plugin\/plugin\.json/);
+      expect(kitProd).toMatch(/\.codex-plugin\/plugin\.json/);
       expect(kitProd).toMatch(/public-changelog\.mjs --version <X\.Y\.Z>/);
       expect(kitProd).toMatch(/Protect main and staging/);
       expect(kitProd).toMatch(/[Ss]tale after a green publish = poll, not STOP/);
