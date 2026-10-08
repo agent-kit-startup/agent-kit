@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { bold, cyan, green, options as koloristOptions } from "kolorist";
 import { applyPersonalization, readRepositoryProfile } from "../generator/personalization.js";
+import { assessClaudeCommandAdapters } from "../invariants/hooks-health.js";
 import { type ApplyStats, buildManifest, mergeStats, saveManifest } from "../lifecycle/apply.js";
 import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { npxPinned, pathCliStatus, syncPathCliToRuntime } from "../lifecycle/path-cli.js";
@@ -67,6 +68,12 @@ export interface InstallResult {
   safeChanges: SafeReadinessChange[];
   /** Set only when --claude was requested and .claude/settings.json could not be merged (see personalization.ts). */
   claudeSessionStartInstructions?: string;
+  /**
+   * Set only for an install without --claude where `.claude/` exists (kit-load always
+   * emits `.claude/commands/agent-kit.md`) but kit command adapters are missing: one
+   * advisory line pointing at `agent-kit update --claude`. Never written to disk.
+   */
+  claudeAdapterHint?: string;
 }
 
 export function nextStepAfterInstall(pendingActions: number): string {
@@ -254,6 +261,9 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
       }
     }
     await writeReadinessSnapshot(projectRoot, readiness);
+    const claudeAdapterHint = options.claudeAdapters
+      ? undefined
+      : (await assessClaudeCommandAdapters(projectRoot))[0];
 
     return {
       projectRoot,
@@ -262,6 +272,7 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
       readiness,
       safeChanges: readinessExecution.changes,
       ...(claudeSessionStartInstructions ? { claudeSessionStartInstructions } : {}),
+      ...(claudeAdapterHint ? { claudeAdapterHint } : {}),
     };
   } finally {
     await registry.unlock?.();
@@ -350,6 +361,7 @@ export const installCommand = defineCommand({
         logger.warn("Could not merge the Claude Code SessionStart hook automatically:");
         console.log(`\n${result.claudeSessionStartInstructions}\n`);
       }
+      if (result.claudeAdapterHint) logger.info(result.claudeAdapterHint);
     } catch (err) {
       if (err instanceof SkippedSymlinkError) {
         logApplyStats(err.stats);

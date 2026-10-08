@@ -124,6 +124,16 @@ Everything above is always-on kit-load. Two more surfaces are **opt-in only** (`
 - Reserved: the `agent-kit` name is always skipped — it is the kit-load refresh command above, not a command adapter.
 - Overlay, not write-once: `.claude/commands/` is a `CONSUMER_OVERLAY_PREFIXES` entry (`lifecycle/overlay.ts`), sharing the managed-hash ledger with `.cursor/agents|skills|commands`. An adapter that still matches its last-managed body refreshes when the source description changes; a hand-edited adapter is preserved, never clobbered. (Write-once was rejected here: unlike `CLAUDE.md`, each adapter mirrors a live source that can change and the installed command set can grow across updates.)
 
+### Adopting the adapters after install
+
+A plain `install` (no `--claude`) leaves `.claude/commands/` with only `agent-kit.md`, so `/run-plan`, `/handoff`, `/continue-plan` and the rest are not recognized by Claude Code. Two soft advisories make that visible, and one operator-typed command fixes it without reapplying L0:
+
+- `agent-kit doctor` prints an advisory when `.claude/` exists and installed kit commands have no `.claude/commands/<name>.md`. It is silent without `.claude/` or without installed commands.
+- `agent-kit install` (without `--claude`) prints one info line under the same condition.
+- `agent-kit update --claude` generates the missing adapters (and applies the Claude settings merge). It writes only `.claude/commands/*`, the Claude settings files and the shared managed-hash ledger; it is safe on a dirty working tree, refreshes unedited adapters, preserves hand-edited ones, and refuses a symlinked target with exit 1. It never runs from hooks, cron or the plan loop.
+
+Headless stays available without any adapter: `agent-kit run <command>`, `agent-kit run-plan --backend claude`, `agent-kit run-plan-all`. Decision trail: the 2026-10-01 amendment on ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`.
+
 ### SessionStart hook (`.claude/settings.json`)
 
 - Generator: `packages/cli/src/generator/claude-session-start-hook.ts` (`writeClaudeSessionStartHook`).

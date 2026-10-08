@@ -25,7 +25,7 @@ File-based handoff (`.cursor/HANDOFF.md`) is the **source of truth** for continu
 | Origin | Origin Code Hosting / Origin Repos: Bring your GitHub repos, Pull requests, Agents in every repo, App extensions for Cursor repos. Includes start from scratch, without a repo; turn it into a real repo, whenever you want; a live preview, right in the browser; and publish your work | Not the kit git spine (`/git-staging` → staging → `/git-prod`). |
 | Self-hosted machines | My Machines, team pools, dynamic pool scheduling, run on your sandboxes, computer use on Linux and Mac | Operator infra. Cloud Agents stay the opt-in audits reviewer only. |
 | Subagents on their own machines | Isolated cloud VMs per subagent | Cursor cloud. Kit Task stays local IDE. |
-| Automations | Desktop scheduled-agent UI (Cloud Agent subscriptions: PR / Slack thread / schedule) | Cursor-cloud automation. Kit scheduling withdrawn. |
+| Automations | Desktop scheduled-agent UI (Cloud Agent subscriptions: PR / Slack thread / schedule) | Cursor-cloud automation. Kit scheduling was withdrawn 2026-09-10; a generic, local lane (one-shot `agent-kit countdown` run by your own timer, gate exit on a pushed branch, `agent-kit ground-control` triage) is Proposed in ADR `2026-10-08_countdown-coming-home-generic-lane.md`, not shipped. |
 
 ## MCP, hooks and SDK
 

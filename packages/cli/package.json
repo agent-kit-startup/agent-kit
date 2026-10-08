@@ -1,6 +1,6 @@
 {
   "name": "@dadado/agent-kit-cli",
-  "version": "5.16.0",
+  "version": "5.17.0",
   "description": "Agent Kit CLI: HITL framework install and tooling for AI-assisted IDEs (rules, skills, plan/handoff, context).",
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -28,8 +28,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clack/prompts": "^0.8.2",
-    "citty": "^0.1.6",
+    "@clack/prompts": "^1.8.1",
+    "citty": "^0.2.2",
     "kolorist": "^1.8.0"
   },
   "devDependencies": {

@@ -56,6 +56,19 @@ describe("ci.yml private-origin allowlist pin", () => {
     },
   );
 
+  const sigScanPath = resolve(repoRoot, ".github/workflows/signature-scan.yml");
+  it.skipIf(!existsSync(sigScanPath))(
+    "keeps the signature-scan workflow job on the same allowlist (its script is not public-synced)",
+    () => {
+      const wf = readFileSync(sigScanPath, "utf8");
+      const matches = wf.match(/github\.repository\s*==\s*'agent-kit-startup\/agent-kit-dev'/g);
+      expect(matches?.length).toBe(1);
+      expect(wf).toContain("signature-scan:");
+      expect(wf).toContain("sh scripts/ci-pr-signature-scan.sh");
+      expect(wf).not.toMatch(denylistRe);
+    },
+  );
+
   it.skipIf(!ciPresent)("runs the three root node --test suites from Evidence checks", () => {
     const evidenceIdx = body.indexOf("- name: Evidence checks");
     const guardIdx = body.indexOf("- name: Guard generated CLI dashboard is untracked");

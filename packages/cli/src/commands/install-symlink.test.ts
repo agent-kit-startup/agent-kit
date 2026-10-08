@@ -145,3 +145,44 @@ describe("performInstall --claude with a symlinked .claude/settings.json", () =>
     expect(await readFile(target, "utf8")).toBe('{"keep":true}\n');
   }, 60_000);
 });
+
+describe("performInstall Claude command adapter hint (#92)", () => {
+  async function plainConsumer(): Promise<string> {
+    const consumer = await mkdtemp(path.join(tmpdir(), "ak-install-hint-"));
+    await writeFile(
+      path.join(consumer, "package.json"),
+      JSON.stringify({ packageManager: "npm@10.0.0", scripts: { test: "vitest run" } }),
+    );
+    await writeFile(path.join(consumer, "package-lock.json"), "{}");
+    return consumer;
+  }
+
+  it("plain install leaves only agent-kit.md and returns one hint naming update --claude", async () => {
+    const consumer = await plainConsumer();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await performInstall({ cwd: consumer, registry: KIT_ROOT });
+    expect(result.claudeAdapterHint).toContain("agent-kit update --claude");
+    await expect(
+      access(path.join(consumer, ".claude", "commands", "agent-kit.md")),
+    ).resolves.toBeUndefined();
+    await expect(
+      access(path.join(consumer, ".claude", "commands", "run-plan.md")),
+    ).rejects.toThrow();
+  });
+
+  it("install --claude generates adapters and returns no hint", async () => {
+    const consumer = await plainConsumer();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await performInstall({
+      cwd: consumer,
+      registry: KIT_ROOT,
+      claudeAdapters: true,
+    });
+    expect(result.claudeAdapterHint).toBeUndefined();
+    await expect(
+      access(path.join(consumer, ".claude", "commands", "run-plan.md")),
+    ).resolves.toBeUndefined();
+  });
+});

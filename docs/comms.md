@@ -13,6 +13,7 @@ Repeatable **draft then HITL approve then publish** loop for Mission Kit adoptio
 | Contributor funnel | [CONTRIBUTING.md](CONTRIBUTING.md), [contribute-upstream.md](contribute-upstream.md) |
 | Community skill | `registry/skills/community/mission-kit-comms/SKILL.md` (`agent-kit add mission-kit-comms`) |
 | Dedicated agent | `.cursor/agents/mission-kit-comms.md` (not an Agent Persona) |
+| Grok community manager bot | [grok-community-manager.md](grok-community-manager.md) + system prompt [comms-templates/grok-system-prompt.md](comms-templates/grok-system-prompt.md) |
 | One-shot launch paste | [public-launch-announcement.md](public-launch-announcement.md) |
 
 Agent Personas (`autopilot`, `night-shift`, `ghost-runner`) stay chat chrome. They are not posters. Cursor Marketplace publisher submit is owned by a parked plan; do not treat listing as shipped from this loop.
