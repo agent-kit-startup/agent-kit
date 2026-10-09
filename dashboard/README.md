@@ -10,7 +10,7 @@ directly, and `packages/cli/dashboard/` is a generated copy (gitignored, produce
 | `start.mjs` / `start-broadcast.mjs` | loopback and LAN entry points, per-workspace port allocation |
 | `dashboard-data.mjs` | snapshot builder for the panel |
 | `dashboard.html`, `open.html` | panel and share shell |
-| `lib/*.mjs` | guards, semantic model, live refresh, browser open, terminal snapshot |
+| `lib/*.mjs` | guards, semantic model, live refresh, browser open, terminal snapshot, headless run feed (`run-logs.mjs`) |
 | `lib/guards.d.mts` | hand-written types consumed by the CLI package (parity is pinned by a test) |
 
 ## Where the tests live
@@ -23,6 +23,15 @@ before it fans out to the workspace packages).
 
 `dashboard.html` is outside Biome's scope; CSS/HTML-only changes are covered by
 `packages/cli/src/dashboard/plugin-ux-validation.test.ts` instead.
+
+## Embedding (action seam, CSP readiness)
+
+A host page can replace the copy-to-clipboard default by defining
+`window.__MISSION_CONTROL_ACTIONS__ = { perform(action) }` before the panel's script runs;
+every action is one `{ kind: "copy", text, subject, destination, toastMessage }` record. The web
+dashboard keeps the copy-only default. Contract, CSP readiness counts and the innerHTML sink
+audit: `docs/mission-control-embedding.md`. The snapshot shape is versioned by `dashboardDataVersion`
+and published as `docs/contracts/mission-control-snapshot.schema.json`.
 
 ## Git tab and DevOps tab
 

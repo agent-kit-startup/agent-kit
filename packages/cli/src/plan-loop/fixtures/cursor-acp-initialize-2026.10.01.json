@@ -1,0 +1,37 @@
+{
+  "recorded": "2026-10-08, cursor-agent 2026.10.01-e373342 (Linux), `cursor-agent acp`, request = initialize only (no session, no prompt)",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": 1,
+      "clientCapabilities": {
+        "fs": { "readTextFile": false, "writeTextFile": false },
+        "terminal": false
+      },
+      "clientInfo": { "name": "agent-kit-spike", "version": "0.0.0" }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "protocolVersion": 1,
+      "agentCapabilities": {
+        "loadSession": true,
+        "mcpCapabilities": { "http": true, "sse": true },
+        "promptCapabilities": { "audio": false, "embeddedContext": false, "image": true },
+        "sessionCapabilities": { "list": {} }
+      },
+      "authMethods": [
+        {
+          "id": "cursor_login",
+          "name": "Cursor Login",
+          "description": "Authenticate using existing Cursor login credentials. Run 'agent login' first if not logged in."
+        }
+      ]
+    }
+  },
+  "observed": "the process did not exit within 1.5 s of stdin end; the client must signal it after a grace period"
+}

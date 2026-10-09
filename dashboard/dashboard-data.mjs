@@ -17,6 +17,7 @@ import {
 import { projectSlugFromRoot } from "./lib/live-refresh.mjs";
 import { PIPELINE_CACHE_ENV, readCachedPipeline } from "./lib/pipeline-cache.mjs";
 import { selectWorkspaceProcesses } from "./lib/processes.mjs";
+import { collectRunLogs } from "./lib/run-logs.mjs";
 import {
   EXTERNAL_REPORT_FILE_RE,
   FIELD_REPORT_CADENCE_LEDGER_REL,
@@ -131,7 +132,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.3.0",
+    version: "1.5.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -148,6 +149,8 @@ const SNAPSHOT = {
         "Best-effort DevOps signal: pipeline ({available, runs[], reason?} recent gh run list rows; reason is 'budget' when the shared snapshot budget ran out before gh was attempted, or 'call-failed' when gh was attempted and missing/unauthenticated/timed out/errored; reason is only present when available is false; fetchedAt is the ISO time gh was last attempted, reused from serve.mjs for up to 60s) and deploy ({tags[], changelog} v* git tags + latest CHANGELOG release entry as a 'what shipped recently' proxy, not a live infra poll)",
       terminals:
         "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
+      runLogs:
+        "Newest headless agent-kit run / tick logs from <state root>/loop-logs (AGENT_KIT_STATE_ROOT: .cursor by default, or .agent-kit; no ~/.cursor dependency): format, session id, capped last agent text, result, LOOP_TICK_RESULT line, HITL gate ids and reply stamps (1.5.0)",
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
@@ -156,7 +159,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.4.0",
+  dashboardDataVersion: "1.5.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -167,6 +170,7 @@ const SNAPSHOT = {
   memory: {},
   git: {},
   terminals: [],
+  runLogs: [],
   processes: [],
   skills: [],
   health: { status: "ok", checks: [] },
@@ -767,6 +771,12 @@ if (existsSync(terminalProjectPath)) {
   } catch {
     // Ignore terminal read errors
   }
+}
+
+// 7b. Headless run feed (<state root>/loop-logs, AGENT_KIT_STATE_ROOT): the kit's own transcript source,
+// independent of ~/.cursor/projects (embeddable contract, 1.5.0).
+if (withinSnapshotBudget(200)) {
+  SNAPSHOT.runLogs = collectRunLogs(ROOT, { redact: redactTerminalOutput });
 }
 
 // 8. Config

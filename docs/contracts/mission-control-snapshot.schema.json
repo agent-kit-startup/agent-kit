@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
+  "title": "Mission Control snapshot",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level and the runLogs rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.5.0",
+  "type": "object",
+  "required": [
+    "_schema",
+    "generatedAt",
+    "dashboardDataVersion",
+    "plans",
+    "system",
+    "agents",
+    "commands",
+    "memory",
+    "git",
+    "terminals",
+    "runLogs",
+    "processes",
+    "skills",
+    "health",
+    "missionControl",
+    "devops"
+  ],
+  "properties": {
+    "_schema": { "type": "object", "required": ["version", "fields"] },
+    "generatedAt": { "type": "string" },
+    "dashboardDataVersion": { "type": "string", "const": "1.5.0" },
+    "plans": { "type": "array" },
+    "system": { "type": "object", "required": ["repoRoot"] },
+    "agents": { "type": "array" },
+    "commands": { "type": "array" },
+    "memory": { "type": "object" },
+    "git": { "type": "object" },
+    "terminals": { "type": "array" },
+    "runLogs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "path",
+          "updatedAt",
+          "source",
+          "format",
+          "lastText",
+          "result",
+          "sentinel",
+          "gates",
+          "replies"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "enum": ["tick", "run"] },
+          "path": { "type": "string" },
+          "updatedAt": { "type": "string" },
+          "source": { "const": "loop-logs" },
+          "format": { "enum": ["stream-json", "codex", "acp", null] },
+          "lastText": { "type": "string" },
+          "result": { "type": ["object", "null"] },
+          "sentinel": { "type": ["string", "null"] },
+          "gates": { "type": "array" },
+          "replies": { "type": "array" }
+        }
+      }
+    },
+    "processes": { "type": "array" },
+    "skills": { "type": "array" },
+    "health": { "type": "object", "required": ["status", "checks"] },
+    "missionControl": { "type": ["object", "null"] },
+    "devops": { "type": "object", "required": ["pipeline", "deploy"] }
+  },
+  "additionalProperties": true
+}

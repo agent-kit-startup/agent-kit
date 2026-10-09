@@ -38,6 +38,7 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/lib/identity-probe.mjs",
   "package/dashboard/lib/pipeline-cache.mjs",
   "package/dashboard/lib/processes.mjs",
+  "package/dashboard/lib/run-logs.mjs",
   "package/dashboard/lib/semantic-model.mjs",
   "package/dashboard/lib/terminal-snapshot.mjs",
   "package/dashboard/lib/triage-heading.mjs",

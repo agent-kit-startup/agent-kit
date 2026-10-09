@@ -3,6 +3,7 @@ import { defineCommand } from "citty";
 import type { AgentBackend } from "../plan-loop/backends.js";
 import { getBackend } from "../plan-loop/backends.js";
 import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js";
+import { DRIVER_EVENTS_FORMATS } from "../plan-loop/driver-events.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
@@ -48,6 +49,18 @@ export const runPlanCommand = defineCommand({
       description: `CI: never prompt; a HITL gate stops the run with exit ${HITL_UNANSWERED_EXIT_CODE} (no default answer)`,
       default: false,
     },
+    "on-limit": {
+      type: "string",
+      description:
+        "Backend for the next fresh tick when a tick stops on a vendor usage limit (once per run; default: stop)",
+      default: "",
+    },
+    events: {
+      type: "string",
+      description:
+        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; see docs/driver-events-protocol.md)",
+      default: "",
+    },
     plain: {
       type: "boolean",
       description:
@@ -65,6 +78,13 @@ export const runPlanCommand = defineCommand({
     }
     if (!Number.isFinite(sleepSeconds) || sleepSeconds < 0) {
       logger.error("--sleep must be a non-negative number");
+      process.exitCode = 1;
+      return;
+    }
+
+    const events = String(args.events ?? "");
+    if (events && !(DRIVER_EVENTS_FORMATS as readonly string[]).includes(events)) {
+      logger.error(`--events must be one of: ${DRIVER_EVENTS_FORMATS.join(", ")}`);
       process.exitCode = 1;
       return;
     }
@@ -89,6 +109,18 @@ export const runPlanCommand = defineCommand({
       return;
     }
 
+    let onLimit: AgentBackend | undefined;
+    const onLimitId = String(args["on-limit"] ?? "").trim();
+    if (onLimitId) {
+      try {
+        onLimit = getBackend(onLimitId);
+      } catch (err) {
+        logger.error(`--on-limit: ${String(err)}`);
+        process.exitCode = 1;
+        return;
+      }
+    }
+
     const code = await runPlanLoop({
       root: path.resolve(args.cwd),
       maxTicks,
@@ -98,6 +130,8 @@ export const runPlanCommand = defineCommand({
       backend,
       noHitl: Boolean(args["no-hitl"]),
       plain: Boolean(args.plain),
+      ...(events ? { events: {} } : {}),
+      ...(onLimit ? { onLimit } : {}),
     });
     process.exitCode = code;
   },

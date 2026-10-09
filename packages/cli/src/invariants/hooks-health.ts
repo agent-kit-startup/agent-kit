@@ -12,6 +12,7 @@ import {
   RESOLVE_AGENT_KIT_REL,
   SESSION_START_HOOK_MARKER,
 } from "../generator/claude-session-start-hook.js";
+import { findOnPath } from "../utils/find-on-path.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -66,14 +67,7 @@ export async function resolveAgentKitCli(rootDir: string): Promise<string | null
   for (const c of candidates) {
     if (await exists(c)) return c;
   }
-  try {
-    const { stdout } = await execFileAsync("which", ["agent-kit"], { encoding: "utf8" });
-    const hit = stdout.trim().split("\n")[0]?.trim();
-    if (hit) return hit;
-  } catch {
-    /* not on PATH */
-  }
-  return null;
+  return findOnPath("agent-kit");
 }
 
 function commandLooksLikeAdapter(command: string): string | null {
@@ -214,14 +208,8 @@ async function resolveGuardProbeArgv(root: string): Promise<string[] | null> {
   if (await isExecutable(local)) return [local];
   const dist = path.join(root, "packages", "cli", "dist", "index.js");
   if (await exists(dist)) return [process.execPath, dist];
-  try {
-    const { stdout } = await execFileAsync("which", ["agent-kit"], { encoding: "utf8" });
-    const hit = stdout.trim().split("\n")[0]?.trim();
-    if (hit) return [hit];
-  } catch {
-    /* not on PATH */
-  }
-  return null;
+  const hit = await findOnPath("agent-kit");
+  return hit ? [hit] : null;
 }
 
 /**

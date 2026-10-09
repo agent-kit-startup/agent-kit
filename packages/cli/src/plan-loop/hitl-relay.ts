@@ -5,9 +5,11 @@
  * list and waits for an answer. This module detects that turn end, asks the
  * operator on the terminal, and formats the reply that the backend writes to
  * the child's stdin as one `user` event. It never answers a gate by itself:
- * the only thing that produces a reply is operator keyboard input; an empty
- * line, EOF, `skip`, `cancel`, Ctrl-C, a missing TTY or `--no-hitl` stop the
- * run with an honest record and no default.
+ * the only thing that produces a reply is operator keyboard input (or, in
+ * driver mode, the operator's answer relayed by the driving app as a JSON
+ * line on stdin, `driver-events.ts`); an empty line, EOF, `skip`, `cancel`,
+ * Ctrl-C, a missing TTY outside driver mode, a driver protocol error or
+ * `--no-hitl` stop the run with an honest record and no default.
  *
  * Sentinel family (same as `LOOP_TICK_RESULT:` in sentinel.ts):
  *   HITL_GATE: <ask-id> | <label 1> | <label 2> | ... | <label n>
@@ -72,6 +74,11 @@ export function parseHitlGateLine(line: string): HitlGate | null {
     .filter((s) => s.length > 0);
   if (labels.length === 0) return null;
   return { askId: m[1], labels, detection: "sentinel" };
+}
+
+/** Canonical `HITL_GATE:` line for a gate (the driver event carries it verbatim). */
+export function formatHitlGateLine(gate: Pick<HitlGate, "askId" | "labels">): string {
+  return `HITL_GATE: ${gate.askId} | ${gate.labels.join(" | ")}`;
 }
 
 /** Last `HITL_GATE:` line in a text block, or null. */
@@ -188,8 +195,16 @@ export function formatHitlReply(askId: string, answer: OperatorAnswer): string {
   throw new Error("a stop answer has no reply stamp");
 }
 
-/** Raw line-reader outcome (before resolution against the labels). */
-export type RawAnswer = { kind: "line"; text: string } | { kind: "eof" } | { kind: "sigint" };
+/**
+ * Raw line-reader outcome (before resolution against the labels). `stop` is
+ * the driver-mode reader's own record: an explicit `{"type":"stop"}` from the
+ * driving app, or an inbound line that breaks the protocol (never a default).
+ */
+export type RawAnswer =
+  | { kind: "line"; text: string }
+  | { kind: "eof" }
+  | { kind: "sigint" }
+  | { kind: "stop"; cause: "driver stop" | "protocol error"; detail?: string };
 
 export interface AnswerReadOptions {
   /** Fired when the child exits while the prompt is open; the reader must release stdin. */
@@ -253,7 +268,9 @@ export type HitlStopCause =
   | "no relay"
   | "reserved"
   | "child exited"
-  | "quit";
+  | "quit"
+  | "driver stop"
+  | "protocol error";
 
 export interface HitlStop {
   askId: string;
@@ -320,6 +337,23 @@ export function unansweredStop(
   };
 }
 
+/** Driver mode: the app sent `{"type":"stop"}`, or an inbound line broke the protocol. */
+export function driverStop(
+  askId: string,
+  raw: { cause: "driver stop" | "protocol error"; detail?: string },
+): HitlStop {
+  const detail = raw.detail ? `: ${raw.detail}` : "";
+  return {
+    askId,
+    cause: raw.cause,
+    message:
+      raw.cause === "driver stop"
+        ? `stopped-by-operator: gate ${askId}, no reply (driver stop)`
+        : `stopped: unanswered gate (driver protocol error${detail})`,
+    exitCode: HITL_UNANSWERED_EXIT_CODE,
+  };
+}
+
 export function noRelayStop(askId: string, backend: string): HitlStop {
   return {
     askId,
@@ -352,11 +386,18 @@ export function formatGatePrompt(gate: HitlGate): string {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * `prompt`: read the operator on a TTY (a non-TTY stdin stops the run).
+ * `off`: `--no-hitl`, a gate stops the run with no read.
+ * `driver`: `--events ndjson`, the gate goes out as a `hitl_gate` event and
+ * the answer comes back as a JSON line on stdin; no TTY is required.
+ */
+export type HitlPolicy = "prompt" | "off" | "driver";
+
 export interface AskOperatorOptions {
-  /** Whether the process stdin is a terminal (contract: never block a non-TTY). */
+  /** Whether the process stdin is a terminal (contract: never block a non-TTY outside driver mode). */
   isTTY: boolean;
-  /** `off` = `--no-hitl`: a gate stops the run, no read. */
-  policy: "prompt" | "off";
+  policy: HitlPolicy;
   readAnswer: AnswerReader;
   write: (text: string) => void;
   signal?: AbortSignal;
@@ -376,7 +417,9 @@ export type AskOutcome =
 export async function askOperator(gate: HitlGate, opts: AskOperatorOptions): Promise<AskOutcome> {
   if (isReservedGateId(gate.askId)) return { kind: "stop", stop: reservedStop(gate.askId) };
   if (opts.policy === "off") return { kind: "stop", stop: unansweredStop(gate.askId, "--no-hitl") };
-  if (!opts.isTTY) return { kind: "stop", stop: unansweredStop(gate.askId, "no TTY") };
+  if (!opts.isTTY && opts.policy !== "driver") {
+    return { kind: "stop", stop: unansweredStop(gate.askId, "no TTY") };
+  }
 
   opts.onPromptStart?.();
   let raw: RawAnswer;
@@ -391,6 +434,7 @@ export async function askOperator(gate: HitlGate, opts: AskOperatorOptions): Pro
   }
   if (raw.kind === "eof") return { kind: "stop", stop: operatorStop(gate.askId, "EOF") };
   if (raw.kind === "sigint") return { kind: "stop", stop: operatorStop(gate.askId, "SIGINT") };
+  if (raw.kind === "stop") return { kind: "stop", stop: driverStop(gate.askId, raw) };
 
   const answer = resolveOperatorAnswer(raw.text, gate.labels);
   if (answer.kind === "stop") return { kind: "stop", stop: operatorStop(gate.askId, answer.cause) };

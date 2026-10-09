@@ -4874,6 +4874,8 @@ function copyActionTitle(subject, destination, text) {
 function copyForPaste(text, subject, destination) {
   return copyToClipboard(text, {
     toastMessage: copyToastMessage(subject || text, destination, text),
+    subject: subject || '',
+    destination: destination || '',
   });
 }
 
@@ -5185,6 +5187,8 @@ async function copyRepoPath(relPath) {
   if (!relPath) return;
   await copyToClipboard(relPath, {
     toastMessage: pathCopyToastMessage(relPath),
+    subject: `path ${relPath}`,
+    destination: 'filePicker',
   });
 }
 
@@ -5683,6 +5687,42 @@ function renderGitHygieneHint(git) {
   `;
 }
 
+// ===== Action seam (contract: docs/mission-control-embedding.md) =====
+/**
+ * One action interface, two implementations. Every dashboard action is a typed
+ * `{ kind: 'copy', text, subject, destination, toastMessage }` record. The open
+ * web dashboard keeps the default implementation: copy to the clipboard and
+ * name the paste destination (copy-only, ADR 2026-07-25). A host page (an
+ * embedding app) may define `window.__MISSION_CONTROL_ACTIONS__ = { perform(action) }`
+ * before this script runs; it then receives the frozen record instead and
+ * validates it host-side against its own allowlist. The dashboard never names
+ * a command for a host to run and adds no other action kind.
+ * Contract: docs/mission-control-embedding.md.
+ */
+const MISSION_CONTROL_ACTION_KINDS = Object.freeze(['copy']);
+
+/** Host action implementation injected by an embedding page, or null (web default). */
+function missionControlActionHost() {
+  const host = typeof window !== 'undefined' ? window.__MISSION_CONTROL_ACTIONS__ : null;
+  return host && typeof host.perform === 'function' ? host : null;
+}
+
+/**
+ * Hand one action record to the injected host. The host's `{ message }` (or
+ * the copy-vocabulary label) is confirmed in the toast; a rejection is shown
+ * as an error and never retried here.
+ */
+async function performHostAction(host, action, opts) {
+  try {
+    const result = await host.perform(Object.freeze({ ...action }));
+    const message = result && typeof result.message === 'string' ? result.message : action.toastMessage;
+    if (!opts.silent) showToast(message, !!(result && result.ok === false));
+  } catch (err) {
+    const reason = err && err.message ? err.message : String(err);
+    showToast(`Action failed: ${reason}`, true);
+  }
+}
+
 // ===== Copy to clipboard + toast (Phase 1) =====
 /** Fallback confirmation. Callers should pass a destination-aware message. */
 function copyToastLabel(text) {
@@ -5692,6 +5732,20 @@ function copyToastLabel(text) {
 async function copyToClipboard(text, options) {
   const opts = options || {};
   const label = opts.toastMessage || copyToastLabel(text);
+  const host = missionControlActionHost();
+  if (host) {
+    return performHostAction(
+      host,
+      {
+        kind: MISSION_CONTROL_ACTION_KINDS[0],
+        text: String(text ?? ''),
+        subject: String(opts.subject || ''),
+        destination: String(opts.destination || ''),
+        toastMessage: label,
+      },
+      opts,
+    );
+  }
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
@@ -5999,6 +6053,8 @@ function copyConfigSnippet(group) {
   for (const key of keys) snippet[key] = payload[key];
   void copyToClipboard(JSON.stringify(snippet, null, 2), {
     toastMessage: 'Copied config snippet - paste into .cursor/context/config.json',
+    subject: 'config snippet',
+    destination: '.cursor/context/config.json',
   });
   return false;
 }
@@ -6014,6 +6070,8 @@ function copyStaticConfigSnippet(id) {
   if (!snippet) return false;
   void copyToClipboard(JSON.stringify(snippet, null, 2), {
     toastMessage: 'Copied config snippet - paste into .cursor/context/config.json (not writable via tab)',
+    subject: 'config snippet',
+    destination: '.cursor/context/config.json',
   });
   return false;
 }

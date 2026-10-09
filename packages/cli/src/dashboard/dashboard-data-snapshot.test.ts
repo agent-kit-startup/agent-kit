@@ -4,7 +4,7 @@
 // the script end-to-end so a regression in the git-status trim or the
 // kitManaged registry/fallback resolution actually fails the suite.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -204,3 +204,89 @@ describe(
     });
   },
 );
+
+// ── Versioned snapshot contract (docs/contracts/mission-control-snapshot.schema.json) ──
+
+type SchemaNode = {
+  type?: string | string[];
+  required?: string[];
+  properties?: Record<string, SchemaNode>;
+  items?: SchemaNode;
+  enum?: unknown[];
+  const?: unknown;
+};
+
+function jsonType(v: unknown): string {
+  if (v === null) return "null";
+  if (Array.isArray(v)) return "array";
+  return typeof v === "number" ? "number" : typeof v;
+}
+
+/** Minimal checker for the keywords the contract uses (type, required, properties, items, enum, const). */
+function schemaErrors(node: SchemaNode, value: unknown, at = "$"): string[] {
+  const errors: string[] = [];
+  if (node.type) {
+    const types = Array.isArray(node.type) ? node.type : [node.type];
+    if (!types.includes(jsonType(value)))
+      errors.push(`${at}: ${jsonType(value)} is not ${types.join("|")}`);
+  }
+  if (node.enum && !node.enum.includes(value)) errors.push(`${at}: ${String(value)} not in enum`);
+  if ("const" in node && node.const !== value)
+    errors.push(`${at}: ${String(value)} !== ${String(node.const)}`);
+  if (jsonType(value) === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of node.required ?? []) if (!(key in obj)) errors.push(`${at}.${key}: missing`);
+    for (const [key, child] of Object.entries(node.properties ?? {})) {
+      if (key in obj) errors.push(...schemaErrors(child, obj[key], `${at}.${key}`));
+    }
+  }
+  if (jsonType(value) === "array" && node.items) {
+    (value as unknown[]).forEach((item, i) => {
+      errors.push(...schemaErrors(node.items as SchemaNode, item, `${at}[${i}]`));
+    });
+  }
+  return errors;
+}
+
+describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, () => {
+  const schema = JSON.parse(
+    readFileSync(resolve(repoRoot, "docs/contracts/mission-control-snapshot.schema.json"), "utf8"),
+  ) as SchemaNode & { version: string };
+
+  it("the snapshot of a scratch repo with a headless tick log matches the schema of its version", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-contract-"));
+    initGitRepo(repo);
+    writeFileSync(join(repo, "README.md"), "x\n");
+    execFileSync("git", ["add", "README.md"], { cwd: repo });
+    execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: repo });
+    const logs = join(repo, ".cursor", "loop-logs");
+    mkdirSync(logs, { recursive: true });
+    writeFileSync(
+      join(logs, "tick-20261008-120000000.log"),
+      readFileSync(
+        resolve(
+          repoRoot,
+          "packages/cli/src/plan-loop/fixtures/claude-stream-run-plan-all-queue-drift.log",
+        ),
+        "utf8",
+      ),
+    );
+
+    const snap = runDashboardData(repo);
+    expect(snap.dashboardDataVersion).toBe(schema.version);
+    expect((snap._schema as { version: string }).version).toBe(schema.version);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    const rows = snap.runLogs as { id: string; source: string; format: string }[];
+    expect(rows.map((r) => [r.id, r.source, r.format])).toEqual([
+      ["tick-20261008-120000000.log", "loop-logs", "stream-json"],
+    ]);
+  });
+
+  it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
+    const source = readFileSync(dashboardDataScript, "utf8");
+    const fieldsBlock = /fields: \{([\s\S]*?)\n {4}\},\n {2}\},/.exec(source)?.[1] ?? "";
+    const fieldNames = [...fieldsBlock.matchAll(/^ {6}([a-zA-Z]+):/gm)].map((m) => m[1]);
+    expect(fieldNames.length).toBeGreaterThan(10);
+    for (const name of fieldNames) expect(schema.required).toContain(name);
+  });
+});
