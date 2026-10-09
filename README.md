@@ -18,6 +18,20 @@ Ships as **Agent Kit** on npm (`@dadado/agent-kit-cli`).
 
 ## Install
 
+### Install from Cursor Marketplace
+
+In Cursor or Grok Bot, open the Plugins panel and search for **Mission Kit** (`agent-kit-startup/agent-kit`). Click Install. The plugin loads:
+
+- Rules (context-guardian, git-workflow, HITL gates, clean-code, docs standard)
+- Core skills (qa, docs-repo, clean-code, onboard, backlog, field-report, plan-review)
+- Agents (docs-repo, cleancode-refactor, memory-extractor, security-reviewer, tech-lead, and more)
+- Commands (`/start-project`, `/continue-plan`, `/run-plan`, `/git-staging`, `/git-prod`, `/dashboard`, `/agent-kit-onboard`)
+- Session hooks (sessionStart, preCompact)
+
+Slash commands and Ask questions HITL gates become available immediately.
+
+### Install via CLI (project bootstrap)
+
 From your project root:
 
 ```bash
