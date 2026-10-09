@@ -10,6 +10,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Plugin installs now list five more core skills: `agent-kit-onboard`, `backlog-add`, `field-report-resolve`, `plan-external-review` and `plan-review-triage` each ship a `SKILL.md` that points to its existing `procedure.md` and command. The skills load only through their slash commands, and `agent-kit install` is unchanged.
+
+## [5.18.0] - 2026-10-09
+
+### Added
+
+- `agent-kit run-plan --events ndjson` (driver mode): apps, scripts and CI jobs can drive the headless plan runner over pipes with no terminal. stdout carries only NDJSON events (`run_start`, `tick_start`, `agent_event`, `hitl_gate`, `tick_end`, `log`, `run_end`) that wrap the runner's existing `TICK_PROMPT`, `HITL_GATE`, `HITL_REPLY` and `LOOP_TICK_RESULT` lines, and HITL answers come back as JSON lines on stdin (`{"type":"hitl_reply","askId":"...","reply":1}`). A gate no longer stops a piped run with "no TTY" in this mode; EOF, `{"type":"stop"}` or a malformed or mismatched answer still stop it with exit 4 and no default answer. Versioned contract: `docs/driver-events-protocol.md` (protocol 1.0.0). No new dependencies.
+- `agent-kit run-plan --on-limit <backend>`: when a tick stops on a vendor usage limit, the next fresh tick continues the same plan on the backend you name (once per run, only when it is installed). Without the flag a usage limit now stops the run with a named `usage-limit` reason instead of a generic tick failure; driver events (protocol 1.1.0) carry it as `tick_end.limit` plus `backend` on every tick.
+- `--backend codex` for `agent-kit run-plan` and `agent-kit run`: runs your installed, unmodified Codex CLI (`codex exec --json`) on an OpenAI API key (`OPENAI_API_KEY` or `CODEX_API_KEY`); your own ChatGPT sign-in only with `AGENT_KIT_CODEX_CHATGPT_LOGIN=1`. HITL gates are answered in the terminal or in driver mode and delivered by resuming the same Codex session. `--backend auto` never picks Codex.
+- `--backend cursor-acp` (opt-in): runs your installed Cursor Agent CLI in its documented `agent acp` mode so HITL gates on Cursor are answered (terminal or driver mode) instead of ending the tick; Cursor's own multiple-choice questions are offered as gates too. Sign in with `cursor-agent login`; the kit never handles Cursor credentials. The default `cursor-agent` backend is unchanged.
+- Mission Control can be embedded: a host page may define `window.__MISSION_CONTROL_ACTIONS__ = { perform(action) }` to receive each panel action as a typed `{ kind: "copy", ... }` record instead of the clipboard copy. The web dashboard keeps its copy-only default. Contract and content-security-policy readiness: `docs/mission-control-embedding.md`.
+- Mission Control snapshot 1.5.0: the snapshot shape is now a published, versioned contract (`docs/contracts/mission-control-snapshot.schema.json`), and a new `runLogs` field lists your recent headless `agent-kit run` / `run-plan` logs (agent text, tick result, HITL gates and replies) without reading `~/.cursor`.
+- `AGENT_KIT_STATE_ROOT=.agent-kit` keeps the headless runner's own files (`loop-logs/`, `loop.stop`) in `.agent-kit/` instead of `.cursor/` (the logs folder ignores itself in git). Plans, HANDOFF and the other kit files stay in `.cursor/`; the default is unchanged.
+
+### Changed
+
+- Headless runs now redact `CLAUDE_CODE_OAUTH_TOKEN`, `CURSOR_API_KEY`, `CURSOR_AUTH_TOKEN`, `OPENAI_API_KEY`, `CODEX_API_KEY` and `CODEX_ACCESS_TOKEN` (and their encoded forms) from the terminal, tick logs, driver events and errors, alongside the `ANTHROPIC_*` keys.
+- Agent CLIs are found on PATH without shelling out to `which` (works on Windows, including `.cmd` shims). A `claude` newer than the last version the kit checked prints a warning; older than 2.1.259 still refuses.
+
 ## [5.17.0] - 2026-10-08
 
 ### Added

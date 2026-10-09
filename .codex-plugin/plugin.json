@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "5.17.0",
+  "version": "5.18.0",
   "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
   "author": {
     "name": "agent-kit-startup"

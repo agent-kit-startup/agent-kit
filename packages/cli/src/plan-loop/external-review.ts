@@ -50,6 +50,11 @@ export interface ArmExternalPlanReviewOptions {
   spawnFn?: typeof spawn;
   existsFn?: (p: string) => Promise<boolean>;
   log?: (line: string) => void;
+  /**
+   * Where the launcher's own stdout goes (default: process.stdout). Driver
+   * mode (`--events ndjson`) sends it to stderr so stdout stays NDJSON only.
+   */
+  writeOut?: (text: string) => void;
 }
 
 /**
@@ -115,7 +120,8 @@ export async function armExternalPlanReview(
     const emitOut = (s: string) => {
       if (!s) return;
       output += s;
-      process.stdout.write(s);
+      if (options.writeOut) options.writeOut(s);
+      else process.stdout.write(s);
     };
     const emitErr = (s: string) => {
       if (!s) return;

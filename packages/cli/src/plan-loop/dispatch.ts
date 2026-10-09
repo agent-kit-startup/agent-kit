@@ -1,7 +1,8 @@
 import type { spawn } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
+import { ensureLoopLogsDir, runnerStatePaths } from "../utils/kit-paths.js";
 import type {
   BackendId,
   BackendRunResult,
@@ -21,6 +22,8 @@ import {
   resolveHitlRunOptions,
   spawnLogged,
 } from "./backends.js";
+import { codexBackend } from "./codex.js";
+import { cursorAcpBackend } from "./cursor-acp.js";
 import { RESERVED_GATE_IDS } from "./hitl-relay.js";
 import type { StreamSink } from "./stream-render.js";
 
@@ -172,6 +175,23 @@ export async function runHeadlessDispatch(opts: {
   /** Fired once the child is running (pid, stop handle). */
   onSpawn?: (info: SpawnInfo) => void;
 }): Promise<BackendRunResult> {
+  if (opts.backendId === "codex" || opts.backendId === "cursor-acp") {
+    // Same backends as the tick loop: codex (pointer prompt, API key by
+    // default, resume relay; codex.ts) and Cursor over `agent acp`
+    // (cursor-acp.ts).
+    const backend = opts.backendId === "codex" ? codexBackend : cursorAcpBackend;
+    return backend.run({
+      workspace: opts.workspace,
+      prompt: opts.prompt,
+      model: opts.model,
+      logPath: opts.logPath,
+      spawnFn: opts.spawnFn,
+      log: opts.log,
+      hitl: opts.hitl,
+      render: opts.render,
+      onSpawn: opts.onSpawn,
+    });
+  }
   if (opts.backendId === "claude") {
     // Same env contract as claudeBackend.run: the child inherits process.env
     // minus the nested-session markers (ANTHROPIC_BASE_URL /
@@ -231,7 +251,8 @@ export async function runHeadlessDispatch(opts: {
 }
 
 export async function ensureDispatchLogPath(root: string): Promise<string> {
-  const logDir = path.join(root, ".cursor", "loop-logs");
-  await mkdir(logDir, { recursive: true });
+  const paths = runnerStatePaths(root);
+  await ensureLoopLogsDir(paths);
+  const logDir = paths.loopLogsDir;
   return path.join(logDir, `run-${stamp()}.log`);
 }

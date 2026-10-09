@@ -4,8 +4,12 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
+import { findOnPath } from "../utils/find-on-path.js";
+import { codexBackend } from "./codex.js";
+import { cursorAcpBackend } from "./cursor-acp.js";
 import {
   type AnswerReader,
+  type HitlPolicy,
   type HitlRunRecord,
   type HitlStop,
   type TurnResult,
@@ -18,9 +22,11 @@ import {
   unansweredStop,
   userEventLine,
 } from "./hitl-relay.js";
+import { LineSplitter } from "./line-splitter.js";
 import { type StreamSink, createStreamRenderer } from "./stream-render.js";
+import { VENDOR_CLI_PINS, vendorVersionStatus } from "./vendor-cli-pins.js";
 
-export type BackendId = "cursor-agent" | "claude";
+export type BackendId = "cursor-agent" | "claude" | "codex" | "cursor-acp";
 
 /** Test seam: `claude --version` reader (default: execFileSync). Null = unknown. */
 export type VersionFn = (bin: string) => string | null;
@@ -71,8 +77,11 @@ export interface SpawnInfo {
 
 /** Operator-facing side of the relay; the backend supplies the transport. */
 export interface HitlRunOptions {
-  /** `off` is `--no-hitl`: reaching a gate stops the run (exit 4). */
-  policy?: "prompt" | "off";
+  /**
+   * `off` is `--no-hitl`: reaching a gate stops the run (exit 4). `driver` is
+   * `--events ndjson`: `readAnswer` reads the app's JSON answer, no TTY needed.
+   */
+  policy?: HitlPolicy;
   /** Whether stdin is a terminal (default: process.stdin.isTTY). */
   isTTY?: boolean;
   /** Test seam / TUI seam: how one answer line is read (default: node:readline on stdin). */
@@ -91,6 +100,12 @@ export interface BackendRunResult {
   exitCode: number;
   /** Gate replies and the stop record, when the run carried a relay. */
   hitl?: HitlRunRecord;
+  /**
+   * `resume` transport only: the reply stamp the operator gave at the gate
+   * that ended this child's turn; the backend delivers it by resuming the
+   * vendor session in a new child.
+   */
+  resumeWith?: string;
   /**
    * The last `result` event the relay's turn watcher saw (same redacted text
    * as the log), so the loop can read the tick outcome without re-parsing
@@ -135,15 +150,60 @@ export interface SpawnLoggedOptions {
   /** Fired once the child is running (pid, stop handle). */
   onSpawn?: (info: SpawnInfo) => void;
   backendId?: BackendId;
+  /**
+   * Line translator for vendors whose stream is not claude-style stream-json
+   * (codex `--json`): the log keeps the vendor's raw lines; the renderer and
+   * the relay see the translated stream-json lines instead.
+   */
+  translate?: (line: string) => string[];
+  /** Text written to the child's stdin, then closed (codex reads its prompt from `-`). */
+  stdinText?: string;
+  /** Append to the log instead of truncating it (a resumed child of the same tick). */
+  appendLog?: boolean;
 }
 
+/**
+ * - `stdin-stream-json` (claude): one long-lived child; replies are `user` events on stdin.
+ * - `resume` (codex): the child ends at every turn; a reply is returned as
+ *   `resumeWith` and the backend resumes the session in a new child.
+ * - `none` (cursor-agent `-p`): a gate is detected and recorded as an honest stop.
+ */
 export type HitlTransport =
   | { kind: "stdin-stream-json"; firstPrompt: string }
+  | { kind: "resume"; backend: string }
   | { kind: "none"; backend: string };
+
+/** Chunk-to-line translator for `SpawnLoggedOptions.translate`. */
+function createLineTranslator(translate: (line: string) => string[]) {
+  const decoder = new StringDecoder("utf8");
+  const lines = new LineSplitter();
+  const run = (line: string, out: string[]) => {
+    try {
+      out.push(...translate(line));
+    } catch {
+      // A translator failure must not reach the tee; the log has the bytes.
+    }
+  };
+  return {
+    push(chunk: string | Buffer): string {
+      const text = typeof chunk === "string" ? chunk : decoder.write(chunk);
+      const out: string[] = [];
+      lines.feed(text, (line) => run(line, out));
+      return out.length ? `${out.join("\n")}\n` : "";
+    },
+    end(): string {
+      const out: string[] = [];
+      lines.feed(decoder.end(), (line) => run(line, out));
+      const rest = lines.end();
+      if (rest.trim()) run(rest, out);
+      return out.length ? `${out.join("\n")}\n` : "";
+    },
+  };
+}
 
 export interface SpawnHitlOptions {
   transport: HitlTransport;
-  policy: "prompt" | "off";
+  policy: HitlPolicy;
   isTTY: boolean;
   readAnswer: AnswerReader;
   write: (text: string) => void;
@@ -333,6 +393,23 @@ export function claudeRunCaps(env: NodeJS.ProcessEnv): { caps: ClaudeRunCaps; in
   return { caps, invalid };
 }
 
+/**
+ * Vendor credentials a child may inherit from the operator's environment,
+ * redacted by every backend whether or not that backend reads them (a tick
+ * can print its environment): Claude subscription token, Cursor and OpenAI /
+ * Codex keys. The kit never reads or stores these values; it only elides
+ * them from the console echo, the tick log, driver events and error strings
+ * (vendor terms posture: the kit never handles vendor credentials).
+ */
+export const VENDOR_SECRET_ENV = [
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CURSOR_API_KEY",
+  "CURSOR_AUTH_TOKEN",
+  "OPENAI_API_KEY",
+  "CODEX_API_KEY",
+  "CODEX_ACCESS_TOKEN",
+] as const;
+
 /** Derived forms shorter than this are not redacted (they would mangle unrelated text). */
 const REDACT_DERIVED_MIN_CHARS = 4;
 const REDACT_DERIVED_SKIP = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
@@ -362,9 +439,9 @@ function derivedUrlForms(value: string): string[] {
 }
 
 /**
- * Redaction entries for the passthrough keys present in `env`. Applied by
- * every backend (`claude` and `cursor-agent`) to the environment its child
- * inherits. Besides the exact value, derived forms are elided under the same
+ * Redaction entries for the passthrough keys and the vendor secrets
+ * (`VENDOR_SECRET_ENV`) present in `env`. Applied by every backend to the
+ * environment its child inherits. Besides the exact value, derived forms are elided under the same
  * label:
  * - `ANTHROPIC_BASE_URL`: trailing-slash toggle, origin, `host` (with port)
  *   and `hostname`, so a gateway-down `connect ECONNREFUSED host:port` or
@@ -385,7 +462,7 @@ export function claudeRedactions(env: NodeJS.ProcessEnv): RedactionEntry[] {
     seen.add(value);
     entries.push({ label, value });
   };
-  for (const key of CLAUDE_ENV_PASSTHROUGH) {
+  for (const key of [...CLAUDE_ENV_PASSTHROUGH, ...VENDOR_SECRET_ENV]) {
     const value = env[key];
     if (!value) continue;
     add(key, value, false);
@@ -396,13 +473,12 @@ export function claudeRedactions(env: NodeJS.ProcessEnv): RedactionEntry[] {
   return entries;
 }
 
+/**
+ * Resolve a vendor CLI on PATH (cross-platform: PATH walk plus PATHEXT on
+ * Windows, no `which` shell-out). Name kept for the detect.ts seam.
+ */
 export async function whichBinary(bin: string): Promise<string | null> {
-  try {
-    const out = execFileSync("which", [bin], { encoding: "utf8" }).trim();
-    return out || null;
-  } catch {
-    return null;
-  }
+  return findOnPath(bin);
 }
 
 export function spawnLogged(
@@ -418,6 +494,7 @@ export function spawnLogged(
   const redactedError = (err: unknown) => new Error(redactSecrets(String(err), redact));
   const hitl = options.hitl;
   const stdinTransport = hitl?.transport.kind === "stdin-stream-json";
+  const stdinPiped = stdinTransport || options.stdinText !== undefined;
   return new Promise((resolve, reject) => {
     let out: ReturnType<typeof createWriteStream>;
     let child: ReturnType<typeof spawnFn>;
@@ -426,13 +503,13 @@ export function spawnLogged(
     // asynchronously (possibly after a fast child has already closed).
     let logError: unknown = null;
     try {
-      out = createWriteStream(logPath, { flags: "w" });
+      out = createWriteStream(logPath, { flags: options.appendLog ? "a" : "w" });
       out.on("error", (err) => {
         logError = err;
         reject(redactedError(err));
       });
       child = spawnFn(command, args, {
-        stdio: [stdinTransport ? "pipe" : "ignore", "pipe", "pipe"],
+        stdio: [stdinPiped ? "pipe" : "ignore", "pipe", "pipe"],
         ...(options.cwd ? { cwd: options.cwd } : {}),
         ...(options.env ? { env: options.env } : {}),
       });
@@ -447,12 +524,25 @@ export function spawnLogged(
     // watcher reads the same text to spot the end of a turn.
     const render = options.render ?? createStreamRenderer();
     const relay = hitl ? createRelay(hitl, child, redactedError) : null;
-    const emit = (text: string | Buffer) => {
+    const translator = options.translate ? createLineTranslator(options.translate) : null;
+    const sinks = (text: string | Buffer) => {
       if (text.length === 0) return;
-      out.write(text);
       render.feed(text);
       relay?.feed(text);
     };
+    const emit = (text: string | Buffer) => {
+      if (text.length === 0) return;
+      out.write(text);
+      sinks(translator ? translator.push(text) : text);
+    };
+    if (options.stdinText !== undefined && !stdinTransport) {
+      const stdin = child.stdin;
+      if (stdin) {
+        // EPIPE after the child died is not a run failure; the exit code is.
+        stdin.on("error", () => {});
+        stdin.end(options.stdinText);
+      }
+    }
     if (relay?.startError) {
       out.end();
       reject(relay.startError);
@@ -498,6 +588,7 @@ export function spawnLogged(
     });
     child.on("close", (code) => {
       for (const buffer of buffers) emit(buffer.flush());
+      if (translator) sinks(translator.end());
       render.end();
       relay?.finish();
       const finish = () => {
@@ -506,10 +597,12 @@ export function spawnLogged(
           if (failure) reject(redactedError(failure));
           else if (relay) {
             const lastResult = relay.lastResult();
+            const resumeWith = relay.resumeWith();
             resolve({
               exitCode: code ?? 1,
               hitl: relay.record,
               ...(lastResult ? { lastResult } : {}),
+              ...(resumeWith ? { resumeWith } : {}),
             });
           } else resolve({ exitCode: code ?? 1 });
         });
@@ -526,6 +619,8 @@ interface Relay {
   record: HitlRunRecord;
   /** The last `result` event seen, if any. */
   lastResult(): TurnResult | undefined;
+  /** `resume` transport: the stamp to deliver in a resumed child, if a gate got a reply. */
+  resumeWith(): string | undefined;
   feed(text: string | Buffer): void;
   /** End of input: parse the held tail. Called after the redaction flush. */
   finish(): void;
@@ -550,6 +645,10 @@ function createRelay(
 ): Relay {
   const record = emptyHitlRecord();
   const stdinTransport = hitl.transport.kind === "stdin-stream-json";
+  // A resume child exits right after the turn that asked; the operator's
+  // answer outlives it and is delivered by the backend in a new child.
+  const resumeTransport = hitl.transport.kind === "resume";
+  let resumeWith: string | undefined;
   const abort = new AbortController();
   const grace = hitl.killAfterMs ?? HITL_KILL_GRACE_MS;
   let startError: Error | null = null;
@@ -635,6 +734,12 @@ function createRelay(
           stopChild();
           return;
         }
+        if (resumeTransport) {
+          record.replies.push(outcome.stamp);
+          hitl.write(`→ ${outcome.stamp.line}\n`);
+          resumeWith = outcome.stamp.line;
+          return;
+        }
         if (closed || !stdin) {
           record.stop = unansweredStop(gate.askId, "child exited");
           return;
@@ -657,7 +762,7 @@ function createRelay(
   child.on("close", () => {
     closed = true;
     for (const t of timers) clearTimeout(t);
-    abort.abort();
+    if (!resumeTransport) abort.abort();
     const settle = () => resolveClosed();
     if (pendingAsk) pendingAsk.then(settle, settle);
     else settle();
@@ -667,6 +772,7 @@ function createRelay(
     startError,
     record,
     lastResult: () => lastResult,
+    resumeWith: () => resumeWith,
     feed: (text) => watcher.feed(text),
     finish: () => watcher.end(),
     closed: () => closedPromise,
@@ -734,7 +840,7 @@ export const cursorAgentBackend: AgentBackend = {
 };
 
 /** Oldest claude CLI that accepts `--permission-prompts` (code.claude.com/docs/en/headless). */
-export const CLAUDE_MIN_VERSION = "2.1.259";
+export const CLAUDE_MIN_VERSION = VENDOR_CLI_PINS.claude.min ?? "2.1.259";
 
 /** Parse `2.1.261 (Claude Code)` style output; null when unparsable. */
 export function parseClaudeVersion(raw: string | null): string | null {
@@ -799,6 +905,8 @@ export function checkClaudeVersion(
       message: `claude ${version} is older than ${CLAUDE_MIN_VERSION}, the first release that accepts \`--permission-prompts none\`. Run \`claude update\` and retry.`,
     };
   }
+  const pin = vendorVersionStatus("claude", version);
+  if (pin.status === "newer-than-tested") return { ok: true, version, warning: pin.message };
   return { ok: true, version };
 }
 
@@ -967,19 +1075,29 @@ export const claudeBackend: AgentBackend = {
   },
 };
 
-const BACKENDS: Record<BackendId, AgentBackend> = {
-  "cursor-agent": cursorAgentBackend,
-  claude: claudeBackend,
-};
+/**
+ * Backend registry. Built on first use: codex.ts imports this module's
+ * spawn helpers, so a top-level map would read `codexBackend` before the
+ * cycle has initialized it when codex.ts is the first module loaded.
+ */
+function backends(): Record<BackendId, AgentBackend> {
+  return {
+    "cursor-agent": cursorAgentBackend,
+    claude: claudeBackend,
+    codex: codexBackend,
+    "cursor-acp": cursorAcpBackend,
+  };
+}
 
 export function getBackend(id: string): AgentBackend {
-  const backend = BACKENDS[id as BackendId];
+  const all = backends();
+  const backend = all[id as BackendId];
   if (!backend) {
-    throw new Error(`Unknown backend '${id}'. Supported: ${Object.keys(BACKENDS).join(", ")}`);
+    throw new Error(`Unknown backend '${id}'. Supported: ${Object.keys(all).join(", ")}`);
   }
   return backend;
 }
 
 export function listBackendIds(): BackendId[] {
-  return Object.keys(BACKENDS) as BackendId[];
+  return Object.keys(backends()) as BackendId[];
 }

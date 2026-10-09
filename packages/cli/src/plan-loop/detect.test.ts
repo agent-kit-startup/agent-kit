@@ -54,7 +54,28 @@ describe("detectAgentBackend", () => {
     }
   });
 
+  it("codex is explicit-only: auto never picks it, --backend codex resolves it", async () => {
+    const seen: string[] = [];
+    const auto = await detectAgentBackend("auto", async (bin) => {
+      seen.push(bin);
+      return bin === "codex" ? "/usr/bin/codex" : null;
+    });
+    expect(auto.ok).toBe(false);
+    expect(seen).not.toContain("codex");
+    expect(await detectAgentBackend("codex", async () => "/usr/bin/codex")).toEqual({
+      ok: true,
+      id: "codex",
+      bin: "/usr/bin/codex",
+    });
+  });
+
   it("lists auto plus concrete backends", () => {
-    expect(listDetectBackendIds()).toEqual(["auto", "cursor-agent", "claude"]);
+    expect(listDetectBackendIds()).toEqual([
+      "auto",
+      "cursor-agent",
+      "claude",
+      "codex",
+      "cursor-acp",
+    ]);
   });
 });

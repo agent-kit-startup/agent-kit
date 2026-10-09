@@ -29,20 +29,30 @@ function listSkillMdFiles(skillsRoot: string): string[] {
 describe("capability-inventory skills counts", () => {
   it("pins SKILL.md on-disk count and required inventory rows", () => {
     const skillMd = listSkillMdFiles(join(repoRoot, ".cursor/skills"));
-    expect(skillMd.length).toBe(14);
+    expect(skillMd.length).toBe(19);
     expect(skillMd).toContain(".cursor/skills/core/hitl-gates/SKILL.md");
     expect(skillMd).toContain(".cursor/skills/core/qa/SKILL.md");
     expect(skillMd).toContain(".cursor/skills/core/dashboard-broadcast/SKILL.md");
+    expect(skillMd).toContain(".cursor/skills/core/agent-kit-onboard/SKILL.md");
+    expect(skillMd).toContain(".cursor/skills/core/backlog-add/SKILL.md");
+    expect(skillMd).toContain(".cursor/skills/core/field-report-resolve/SKILL.md");
+    expect(skillMd).toContain(".cursor/skills/core/plan-external-review/SKILL.md");
+    expect(skillMd).toContain(".cursor/skills/core/plan-review-triage/SKILL.md");
     expect(skillMd).toContain(".cursor/skills/domain/llm-security-ops/SKILL.md");
 
     const inventory = readFileSync(join(repoRoot, "docs/capability-inventory.md"), "utf8");
     expect(inventory).toContain(`## Skills (.cursor/skills/ - ${skillMd.length} SKILL.md)`);
-    expect(inventory).toMatch(/### Core skills with SKILL\.md \(5\)/);
+    expect(inventory).toMatch(/### Core skills with SKILL\.md \(10\)/);
     expect(inventory).toContain("`hitl-gates`");
     expect(inventory).toContain("`dashboard-broadcast`");
+    expect(inventory).toContain("`agent-kit-onboard`");
+    expect(inventory).toContain("`backlog-add`");
+    expect(inventory).toContain("`field-report-resolve`");
+    expect(inventory).toContain("`plan-external-review`");
+    expect(inventory).toContain("`plan-review-triage`");
     expect(inventory).toContain("`llm-security-ops`");
-    expect(inventory).not.toMatch(/## Skills \(\.cursor\/skills\/ - 11\)/);
-    expect(inventory).not.toMatch(/### Core skills \(3\)/);
+    expect(inventory).not.toMatch(/## Skills \(\.cursor\/skills\/ - 14\)/);
+    expect(inventory).not.toMatch(/### Core skills with SKILL\.md \(5\)/);
   });
 
   it("pins layers-spec L0 skills table to l0.ts skill targets", () => {

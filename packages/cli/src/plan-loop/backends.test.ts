@@ -12,6 +12,7 @@ import {
   CLAUDE_MIN_VERSION,
   CLAUDE_NESTED_SESSION_KEYS,
   RedactingStreamBuffer,
+  VENDOR_SECRET_ENV,
   checkClaudeVersion,
   claudeBackend,
   claudeChildEnv,
@@ -122,8 +123,8 @@ const BASE_URL = "https://gateway.example/anthropic";
 const API_KEY = "example-api-key-0123456789";
 
 describe("backend table", () => {
-  it("lists both backends and resolves claude without throwing", () => {
-    expect(listBackendIds()).toEqual(["cursor-agent", "claude"]);
+  it("lists the backends and resolves claude without throwing", () => {
+    expect(listBackendIds()).toEqual(["cursor-agent", "claude", "codex", "cursor-acp"]);
     expect(getBackend("claude")).toBe(claudeBackend);
     expect(getBackend("cursor-agent")).toBe(cursorAgentBackend);
     expect(() => getBackend("glm")).toThrow(/Unknown backend 'glm'/);
@@ -204,6 +205,8 @@ describe("mergeChildEnv / claudeRedactions", () => {
   });
 
   it("inherits process.env, overrides win, undefined unsets", () => {
+    // Host-independent: an operator shell may export vendor keys.
+    for (const key of VENDOR_SECRET_ENV) vi.stubEnv(key, undefined);
     vi.stubEnv("ANTHROPIC_API_KEY", "inherited-key");
     vi.stubEnv("ANTHROPIC_BASE_URL", "https://inherited.example");
     const env = mergeChildEnv({
