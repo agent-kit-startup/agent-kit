@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
-import { RedactingStreamBuffer, claudeRedactions, redactSecrets } from "./backends.js";
+import { claudeRedactions, RedactingStreamBuffer, redactSecrets } from "./backends.js";
 
 /** Canonical L0 launcher (preferred). */
 const CANONICAL_REL = path.join(".cursor", "scripts", "plan-external-review.sh");

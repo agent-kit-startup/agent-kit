@@ -120,6 +120,10 @@ Maintainer replies that are promotional still need HITL (skill `mission-kit-comm
 
 Drafts and cadence live in [comms.md](comms.md). The launch paste in [public-launch-announcement.md](public-launch-announcement.md) remains valid seed copy. Nothing in the kit posts to social networks by itself.
 
-## Contribution license (follow-on)
+## Contribution license (DCO)
 
-Inbound CLA/DCO terms for a paid-commercial PolyForm NC project are a tracked follow-on (polyform residual E). Until that ships, pull requests are welcome under the repository LICENSE for noncommercial contribution review, and maintainers may request a CLA before merging commercial-impact changes.
+Contributions are accepted under the Apache License 2.0 (section 5 of [LICENSE](../LICENSE)). There is no CLA.
+
+From the first Apache-2.0 release on, every commit in a pull request carries a `Signed-off-by:` line with your name and email. It certifies the [Developer Certificate of Origin 1.1](https://developercertificate.org/): you wrote the change, or you have the right to submit it under the project license. `git commit -s` adds the line. Maintainers check it at review.
+
+When a coding agent wrote the commit, the person who submits it signs off. `Signed-off-by:` is a human certification, not an agent trailer.

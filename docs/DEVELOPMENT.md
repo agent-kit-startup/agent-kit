@@ -72,7 +72,7 @@ pnpm --filter @dadado/agent-kit-cli start -- status --cwd /path/to/your-project
 scripts/install-ubuntu24-bare-metal.sh --version x.y.z --target-dir /srv/your-project
 ```
 
-What it does, in order: installs Node via the NodeSource setup script unattended (`sudo` unless already root), `git init`s an empty target directory so the project-root guard never needs an interactive answer, then runs `npx --yes @dadado/agent-kit-cli@<version> install --yes` with `npm_config_cache` pointed at a kit-managed directory (`--cache-dir`, `AGENT_KIT_NPM_CACHE_DIR`, default `~/.cache/agent-kit/npm-cache`, never `~/.npm/_cacache`). `--version` is required and always pinned; the helper never resolves `@latest`. The NodeSource line is separate from the CLI floor: a box with any Node 20+ on `PATH` skips the bootstrap, a box without one gets `22.x` by default (`--node-major <N>` or `AGENT_KIT_NODE_BOOTSTRAP_MAJOR`, refused below 20). Other flags: `--skip-node-bootstrap` (fail instead of bootstrapping when no Node 20+ is on `PATH`), `--dry-run` (prints every action, makes no network call, no `git init`, no `npx`), `--help`.
+What it does, in order: installs Node via the NodeSource setup script unattended (`sudo` unless already root), `git init`s an empty target directory so the project-root guard never needs an interactive answer, then runs `npx --yes @dadado/agent-kit-cli@<version> install --yes` with `npm_config_cache` pointed at a kit-managed directory (`--cache-dir`, `AGENT_KIT_NPM_CACHE_DIR`, default `~/.cache/agent-kit/npm-cache`, never `~/.npm/_cacache`). `--version` is required and always pinned; the helper never resolves `@latest`. The NodeSource line is separate from the CLI floor: a box with any Node 22.12+ on `PATH` skips the bootstrap, a box without one gets `22.x` by default (`--node-major <N>` or `AGENT_KIT_NODE_BOOTSTRAP_MAJOR`, refused below 22). Other flags: `--skip-node-bootstrap` (fail instead of bootstrapping when no Node 22.12+ is on `PATH`), `--dry-run` (prints every action, makes no network call, no `git init`, no `npx`), `--help`.
 
 Exit codes: `0` installed; `1` usage error or Node bootstrap failure; `2` the npm-cache `EPERM` ownership-drift signature; `3` the swallowed non-interactive prompt that would otherwise surface as a bare `255`. Codes `2` and `3` print the recovery steps and the Port B pointer; an unrecognized failure propagates the raw npx status. The two signatures are the ones recorded in the kit's error memory for the 2026-08-02 non-interactive install failure.
 
@@ -169,7 +169,7 @@ Public marketing uses **Mission Kit** / **MissionKit** (missionkit.io hero, READ
 | npm / CLI / npx | `@dadado/agent-kit-cli`, `agent-kit` | Never rename in docs alone |
 | Slash commands, `.cursor/agent-kit.json`, agent pack | Agent Kit identifiers | Literal command, file, and pack names |
 | Dashboard shell and tabs | Mission Control | Never use Mission Control as the product or CLI name |
-| Commercial contact | `sales@missionkit.io` | PolyForm Noncommercial path |
+| License | Apache-2.0 (`LICENSE`, `NOTICE`) | Names and logo: `TRADEMARKS.md` |
 | Legacy `agent.startupkit.com.br`, `landing-agentkit/` | Historical / rollback-only | Qualify when linked |
 
 Storefront README must not link private memory ADRs or dump dual-name legal essays. Private decision record (factory only): `2026-08-06_mission-kit-vs-agent-kit-naming.md` under `.cursor/memory/decisions/`. Public vs maintainer README split: `2026-08-02_public-vs-dev-readme-separation.md` in the same folder.

@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type ApplyStats,
@@ -8,8 +8,8 @@ import {
   recordOutcome,
 } from "../lifecycle/apply.js";
 import {
-  type ManagedHashLedger,
   loadManagedHashLedger,
+  type ManagedHashLedger,
   saveManagedHashLedger,
 } from "../lifecycle/overlay.js";
 import { resolveContained } from "../lifecycle/paths.js";

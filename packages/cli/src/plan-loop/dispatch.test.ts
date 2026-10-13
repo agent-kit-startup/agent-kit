@@ -11,14 +11,14 @@ import {
   resetClaudeVersionCache,
 } from "./backends.js";
 import {
-  RUN_CATALOG,
-  RUN_PROMOTE_BLOCKED,
   buildDispatchPrompt,
   classifySlash,
   claudeDispatchArgs,
   cursorAgentDispatchArgs,
   normalizeSlashName,
   promoteBlockedMessage,
+  RUN_CATALOG,
+  RUN_PROMOTE_BLOCKED,
   readCommandFile,
   rewriteRootArgvToRun,
   runHeadlessDispatch,

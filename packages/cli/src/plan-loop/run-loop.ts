@@ -2,19 +2,19 @@ import { readFile, rm, unlink } from "node:fs/promises";
 import path from "node:path";
 import { shouldUseLiveTui, withLiveTui } from "../mission-control/live-run.js";
 import { fileExists } from "../utils/fs.js";
-import { STATE_ROOT_ENV, ensureLoopLogsDir, runnerStatePaths } from "../utils/kit-paths.js";
+import { ensureLoopLogsDir, runnerStatePaths, STATE_ROOT_ENV } from "../utils/kit-paths.js";
 import { logger } from "../utils/logger.js";
-import { TtySpinner, shouldUseVisualMotion, withCliProgress } from "../welcome/visual-kit.js";
+import { shouldUseVisualMotion, TtySpinner, withCliProgress } from "../welcome/visual-kit.js";
 import type { AgentBackend } from "./backends.js";
 import {
+  createDriverAnswerReader,
+  createDriverEmitter,
   DRIVER_PROTOCOL_VERSION,
   DriverAgentSink,
   type DriverAnswerReader,
   type DriverEmitter,
   type DriverEvent,
   type DriverTickSentinel,
-  createDriverAnswerReader,
-  createDriverEmitter,
 } from "./driver-events.js";
 import {
   armExternalPlanReview,
@@ -22,20 +22,20 @@ import {
   shouldArmExternalPlanReview,
 } from "./external-review.js";
 import {
+  formatHitlSummary,
   type HitlReplyStamp,
   type HitlStop,
   type TurnResult,
-  formatHitlSummary,
 } from "./hitl-relay.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, readPlan, resolveActivePlanPath } from "./plan-state.js";
 import {
-  type TickSentinel,
   formatSentinelLine,
   resolveTickResultStatus,
   resolveTickSentinel,
+  type TickSentinel,
 } from "./sentinel.js";
-import { type UsageLimitHit, detectUsageLimit } from "./usage-limit.js";
+import { detectUsageLimit, type UsageLimitHit } from "./usage-limit.js";
 
 export const TICK_PROMPT =
   '/run-plan - single tick from the headless runner (agent-kit run-plan). Read .cursor/HANDOFF.md and the active plan in .cursor/plans/. Mark the next to-do as in_progress in the frontmatter, execute ONLY that to-do, mark completed and update HANDOFF. If there is a commitable diff: run /git-staging without asking for confirmation. NEVER /git-prod. Do NOT re-arm an internal Loop skill - the external runner starts the next agent. End the response with exactly one line: "LOOP_TICK_RESULT: continue" if implementable to-dos remain, or "LOOP_TICK_RESULT: stop - <reason>" (plan exhausted, external blocker, or human decision needed).';

@@ -3,16 +3,16 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
-  PERIODIC_REFRESH_MS,
-  SNAPSHOT_REPO_SOURCE_RELS,
-  SSE_SILENCE_MS,
-  WATCH_DEBOUNCE_MS,
   createTrailingDebounce,
   isCoveredByWatchPaths,
   isSseSilent,
+  PERIODIC_REFRESH_MS,
   projectSlugFromRoot,
   resolveAgentTranscriptsWatchPath,
   resolveWatchPaths,
+  SNAPSHOT_REPO_SOURCE_RELS,
+  SSE_SILENCE_MS,
+  WATCH_DEBOUNCE_MS,
 } from "../../../../dashboard/lib/live-refresh.mjs";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");

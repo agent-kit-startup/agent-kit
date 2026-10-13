@@ -3,12 +3,12 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  NESTED_REPO_AMBIGUITY_THRESHOLD,
-  RootRefusedError,
   classifyInstallError,
   confirmProjectRoot,
   findNestedRepoChildren,
   isNonInteractive,
+  NESTED_REPO_AMBIGUITY_THRESHOLD,
+  RootRefusedError,
   validateProjectRoot,
 } from "./terminal.js";
 

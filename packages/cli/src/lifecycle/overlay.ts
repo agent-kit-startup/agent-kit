@@ -18,7 +18,7 @@
  */
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import { resolveContained } from "./paths.js";

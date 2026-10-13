@@ -10,7 +10,7 @@
 
 ## Preference: CLI
 
-**Prerequisites:** Node.js 20+ for the CLI. Git is recommended for readiness and the staging→prod flow. Fresh Ubuntu 24.04 server with no Node.js at all: [docs/install-ubuntu24-bare-metal.md](docs/install-ubuntu24-bare-metal.md) puts a Node bootstrap in front of this same CLI path.
+**Prerequisites:** Node.js 22.12+ for the CLI. Git is recommended for readiness and the staging→prod flow. Fresh Ubuntu 24.04 server with no Node.js at all: [docs/install-ubuntu24-bare-metal.md](docs/install-ubuntu24-bare-metal.md) puts a Node bootstrap in front of this same CLI path.
 
 If Node.js is available, in the **consumer project root**:
 

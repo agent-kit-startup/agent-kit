@@ -4,16 +4,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  FORBIDDEN_PLANS_SCAN_GLOB,
-  HANDOFF_REL,
-  PLAN_INDEX_REL,
-  type PlanIndexIo,
   buildPlanIndex,
   collectNamedPlanBasenames,
   extractHandoffNamedPlans,
+  FORBIDDEN_PLANS_SCAN_GLOB,
   formatPlanIndexLines,
   formatPlanIndexSection,
+  HANDOFF_REL,
   namedPlanCandidatePaths,
+  PLAN_INDEX_REL,
+  type PlanIndexIo,
   parsePlanFrontmatter,
   writePlanIndex,
 } from "./plan-index.js";

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { TurnResult } from "./hitl-relay.js";
 
-const SENTINEL_RE = /LOOP_TICK_RESULT:\s*(continue|stop(?:\s*[—\-].*)?)/i;
+const SENTINEL_RE = /LOOP_TICK_RESULT:\s*(continue|stop(?:\s*[—-].*)?)/i;
 
 export type TickSentinel =
   | { kind: "continue" }

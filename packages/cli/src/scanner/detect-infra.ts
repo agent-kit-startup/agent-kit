@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { CiPlatform, InfraDetection } from "../types.js";
 import { CI_PLATFORM_FILES } from "../types.js";

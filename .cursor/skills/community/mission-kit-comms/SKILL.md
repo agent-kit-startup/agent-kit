@@ -51,7 +51,7 @@ Copy the channel row, then tick before Ask.
 
 - [ ] Recap or release template filled from CHANGELOG / Release
 - [ ] HITL positioning sentence present
-- [ ] Commercial: PolyForm NC + sales@missionkit.io
+- [ ] License: Apache-2.0 (never MIT wording; no sales contact)
 
 ### Hacker News
 

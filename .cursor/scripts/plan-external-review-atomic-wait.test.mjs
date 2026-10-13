@@ -61,7 +61,7 @@ WAIT_REVIEWER_MODEL=""
 DRY_RUN=0
 unset CI GITHUB_ACTIONS GITLAB_CI AGENT_KIT_HEADLESS
 MOCK_TIME=1000
-date() { echo "\$MOCK_TIME"; }
+date() { echo "$MOCK_TIME"; }
 ${fns}
 ${body}
 `;

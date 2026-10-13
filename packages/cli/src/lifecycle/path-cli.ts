@@ -4,7 +4,7 @@
  */
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
+import { assessEnvironment, type EnvironmentReport } from "../readiness/env-checks.js";
 import { isNonInteractive } from "../utils/terminal.js";
 import { compareSemver, normalizeSemver } from "./check-updates.js";
 import { KIT_VERSION, pinnedCliSpec } from "./version.js";

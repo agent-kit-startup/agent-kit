@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  capHandoffExcerpt,
   HANDOFF_EXCERPT_MAX_BYTES,
   HANDOFF_EXCERPT_MAX_LINES,
   HANDOFF_PROSE_LINE_MIN_BYTES,
-  capHandoffExcerpt,
 } from "./handoff-excerpt.js";
 
 const B = (s: string) => Buffer.byteLength(s, "utf8");

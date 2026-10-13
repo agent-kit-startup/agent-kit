@@ -5,9 +5,9 @@ import { promisify } from "node:util";
 import { PUBLIC_INBOUND_REPO } from "./public-inbound-radar.js";
 import {
   type ForgeRunner,
+  parseRemoteUrl,
   REMOTE_ISSUE_TITLE_PREFIX,
   type RemoteProvider,
-  parseRemoteUrl,
 } from "./remote-issues.js";
 
 const execFileAsync = promisify(execFile);

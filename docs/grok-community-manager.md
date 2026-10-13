@@ -10,7 +10,7 @@ Related: [comms hub](comms.md), [channel map](comms-channel-map.md), [calendar](
 |------|-------------|----------|
 | Monitor | Watch X mentions/keywords (Mission Kit, Agent Kit, `@dadado/agent-kit-cli`, missionkit.io) via Grok Live Search or the X API; watch GitHub issues/PRs on the public repo | Autonomous (read-only) |
 | Triage | Classify inbound as: support question, bug report, feature request, contributor interest, commercial inquiry, spam/off-topic | Autonomous (labels/log only) |
-| Draft replies | Answer support questions grounded in shipped docs (getting-started, README, install.md); route bugs to GitHub issues; route commercial to `sales@missionkit.io` | Draft → HITL Ask → human posts |
+| Draft replies | Answer support questions grounded in shipped docs (getting-started, README, install.md); route bugs to GitHub issues; answer licensing from the README Licensing section | Draft → HITL Ask → human posts |
 | Draft posts | Recap / release / contributor-ask copy per the [calendar](comms-content-calendar.md) and [templates](comms-templates/recap.md) | Draft → HITL Ask → human posts |
 | Report | Weekly community digest: mention volume, sentiment, top questions, open-issue movement | Autonomous (local file / DM to operator) |
 | Escalate | Security reports → private path in `.github/SECURITY.md`; CoC violations → maintainer; anything ambiguous → operator | Always to a human |
@@ -88,7 +88,7 @@ Paste [comms-templates/grok-system-prompt.md](comms-templates/grok-system-prompt
 | Signal | Route |
 |--------|-------|
 | Security vulnerability mention | Private reporting path in `.github/SECURITY.md`; never discuss publicly |
-| Commercial/licensing question | PolyForm Noncommercial + `sales@missionkit.io` |
+| Commercial/licensing question | Apache-2.0, free for commercial use; no sales contact today |
 | CoC violation / harassment | Operator/maintainer; bot does not moderate publicly |
 | Docs contradiction (CHANGELOG vs missionkit.io vs Releases) | Stop drafting; flag to operator to fix docs first |
 | Anything the checklists don't cover | Operator |

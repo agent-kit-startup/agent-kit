@@ -11,8 +11,6 @@ import {
   CLAUDE_MAX_TURNS_ENV,
   CLAUDE_MIN_VERSION,
   CLAUDE_NESTED_SESSION_KEYS,
-  RedactingStreamBuffer,
-  VENDOR_SECRET_ENV,
   checkClaudeVersion,
   claudeBackend,
   claudeChildEnv,
@@ -27,9 +25,11 @@ import {
   mergeChildEnv,
   missingClaudeAdapter,
   parseClaudeVersion,
+  RedactingStreamBuffer,
   redactSecrets,
   resetClaudeVersionCache,
   spawnLogged,
+  VENDOR_SECRET_ENV,
 } from "./backends.js";
 
 type SpawnFn = typeof spawn;

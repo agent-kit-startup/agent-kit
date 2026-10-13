@@ -2,10 +2,10 @@
 // Pure Mission Control view-model helpers (testable; no fs/git I/O).
 
 import { truncateStr } from "./guards.mjs";
-import { TRIAGE_HEADING_RE, hasTriageHeading } from "./triage-heading.mjs";
+import { hasTriageHeading, TRIAGE_HEADING_RE } from "./triage-heading.mjs";
 
 /** Durable triage heading SoT (shared with CLI `monitors --untriaged`). */
-export { TRIAGE_HEADING_RE, hasTriageHeading };
+export { hasTriageHeading, TRIAGE_HEADING_RE };
 
 export const MAX_ACTIVITY = 28;
 export const MAX_ATTENTION = 15;
@@ -1399,7 +1399,7 @@ export function normalizeHandoffGaps(raw) {
   if (!text) return null;
   if (/^(none|n\/a)$/i.test(text)) return null;
   // OK + pointer anti-pattern: "none. Residuals…", "None: …", "N/A - …", "none (…)"
-  if (/^(none|n\/a)\s*[.:,;\/(\-–—…]/i.test(text)) return null;
+  if (/^(none|n\/a)\s*[.:,;/(\-–—…]/i.test(text)) return null;
   // Empty residual placeholders
   if (/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i.test(text)) return null;
   return truncateStr(text, MAX_SEMANTIC_LABEL);
@@ -1426,6 +1426,7 @@ export function classifyFlightLogMessageKind(text, opts = {}) {
   const collapsed = text.replace(/\s+/g, " ").trim();
   if (!collapsed) return "ok";
   if (/^(none|n\/a)$/i.test(collapsed)) return "ok";
+  // biome-ignore lint/complexity/noUselessEscapeInRegex: byte parity with dashboard.html flightLogMessageKind (pinned by plugin-ux-validation.test.ts)
   if (/^(none|n\/a)\s*[.:,;\/(\-–—…]/i.test(collapsed)) return "ok";
   if (/^([-–—.…]|empty|no gaps?|cleared|all clear|ok)$/i.test(collapsed)) return "ok";
   if (

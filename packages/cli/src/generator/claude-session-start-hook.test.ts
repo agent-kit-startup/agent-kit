@@ -6,15 +6,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HEADLESS_ONLY_DENY_RULES, INTERACTIVE_DENY_RULES } from "./claude-permissions.js";
 import {
-  CLAUDE_SETTINGS_REL,
-  GUARD_SHELL_HOOK_MARKER,
-  SESSION_START_DEGRADED_TEXT,
-  SESSION_START_HOOK_MARKER,
   buildGuardShellHookCommand,
   buildGuardShellHookEntry,
   buildSessionStartHookCommand,
   buildSessionStartHookEntry,
+  CLAUDE_SETTINGS_REL,
+  GUARD_SHELL_HOOK_MARKER,
   mergeSessionStartHookIntoSettings,
+  SESSION_START_DEGRADED_TEXT,
+  SESSION_START_HOOK_MARKER,
   upsertMarkedGroup,
   writeClaudeSessionStartHook,
 } from "./claude-session-start-hook.js";

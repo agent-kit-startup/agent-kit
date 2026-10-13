@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import { buildManifest, copyRegistryFile, emptyStats, recordOutcome } from "./apply.js";
 import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
-import { MANAGED_HASHES_REL, contentHash, loadManagedHashLedger } from "./overlay.js";
+import { contentHash, loadManagedHashLedger, MANAGED_HASHES_REL } from "./overlay.js";
 import { logApplyStats } from "./report.js";
 import { installL0 } from "./sync.js";
 

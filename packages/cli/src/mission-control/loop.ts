@@ -5,7 +5,7 @@
 
 import { type McTuiRenderOptions, renderMcTui, shouldLiveRefresh } from "./render.js";
 import { PERIODIC_REFRESH_MS } from "./snapshot.js";
-import { type McTuiView, buildMcTuiView } from "./view.js";
+import { buildMcTuiView, type McTuiView } from "./view.js";
 
 const CLEAR_HOME = "\x1b[2J\x1b[H";
 const HIDE_CURSOR = "\x1b[?25l";

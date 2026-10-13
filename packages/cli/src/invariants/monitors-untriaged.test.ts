@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { TRIAGE_HEADING_RE, selectUntriagedMonitors } from "./monitors-untriaged.js";
+import { selectUntriagedMonitors, TRIAGE_HEADING_RE } from "./monitors-untriaged.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../../..");

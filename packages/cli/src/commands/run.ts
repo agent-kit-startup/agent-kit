@@ -17,8 +17,8 @@ import {
   unknownSlashMessage,
 } from "../plan-loop/dispatch.js";
 import {
-  HITL_UNANSWERED_EXIT_CODE,
   formatHitlSummary,
+  HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
 } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";

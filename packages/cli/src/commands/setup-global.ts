@@ -43,8 +43,8 @@ import { pathCliStatus } from "../lifecycle/path-cli.js";
 import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import {
   type AssessEnvironmentOptions,
-  type EnvironmentReport,
   assessEnvironment,
+  type EnvironmentReport,
 } from "../readiness/env-checks.js";
 import { classifyInstallError, isNonInteractive } from "../utils/terminal.js";
 

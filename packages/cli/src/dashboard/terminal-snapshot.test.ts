@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  MAX_TERMINAL_BYTES,
   buildTerminalSnapshotFields,
+  MAX_TERMINAL_BYTES,
   parseTerminalMeta,
   splitTerminalHeader,
 } from "../../../../dashboard/lib/terminal-snapshot.mjs";

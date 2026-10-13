@@ -21,7 +21,7 @@ import {
   shouldUseWelcomeColor,
   withKoloristColor,
 } from "../welcome/visual-kit.js";
-import { type StreamEvent, oneLine, parseStreamLine } from "./stream-events.js";
+import { oneLine, parseStreamLine, type StreamEvent } from "./stream-events.js";
 
 /** Sink for the terminal side of a backend tee. */
 export interface StreamSink {

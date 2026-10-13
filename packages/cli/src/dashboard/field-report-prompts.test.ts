@@ -3,10 +3,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  MAX_AGENT_PROMPTS,
-  MAX_CHAT_SNIPPET,
-  MAX_SEMANTIC_LABEL,
-  PROMPT_RESUME_GUIDANCE,
   buildAgentPromptItems,
   buildMissionControlView,
   collapseAttentionLabel,
@@ -23,7 +19,11 @@ import {
   isFieldReportAttentionId,
   isPromptClearedByPlanLifecycle,
   isUserEntry,
+  MAX_AGENT_PROMPTS,
+  MAX_CHAT_SNIPPET,
+  MAX_SEMANTIC_LABEL,
   normalizeUserTextToSnippet,
+  PROMPT_RESUME_GUIDANCE,
   parseExternalReport,
   parseFieldReportDismissals,
   resolvePlanLifecycle,

@@ -3,17 +3,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  FINDINGS_SUMMARY_EMPTY,
-  MAX_EXTERNAL_REPORTS,
-  MAX_FINDINGS_SUMMARY,
-  MAX_SEMANTIC_LABEL,
   buildExternalReportItems,
   buildMissionControlView,
   extractFindingsSummary,
+  FINDINGS_SUMMARY_EMPTY,
   fieldReportTriageAllAction,
   isPlanLifecycleTerminal,
   isReportDemotedByPlanLifecycle,
   isReportTriaged,
+  MAX_EXTERNAL_REPORTS,
+  MAX_FINDINGS_SUMMARY,
+  MAX_SEMANTIC_LABEL,
   parseExternalReport,
   reportHasOpenReviewGaps,
   resolvePlanLifecycle,

@@ -10,7 +10,7 @@ import {
 } from "./apply.js";
 import { L0_ARTIFACTS } from "./l0.js";
 import { migrateLegacyOnboardCommand } from "./onboard-migration.js";
-import { type ManagedHashLedger, loadManagedHashLedger, saveManagedHashLedger } from "./overlay.js";
+import { loadManagedHashLedger, type ManagedHashLedger, saveManagedHashLedger } from "./overlay.js";
 import { resolveProtectedGlobs } from "./protected.js";
 
 export async function installL0(

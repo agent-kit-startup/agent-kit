@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { findDashboardBroadcastStart } from "../commands/dashboard-broadcast.js";
 import {
   bundledDashboardCandidates,
   dashboardProcessTitle,
@@ -12,6 +11,7 @@ import {
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "../commands/dashboard.js";
+import { findDashboardBroadcastStart } from "../commands/dashboard-broadcast.js";
 
 /** Build a fake published package layout under tmpdir for Path C hermetic tests. */
 function fakeCliPackage(withDashboard: boolean): { moduleUrl: string; dashboardStart: string } {

@@ -2,7 +2,7 @@
 
 ## What you need
 
-- Node.js 20+
+- Node.js 22.12+
 - A git repository (recommended; staging and prod routines use it)
 - Cursor, Claude Code, or just a terminal
 
@@ -93,7 +93,7 @@ Either of the last two installs L0 into a folder with no Git. That is supported,
 
 Keep this path light. No extra runtime packages beyond the CLI (`@clack/prompts`, `citty`, `kolorist` only). TTY chrome (spinners, tips) is ANSI in the CLI package; do not add `ora`, `figlet`, `chalk`, or `ink`.
 
-1. **Node.js 20+** - required for the CLI (`engines` in package manifests). `npx @dadado/agent-kit-cli <subcommand>` needs nothing else installed; `npm i -g @dadado/agent-kit-cli` is what puts a bare `agent-kit` on your `PATH`.
+1. **Node.js 22.12+** - required for the CLI (`engines` in package manifests). `npx @dadado/agent-kit-cli <subcommand>` needs nothing else installed; `npm i -g @dadado/agent-kit-cli` is what puts a bare `agent-kit` on your `PATH`.
 2. **Git** - recommended so readiness pillars and `/git-staging` → `/git-prod` work; local-only Git is valid.
 3. **Install** - `npx @dadado/agent-kit-cli@latest install` (or Port B via `install.md`).
 4. **Onboard** - `/agent-kit-onboard` until every essential readiness check is ready (non-essentials may defer with a recovery action).

@@ -1,16 +1,16 @@
 import path from "node:path";
 import { defineCommand } from "citty";
 import {
-  SESSION_START_DEGRADED_MESSAGE,
   formatSessionStartOutput,
   resolveSessionStartFormat,
+  SESSION_START_DEGRADED_MESSAGE,
 } from "../hooks/format-session-start.js";
 import { buildPreCompactUserMessage } from "../hooks/pre-compact.js";
 import { readStdinJson } from "../hooks/read-stdin-json.js";
 import {
-  type SessionStartPayload,
   buildSessionStartAdditionalContext,
   resolveSessionRoot,
+  type SessionStartPayload,
 } from "../hooks/session-start.js";
 
 export interface RunSessionStartHookDeps {

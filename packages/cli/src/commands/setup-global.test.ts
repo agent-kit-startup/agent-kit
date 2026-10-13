@@ -3,10 +3,10 @@ import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import type { EnvironmentReport } from "../readiness/env-checks.js";
 import {
   type NpmInstallOutcome,
-  type SetupGlobalFsImpl,
-  type SetupGlobalRunResult,
   planSetupGlobalSteps,
   runSetupGlobal,
+  type SetupGlobalFsImpl,
+  type SetupGlobalRunResult,
   upsertNpmrcPrefix,
 } from "./setup-global.js";
 
@@ -23,7 +23,7 @@ function makeEnv(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport 
       reason: "root-owned prefix (/usr/local); the classic fresh-install PATH/EACCES blocker",
     },
     nodeVersionOk: true,
-    nodeVersion: "v22.4.0",
+    nodeVersion: "v22.12.0",
     shell: "zsh",
     shellProfile: "/home/tester/.zshrc",
     ...overrides,

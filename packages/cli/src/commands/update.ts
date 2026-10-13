@@ -25,7 +25,7 @@ import { syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_PACKAGE_SPEC, KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
 import { logger } from "../utils/logger.js";
-import { RootRefusedError, confirmProjectRoot, isNonInteractive } from "../utils/terminal.js";
+import { confirmProjectRoot, isNonInteractive, RootRefusedError } from "../utils/terminal.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
 import { NON_INTERACTIVE_ROOT_ARGS } from "./shared-args.js";
 

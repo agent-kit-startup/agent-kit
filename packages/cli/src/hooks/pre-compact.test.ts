@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONTEXT_USAGE_CAP_PERCENT, buildPreCompactUserMessage } from "./pre-compact.js";
+import { buildPreCompactUserMessage, CONTEXT_USAGE_CAP_PERCENT } from "./pre-compact.js";
 
 describe("buildPreCompactUserMessage", () => {
   it("escalates to a forced checkpoint when usage is at or above the cap", () => {

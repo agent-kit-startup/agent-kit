@@ -1,8 +1,8 @@
 # @dadado/agent-kit-cli
 
 [![npm version of @dadado/agent-kit-cli](https://img.shields.io/npm/v/%40dadado%2Fagent-kit-cli?label=npm&color=0C8DEB)](https://www.npmjs.com/package/@dadado/agent-kit-cli)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](LICENSE)
-[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Node.js >=22.12](https://img.shields.io/badge/node-%3E%3D22.12-339933)](https://nodejs.org)
 [![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
 
 <img src="https://raw.githubusercontent.com/agent-kit-startup/agent-kit/main/dashboard/logo.svg" alt="Mission Kit helmet mark" width="120">
@@ -11,7 +11,7 @@ Agent Kit CLI: HITL operating-layer install and tooling for AI-assisted IDEs (ru
 
 ## Install
 
-From your project root (Node.js 20+):
+From your project root (Node.js 22.12+):
 
 ```bash
 npx @dadado/agent-kit-cli@latest install

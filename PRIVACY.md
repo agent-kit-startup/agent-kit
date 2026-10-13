@@ -19,10 +19,10 @@ When the project has no local skill registry, install can clone the public repos
 
 ## Website
 
-<https://missionkit.io/> does not include a contact form and does not ask for an email address. A commercial question is an email the visitor sends to sales@missionkit.io from their own mail client.
+<https://missionkit.io/> does not include a contact form and does not ask for an email address.
 
 The page requests the public GitHub star count for `agent-kit-startup/agent-kit`. Opening the demo loads a YouTube embed.
 
 ## License
 
-The software is PolyForm Noncommercial 1.0.0, as is, with no warranty. See [LICENSE](LICENSE). Commercial use needs a separate license: sales@missionkit.io.
+The software is Apache-2.0, as is, with no warranty. See [LICENSE](LICENSE).

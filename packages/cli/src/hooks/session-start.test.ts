@@ -10,11 +10,8 @@ import { CURSOR_AWARENESS_NUDGE, HARD_RULES } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
   type AuditSessionCommandRunner,
-  type CursorAwarenessSpawn,
-  type SectionAttempt,
-  type SectionChildTracker,
-  type SessionStartSpawnDeps,
   buildSessionStartAdditionalContext,
+  type CursorAwarenessSpawn,
   cursorAwarenessSection,
   detachedAuditSessionsSection,
   formatSessionAge,
@@ -22,6 +19,9 @@ import {
   parseTmuxDetachedAuditSessions,
   parseUnprocessedDogfoodItems,
   runSectionWithDeadline,
+  type SectionAttempt,
+  type SectionChildTracker,
+  type SessionStartSpawnDeps,
   sectionAttemptNeedsStamp,
   shouldEmitCursorAwarenessNudge,
   updateCheckSection,

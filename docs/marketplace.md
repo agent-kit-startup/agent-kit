@@ -93,6 +93,8 @@ Editing any file under `.cursor/{agents,skills,commands}/` (or a registry skill'
 
 Cursor reviews the **public** repo, so the manifest must have reached public `main` first: `/git-prod` → annotated `vX.Y.Z` tag → `sync-public` PR. Submit `https://github.com/agent-kit-startup/agent-kit` at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish). No agent performs this step.
 
+License: the kit is Apache-2.0 (`LICENSE`, `NOTICE`, `TRADEMARKS.md`). The earlier PolyForm Noncommercial blocker clears once the first Apache-2.0 release is on public `main`. Check `gh api repos/agent-kit-startup/agent-kit/contents/LICENSE` before submitting.
+
 ### Public promote sequence (operator, in order)
 
 The promotion path is ready only when the evidence gate is green; each step below is operator-owned (HITL):

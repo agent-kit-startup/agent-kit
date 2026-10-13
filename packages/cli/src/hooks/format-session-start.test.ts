@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  SESSION_START_DEGRADED_MESSAGE,
   formatSessionStartOutput,
   resolveSessionStartFormat,
+  SESSION_START_DEGRADED_MESSAGE,
 } from "./format-session-start.js";
 
 describe("resolveSessionStartFormat", () => {

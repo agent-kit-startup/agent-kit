@@ -16,8 +16,8 @@ import type { HitlRunOptions, SpawnInfo } from "../plan-loop/backends.js";
 import {
   type AnswerReader,
   type HitlGate,
-  type RawAnswer,
   operatorQuitStop,
+  type RawAnswer,
 } from "../plan-loop/hitl-relay.js";
 import {
   findActivePlanFile,
@@ -27,11 +27,11 @@ import {
 import type { StreamSink } from "../plan-loop/stream-render.js";
 import { shouldUseWelcomeColor } from "../welcome/visual-kit.js";
 import {
+  emptyLiveMission,
   LiveRunFeed,
   type McLiveChecklistRow,
   type McLiveMission,
   type McLiveView,
-  emptyLiveMission,
 } from "./live-feed.js";
 import {
   type McTuiLoopHandle,

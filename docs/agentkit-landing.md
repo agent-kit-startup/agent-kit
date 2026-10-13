@@ -38,7 +38,8 @@ pnpm landing:build
 # 3. Verify the bundle matches the export
 pnpm landing:build:check
 # Factory CI (agent-kit-dev build job) runs `landing:build` then `landing:build:check`
-# so open-source wording regressions and missing canvas sources fail the Evidence path.
+# so retired license wording (PolyForm, noncommercial, source-available, sales@, MIT),
+# missing Apache-2.0 copy and missing canvas sources fail the Evidence path.
 
 # 4. Local stage (loopback, Range-capable, no-store)
 pnpm landing:serve
@@ -196,11 +197,13 @@ Do not deploy that `index.html` alone. The supported live path remains
 
 ## SEO
 
-Live `missionkit.io` serves PolyForm Noncommercial / source-available copy (verified as-served HTML after Design sync → `landing:build` → Hostinger deploy):
+License copy is Apache-2.0 (ADR `2026-10-08_open-source-apache-2-dco-relicense`). The canvas carries it since the 2026-10-10 Design sync (latest canvas `MissionKit Landing v2.dc.html` promoted to the canonical name). Live `missionkit.io` shows it after the next release sync deploys the landing.
 
-- **Description / OG / Twitter:** Mission Kit is a free, source-available framework (PolyForm Noncommercial) with built-in project management, DevSecOps, and agent orchestration. Plan, build, review, and ship without leaving Cursor or VS Code. Commercial use: sales@missionkit.io.
-- **CTA:** Free for noncommercial use, source-available, and it runs inside the IDE you already use.
-- **Footer meta:** free & source-available (PolyForm NC)
+- **Description / Twitter:** AI harness with built-in Project Management and DevSecOps that fits in any existing workflow. (no license wording)
+- **CTA:** Free and open source (Apache-2.0), and it runs inside the IDE you already use.
+- **Footer meta:** free & open source (Apache-2.0)
+
+`pnpm landing:build` fails when the export names PolyForm, noncommercial, source-available, `sales@missionkit.io` or MIT, or does not name Apache-2.0 (`scripts/lib/landing-license-copy.mjs`). The design project holds several canvas versions: edit the latest one, and promote it to `remote/MissionKit Landing.dc.html` after `landing:sync` (rename only). Keep the repo's `remote/support.js`: the build expects its `evalDcLogic` stub, and the HOL plugin scan rejects the export's runtime compile.
 
 Other crawler fields matching the build pipeline:
 

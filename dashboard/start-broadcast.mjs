@@ -25,7 +25,6 @@ import {
 } from "./lib/broadcast-share.mjs";
 import {
   BROADCAST_TOKEN_ENV,
-  REPO_ROOT_ENV,
   describeBroadcastListener,
   escapePerlDoubleQuoted,
   generateBroadcastToken,
@@ -33,6 +32,7 @@ import {
   isValidBroadcastToken,
   listLanIPv4Addresses,
   normalizeAuthToken,
+  REPO_ROOT_ENV,
   repoRootLogId,
   resolveBindHost,
   resolveBroadcastPort,

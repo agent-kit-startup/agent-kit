@@ -13,7 +13,7 @@ import { StringDecoder } from "node:string_decoder";
 import type { HitlGate } from "../plan-loop/hitl-relay.js";
 import { LineSplitter } from "../plan-loop/line-splitter.js";
 import { parseStreamLine } from "../plan-loop/stream-events.js";
-import { type StreamSink, renderStreamEvent } from "../plan-loop/stream-render.js";
+import { renderStreamEvent, type StreamSink } from "../plan-loop/stream-render.js";
 import { type InputLine, ScrollRegion } from "./render.js";
 
 export type LiveLogKind =

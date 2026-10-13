@@ -21,7 +21,7 @@ export async function loadAgentKitManifest(
   return manifest;
 }
 
-export { parseAgentKitManifest, ManifestValidationError } from "./parse.js";
+export { ManifestValidationError, parseAgentKitManifest } from "./parse.js";
 export type {
   AgentKitManifest,
   AgentKitManifestOverride,

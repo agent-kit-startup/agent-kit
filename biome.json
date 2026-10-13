@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -9,11 +9,11 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended"
     }
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["dist", "node_modules"]
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/*.html", "!**/*.svg"]
   }
 }

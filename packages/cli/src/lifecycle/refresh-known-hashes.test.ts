@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import { contentHash } from "./overlay.js";
+import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import {
   appendHashes,
   collectExpectedHashes,

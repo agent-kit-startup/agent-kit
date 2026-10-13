@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import type { AgentKitManifest } from "../manifest/types.js";
+import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import { MANAGED_HASHES_REL } from "./overlay.js";
 import { syncFromManifest } from "./sync.js";
 

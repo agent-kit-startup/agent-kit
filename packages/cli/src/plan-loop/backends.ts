@@ -9,21 +9,21 @@ import { codexBackend } from "./codex.js";
 import { cursorAcpBackend } from "./cursor-acp.js";
 import {
   type AnswerReader,
-  type HitlPolicy,
-  type HitlRunRecord,
-  type HitlStop,
-  type TurnResult,
-  TurnWatcher,
   askOperator,
   createTerminalAnswerReader,
   detectHitlGate,
   emptyHitlRecord,
+  type HitlPolicy,
+  type HitlRunRecord,
+  type HitlStop,
   noRelayStop,
+  type TurnResult,
+  TurnWatcher,
   unansweredStop,
   userEventLine,
 } from "./hitl-relay.js";
 import { LineSplitter } from "./line-splitter.js";
-import { type StreamSink, createStreamRenderer } from "./stream-render.js";
+import { createStreamRenderer, type StreamSink } from "./stream-render.js";
 import { VENDOR_CLI_PINS, vendorVersionStatus } from "./vendor-cli-pins.js";
 
 export type BackendId = "cursor-agent" | "claude" | "codex" | "cursor-acp";

@@ -5,12 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { type TurnResult, TurnWatcher } from "./hitl-relay.js";
 import { TICK_PROMPT } from "./run-loop.js";
 import {
-  type TickSentinel,
   parseSentinelFromLog,
   parseTickResultStatus,
   resolveTickResultStatus,
   resolveTickSentinel,
   sentinelFromTurn,
+  type TickSentinel,
 } from "./sentinel.js";
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");

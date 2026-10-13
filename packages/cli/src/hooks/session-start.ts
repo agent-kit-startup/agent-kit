@@ -18,7 +18,7 @@ import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index
 import { READINESS_SNAPSHOT_RELATIVE_PATH } from "../scanner/snapshot.js";
 import { fileExists } from "../utils/fs.js";
 import { HANDOFF_REL } from "../utils/kit-paths.js";
-import { HANDOFF_EXCERPT_MAX_BYTES, capHandoffExcerpt } from "./handoff-excerpt.js";
+import { capHandoffExcerpt, HANDOFF_EXCERPT_MAX_BYTES } from "./handoff-excerpt.js";
 import {
   CURSOR_AWARENESS_NUDGE,
   DOGFOOD_INBOX_HINT,

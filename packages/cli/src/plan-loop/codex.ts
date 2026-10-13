@@ -42,7 +42,7 @@ import {
   spawnLogged,
   whichBinary,
 } from "./backends.js";
-import { type HitlRunRecord, emptyHitlRecord, unansweredStop } from "./hitl-relay.js";
+import { emptyHitlRecord, type HitlRunRecord, unansweredStop } from "./hitl-relay.js";
 import { vendorVersionStatus } from "./vendor-cli-pins.js";
 
 /** Opt-in: run codex on the operator's own ChatGPT sign-in instead of an API key. */

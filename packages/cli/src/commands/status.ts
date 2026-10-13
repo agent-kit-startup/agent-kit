@@ -3,7 +3,7 @@ import { defineCommand } from "citty";
 import { npxPinned, pathCliStatus } from "../lifecycle/path-cli.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
-import { MANIFEST_RELATIVE_PATH, loadAgentKitManifest } from "../manifest/index.js";
+import { loadAgentKitManifest, MANIFEST_RELATIVE_PATH } from "../manifest/index.js";
 import { assessEnvironment } from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { runScanner } from "../scanner/scan.js";

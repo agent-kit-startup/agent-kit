@@ -5,17 +5,17 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type AgentBackend, type HitlRunOptions, getBackend } from "./backends.js";
+import { type AgentBackend, getBackend, type HitlRunOptions } from "./backends.js";
 import {
-  CURSOR_ASK_QUESTION_ID,
   acpInitializeParams,
   acpPermissionOutcome,
   acpQuestions,
+  CURSOR_ASK_QUESTION_ID,
   cursorAcpArgs,
   cursorAcpBackend,
 } from "./cursor-acp.js";
 import type { RawAnswer } from "./hitl-relay.js";
-import { TICK_PROMPT, runPlanLoop } from "./run-loop.js";
+import { runPlanLoop, TICK_PROMPT } from "./run-loop.js";
 import { detectUsageLimit } from "./usage-limit.js";
 
 type SpawnFn = typeof spawn;

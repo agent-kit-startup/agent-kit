@@ -1,16 +1,20 @@
 import path from "node:path";
 import { defineCommand } from "citty";
-import { type HooksHealthReport, assessHooksHealth } from "../invariants/hooks-health.js";
+import { assessHooksHealth, type HooksHealthReport } from "../invariants/hooks-health.js";
 import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
-import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
+import {
+  assessEnvironment,
+  type EnvironmentReport,
+  MIN_NODE_VERSION_LABEL,
+} from "../readiness/env-checks.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
 import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import {
-  type WorkspaceParentDetection,
   detectWorkspaceParent,
+  type WorkspaceParentDetection,
   workspaceParentAdvisoryLines,
 } from "../scanner/workspace-parent.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
@@ -203,7 +207,7 @@ export function printDoctorSummary(result: DoctorResult, rootDir: string): void 
     console.log(`    - ${result.env.npmPrefix.reason}`);
   }
   console.log(
-    `  - node version >= 20: ${result.env.nodeVersionOk ? "ok" : "TOO OLD"} (${result.env.nodeVersion})`,
+    `  - node version >= ${MIN_NODE_VERSION_LABEL}: ${result.env.nodeVersionOk ? "ok" : "TOO OLD"} (${result.env.nodeVersion})`,
   );
   console.log(
     `  - shell profile: ${result.env.shellProfile ?? "not detected (zsh/bash only)"}${

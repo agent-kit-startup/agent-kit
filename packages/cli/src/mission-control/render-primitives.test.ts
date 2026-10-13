@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LiveRunFeed, type McLiveView, emptyLiveMission } from "./live-feed.js";
-import { InputLine, ScrollRegion, renderMcLive, renderProgressBar, splitKeys } from "./render.js";
+import { emptyLiveMission, LiveRunFeed, type McLiveView } from "./live-feed.js";
+import { InputLine, renderMcLive, renderProgressBar, ScrollRegion, splitKeys } from "./render.js";
 
 const ESC = String.fromCharCode(27);
 const CSI_ALL = new RegExp(`${ESC}\\[[0-9;?]*[A-Za-z]`, "g");

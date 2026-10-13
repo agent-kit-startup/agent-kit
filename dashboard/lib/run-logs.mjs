@@ -11,7 +11,7 @@
  * Understands the three shapes the backends write: claude / cursor-agent
  * stream-json, codex `exec --json`, and the cursor-acp JSON-RPC transcript.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 export const MAX_RUN_LOGS = 10;

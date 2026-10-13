@@ -7,23 +7,23 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AgentBackend, claudeBackend, resetClaudeVersionCache } from "./backends.js";
 import {
+  createDriverAnswerReader,
+  createDriverEmitter,
   DRIVER_EVENT_TYPES,
   DRIVER_PROTOCOL_MAJOR,
   DRIVER_PROTOCOL_VERSION,
   DriverAgentSink,
-  createDriverAnswerReader,
-  createDriverEmitter,
   formatDriverEvent,
   inboundToRawAnswer,
   parseDriverInbound,
 } from "./driver-events.js";
 import {
-  HITL_UNANSWERED_EXIT_CODE,
-  type HitlGate,
   askOperator,
   formatHitlGateLine,
+  HITL_UNANSWERED_EXIT_CODE,
+  type HitlGate,
 } from "./hitl-relay.js";
-import { TICK_PROMPT, runPlanLoop } from "./run-loop.js";
+import { runPlanLoop, TICK_PROMPT } from "./run-loop.js";
 
 type SpawnFn = typeof spawn;
 
@@ -585,7 +585,9 @@ describe("usage-limit stop and --on-limit (driver mode, fake claude)", () => {
       limit: { source: "rate_limit_event" },
       pendingAfter: 3,
     });
-    expect((tickEnd?.limit as { detail: string }).detail).toContain("five_hour rejected");
+    expect((tickEnd?.limit as { detail: string } | undefined)?.detail).toContain(
+      "five_hour rejected",
+    );
     expect(events.at(-1)).toMatchObject({
       type: "run_end",
       reason: "usage-limit: claude",

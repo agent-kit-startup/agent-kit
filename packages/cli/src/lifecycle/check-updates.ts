@@ -4,8 +4,8 @@ import { promisify } from "node:util";
 import { loadAgentKitManifest } from "../manifest/index.js";
 import type { AgentKitManifest } from "../manifest/types.js";
 import {
-  DEFAULT_REGISTRY_URL,
   assertSafeRegistrySource,
+  DEFAULT_REGISTRY_URL,
   resolveRegistryRoot,
 } from "../registry/resolve.js";
 import { readJson, writeJson } from "../utils/fs.js";

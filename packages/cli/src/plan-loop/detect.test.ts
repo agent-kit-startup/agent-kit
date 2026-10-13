@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DETECT_ORDER, INSTALL_HINTS, detectAgentBackend, listDetectBackendIds } from "./detect.js";
+import { DETECT_ORDER, detectAgentBackend, INSTALL_HINTS, listDetectBackendIds } from "./detect.js";
 
 describe("detectAgentBackend", () => {
   it("auto picks the first available binary in DETECT_ORDER", async () => {

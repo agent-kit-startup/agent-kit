@@ -8,15 +8,15 @@ import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
 import { npxPinned, pathCliStatus, syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { resolveProtectedGlobs } from "../lifecycle/protected.js";
 import {
-  SkippedSymlinkError,
   formatPersonalizationSkippedSymlinks,
   logApplyStats,
+  SkippedSymlinkError,
 } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { installL0, syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import { DOMAIN_PACK_IDS, loadAgentKitManifest } from "../manifest/index.js";
-import { type EnvironmentReport, assessEnvironment } from "../readiness/env-checks.js";
+import { assessEnvironment, type EnvironmentReport } from "../readiness/env-checks.js";
 import { loadRegistry } from "../registry/client.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
@@ -25,10 +25,10 @@ import { writeReadinessSnapshot } from "../scanner/snapshot.js";
 import type { ReadinessReport, SafeReadinessChange } from "../types.js";
 import { logger } from "../utils/logger.js";
 import {
-  RootRefusedError,
   classifyInstallError,
   confirmProjectRoot,
   isNonInteractive,
+  RootRefusedError,
 } from "../utils/terminal.js";
 import { shouldUseWelcomeColor, withCliProgress } from "../welcome/visual-kit.js";
 import { NON_INTERACTIVE_ROOT_ARGS } from "./shared-args.js";

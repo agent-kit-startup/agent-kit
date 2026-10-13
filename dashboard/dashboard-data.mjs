@@ -5,11 +5,11 @@
 // Outputs JSON to stdout (consumed by dashboard.html)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import {
-  MAX_STRING,
   allowlistConfig,
+  MAX_STRING,
   parseGitStatusShort,
   resolveSnapshotRepoRoot,
   truncateStr,
@@ -19,21 +19,20 @@ import { PIPELINE_CACHE_ENV, readCachedPipeline } from "./lib/pipeline-cache.mjs
 import { selectWorkspaceProcesses } from "./lib/processes.mjs";
 import { collectRunLogs } from "./lib/run-logs.mjs";
 import {
-  EXTERNAL_REPORT_FILE_RE,
-  FIELD_REPORT_CADENCE_LEDGER_REL,
-  FLIGHT_LOG_LEDGER_REL,
-  MAX_AGENT_PROMPTS,
-  MAX_EXTERNAL_REPORTS,
-  MAX_GIT_ACTIVITY,
-  MISSION_TIMING_LEDGER_REL,
-  SUBAGENT_TRANSCRIPT_FILE_RE,
   buildMissionControlView,
   collectDeferredCheckIds,
   collectReadinessPendingFromReport,
   describeProcess,
   detectAwaitingPrompt,
   dismissedAttentionIds,
+  EXTERNAL_REPORT_FILE_RE,
   extractChatSnippet,
+  FIELD_REPORT_CADENCE_LEDGER_REL,
+  FLIGHT_LOG_LEDGER_REL,
+  MAX_AGENT_PROMPTS,
+  MAX_EXTERNAL_REPORTS,
+  MAX_GIT_ACTIVITY,
+  MISSION_TIMING_LEDGER_REL,
   parseCadenceLedger,
   parseExternalReport,
   parseFieldReportDismissals,
@@ -42,10 +41,11 @@ import {
   parseHandoffMarkdown,
   parseMissionTimingLedger,
   parseSubagentRun,
+  SUBAGENT_TRANSCRIPT_FILE_RE,
   serializeFlightLogLedger,
   serializeMissionTimingLedger,
 } from "./lib/semantic-model.mjs";
-import { MAX_TERMINAL_BYTES, buildTerminalSnapshotFields } from "./lib/terminal-snapshot.mjs";
+import { buildTerminalSnapshotFields, MAX_TERMINAL_BYTES } from "./lib/terminal-snapshot.mjs";
 
 const KIT_ROOT = resolve(import.meta.dirname, "..");
 /** Snapshot root: consumer workspace when MISSION_CONTROL_REPO_ROOT is set, else kit tree. */

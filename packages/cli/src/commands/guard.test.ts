@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SECRET_PATTERNS } from "../invariants/secrets-scan.js";
 import { SHELL_DENY_RULES } from "../invariants/shell-guard.js";
 import {
-  type GuardShellDeps,
   evaluateGuardShell,
+  type GuardShellDeps,
   guardCommand,
   runGuardShellHook,
 } from "./guard.js";
