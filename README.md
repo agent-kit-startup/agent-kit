@@ -1,8 +1,8 @@
 # Mission Kit
 
 [![npm version of @dadado/agent-kit-cli](https://img.shields.io/npm/v/%40dadado%2Fagent-kit-cli?label=npm&color=0C8DEB)](https://www.npmjs.com/package/@dadado/agent-kit-cli)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](LICENSE)
-[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)](https://nodejs.org)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Node.js >=22.12](https://img.shields.io/badge/node-%3E%3D22.12-339933)](https://nodejs.org)
 [![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
 [![agent-kit guard badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fguard%2Fagent-kit-startup%2Fagent-kit)](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
 
@@ -24,7 +24,7 @@ From your project root:
 npx @dadado/agent-kit-cli@latest install
 ```
 
-Node.js 20+. Git is recommended; the staging and prod routines depend on it. Use `@latest` so npx does not reuse a stale cached CLI. Pin `@x.y.z` when you need a reproducible install. Non-interactive: add `-y` and `--yes`.
+Node.js 22.12+. Git is recommended; the staging and prod routines depend on it. Use `@latest` so npx does not reuse a stale cached CLI. Pin `@x.y.z` when you need a reproducible install. Non-interactive: add `-y` and `--yes`.
 
 `npx` is ephemeral, so bare `agent-kit` will not be on your PATH yet. If you hit `command not found`, run:
 
@@ -58,7 +58,7 @@ Production promotion is never automatic. The kit asks; you answer.
 
 ## License
 
-PolyForm Noncommercial 1.0.0. Commercial licensing: sales@missionkit.io.
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Contribute
 
@@ -136,11 +136,12 @@ More: [Getting started - Mission Control](docs/getting-started.md#mission-contro
 
 ## Licensing
 
-Mission Kit (Agent Kit) is source-available under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) (see [LICENSE](LICENSE)).
+Mission Kit (Agent Kit) is open source under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
 
-- Free for personal, non-commercial use under PolyForm Noncommercial.
-- Commercial use, distribution, or embedding in a commercial product requires a separate commercial license.
-- Companies: contact [sales@missionkit.io](mailto:sales@missionkit.io).
+- Free for any use, including commercial use.
+- Releases up to 5.18.0 keep the license they shipped with.
+- The license does not cover the Mission Kit and Agent Kit names or the helmet logo. See [TRADEMARKS.md](TRADEMARKS.md).
+- Contributions: [Developer Certificate of Origin](docs/CONTRIBUTING.md#contribution-license-dco), no CLA.
 
 ## Contribute
 

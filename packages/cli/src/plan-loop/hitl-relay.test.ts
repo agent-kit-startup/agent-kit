@@ -6,26 +6,26 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  type HitlRunOptions,
   claudeBackend,
   cursorAgentBackend,
+  type HitlRunOptions,
   resetClaudeVersionCache,
 } from "./backends.js";
 import {
-  FALLBACK_ASK_ID,
-  HITL_SIGINT_EXIT_CODE,
-  HITL_UNANSWERED_EXIT_CODE,
-  type RawAnswer,
-  TurnWatcher,
   createTerminalAnswerReader,
   detectFallbackGate,
   detectHitlGate,
+  FALLBACK_ASK_ID,
   formatGatePrompt,
   formatHitlReply,
   formatHitlSummary,
+  HITL_SIGINT_EXIT_CODE,
+  HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
   parseHitlGateLine,
+  type RawAnswer,
   resolveOperatorAnswer,
+  TurnWatcher,
   userEventLine,
 } from "./hitl-relay.js";
 

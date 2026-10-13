@@ -5,13 +5,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  VENDOR_SECRET_ENV,
   claudeBackend,
   claudeRedactions,
   cursorAgentBackend,
   resetClaudeVersionCache,
+  VENDOR_SECRET_ENV,
 } from "./backends.js";
-import { DriverAgentSink, createDriverEmitter } from "./driver-events.js";
+import { createDriverEmitter, DriverAgentSink } from "./driver-events.js";
 
 type SpawnFn = typeof spawn;
 

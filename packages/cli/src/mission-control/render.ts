@@ -14,10 +14,10 @@ import {
   STATUS_INFO,
   STATUS_OK,
   STATUS_WARN,
-  type WelcomeRenderOptions,
   shouldUseVisualMotion,
   shouldUseWelcomeColor,
   spinnerFrame,
+  type WelcomeRenderOptions,
   withKoloristColor,
   wrapNarrow,
 } from "../welcome/visual-kit.js";

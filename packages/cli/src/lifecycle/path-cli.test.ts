@@ -10,7 +10,7 @@ function makeEnv(overrides: Partial<EnvironmentReport> = {}): EnvironmentReport 
     npmPrefixWritable: true,
     npmPrefix: { prefix: "/usr/local", writable: true, source: "heuristic" },
     nodeVersionOk: true,
-    nodeVersion: "v20.11.0",
+    nodeVersion: "v22.12.0",
     shell: "zsh",
     shellProfile: "/home/user/.zshrc",
     ...overrides,

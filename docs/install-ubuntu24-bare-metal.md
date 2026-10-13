@@ -10,7 +10,7 @@ What you get is the base kit only (L0: `.cursor/` rules, commands, hooks, templa
 
 - A user with `sudo` (or root; cloud-init usually runs as root, in which case drop `sudo` from every command below).
 - Outbound HTTPS to `deb.nodesource.com` and `registry.npmjs.org`.
-- Do not rely on the `nodejs` package from Ubuntu's default repositories. The CLI requires Node.js 20 or newer (`engines` in its package manifest), and the distro package is not guaranteed to track that line.
+- Do not rely on the `nodejs` package from Ubuntu's default repositories. The CLI requires Node.js 22.12 or newer (`engines` in its package manifest), and the distro package is not guaranteed to track that line.
 
 Install the two tools the steps below use:
 
@@ -18,7 +18,7 @@ Install the two tools the steps below use:
 sudo apt-get update && sudo apt-get install -y curl git
 ```
 
-## 1. Node.js 20+ from NodeSource (unattended)
+## 1. Node.js 22.12+ from NodeSource (unattended)
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
@@ -28,7 +28,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-Any Node line at 20 or above satisfies the CLI; `22.x` is a maintained LTS line at the time of writing, so pick the line your fleet standardizes on. NodeSource is used instead of `nvm` on purpose: `nvm` depends on sourcing a shell profile, which a non-interactive provisioning script may never load. Confirm with `node -v` before continuing; `npx` comes with it.
+Any Node release at 22.12 or above satisfies the CLI; the current `22.x` NodeSource line clears that, and `24.x` works too, so pick the line your fleet standardizes on. NodeSource is used instead of `nvm` on purpose: `nvm` depends on sourcing a shell profile, which a non-interactive provisioning script may never load. Confirm with `node -v` before continuing; `npx` comes with it.
 
 ## 2. Pick the project root and clear the root guard
 
@@ -71,7 +71,7 @@ npx @dadado/agent-kit-cli@latest status
 | `EPERM` in the npm output, usually naming a path under `~/.npm` | The cache directory has ownership drift (root-written files in a user-owned cache), or something reset `npm_config_cache` to the default | Re-run step 3 with an explicit writable cache, for example `npm_config_cache=/tmp/agent-kit-npm-cache`, or fix ownership of `~/.npm` and re-run |
 | Exit code `255` with no other error text | Something asked a question with no terminal to answer it. Confirmed on 2026-09-12: it is not npx when `-y`/`--yes` are present — a real Ubuntu 24.04 run with those flags produced no `255`, including under `bash -c ... < /dev/null`. Separately confirmed that an *unflagged* `npx <pkg> status` call does show a real "Ok to proceed?" prompt on an actual terminal (matching npm's own non-TTY/CI check), so a genuine `255` on this recipe would mean the `-y`/`--yes` flags were dropped from the line, not that npx prompts unconditionally | Re-run step 3 with `-y` and `--yes` present (or `AGENT_KIT_YES=1` in the environment); if the failure persists, run the same command once from an interactive terminal and note which prompt appears |
 | `install` refuses the directory and exits `1` | Root guard: no `.git` and no manifest, or the folder looks like a parent of several repositories | `git init` in the intended root (step 2), or `--force-root` after confirming the absolute path |
-| `node -v` prints a version below 20 after step 1 | Ubuntu's own `nodejs` package won the install | `sudo apt-get remove -y nodejs`, confirm `apt-cache policy nodejs` lists the NodeSource origin, repeat step 1 |
+| `node -v` prints a version below 22.12 after step 1 | Ubuntu's own `nodejs` package won the install | `sudo apt-get remove -y nodejs`, confirm `apt-cache policy nodejs` lists the NodeSource origin, repeat step 1 |
 
 When the CLI path stays broken, fall back to Port B: attach the root [`install.md`](../install.md) in the IDE chat and let the agent copy the base files. Port B produces the same layout, but its raw fetches carry no package checksum, so use it as the fallback only.
 

@@ -7,15 +7,15 @@ import { DEFAULT_PROTECTED_PATHS } from "../manifest/types.js";
 import { installPack } from "../registry/install.js";
 import { copyRegistryFile, emptyStats, recordOutcome } from "./apply.js";
 import { L0_ARTIFACTS } from "./l0.js";
-import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import {
-  MANAGED_HASHES_REL,
   contentHash,
   isConsumerOverlayPath,
   loadManagedHashLedger,
+  MANAGED_HASHES_REL,
   seedManagedHashLedger,
   shouldPreserveCustomizedOverlay,
 } from "./overlay.js";
+import { KNOWN_SHIPPED_OVERLAY_HASHES } from "./overlay-known-hashes.js";
 import { installL0 } from "./sync.js";
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");

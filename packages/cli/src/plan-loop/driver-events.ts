@@ -26,11 +26,11 @@ import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
 import {
   type AnswerReader,
+  formatHitlGateLine,
   type HitlGate,
   type HitlReplyStamp,
   type HitlStop,
   type RawAnswer,
-  formatHitlGateLine,
 } from "./hitl-relay.js";
 import type { StreamSink } from "./stream-render.js";
 

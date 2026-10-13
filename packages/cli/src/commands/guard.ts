@@ -8,7 +8,7 @@ import {
 } from "../hooks/format-guard-shell.js";
 import { readStdinJson } from "../hooks/read-stdin-json.js";
 import { scanTextForSecrets, secretsAdviseMessage } from "../invariants/secrets-scan.js";
-import { type ShellGuardResult, evaluateShellCommand } from "../invariants/shell-guard.js";
+import { evaluateShellCommand, type ShellGuardResult } from "../invariants/shell-guard.js";
 
 const execFileAsync = promisify(execFile);
 

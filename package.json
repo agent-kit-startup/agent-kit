@@ -1,12 +1,12 @@
 {
   "name": "agent-kit",
-  "version": "5.18.0",
+  "version": "6.0.0",
   "description": "HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; Cursor-first with partial generators for VS Code and Windsurf.",
   "private": true,
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.0.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "dashboard": "node dashboard/start.mjs",
@@ -58,8 +58,8 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "turbo": "^2.9.14",
+    "@biomejs/biome": "^2.5.15",
+    "turbo": "^2.11.7",
     "typescript": "^5.8.3"
   }
 }

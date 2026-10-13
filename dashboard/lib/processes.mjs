@@ -17,7 +17,7 @@ function mentionsPath(cmd, needle) {
     const at = cmd.indexOf(needle, from);
     if (at === -1) return false;
     const next = cmd[at + needle.length];
-    if (next === undefined || /[\/\s"':]/.test(next)) return true;
+    if (next === undefined || /[/\s"':]/.test(next)) return true;
     from = at + 1;
   }
 }

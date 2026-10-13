@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { SHELL_DENY_RULES, evaluateShellCommand } from "./shell-guard.js";
+import { evaluateShellCommand, SHELL_DENY_RULES } from "./shell-guard.js";
 
 describe("evaluateShellCommand", () => {
   afterEach(() => {

@@ -13,7 +13,7 @@ import {
   QUEUE_DRIFT_ASK_LABELS,
 } from "./run-plan-all-orchestrator.js";
 import { firstLineOfContent, parseStreamLine, summarizeToolInput } from "./stream-events.js";
-import { StreamRenderer, renderStreamEvent } from "./stream-render.js";
+import { renderStreamEvent, StreamRenderer } from "./stream-render.js";
 
 /**
  * Fixture provenance: `claude-stream-run-plan-all-queue-drift.log` is a

@@ -1,8 +1,8 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
-  HANDOFF_REL,
   extractHandoffNamedPlans,
+  HANDOFF_REL,
   namedPlanCandidatePaths,
   parsePlanFrontmatter,
 } from "../plan-index/plan-index.js";

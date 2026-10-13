@@ -8,9 +8,9 @@ import { loadManagedHashLedger } from "../lifecycle/overlay.js";
 import {
   CLAUDE_COMMANDS_DIR_REL,
   CURSOR_COMMANDS_DIR_REL,
-  MODEL_INVOCATION_DISABLED,
   discoverInstalledCommands,
   generateClaudeCommandAdapters,
+  MODEL_INVOCATION_DISABLED,
   parseCommandFrontmatter,
   renderClaudeCommandAdapter,
 } from "./claude-command-adapters.js";

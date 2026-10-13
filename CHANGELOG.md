@@ -10,14 +10,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
-### Added
+## [6.0.0] - 2026-10-13
 
-- Plugin installs now list five more core skills: `agent-kit-onboard`, `backlog-add`, `field-report-resolve`, `plan-external-review` and `plan-review-triage` each ship a `SKILL.md` that points to its existing `procedure.md` and command. The skills load only through their slash commands, and `agent-kit install` is unchanged.
+### Changed
+
+- **Breaking:** The minimum Node.js version is now 22.12, because Node 20 has reached end of life. The CLI's `engines` field, `agent-kit doctor` and the Ubuntu bare-metal install helper all check for 22.12, and an older Node shows `TOO OLD` in `doctor`. CI runs on Node 22.
+- Mission Kit is now open source under the Apache License 2.0 (`LICENSE`, `NOTICE`): free for any use, including commercial. This replaces PolyForm Noncommercial 1.0.0. Releases up to 5.18.0 keep the license they shipped with. The npm package, `package.json` and the Cursor, Claude Code and Codex plugin manifests read `Apache-2.0`.
+- Contributions are taken under the Developer Certificate of Origin: sign off each commit with `git commit -s`. There is no CLA. See `docs/CONTRIBUTING.md`.
+- `TRADEMARKS.md` says how the Mission Kit and Agent Kit names and the helmet logo may be used. A published modified version uses its own name and logo.
+- The `sales@missionkit.io` contact is removed from the README, TERMS and PRIVACY.
 
 ## [5.18.0] - 2026-10-09
 
 ### Added
 
+- Plugin installs now list five more core skills: `agent-kit-onboard`, `backlog-add`, `field-report-resolve`, `plan-external-review` and `plan-review-triage` each ship a `SKILL.md` that points to its existing `procedure.md` and command. The skills load only through their slash commands, and `agent-kit install` is unchanged.
 - `agent-kit run-plan --events ndjson` (driver mode): apps, scripts and CI jobs can drive the headless plan runner over pipes with no terminal. stdout carries only NDJSON events (`run_start`, `tick_start`, `agent_event`, `hitl_gate`, `tick_end`, `log`, `run_end`) that wrap the runner's existing `TICK_PROMPT`, `HITL_GATE`, `HITL_REPLY` and `LOOP_TICK_RESULT` lines, and HITL answers come back as JSON lines on stdin (`{"type":"hitl_reply","askId":"...","reply":1}`). A gate no longer stops a piped run with "no TTY" in this mode; EOF, `{"type":"stop"}` or a malformed or mismatched answer still stop it with exit 4 and no default answer. Versioned contract: `docs/driver-events-protocol.md` (protocol 1.0.0). No new dependencies.
 - `agent-kit run-plan --on-limit <backend>`: when a tick stops on a vendor usage limit, the next fresh tick continues the same plan on the backend you name (once per run, only when it is installed). Without the flag a usage limit now stops the run with a named `usage-limit` reason instead of a generic tick failure; driver events (protocol 1.1.0) carry it as `tick_end.limit` plus `backend` on every tick.
 - `--backend codex` for `agent-kit run-plan` and `agent-kit run`: runs your installed, unmodified Codex CLI (`codex exec --json`) on an OpenAI API key (`OPENAI_API_KEY` or `CODEX_API_KEY`); your own ChatGPT sign-in only with `AGENT_KIT_CODEX_CHATGPT_LOGIN=1`. HITL gates are answered in the terminal or in driver mode and delivered by resuming the same Codex session. `--backend auto` never picks Codex.

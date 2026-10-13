@@ -227,7 +227,7 @@ count_audit_sessions() {
   if [[ "\${1:-owned}" == "host" ]]; then echo ${hostCount}; else echo ${ownedCount}; fi
 }
 print_dispose_instructions() { echo "DISPOSE_INSTRUCTIONS"; }
-emit_paste_only() { echo "PASTE_ONLY:\$1"; }
+emit_paste_only() { echo "PASTE_ONLY:$1"; }
 soft_fail_exit() { echo "SOFT_FAIL"; exit 0; }
 ${fns}
 audit_session_pressure_gate "review"
@@ -315,7 +315,7 @@ audit_bounded_session_cmd ${JSON.stringify(cmd)}
 test("lifetime wrap prefers timeout when available", () => {
   const { output, exitCode } = runBoundedCmd({
     maxAge: 3600,
-    commandMock: `command() { if [[ "\$2" == "timeout" ]]; then return 0; fi; return 1; }`,
+    commandMock: `command() { if [[ "$2" == "timeout" ]]; then return 0; fi; return 1; }`,
   });
   assert.strictEqual(exitCode, 0, output);
   assert.match(output, /^timeout 3600 bash -lc /);
@@ -325,7 +325,7 @@ test("lifetime wrap prefers timeout when available", () => {
 test("lifetime wrap falls back to gtimeout when timeout is absent", () => {
   const { output, exitCode } = runBoundedCmd({
     maxAge: 900,
-    commandMock: `command() { if [[ "\$2" == "gtimeout" ]]; then return 0; fi; return 1; }`,
+    commandMock: `command() { if [[ "$2" == "gtimeout" ]]; then return 0; fi; return 1; }`,
   });
   assert.strictEqual(exitCode, 0, output);
   assert.match(output, /^gtimeout 900 bash -lc /);

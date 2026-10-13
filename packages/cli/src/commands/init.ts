@@ -1,15 +1,15 @@
 import { intro, outro } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
-import { SkippedSymlinkError, logApplyStats } from "../lifecycle/report.js";
+import { logApplyStats, SkippedSymlinkError } from "../lifecycle/report.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { assessEnvironment } from "../readiness/env-checks.js";
 import { logger } from "../utils/logger.js";
 import {
-  RootRefusedError,
   classifyInstallError,
   confirmProjectRoot,
   isNonInteractive,
+  RootRefusedError,
 } from "../utils/terminal.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
 import {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  HANDOFF_MAX_LINES,
-  HANDOFF_MAX_LINE_LENGTH,
   checkHandoffGrowth,
+  HANDOFF_MAX_LINE_LENGTH,
+  HANDOFF_MAX_LINES,
   pruneHandoffText,
 } from "./handoff-prune.js";
 

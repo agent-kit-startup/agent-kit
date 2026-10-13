@@ -15,21 +15,25 @@ import {
 } from "./env-checks.js";
 
 describe("isNodeVersionOk", () => {
-  it("accepts versions at or above the minimum major", () => {
-    expect(isNodeVersionOk("v20.0.0")).toBe(true);
-    expect(isNodeVersionOk("v20.11.1")).toBe(true);
-    expect(isNodeVersionOk("v22.4.0")).toBe(true);
-    expect(isNodeVersionOk("22.4.0")).toBe(true);
+  it("accepts versions at or above the minimum (22.12)", () => {
+    expect(isNodeVersionOk("v22.12.0")).toBe(true);
+    expect(isNodeVersionOk("v22.20.1")).toBe(true);
+    expect(isNodeVersionOk("22.12.0")).toBe(true);
+    expect(isNodeVersionOk("v24.0.0")).toBe(true);
   });
 
-  it("rejects versions below the minimum major", () => {
-    expect(isNodeVersionOk("v19.9.9")).toBe(false);
+  it("rejects versions below the minimum (22.12)", () => {
+    expect(isNodeVersionOk("v22.11.9")).toBe(false);
+    expect(isNodeVersionOk("v22.0.0")).toBe(false);
+    expect(isNodeVersionOk("v20.11.1")).toBe(false);
     expect(isNodeVersionOk("v18.20.0")).toBe(false);
   });
 
   it("respects a custom minimum major", () => {
     expect(isNodeVersionOk("v18.20.0", 18)).toBe(true);
     expect(isNodeVersionOk("v16.0.0", 18)).toBe(false);
+    expect(isNodeVersionOk("v24.1.0", 24, 2)).toBe(false);
+    expect(isNodeVersionOk("v24.2.0", 24, 2)).toBe(true);
   });
 
   it("returns false for unparsable version strings", () => {
@@ -220,7 +224,7 @@ describe("assessEnvironment", () => {
     const report = await assessEnvironment({
       env: { PATH: "", SHELL: "/bin/zsh" },
       platform: "linux",
-      nodeVersion: "v20.11.0",
+      nodeVersion: "v22.12.0",
       homeDir: "/home/carlos",
       binName: "agent-kit",
     });

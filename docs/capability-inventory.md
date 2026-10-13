@@ -339,7 +339,7 @@ Enumerated identity literals and publication routes from `scripts/public-sync.ma
 | Path | Anchor | Current literal text | Publication route |
 |------|--------|---------------------|------------------|
 | `README.md` | L5 | Development operations built into Cursor, with partial VS Code support. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
-| `README.md` | L7 | Mission Kit 5 is a free (personal and non-commercial) source-available framework under PolyForm Noncommercial for plan, build, review, and … | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
+| `README.md` | Licensing | Mission Kit (Agent Kit) is open source under the Apache License 2.0 (see LICENSE and NOTICE). | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L9 | Long AI coding sessions fall apart when the context window fills up. The kit fixes this with a small operating layer that handles planning,… | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L13 | No more lost context. The agent keeps a short state file; new chat, one command, and it's caught up. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |
 | `README.md` | L14 | Work against real plans. To-dos you can watch tick off, not vibes. Autonomy stays optional and gated. | allowlist-synced (`README.md` in `scripts/public-sync.manifest`) |

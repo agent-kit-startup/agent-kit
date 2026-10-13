@@ -33,6 +33,6 @@ Do not schedule Cursor Marketplace submit here. That work is parked.
 - [ ] Mission Kit = product; Agent Kit = CLI/npm/slash/pack; Mission Control = dashboard
 - [ ] Version and features match the shipped docs for the current release (getting-started, README, five-layer matrix)
 - [ ] HITL / staging→prod confirmation is stated; no "posts itself" or "full autonomy"
-- [ ] PolyForm Noncommercial + `sales@missionkit.io` for commercial use
+- [ ] License: Apache-2.0, free for any use (never MIT wording; no sales contact)
 - [ ] Public GitHub: `https://github.com/agent-kit-startup/agent-kit`
 - [ ] No Marketplace listing claimed as done

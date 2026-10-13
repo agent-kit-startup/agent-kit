@@ -9,8 +9,8 @@ import path from "node:path";
 import { REPO_ROOT_ENV } from "../../../../dashboard/lib/guards.mjs";
 import { PERIODIC_REFRESH_MS } from "../../../../dashboard/lib/live-refresh.mjs";
 import {
-  type FindDashboardOptions,
   bundledDashboardCandidates,
+  type FindDashboardOptions,
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "../commands/dashboard.js";

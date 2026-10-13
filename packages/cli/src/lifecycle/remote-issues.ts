@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { PUBLIC_INBOUND_REPO, detectFactoryCheckout } from "./public-inbound-radar.js";
+import { detectFactoryCheckout, PUBLIC_INBOUND_REPO } from "./public-inbound-radar.js";
 
 const execFileAsync = promisify(execFile);
 

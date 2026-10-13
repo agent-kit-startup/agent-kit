@@ -23,7 +23,7 @@
  * amendment): a `.cursor/commands/<name>.md` that is later removed does not
  * cause this pass to delete the corresponding `.claude/commands/<name>.md`.
  */
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   contentHash,

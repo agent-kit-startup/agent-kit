@@ -14,7 +14,7 @@ npx @dadado/agent-kit-cli@{{version}} install
 
 Site: https://missionkit.io
 Notes: {{link to CHANGELOG section or GitHub Release}}
-Source-available: PolyForm Noncommercial; commercial: sales@missionkit.io
+Open source (Apache-2.0)
 ```
 
 ## Short (X)

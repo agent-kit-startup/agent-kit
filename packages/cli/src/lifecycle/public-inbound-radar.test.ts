@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  type GhRunner,
-  PUBLIC_INBOUND_REPO,
-  type PublicInboundResult,
   checkPublicInbound,
   classifyInbound,
+  type GhRunner,
   isDependabotAuthor,
+  PUBLIC_INBOUND_REPO,
+  type PublicInboundResult,
   shouldEmitPublicInboundNudge,
 } from "./public-inbound-radar.js";
 

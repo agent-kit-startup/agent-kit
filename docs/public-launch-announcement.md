@@ -36,7 +36,7 @@ Depois: `/agent-kit-onboard`, `/start-project`, `/continue-plan` ou `/run-plan`.
 ---
 
 💡 *Quer contribuir?*
-Source-available sob PolyForm Noncommercial (uso pessoal/não comercial gratuito; comercial: sales@missionkit.io). Issue ou PR no GitHub. 🤝
+Open source sob Apache-2.0 (uso livre, inclusive comercial). Issue ou PR no GitHub. 🤝
 
 👉 *Site + repo:*
 https://missionkit.io

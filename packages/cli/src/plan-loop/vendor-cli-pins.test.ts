@@ -7,9 +7,9 @@ import {
   resetClaudeVersionCache,
 } from "./backends.js";
 import {
-  VENDOR_CLI_PINS,
   compareVendorVersions,
   parseVendorVersion,
+  VENDOR_CLI_PINS,
   vendorVersionStatus,
 } from "./vendor-cli-pins.js";
 

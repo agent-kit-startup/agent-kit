@@ -8,10 +8,10 @@ import {
 } from "../manifest/types.js";
 import { writeJson } from "../utils/fs.js";
 import {
-  type ManagedHashLedger,
   contentHash,
   isConsumerOverlayPath,
   loadManagedHashLedger,
+  type ManagedHashLedger,
   saveManagedHashLedger,
   shouldPreserveCustomizedOverlay,
 } from "./overlay.js";

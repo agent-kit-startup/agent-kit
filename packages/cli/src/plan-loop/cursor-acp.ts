@@ -38,20 +38,20 @@ import {
   type AgentBackend,
   type BackendRunOptions,
   type BackendRunResult,
-  RedactingStreamBuffer,
   claudeRedactions,
   mergeChildEnv,
+  RedactingStreamBuffer,
   redactSecrets,
   resolveHitlRunOptions,
   whichBinary,
 } from "./backends.js";
 import {
-  type HitlGate,
-  type HitlRunRecord,
-  type TurnResult,
   askOperator,
   detectHitlGate,
   emptyHitlRecord,
+  type HitlGate,
+  type HitlRunRecord,
+  type TurnResult,
 } from "./hitl-relay.js";
 import { LineSplitter } from "./line-splitter.js";
 import { createStreamRenderer } from "./stream-render.js";

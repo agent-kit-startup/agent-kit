@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type SpawnInfo, claudeBackend, resetClaudeVersionCache } from "../plan-loop/backends.js";
+import { claudeBackend, resetClaudeVersionCache, type SpawnInfo } from "../plan-loop/backends.js";
 import {
   type HitlGate,
   type HitlStop,
@@ -15,8 +15,8 @@ import {
 import { formatQueueEndStatus } from "../plan-loop/run-plan-all-orchestrator.js";
 import type { LiveRunFeed } from "./live-feed.js";
 import {
-  type LiveMissionIo,
   createLiveMissionLoader,
+  type LiveMissionIo,
   readLiveMission,
   shouldUseLiveTui,
   withLiveTui,

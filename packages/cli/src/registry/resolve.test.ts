@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_REGISTRY_REF,
-  DEFAULT_REGISTRY_URL,
   acquireCacheLock,
   assertSafeRegistrySource,
+  DEFAULT_REGISTRY_REF,
+  DEFAULT_REGISTRY_URL,
   refreshLockOwner,
   releaseCacheLock,
   resolveRegistryRoot,

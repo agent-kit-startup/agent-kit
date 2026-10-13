@@ -117,23 +117,21 @@ test("cloud output contract tells the reviewer not to branch, commit, push, or o
 // Plan files are gitignored session state, so a clean CI checkout has none. Skip the
 // end-to-end dry-run there rather than asserting against a file that cannot exist.
 const PLAN_REL = ".cursor/plans/cursor-cloud-agents-sdk.plan.md";
-test(
-  "dry-run previews the cloud path without spending the key or the API",
-  { skip: !existsSync(resolve(ROOT, PLAN_REL)) && "plan file absent (gitignored session state)" },
-  () => {
-    const out = execFileSync(
-      "bash",
-      [SCRIPT, "--force", "--backend", "cloud", "--dry-run", "cursor-cloud-agents-sdk.plan.md"],
-      {
-        cwd: ROOT,
-        encoding: "utf8",
-        env: { ...process.env, CURSOR_API_KEY: "example-not-a-real-key" },
-      },
-    );
-    assert.match(out, /reviewer-backend: cloud/);
-    assert.match(out, /cloud-api-base: https:\/\/api\.cursor\.com/);
-    assert.match(out, /cloud-write-switches: autoCreatePR=false workOnCurrentBranch=false/);
-    assert.match(out, /cloud-pushed-state:/);
-    assert.doesNotMatch(out, /example-not-a-real-key/);
-  },
-);
+test("dry-run previews the cloud path without spending the key or the API", {
+  skip: !existsSync(resolve(ROOT, PLAN_REL)) && "plan file absent (gitignored session state)",
+}, () => {
+  const out = execFileSync(
+    "bash",
+    [SCRIPT, "--force", "--backend", "cloud", "--dry-run", "cursor-cloud-agents-sdk.plan.md"],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...process.env, CURSOR_API_KEY: "example-not-a-real-key" },
+    },
+  );
+  assert.match(out, /reviewer-backend: cloud/);
+  assert.match(out, /cloud-api-base: https:\/\/api\.cursor\.com/);
+  assert.match(out, /cloud-write-switches: autoCreatePR=false workOnCurrentBranch=false/);
+  assert.match(out, /cloud-pushed-state:/);
+  assert.doesNotMatch(out, /example-not-a-real-key/);
+});

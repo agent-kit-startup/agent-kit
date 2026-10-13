@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  OS_DEFAULT_TOKENS,
   buildOpenBrowserCommand,
   isSafePreferredBrowser,
   normalizePreferredBrowser,
+  OS_DEFAULT_TOKENS,
   openBrowser,
   readPreferredBrowserFromConfig,
   resolvePreferredBrowser,

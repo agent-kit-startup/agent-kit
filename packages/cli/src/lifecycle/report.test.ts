@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyStats } from "./apply.js";
-import { SkippedSymlinkError, formatSkippedSymlinks } from "./report.js";
+import { formatSkippedSymlinks, SkippedSymlinkError } from "./report.js";
 
 describe("SkippedSymlinkError", () => {
   it("defaults to the skipped-symlink message and carries SessionStart instructions when given", () => {

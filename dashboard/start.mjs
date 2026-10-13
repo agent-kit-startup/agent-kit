@@ -21,8 +21,8 @@ import { existsSync, openSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  REPO_ROOT_ENV,
   escapePerlDoubleQuoted,
+  REPO_ROOT_ENV,
   repoRootLogId,
   resolveContextConfigPath,
   resolveMissionControlPort,

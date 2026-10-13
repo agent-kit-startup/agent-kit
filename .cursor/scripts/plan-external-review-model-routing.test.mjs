@@ -196,48 +196,41 @@ test("launcher --prompt-file overrides TEMPLATE_REL; default remains the finding
 const COPY_PLAN = "docs-usage-first-anti-slop-revamp.plan.md";
 const COPY_PROMPT = ".cursor/context/templates/plan-fable-copy-prompt.md";
 
-test(
-  "dry-run prints default prompt-file; override forwards --prompt-file on paste-cmd",
-  {
-    skip:
-      !existsSync(join(repoRoot, ".cursor/plans", COPY_PLAN)) &&
-      "plan file absent (gitignored session state)",
-  },
-  () => {
-    const def = spawnSync(
-      "bash",
-      [SCRIPT, "--force", "--autonomous", "--wait-monitor", "--dry-run", COPY_PLAN],
-      { encoding: "utf8", cwd: repoRoot },
-    );
-    assert.equal(def.status, 0, def.stderr);
-    assert.match(
-      def.stdout,
-      /prompt-file: \.cursor\/context\/templates\/plan-external-review-prompt\.md/,
-    );
-    assert.doesNotMatch(def.stdout, /paste-cmd:.*--prompt-file/);
+test("dry-run prints default prompt-file; override forwards --prompt-file on paste-cmd", {
+  skip:
+    !existsSync(join(repoRoot, ".cursor/plans", COPY_PLAN)) &&
+    "plan file absent (gitignored session state)",
+}, () => {
+  const def = spawnSync(
+    "bash",
+    [SCRIPT, "--force", "--autonomous", "--wait-monitor", "--dry-run", COPY_PLAN],
+    { encoding: "utf8", cwd: repoRoot },
+  );
+  assert.equal(def.status, 0, def.stderr);
+  assert.match(
+    def.stdout,
+    /prompt-file: \.cursor\/context\/templates\/plan-external-review-prompt\.md/,
+  );
+  assert.doesNotMatch(def.stdout, /paste-cmd:.*--prompt-file/);
 
-    const ov = spawnSync(
-      "bash",
-      [
-        SCRIPT,
-        "--force",
-        "--autonomous",
-        "--wait-monitor",
-        "--prompt-file",
-        COPY_PROMPT,
-        "--dry-run",
-        COPY_PLAN,
-      ],
-      { encoding: "utf8", cwd: repoRoot },
-    );
-    assert.equal(ov.status, 0, ov.stderr);
-    assert.match(
-      ov.stdout,
-      /prompt-file: \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/,
-    );
-    assert.match(
-      ov.stdout,
-      /paste-cmd:.*--prompt-file \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/,
-    );
-  },
-);
+  const ov = spawnSync(
+    "bash",
+    [
+      SCRIPT,
+      "--force",
+      "--autonomous",
+      "--wait-monitor",
+      "--prompt-file",
+      COPY_PROMPT,
+      "--dry-run",
+      COPY_PLAN,
+    ],
+    { encoding: "utf8", cwd: repoRoot },
+  );
+  assert.equal(ov.status, 0, ov.stderr);
+  assert.match(ov.stdout, /prompt-file: \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/);
+  assert.match(
+    ov.stdout,
+    /paste-cmd:.*--prompt-file \.cursor\/context\/templates\/plan-fable-copy-prompt\.md/,
+  );
+});

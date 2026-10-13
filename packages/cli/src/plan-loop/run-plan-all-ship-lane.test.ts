@@ -2,18 +2,18 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
 import {
+  classifyReleaseBump,
   DEFAULT_SHIP_CONVERGE_DELAY_MS,
   DEFAULT_SHIP_CONVERGE_WINDOW_MS,
-  type ShipDoneInput,
-  type ShipLaneInput,
-  type WaitForPublicLatestFn,
-  classifyReleaseBump,
   decideAdvanceAfterShip,
   decideShipDone,
   decideShipLane,
+  type ShipDoneInput,
+  type ShipLaneInput,
   shipAuthFromConfirmLabel,
   shipAuthFromHandoff,
   shipConvergeAttempts,
+  type WaitForPublicLatestFn,
   waitForShipNpmLatest,
   waitForShipReleaseLatest,
   waitForShipRowMatch,

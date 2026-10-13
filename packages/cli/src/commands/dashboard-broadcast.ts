@@ -4,10 +4,10 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { logger } from "../utils/logger.js";
 import {
-  type FindDashboardOptions,
   bundledDashboardCandidates,
   dashboardProcessTitle,
   dashboardSpawnEnv,
+  type FindDashboardOptions,
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "./dashboard.js";

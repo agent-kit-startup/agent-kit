@@ -11,10 +11,10 @@ import {
   HELMET_OUTLINE,
   LABEL_MUTED,
   SPACE_MARKS,
-  type WelcomeRenderOptions,
   shouldUseVisualMotion,
   shouldUseWelcomeColor,
   tipAt,
+  type WelcomeRenderOptions,
   withKoloristColor,
 } from "./visual-kit.js";
 

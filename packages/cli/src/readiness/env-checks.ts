@@ -12,12 +12,15 @@
  * caches), and this is a diagnostic that must stay fast and dependency-free.
  */
 
-import { constants, access, readFile, realpath, stat } from "node:fs/promises";
+import { access, constants, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-/** Minimum supported Node.js major version. */
-export const MIN_NODE_MAJOR = 20;
+/** Minimum supported Node.js version (major.minor); matches `engines.node`. */
+export const MIN_NODE_MAJOR = 22;
+export const MIN_NODE_MINOR = 12;
+/** Human-readable floor, e.g. "22.12". */
+export const MIN_NODE_VERSION_LABEL = `${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}`;
 
 export interface NpmPrefixReport {
   /** The active npm global prefix, or null if it could not be determined. */
@@ -44,9 +47,9 @@ export interface EnvironmentReport {
   npmPrefixWritable: boolean;
   /** Detail behind `npmPrefixWritable` (prefix path, reason when not writable). */
   npmPrefix: NpmPrefixReport;
-  /** True when the running Node.js major version is >= MIN_NODE_MAJOR. */
+  /** True when the running Node.js version is >= MIN_NODE_MAJOR.MIN_NODE_MINOR. */
   nodeVersionOk: boolean;
-  /** Raw Node.js version string used for the check (e.g. "v20.11.0"). */
+  /** Raw Node.js version string used for the check (e.g. "v22.12.0"). */
   nodeVersion: string;
   /** Detected shell binary name (e.g. "zsh", "bash"), or null if unknown. */
   shell: string | null;
@@ -209,12 +212,21 @@ export async function checkBinOnPath(
   return (await resolveBinOnPath(binName, env, platform)) != null;
 }
 
-/** True when the Node major version parsed from `nodeVersion` is >= minMajor. */
-export function isNodeVersionOk(nodeVersion: string, minMajor: number = MIN_NODE_MAJOR): boolean {
-  const match = /^v?(\d+)/.exec(nodeVersion);
+/**
+ * True when the Node version parsed from `nodeVersion` is >= minMajor.minMinor.
+ * `minMinor` defaults to MIN_NODE_MINOR only for the default major, else 0.
+ */
+export function isNodeVersionOk(
+  nodeVersion: string,
+  minMajor: number = MIN_NODE_MAJOR,
+  minMinor: number = minMajor === MIN_NODE_MAJOR ? MIN_NODE_MINOR : 0,
+): boolean {
+  const match = /^v?(\d+)(?:\.(\d+))?/.exec(nodeVersion);
   if (!match) return false;
   const major = Number(match[1]);
-  return Number.isFinite(major) && major >= minMajor;
+  const minor = match[2] === undefined ? 0 : Number(match[2]);
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return false;
+  return major > minMajor || (major === minMajor && minor >= minMinor);
 }
 
 /** Detected shell binary name from $SHELL, or null if unset/unrecognized. */

@@ -105,6 +105,6 @@ body:
     id: environment
     attributes:
       label: OS and Node version
-      placeholder: "macOS 15.4, Node 20.11.1"
+      placeholder: "macOS 15.4, Node 22.12.0"
     validations:
       required: true

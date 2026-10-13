@@ -4,17 +4,17 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_HOST,
-  MAX_GIT_PATH,
   allowlistConfig,
+  DEFAULT_HOST,
   isAllowedOrigin,
+  MAX_GIT_PATH,
   resolveBindHost,
 } from "../../../../dashboard/lib/guards.mjs";
 import {
-  MONITOR_ACTIVITY_KINDS,
-  MONITOR_FEED_CAP,
   buildMissionControlView,
   classifyPlan,
+  MONITOR_ACTIVITY_KINDS,
+  MONITOR_FEED_CAP,
   parseHandoffMarkdown,
 } from "../../../../dashboard/lib/semantic-model.mjs";
 

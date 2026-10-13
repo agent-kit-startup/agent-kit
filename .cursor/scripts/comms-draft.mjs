@@ -65,7 +65,7 @@ export function renderDraft(opts, day) {
   const version = opts.version;
   const bodies = {
     recap: `Mission Kit recap (${day})\n\nShipped this cycle: fill from CHANGELOG [Unreleased] that is already in staging.\n\nInstall: npx @dadado/agent-kit-cli@${version} install\nSite: https://missionkit.io\nHITL: production still needs a human yes.\n`,
-    release: `Mission Kit ${version} / Agent Kit CLI @${version}\n\nnpx @dadado/agent-kit-cli@${version} install\nhttps://missionkit.io\nPolyForm Noncommercial; commercial: sales@missionkit.io\n`,
+    release: `Mission Kit ${version} / Agent Kit CLI @${version}\n\nnpx @dadado/agent-kit-cli@${version} install\nhttps://missionkit.io\nOpen source (Apache-2.0)\n`,
     "contributor-ask":
       "Help Mission Kit: skills under registry/skills/community/, or agent-kit contribute from a consumer project.\nIssues: https://github.com/agent-kit-startup/agent-kit\nDo not use public issues for vulnerabilities (SECURITY.md).\nCursor Marketplace submit is not this ask.\n",
   };

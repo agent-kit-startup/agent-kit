@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
-import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineCommand } from "citty";
 import { pruneHandoffText } from "../invariants/handoff-prune.js";
 import {
-  HANDOFF_REL,
   extractFieldBlock,
   extractHandoffNamedPlans,
+  HANDOFF_REL,
   namedPlanCandidatePaths,
   parsePlanFrontmatter,
 } from "../plan-index/plan-index.js";

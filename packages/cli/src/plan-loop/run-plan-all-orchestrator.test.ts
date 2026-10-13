@@ -4,10 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parseHandoffMarkdown } from "../../../../dashboard/lib/semantic-model.mjs";
 import {
-  CONTEXT_CHECKPOINT_ASK_LABELS,
-  NOVEL_FAILURE_ASK_LABELS,
-  QUEUE_DRIFT_ASK_LABELS,
   backlogAppearedSinceConfirm,
+  CONTEXT_CHECKPOINT_ASK_LABELS,
   canDispatchQueuedPlan,
   classifyOrchestratorAction,
   decideBlockedPlanDisposition,
@@ -17,7 +15,9 @@ import {
   isForbiddenOrchestratorAction,
   isQueueConfirmGranted,
   isValidPlanWorkerSummary,
+  NOVEL_FAILURE_ASK_LABELS,
   parsePlanWorkerSummary,
+  QUEUE_DRIFT_ASK_LABELS,
   serializeRunPlanAllQueueFields,
 } from "./run-plan-all-orchestrator.js";
 
