@@ -17,6 +17,11 @@ import {
   unknownSlashMessage,
 } from "../plan-loop/dispatch.js";
 import {
+  classifyGateExit,
+  LAND_ON_GATE_DESCRIPTION,
+  landGateExit,
+} from "../plan-loop/gate-exit.js";
+import {
   formatHitlSummary,
   HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
@@ -36,6 +41,8 @@ export interface ExecuteRunInput {
   noHitl?: boolean;
   /** `--plain`: status lines instead of the Mission Control live view on a TTY. */
   plain?: boolean;
+  /** `--land-on-gate`: land a gate stop or failure on a `gate-exit/<stamp>` branch. */
+  landOnGate?: boolean;
   whichFn?: WhichFn;
 }
 
@@ -106,6 +113,7 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       backend,
       noHitl: input.noHitl === true,
       plain: input.plain === true,
+      landOnGate: input.landOnGate === true,
     });
     return { exitCode: code };
   }
@@ -159,7 +167,44 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
           hitl: { policy: input.noHitl ? "off" : "prompt" },
         });
     for (const line of formatHitlSummary(result.hitl)) console.log(line);
-    return { exitCode: hitlExitCode(result.exitCode, result.hitl) };
+    const exitCode = hitlExitCode(result.exitCode, result.hitl);
+    const trigger = input.landOnGate
+      ? classifyGateExit({ stop: result.hitl?.stop, failed: exitCode !== 0 })
+      : null;
+    if (trigger) {
+      const stop = result.hitl?.stop;
+      const summary =
+        result.lastResult?.resultText.trim() ||
+        result.lastResult?.assistantTexts.at(-1)?.trim() ||
+        undefined;
+      try {
+        await landGateExit({
+          root,
+          outcome: {
+            trigger,
+            exitCode,
+            reason: stop?.message ?? `${detected.id} exited with code ${exitCode}`,
+            command: `run ${slash}`,
+            backend: detected.id,
+            logPath,
+            ...(stop ? { askId: stop.askId } : {}),
+            ...(summary ? { summary } : {}),
+            ...(result.lastResult
+              ? {
+                  gateText: [
+                    result.lastResult.resultText,
+                    ...result.lastResult.assistantTexts,
+                  ].join("\n"),
+                }
+              : {}),
+          },
+          log: (line) => console.log(line),
+        });
+      } catch (err) {
+        console.log(`gate-exit: landing failed: ${String(err)}`);
+      }
+    }
+    return { exitCode };
   } catch (err) {
     return { exitCode: 1, error: String(err) };
   }
@@ -207,6 +252,11 @@ const runDispatchArgs = {
       "Status lines instead of the Mission Control live view (the default on a TTY; non-TTY, NO_COLOR and CI are always plain)",
     default: false,
   },
+  "land-on-gate": {
+    type: "boolean" as const,
+    description: LAND_ON_GATE_DESCRIPTION,
+    default: false,
+  },
 };
 
 export async function runSlashCli(
@@ -220,6 +270,7 @@ export async function runSlashCli(
     sleep: string;
     "no-hitl"?: boolean;
     plain?: boolean;
+    "land-on-gate"?: boolean;
   },
 ): Promise<void> {
   const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
@@ -245,6 +296,7 @@ export async function runSlashCli(
     sleepSeconds,
     noHitl: Boolean(args["no-hitl"]),
     plain: Boolean(args.plain),
+    landOnGate: Boolean(args["land-on-gate"]),
   });
   if (result.stdout) {
     console.log(result.stdout);

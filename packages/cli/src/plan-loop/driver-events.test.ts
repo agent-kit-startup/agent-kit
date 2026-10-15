@@ -419,6 +419,42 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
     expect(JSON.stringify(events)).not.toContain("HITL_REPLY: driver-demo");
   });
 
+  it("--land-on-gate lands a driver-mode gate stop (marker with ask id and labels), exit code unchanged", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const client = scriptedClient(() => null);
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      landOnGate: true,
+      // Not a git repository: no branch, but the marker still records the gate.
+      gateExit: { exec: async () => ({ code: 128, stdout: "", stderr: "not a git repository" }) },
+    });
+    expect(code).toBe(HITL_UNANSWERED_EXIT_CODE);
+    const marker = JSON.parse(
+      await readFile(path.join(root, ".cursor", "context", "gate-exit.json"), "utf8"),
+    );
+    expect(marker.pending).toEqual([
+      expect.objectContaining({
+        trigger: "stopped-by-operator",
+        askId: "driver-demo",
+        labels: ["Proceed", "Hold"],
+        branch: null,
+        pushed: false,
+      }),
+    ]);
+    const events = client.events();
+    expect(
+      events.some(
+        (e) => e.type === "log" && String(e.message).includes("gate-exit: not a git repository"),
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toMatchObject({ type: "run_end", exitCode: 4 });
+  });
+
   it("a reply for the wrong gate is a protocol error (exit 4), never re-routed", async () => {
     const { root, plan } = await fixtureWorkspace();
     const client = scriptedClient(() =>

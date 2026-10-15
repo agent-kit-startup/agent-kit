@@ -167,6 +167,7 @@ describe("executeSafeReadinessFixes", () => {
       ".cursor/context/readiness.json",
       ".cursor/context/flight-log.json",
       ".cursor/context/mission-timing.json",
+      ".cursor/context/gate-exit.json",
     ]) {
       expect(gitignore.split(/\r?\n/).filter((line) => line === pattern)).toHaveLength(1);
     }

@@ -4,6 +4,7 @@ import type { AgentBackend } from "../plan-loop/backends.js";
 import { getBackend } from "../plan-loop/backends.js";
 import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js";
 import { DRIVER_EVENTS_FORMATS } from "../plan-loop/driver-events.js";
+import { LAND_ON_GATE_DESCRIPTION } from "../plan-loop/gate-exit.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
@@ -60,6 +61,11 @@ export const runPlanCommand = defineCommand({
       description:
         "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; see docs/driver-events-protocol.md)",
       default: "",
+    },
+    "land-on-gate": {
+      type: "boolean",
+      description: LAND_ON_GATE_DESCRIPTION,
+      default: false,
     },
     plain: {
       type: "boolean",
@@ -130,6 +136,7 @@ export const runPlanCommand = defineCommand({
       backend,
       noHitl: Boolean(args["no-hitl"]),
       plain: Boolean(args.plain),
+      landOnGate: Boolean(args["land-on-gate"]),
       ...(events ? { events: {} } : {}),
       ...(onLimit ? { onLimit } : {}),
     });

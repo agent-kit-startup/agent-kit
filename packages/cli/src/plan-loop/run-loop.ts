@@ -21,6 +21,7 @@ import {
   isPlanExhaustedReason,
   shouldArmExternalPlanReview,
 } from "./external-review.js";
+import { classifyGateExit, type GateExitOutcome, landGateExit } from "./gate-exit.js";
 import {
   formatHitlSummary,
   type HitlReplyStamp,
@@ -64,6 +65,14 @@ export interface RunPlanLoopOptions {
    * terminal behavior.
    */
   events?: DriverRunOptions;
+  /**
+   * `--land-on-gate` (config key `landOnGate`): when the run ends at an
+   * unanswered gate, as `stopped-by-operator`, or as a failure, land the
+   * outcome on a `gate-exit/<UTC stamp>` branch (gate-exit.ts). Off by default.
+   */
+  landOnGate?: boolean;
+  /** Test seam for the landing step (defaults: the real git / gh / glab). */
+  gateExit?: Partial<Omit<Parameters<typeof landGateExit>[0], "root" | "outcome">>;
 }
 
 /** Driver-mode seams (defaults: process.stdin / process.stdout / process.stderr). */
@@ -184,6 +193,44 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     else console.log(message);
   };
   const emit = (event: DriverEvent) => driver?.emitter.emit(event);
+  // Gate exit inputs, filled as the loop runs.
+  let landStop: HitlStop | undefined;
+  let landFailed = false;
+  let landLogPath: string | undefined;
+  let landSummary: string | undefined;
+  let landGateText: string | undefined;
+  let landBackend = opts.backend.id;
+  let landPlan: string | undefined;
+  /** Opt-in landing; never changes the exit code, never answers the gate. */
+  const landIfNeeded = async (exitCode: number, reason: string, pendingNow: number | null) => {
+    if (!opts.landOnGate || opts.dryRun) return;
+    const trigger = classifyGateExit({ stop: landStop, failed: landFailed });
+    if (!trigger) return;
+    const outcome: GateExitOutcome = {
+      trigger,
+      exitCode,
+      reason,
+      command: "run-plan",
+      backend: landBackend,
+      ticks: ticksRun,
+      pending: pendingNow,
+      ...(landPlan ? { plan: landPlan } : {}),
+      ...(landStop ? { askId: landStop.askId } : {}),
+      ...(landLogPath ? { logPath: landLogPath } : {}),
+      ...(landSummary ? { summary: landSummary } : {}),
+      ...(landGateText ? { gateText: landGateText } : {}),
+    };
+    try {
+      await landGateExit({
+        ...opts.gateExit,
+        root: opts.root,
+        outcome,
+        log: (line) => say(line, "warn"),
+      });
+    } catch (err) {
+      say(`gate-exit: landing failed: ${String(err)}`, "warn");
+    }
+  };
   const finishRun = (
     exitCode: number,
     reason: string,
@@ -202,6 +249,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
   }
 
   const pending = async () => countPendingTodos(await readPlan(planPath));
+  landPlan = path.basename(planPath);
   if (statePaths.invalid !== undefined) {
     say(
       `${STATE_ROOT_ENV}=${statePaths.invalid} is not supported (use .cursor or .agent-kit); using .cursor.`,
@@ -310,6 +358,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       }
 
       const logPath = path.join(logDir, `tick-${stamp()}.log`);
+      landLogPath = logPath;
+      landBackend = backend.id;
       const relLog = path.relative(opts.root, logPath);
       if (!driver) console.log("");
       const tickLine = `=== tick ${tick}/${opts.maxTicks} - pending: ${before} - log: ${relLog} ===`;
@@ -382,11 +432,20 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         hitlStop = result.hitl?.stop;
         replies = result.hitl?.replies ?? [];
         lastResult = result.lastResult;
+        landSummary =
+          lastResult?.resultText.trim() || lastResult?.assistantTexts.at(-1)?.trim() || undefined;
+        landGateText = lastResult
+          ? [lastResult.resultText, ...lastResult.assistantTexts].join("\n")
+          : undefined;
       } catch (err) {
         say(String(err), "error");
         agentExit = 1;
         endTick(null, null);
-        return finishRun(1, `tick ${tick} failed to start: ${String(err)}`, await pending());
+        const reason = `tick ${tick} failed to start: ${String(err)}`;
+        const pendingNow = await pending();
+        landFailed = true;
+        await landIfNeeded(1, reason, pendingNow);
+        return finishRun(1, reason, pendingNow);
       }
 
       // A tick that ended at a gate with no reply is a stop, not a tick
@@ -403,6 +462,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         endTick(await pending(), null);
         exitCode = hitlStop.exitCode;
         endReason = hitlStop.message;
+        landStop = hitlStop;
         break;
       }
 
@@ -450,6 +510,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         else say(msg);
         endTick(await pending(), null);
         endReason = "too many MCP tools";
+        landFailed = true;
         break;
       }
 
@@ -470,6 +531,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         }
         endTick(await pending(), null);
         endReason = `tick failed (${status.subtype ?? "is_error"})`;
+        landFailed = true;
         break;
       }
 
@@ -483,6 +545,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         }
         endTick(await pending(), null);
         endReason = `${backend.id} exited with code ${agentExit}`;
+        landFailed = true;
         break;
       }
 
@@ -514,6 +577,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         if (banners) banners.stop(msg);
         else say(msg);
         endReason = "tick without sentinel and no progress";
+        landFailed = true;
         break;
       }
 
@@ -552,6 +616,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       );
     }
 
+    await landIfNeeded(exitCode, endReason || "stopped", pendingNow);
     return finishRun(exitCode, endReason || "stopped", pendingNow, planExhausted);
   } finally {
     process.off("SIGINT", onSigInt);

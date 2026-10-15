@@ -14,6 +14,8 @@
 .cursor/context/mission-timing.json
 # Local Flight Log past-Gaps history (observation only)
 .cursor/context/flight-log.json
+# Local pending gate exit marker (headless run --land-on-gate; launcher-read)
+.cursor/context/gate-exit.json
 # Local pending-only plan index (generated from HANDOFF-named plans)
 .cursor/context/plan-index.json
 # Local Field Report activity cadence ledger (tick/batch counters)
