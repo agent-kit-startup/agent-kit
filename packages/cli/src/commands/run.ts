@@ -28,6 +28,7 @@ import {
 } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
+import { negatedFlag } from "./negated-flag.js";
 
 export interface ExecuteRunInput {
   slash: string;
@@ -269,6 +270,8 @@ export async function runSlashCli(
     "max-ticks": string;
     sleep: string;
     "no-hitl"?: boolean;
+    /** citty sets this to false for `--no-hitl`; read through negatedFlag. */
+    hitl?: boolean;
     plain?: boolean;
     "land-on-gate"?: boolean;
   },
@@ -294,7 +297,7 @@ export async function runSlashCli(
     dryRun: Boolean(args["dry-run"]),
     maxTicks,
     sleepSeconds,
-    noHitl: Boolean(args["no-hitl"]),
+    noHitl: negatedFlag(args, "hitl"),
     plain: Boolean(args.plain),
     landOnGate: Boolean(args["land-on-gate"]),
   });

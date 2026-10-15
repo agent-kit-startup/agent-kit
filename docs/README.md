@@ -13,6 +13,7 @@
 - [Bootstrap](bootstrap.md) - install without nested `agent-kit/` folder
 - [Repository readiness onboarding](repository-readiness-onboarding.md) - install discovery, guided preparation, and handoff to `/start-project`
 - [Migrate consumer](migrate-consumer.md) - generic runbook to leave nested `agent-kit/` (`YOUR_PROJECT`)
+- [Multiple machines](multiple-machines.md) - what git does not carry (uncommitted plans, ignored HANDOFF, Claude auto-memory) and a read-only pull-then-curate procedure
 - [Ubuntu 24.04 bare-metal install](install-ubuntu24-bare-metal.md) - fresh server with no Node.js, non-interactive provisioning in front of the same CLI path
 
 ## Configuration and features

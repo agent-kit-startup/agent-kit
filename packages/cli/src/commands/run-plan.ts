@@ -8,6 +8,7 @@ import { LAND_ON_GATE_DESCRIPTION } from "../plan-loop/gate-exit.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
+import { negatedFlag } from "./negated-flag.js";
 
 export const runPlanCommand = defineCommand({
   meta: {
@@ -134,7 +135,7 @@ export const runPlanCommand = defineCommand({
       model: args.model ? String(args.model) : undefined,
       dryRun: Boolean(args["dry-run"]),
       backend,
-      noHitl: Boolean(args["no-hitl"]),
+      noHitl: negatedFlag(args, "hitl"),
       plain: Boolean(args.plain),
       landOnGate: Boolean(args["land-on-gate"]),
       ...(events ? { events: {} } : {}),
