@@ -11,6 +11,7 @@ import {
   findDashboardStart,
   resolveDashboardSnapshotRoot,
 } from "./dashboard.js";
+import { negatedFlag } from "./negated-flag.js";
 
 /**
  * Resolve dashboard/start-broadcast.mjs.
@@ -126,7 +127,7 @@ export const dashboardBroadcastCommand = defineCommand({
 
     const snapshotRoot = resolveDashboardSnapshotRoot(args.cwd);
     const env = dashboardSpawnEnv({ ...process.env }, snapshotRoot, {
-      noOpen: Boolean(args["no-open"]),
+      noOpen: negatedFlag(args, "open"),
       browser: args.browser,
     });
     process.title = dashboardProcessTitle(snapshotRoot);

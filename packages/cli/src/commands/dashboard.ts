@@ -10,6 +10,7 @@ import {
   readPreferredBrowserFromConfig,
 } from "../../../../dashboard/lib/open-browser.mjs";
 import { logger } from "../utils/logger.js";
+import { negatedFlag } from "./negated-flag.js";
 
 /** Optional hooks for hermetic tests (inject moduleUrl; never required in production). */
 export type FindDashboardOptions = {
@@ -240,7 +241,7 @@ export const dashboardCommand = defineCommand({
     }
 
     const env = dashboardSpawnEnv({ ...process.env }, snapshotRoot, {
-      noOpen: Boolean(args["no-open"]),
+      noOpen: negatedFlag(args, "open"),
       browser: args.browser,
     });
     process.title = dashboardProcessTitle(snapshotRoot);

@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.1.1] - 2026-10-15
+
+### Fixed
+
+- `--no-hitl` (`agent-kit run`, `run-plan`, `run-plan-all`) and `--no-open` (`agent-kit dashboard`, `dashboard broadcast`) now take effect. The argument parser reads `--no-<name>` as the negation of `<name>`, so the commands never saw either flag: an unattended run prompted at a gate instead of stopping with exit 4, and the dashboard opened a browser anyway.
+
 ## [6.1.0] - 2026-10-15
 
 ### Added
