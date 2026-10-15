@@ -70,12 +70,12 @@ A local dashboard over the same workspace state the CLI drives — current missi
 
 <table>
 <tr>
-<td width="50%">![Mission Control Current mission panel](assets/production/1-mission-control-current-mission.png)</td>
-<td width="50%">![Mission Control Checklist panel](assets/production/2-mission-control-check-list.png)</td>
+<td width="50%"><img src="assets/production/1-mission-control-current-mission.png" alt="Mission Control Current mission panel" width="100%"></td>
+<td width="50%"><img src="assets/production/2-mission-control-check-list.png" alt="Mission Control Checklist panel" width="100%"></td>
 </tr>
 <tr>
-<td width="50%">![Mission Control Crew Monitor panel](assets/production/3-mission-control-Crew-Monitor.png)</td>
-<td width="50%">![Mission Control Flight Log panel](assets/production/4-mission-control-flight-log.png)</td>
+<td width="50%"><img src="assets/production/3-mission-control-Crew-Monitor.png" alt="Mission Control Crew Monitor panel" width="100%"></td>
+<td width="50%"><img src="assets/production/4-mission-control-flight-log.png" alt="Mission Control Flight Log panel" width="100%"></td>
 </tr>
 </table>
 

@@ -1,7 +1,7 @@
 # Mission Kit: HOL launch copy
 
 Source of truth for the launch draft on HOL (https://hol.org/guard/plugins/agent-kit-startup%2Fagent-kit/launches).
-Captured from the launch editor on 2026-09-24. Revised 2026-10-10 for the Apache-2.0 relicense: the version label and the last sentence of the letter changed. The HOL draft still holds the 2026-09-24 text until someone with access to the owner panel saves this one. Status: private draft, not scheduled. Publish only after the Apache-2.0 release is on the public mirror.
+Captured from the launch editor on 2026-09-24. Revised 2026-10-10 for the Apache-2.0 relicense: the version label and the last sentence of the letter changed. Revised 2026-10-13: the version label names v6.0.0, the release that shipped the relicense. The HOL draft still holds the 2026-09-24 text until someone with access to the owner panel saves this one. Status: private draft, not scheduled. The Apache-2.0 release (v6.0.0) is on the public mirror since 2026-10-13, so the draft can be published once it is saved.
 
 Registry listing: https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit
 
@@ -14,7 +14,7 @@ Registry listing: https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit
 | Topics | agents, hitl, handoff |
 | Availability | Available |
 | Pricing | Open source (Apache-2.0) |
-| Version label | v5.19.0 (the first Apache-2.0 release; match the release that ships) |
+| Version label | v6.0.0 (the first Apache-2.0 release) |
 
 ## Description
 

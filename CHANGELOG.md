@@ -10,6 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-10-15
+
+### Added
+
+- `--land-on-gate` for `agent-kit run-plan`, `agent-kit run` and `agent-kit run-plan-all` (off by default): when an unattended run stops at an unanswered gate (`--no-hitl`, exit 4), is stopped by the operator, or fails, the CLI writes a note (marked `agent-inferred`, with the gate's Ask id and labels, the stop reason, a run summary and the log path) on a new `gate-exit/<UTC stamp>` branch. The branch is created from `origin/staging` (or the remote's default branch when there is no `staging`) in a temporary worktree outside your repository, pushed without force, and opened as a PR (`gh`) or MR (`glab`) when that CLI is installed and signed in; otherwise the CLI prints the branch and the command to open the review yourself. Your working tree is never written or committed: a dirty tree is reported, not cleaned. The gitignored marker `.cursor/context/gate-exit.json` records the pending gate exit. The landing never answers the gate. Tokens and the gateway address are redacted from the note, the PR/MR body and every printed line.
+
+### Fixed
+
+- The four Mission Control screenshots in the README now show on GitHub. They used markdown image syntax inside an HTML table, which GitHub printed as plain text.
+
 ## [6.0.0] - 2026-10-13
 
 ### Changed
