@@ -37,7 +37,7 @@
     "kolorist": "^1.8.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.1",
+    "@types/node": "^22.20.5",
     "tsup": "^8.4.0",
     "tsx": "^4.23.15",
     "vite": "^8.3.3",
