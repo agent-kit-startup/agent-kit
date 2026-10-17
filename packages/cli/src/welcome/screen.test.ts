@@ -148,6 +148,8 @@ describe("renderGroupedRootHelp", () => {
       "run",
       "run-plan",
       "run-plan-all",
+      "countdown",
+      "ground-control",
     ]);
     for (const g of CLI_HELP_GROUPS) {
       expect(g.commands.length).toBeGreaterThan(0);

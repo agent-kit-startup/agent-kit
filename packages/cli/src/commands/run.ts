@@ -26,6 +26,7 @@ import {
   HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
 } from "../plan-loop/hitl-relay.js";
+import { REVIEW_PACK_SLASH, runReviewJob } from "../plan-loop/review-job.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 import { negatedFlag } from "./negated-flag.js";
@@ -44,6 +45,10 @@ export interface ExecuteRunInput {
   plain?: boolean;
   /** `--land-on-gate`: land a gate stop or failure on a `gate-exit/<stamp>` branch. */
   landOnGate?: boolean;
+  /** `--max-pack-bytes` (review-pack only): the diff pack ceiling. */
+  maxPackBytes?: string;
+  /** `--include-reviewed` (review-pack only): review branches unchanged since the last review too. */
+  includeReviewed?: boolean;
   whichFn?: WhichFn;
 }
 
@@ -83,6 +88,12 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   if (kind === "unknown") {
     return { exitCode: 1, error: unknownSlashMessage(slash) };
   }
+  if (input.maxPackBytes?.trim() && slash !== REVIEW_PACK_SLASH) {
+    return { exitCode: 1, error: `--max-pack-bytes only applies to ${REVIEW_PACK_SLASH}` };
+  }
+  if (input.includeReviewed && slash !== REVIEW_PACK_SLASH) {
+    return { exitCode: 1, error: `--include-reviewed only applies to ${REVIEW_PACK_SLASH}` };
+  }
 
   const detected = await detectAgentBackend(input.backend, input.whichFn);
   if (!detected.ok) {
@@ -117,6 +128,25 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       landOnGate: input.landOnGate === true,
     });
     return { exitCode: code };
+  }
+
+  if (slash === REVIEW_PACK_SLASH) {
+    // The review job: a bounded diff pack, one review-only session, findings
+    // landed through the gate exit (always on for this slash).
+    try {
+      return await runReviewJob({
+        root,
+        backendId: detected.id,
+        bin: detected.bin,
+        model: input.model,
+        maxPackBytes: input.maxPackBytes,
+        includeReviewed: input.includeReviewed === true,
+        noHitl: input.noHitl === true,
+        dryRun: input.dryRun,
+      });
+    } catch (err) {
+      return { exitCode: 1, error: String(err) };
+    }
   }
 
   const file = await readCommandFile(root, slash);
@@ -260,6 +290,22 @@ const runDispatchArgs = {
   },
 };
 
+/** `agent-kit run` only (review-pack); `run-plan-all` never lists it. */
+const maxPackBytesArg = {
+  type: "string" as const,
+  description:
+    "For review-pack only: diff pack ceiling in bytes (default: 98304; a branch whose section does not fit is listed as not reviewed, never cut)",
+  default: "",
+};
+
+/** `agent-kit run` only (review-pack); `run-plan-all` never lists it. */
+const includeReviewedArg = {
+  type: "boolean" as const,
+  description:
+    "For review-pack only: also review branches whose tip is unchanged since the last completed review (.cursor/context/review-ledger.json)",
+  default: false,
+};
+
 export async function runSlashCli(
   slash: string,
   args: {
@@ -274,6 +320,8 @@ export async function runSlashCli(
     hitl?: boolean;
     plain?: boolean;
     "land-on-gate"?: boolean;
+    "max-pack-bytes"?: string;
+    "include-reviewed"?: boolean;
   },
 ): Promise<void> {
   const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
@@ -300,6 +348,8 @@ export async function runSlashCli(
     noHitl: negatedFlag(args, "hitl"),
     plain: Boolean(args.plain),
     landOnGate: Boolean(args["land-on-gate"]),
+    ...(args["max-pack-bytes"] ? { maxPackBytes: String(args["max-pack-bytes"]) } : {}),
+    ...(args["include-reviewed"] ? { includeReviewed: true } : {}),
   });
   if (result.stdout) {
     console.log(result.stdout);
@@ -323,6 +373,8 @@ export const runCommand = defineCommand({
       required: true,
     },
     ...runDispatchArgs,
+    "max-pack-bytes": maxPackBytesArg,
+    "include-reviewed": includeReviewedArg,
   },
   async run({ args }) {
     await runSlashCli(String(args.slash ?? ""), args);

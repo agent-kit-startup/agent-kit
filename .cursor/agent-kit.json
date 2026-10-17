@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "6.1.1",
+  "version": "6.2.0",
   "protected": [
     ".claude/commands/agent-kit.md",
     ".cursor/HANDOFF.md",
@@ -40,7 +40,7 @@
   ],
   "personalization": {
     "contractVersion": 1,
-    "generatorVersion": "5.4.0",
+    "generatorVersion": "6.2.0",
     "origin": "repository-profile",
     "resultPath": ".cursor/context/personalization.json"
   },

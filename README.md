@@ -4,7 +4,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Node.js >=22.12](https://img.shields.io/badge/node-%3E%3D22.12-339933)](https://nodejs.org)
 [![Latest release of the public agent-kit repository](https://img.shields.io/github/v/release/agent-kit-startup/agent-kit?label=release&color=00D0E7)](https://github.com/agent-kit-startup/agent-kit/releases/latest)
-[![agent-kit guard badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fguard%2Fagent-kit-startup%2Fagent-kit)](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
+[![agent-kit trust badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dagent-kit-startup%252Fagent-kit%26metric%3Dtrust%26style%3Dflat)](https://hol.org/registry/plugins/agent-kit-startup%2Fagent-kit)
 
 <p align="center">
   <img src="dashboard/logo.svg" alt="Mission Kit helmet mark" width="190">

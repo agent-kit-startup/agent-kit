@@ -134,6 +134,8 @@ A plain `install` (no `--claude`) leaves `.claude/commands/` with only `agent-ki
 
 Headless stays available without any adapter: `agent-kit run <command>`, `agent-kit run-plan --backend claude`, `agent-kit run-plan-all`. Decision trail: the 2026-10-01 amendment on ADR `2026-08-13_claude-cli-kit-load-bootstrap.md`.
 
+Boundary with unattended runs: session kit-load never schedules anything. `agent-kit countdown` (fired by your own timer) wraps the same headless lane with `--no-hitl --land-on-gate`, so its `claude` ticks load this pack like any headless tick; the review job (`--job review`) instead runs `claude` with no tools in an empty directory outside the repository, so it loads no project `CLAUDE.md`, only the user-level one. See [the countdown detail](consumer-configuration.md#agent-kit-countdown-detail).
+
 ### SessionStart hook (`.claude/settings.json`)
 
 - Generator: `packages/cli/src/generator/claude-session-start-hook.ts` (`writeClaudeSessionStartHook`).

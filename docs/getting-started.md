@@ -139,6 +139,8 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `run <slash>` | One headless session from an L0 slash file (numbered-list HITL; never git-prod) |
 | `run-plan` | Headless continuous plan runner (tick loop; never git-prod) |
 | `run-plan-all` | Headless `/run-plan-all` queue from the L0 file. `per-plan-release` ships inside that contract. `agent-kit run git-prod` stays refused |
+| `countdown` | One-shot launcher for a cron or systemd timer: one headless job with `--no-hitl --land-on-gate`, refused while a gate exit is pending ([detail](consumer-configuration.md#agent-kit-countdown-detail)) |
+| `ground-control` | Morning triage of gate exits: `status`, `accept <stamp>` once the branch is merged, `discard <stamp>` ([detail](consumer-configuration.md#agent-kit-ground-control-detail)) |
 | `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); live TTY quits with `q` or Ctrl-C; `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 
@@ -250,6 +252,22 @@ For the full list of consumer-configurable knobs (session config, dashboard skin
   **Named model tip:** for long queues, prefer a **named model** (Claude Opus, Sonnet 4.6, Composer 2.5 Fast) over Auto. Named models have separate quota buckets and keep Ask questions available for HITL.
 
   **Mission Control shortcut:** the Checklist **Run all** header button copies `/run-plan-all` into chat input (copy-only; it does not write HANDOFF or start the queue). While a queue is live, Checklist cards sort by role-priority (executing, then next up, then queued / completed), not by Run queue index. Plan card Actions also offer **Run (manual)** (`/continue-plan`) and **Run (auto)** (`/run-plan`) as copy-only pastes.
+
+### Unattended runs (Countdown and Ground Control)
+
+To let a plan advance overnight, give a dedicated clone of the repository to `agent-kit countdown` and fire it from your own timer. Each fire runs one headless job (one `/run-plan` tick by default, or the review-only pass over unmerged branches with `--job review`) under `--no-hitl --land-on-gate`. The kit never answers a gate: when the run stops at one, or fails, the CLI pushes a note to a `gate-exit/<stamp>` branch with a PR/MR and leaves your working tree alone, and later fires refuse to start until you triage it.
+
+```cron
+0 3 * * * <agent-kit> countdown --cwd <repo> --backend claude >/dev/null 2>&1
+```
+
+`<agent-kit>` is the absolute path of the installed binary, `<repo>` the clone Countdown owns. The systemd timer and service pair, the caps (`--window-min`, `--stall-min`), the exit codes and the `flock -n` wrapper for cron are in [the countdown detail](consumer-configuration.md#agent-kit-countdown-detail).
+
+In the morning:
+
+1. `agent-kit ground-control status` lists each pending ticket: the note's headline, its Ask id and labels, the branch and its PR/MR. Mission Control shows the same tickets at the top of the Flight Log.
+2. Answer the gate the note names in a live session (`/continue-plan` or `/run-plan`). Those commands Ask about a pending ticket first (`Read the ticket` / `Accept` / `Discard` / `Later`).
+3. Merge the ticket's PR/MR if you want the note, then `agent-kit ground-control accept <stamp>`; or `agent-kit ground-control discard <stamp>` to close it and delete the branch. Neither verb merges or promotes anything.
 
 ### Claude Code CLI (session kit-load)
 

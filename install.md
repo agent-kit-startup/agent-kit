@@ -94,6 +94,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/skills/core/hitl-gates/run-plan-tick-contract.md` | idem |
 | `.cursor/skills/core/hitl-gates/start-project-intake.md` | idem |
 | `.cursor/skills/core/hitl-gates/run-plan-all-queue.md` | idem |
+| `.cursor/skills/core/hitl-gates/pending-ticket.md` | idem |
 | `.cursor/skills/core/qa/SKILL.md` | idem |
 | `.cursor/skills/core/dashboard-broadcast/SKILL.md` | idem |
 | `.cursor/skills/core/plan-review-triage/procedure.md` | idem |
@@ -125,6 +126,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/plan-review-triage.md` | idem |
 | `.cursor/commands/field-report-resolve.md` | idem |
 | `.cursor/commands/dogfood.md` | idem |
+| `.cursor/commands/review-pack.md` | idem |
 | `.cursor/commands/cursor-update-awareness.md` | idem |
 | `.cursor/commands/qa.md` | idem |
 | `.cursor/commands/update.md` | idem |

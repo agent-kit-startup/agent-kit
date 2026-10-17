@@ -60,13 +60,15 @@ export function runnerStatePaths(
 }
 
 /**
- * Make the loop-logs dir and, outside `.cursor` (whose repo `.gitignore`
- * covers it), drop a `.gitignore` of `*` inside it so redacted agent output
- * is never swept into a commit by `/git-staging`.
+ * Make the loop-logs dir and drop a `.gitignore` of `*` inside it, for every
+ * state dir: a consumer repository's own `.gitignore` may not list
+ * `.cursor/loop-logs/` (an install that predates the pattern, or a hand-edited
+ * file), and an untracked log would make the next Countdown fire refuse a
+ * dirty tree or be swept into a commit by `/git-staging`. The file ignores
+ * itself too, so creating it never dirties the tree.
  */
 export async function ensureLoopLogsDir(paths: RunnerStatePaths): Promise<void> {
   await mkdir(paths.loopLogsDir, { recursive: true });
-  if (paths.stateDir === ".cursor") return;
   const ignore = path.join(paths.loopLogsDir, ".gitignore");
   try {
     await writeFile(ignore, "*\n", { flag: "wx" });

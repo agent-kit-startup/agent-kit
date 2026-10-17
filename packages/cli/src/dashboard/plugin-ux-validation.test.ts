@@ -1080,6 +1080,62 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(resolveFlightLogCurrent(textlessWarning)).toBeNull();
   });
 
+  it("renders pending operator tickets read-only with prompt chrome, above every Flight Log branch", () => {
+    const sources = [
+      /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
+      /function escapeAttr\(value\) \{[\s\S]*?\n\}/,
+      /function flightLogKindClassName\(kind\) \{[\s\S]*?\n\}/,
+      /function renderFlightLogTicketCard\(ticket, idx\) \{[\s\S]*?\n\}/,
+      /function flightLogTicketEntries\(fl\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const { renderFlightLogTicketCard, flightLogTicketEntries } = loadDashboardExtract(
+      `${sources.join("\n")}\nreturn { renderFlightLogTicketCard, flightLogTicketEntries };`,
+    ) as {
+      renderFlightLogTicketCard: (t: unknown, idx: number) => string;
+      flightLogTicketEntries: (fl: unknown) => unknown[];
+    };
+    const html = renderFlightLogTicketCard(
+      {
+        stamp: "20261014T093005Z",
+        title: "Pending ticket",
+        text: "Gate exit 20261014T093005Z: <b>gate</b>",
+        askId: "backlog-write",
+        branch: "origin/gate-exit/20261014T093005Z",
+        branchState: "unmerged",
+        url: "javascript:alert(1)",
+        triage: "agent-kit ground-control accept|discard 20261014T093005Z",
+      },
+      0,
+    );
+    expect(html).toContain("flight-log-kind-advice");
+    expect(html).toContain('data-flight-log-kind="prompt"');
+    expect(html).toContain("&lt;b&gt;gate&lt;/b&gt;");
+    expect(html).toContain("awaiting merge");
+    expect(html).toContain("agent-kit ground-control accept|discard 20261014T093005Z");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toMatch(/<button|\son[a-z]+=|\sstyle=/);
+    expect(renderFlightLogTicketCard({ stamp: "", text: "x" }, 0)).toBe("");
+    expect(
+      flightLogTicketEntries({
+        tickets: [
+          { stamp: "s", text: "t" },
+          { stamp: "s", text: " " },
+        ],
+      }),
+    ).toHaveLength(1);
+    // The lane is prepended to every branch (never swallowed by All clear) and fingerprinted.
+    expect(dashboardHtml).toMatch(/body = `\$\{ticketsBlock\}\$\{body\}`;/);
+    expect(dashboardHtml).toMatch(/else if \(hasTickets\) \{\s*body = '';/);
+    expect(dashboardHtml).toMatch(
+      /function flightLogFingerprint\(d\)[\s\S]*?flightLogTicketEntries\(fl\)/,
+    );
+    expect(dashboardHtml).toContain("Pending operator tickets (Ground Control)");
+  });
+
   it("pins Flight Log OK-normalize regex parity and CSS kind rules", () => {
     // Shared classifier rule groups must stay aligned across semantic-model.mjs
     // classifyFlightLogMessageKind and the inline dashboard.html flightLogMessageKind

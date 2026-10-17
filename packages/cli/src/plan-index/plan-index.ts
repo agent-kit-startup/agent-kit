@@ -1,9 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ensureDir } from "../utils/fs.js";
+import { ensurePathIgnored, gitAt } from "../utils/git-local-exclude.js";
 import { HANDOFF_REL } from "../utils/kit-paths.js";
 
-/** Generated artifact; same gitignore class as other `.cursor/context/*.json` locals. */
+/**
+ * Generated artifact; same gitignore class as other `.cursor/context/*.json`
+ * locals (KIT_OWNED_IGNORE_PATTERNS, with a clone-local `.git/info/exclude`
+ * fallback before each write).
+ */
 export const PLAN_INDEX_REL = ".cursor/context/plan-index.json";
 
 /** Banned as a scan glob. Named single-file reads of a known basename remain OK. */
@@ -45,6 +50,11 @@ export interface PlanIndexIo {
   /** Read one file. Return null when missing. Must not list directories. */
   readFile(absPath: string): Promise<string | null>;
   writeFile?(absPath: string, body: string): Promise<void>;
+  /**
+   * Best-effort: keep `relPath` (under `root`) out of `git status` before the
+   * write. Its outcome never blocks the write.
+   */
+  ensureIgnored?(root: string, relPath: string): Promise<unknown>;
 }
 
 export function defaultPlanIndexIo(): PlanIndexIo {
@@ -59,6 +69,9 @@ export function defaultPlanIndexIo(): PlanIndexIo {
     async writeFile(absPath, body) {
       await ensureDir(path.dirname(absPath));
       await writeFile(absPath, body, "utf8");
+    },
+    ensureIgnored(root, relPath) {
+      return ensurePathIgnored(gitAt(root), root, relPath);
     },
   };
 }
@@ -194,7 +207,18 @@ export async function writePlanIndex(
   const index = await buildPlanIndex(root, io, now);
   const dest = path.join(root, PLAN_INDEX_REL);
   const write = io.writeFile ?? defaultPlanIndexIo().writeFile;
+  // The guard follows the writer: a custom writer brings its own (or none).
+  const ensureIgnored =
+    io.ensureIgnored ?? (io.writeFile ? undefined : defaultPlanIndexIo().ensureIgnored);
   if (write) {
+    // An untracked plan index would make every Countdown fire refuse a dirty
+    // tree in a repository whose `.gitignore` predates the pattern. The index
+    // is still written when this fails: commands read it.
+    try {
+      await ensureIgnored?.(root, PLAN_INDEX_REL);
+    } catch {
+      // Best-effort.
+    }
     await write(dest, `${JSON.stringify(index, null, 2)}\n`);
   }
   return index;

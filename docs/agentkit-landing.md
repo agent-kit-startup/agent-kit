@@ -54,7 +54,7 @@ pnpm landing:deploy:staging
 pnpm landing:verify:staging
 # Headless-Chrome render (not curl): 0 unresolved bindings, #dc-root
 # present, video + the Mission Control iframe present. On load the only
-# host beyond the page is img.shields.io (HOL guard badge). There is no
+# host beyond the page is img.shields.io (HOL trust badge). There is no
 # hol.org iframe. The demo modal's youtube-nocookie embed is an opt-in
 # exception that only fires if a person clicks to open it: this gate never
 # clicks, so it neither tests nor needs to allow that host. See

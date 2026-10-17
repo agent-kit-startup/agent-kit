@@ -7,6 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { collectGateExitTickets } from "./lib/gate-exit-tickets.mjs";
 import {
   allowlistConfig,
   MAX_STRING,
@@ -132,7 +133,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.5.0",
+    version: "1.6.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -151,6 +152,8 @@ const SNAPSHOT = {
         "Active Cursor terminal sessions with metadata, output line count, and capped lastOutput",
       runLogs:
         "Newest headless agent-kit run / tick logs from <state root>/loop-logs (AGENT_KIT_STATE_ROOT: .cursor by default, or .agent-kit; no ~/.cursor dependency): format, session id, capped last agent text, result, LOOP_TICK_RESULT line, HITL gate ids and reply stamps (1.5.0)",
+      gateExit:
+        "Pending operator tickets (read-only, never fetches): {marker: absent|ok|invalid, base, tickets[] (stamp, headline, askId, labels, trigger, openedAt, url, branch, branchState unmerged|merged|none, inMarker), skipped[] (latest launcher skip records), truncated} from .cursor/context/gate-exit.json and gate-exit/<stamp> branches; same contract as agent-kit ground-control status (1.6.0)",
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
@@ -159,7 +162,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.5.0",
+  dashboardDataVersion: "1.6.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -171,6 +174,7 @@ const SNAPSHOT = {
   git: {},
   terminals: [],
   runLogs: [],
+  gateExit: { marker: "absent", base: "staging", tickets: [], skipped: [], truncated: false },
   processes: [],
   skills: [],
   health: { status: "ok", checks: [] },
@@ -779,6 +783,12 @@ if (withinSnapshotBudget(200)) {
   SNAPSHOT.runLogs = collectRunLogs(ROOT, { redact: redactTerminalOutput });
 }
 
+// 7c. Pending operator tickets (gate exits): marker + gate-exit/<stamp> branches, read-only and
+// without a fetch (the CLI's `ground-control status` fetches; a refresh must not).
+if (withinSnapshotBudget(200)) {
+  SNAPSHOT.gateExit = collectGateExitTickets(ROOT, { redact: redactTerminalOutput });
+}
+
 // 8. Config
 const configPath = join(ROOT, ".cursor", "context", "config.json");
 if (existsSync(configPath)) {
@@ -1372,6 +1382,7 @@ function readPreviousInventory() {
     flightLogLedger: collectFlightLogLedger(),
     cadenceLedger: collectCadenceLedger(),
     cadenceConfig: collectCadenceConfig(),
+    gateExitTickets: SNAPSHOT.gateExit?.tickets || [],
   });
   persistMissionTimingLedger(missionControl.timingLedger);
   persistFlightLogLedger(missionControl.flightLogLedger);

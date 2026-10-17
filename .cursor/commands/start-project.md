@@ -27,13 +27,15 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 
 **Gate B:** `Start first unit` / `Switch to /run-plan` / `Edit plan first` / `Add to backlog` / `Stop here`
 
+**Pending ticket (preflight, id `ticket`, only while `.cursor/context/gate-exit.json` has a pending entry):** `Read the ticket` / `Accept` / `Discard` / `Later`
+
 Default-path Ask is Gate A. Gate B is a second yes. Inbox and `confirm-provider` are never on this path.
 
 Numbered-list fallback is **path 1** when Ask questions is missing (one list per message).
 
 ## Procedure
 
-1. Readiness: read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`. Unresolved `essential: true` checks block planning; point to `/agent-kit-onboard`. Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending is warnings only.
+1. Readiness: read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`. Unresolved `essential: true` checks block planning; point to `/agent-kit-onboard`. Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending is warnings only. A pending operator ticket is Asked before Gate A and listed as a Broad Intake `include` finding: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md).
 2. Broad Intake (delegated). Triage ignore / error / include / note. Product-context extract only when the payload mixes personal and product. Autonomous scheduled mode is not intake.
 3. Vague goal: Ask for 1-2 sentences, then Gate A.
 4. Gate A: write plan + HANDOFF per pick. Backlog paths skip Gate B (`Mode: STOPPED` or current plan stays active).

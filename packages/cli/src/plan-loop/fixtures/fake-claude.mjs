@@ -68,6 +68,10 @@ const SECRET_KEYS = [
   "CURSOR_AUTH_TOKEN",
   "OPENAI_API_KEY",
   "CODEX_API_KEY",
+  "GH_TOKEN",
+  "GITHUB_TOKEN",
+  "GITLAB_TOKEN",
+  "GLAB_TOKEN",
 ];
 function envDump() {
   return SECRET_KEYS.filter((k) => process.env[k])

@@ -34,7 +34,7 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 /** A disposable bare mirror (`origin`) with a `staging` branch, and a clone as the invocation root. */
-async function mirror(opts: { origin?: boolean; identity?: boolean } = {}) {
+async function mirror(opts: { origin?: boolean; identity?: boolean; ignoreMarker?: boolean } = {}) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "agent-kit-gate-exit-test-"));
   const bare = path.join(dir, "origin.git");
   const root = path.join(dir, "root");
@@ -46,7 +46,7 @@ async function mirror(opts: { origin?: boolean; identity?: boolean } = {}) {
   }
   await writeFile(
     path.join(root, ".gitignore"),
-    ".cursor/context/gate-exit.json\n.cursor/loop-logs/\n",
+    `${opts.ignoreMarker === false ? "" : ".cursor/context/gate-exit.json\n"}.cursor/loop-logs/\n`,
   );
   await writeFile(path.join(root, "README.md"), "fixture\n");
   git(
@@ -310,6 +310,25 @@ describe("landGateExit against a disposable bare mirror", () => {
     expect(lines.join("\n")).toContain("nothing is pushed");
     const marker = await readGateExitMarker(root);
     expect(marker.kind === "ok" && marker.marker.pending[0]?.pushed).toBe(false);
+  });
+
+  it("a repo whose .gitignore misses the marker gets a clone-local exclude, tree stays as it was", async () => {
+    const { root, logPath } = await mirror({ origin: false, ignoreMarker: false });
+    const before = snapshotRoot(root);
+    const lines: string[] = [];
+    const res = await landGateExit({
+      root,
+      outcome: gateOutcome(logPath),
+      env: GIT_ENV,
+      now: new Date("2026-10-14T03:30:00Z"),
+      which: noForge,
+      log: (l) => lines.push(l),
+    });
+    expect(res.markerWritten).toBe(true);
+    expect(snapshotRoot(root)).toEqual(before);
+    expect(lines.join("\n")).not.toContain("is not gitignored here");
+    const exclude = await readFile(path.join(root, ".git", "info", "exclude"), "utf8");
+    expect(exclude).toContain("/.cursor/context/gate-exit.json\n");
   });
 
   it("skips the PR when gh is on PATH but not authenticated", async () => {

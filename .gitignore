@@ -16,6 +16,8 @@
 .cursor/context/flight-log.json
 # Local pending gate exit marker (headless run --land-on-gate; launcher-read)
 .cursor/context/gate-exit.json
+# Local review job ledger (branch -> last reviewed tip; countdown --job review)
+.cursor/context/review-ledger.json
 # Local pending-only plan index (generated from HANDOFF-named plans)
 .cursor/context/plan-index.json
 # Local Field Report activity cadence ledger (tick/batch counters)

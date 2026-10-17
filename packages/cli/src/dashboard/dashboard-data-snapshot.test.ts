@@ -282,6 +282,68 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     ]);
   });
 
+  it("a pending gate exit reaches gateExit and the Flight Log tickets lane (1.6.0)", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-gate-exit-"));
+    initGitRepo(repo);
+    execFileSync("git", ["checkout", "-q", "-b", "staging"], { cwd: repo });
+    writeFileSync(join(repo, "README.md"), "x\n");
+    execFileSync("git", ["add", "README.md"], { cwd: repo });
+    execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: repo });
+    const stamp = "20261015T031500Z";
+    execFileSync("git", ["checkout", "-q", "-b", `gate-exit/${stamp}`], { cwd: repo });
+    mkdirSync(join(repo, ".cursor", "gate-exit"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "gate-exit", `${stamp}.md`),
+      `# Gate exit ${stamp}: unanswered gate backlog-write\n\nagent-inferred\n`,
+    );
+    execFileSync("git", ["add", ".cursor/gate-exit"], { cwd: repo });
+    execFileSync("git", ["commit", "-q", "-m", "gate exit"], { cwd: repo });
+    execFileSync("git", ["checkout", "-q", "staging"], { cwd: repo });
+    mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "context", "gate-exit.json"),
+      JSON.stringify({
+        schema: 1,
+        pending: [
+          {
+            stamp,
+            openedAt: "2026-10-15T03:15:00.000Z",
+            trigger: "gate",
+            askId: "backlog-write",
+            labels: ["Write plan to backlog", "Cancel"],
+            base: "staging",
+            branch: `gate-exit/${stamp}`,
+            pushed: false,
+            url: null,
+          },
+        ],
+        skipped: ["skipped 20261015T040000Z"],
+      }),
+    );
+
+    const snap = runDashboardData(repo);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    const gateExit = snap.gateExit as { marker: string; tickets: Record<string, unknown>[] };
+    expect(gateExit.marker).toBe("ok");
+    expect(gateExit.tickets).toHaveLength(1);
+    expect(gateExit.tickets[0]).toMatchObject({
+      stamp,
+      askId: "backlog-write",
+      branch: `gate-exit/${stamp}`,
+      branchState: "unmerged",
+      inMarker: true,
+      headline: `# Gate exit ${stamp}: unanswered gate backlog-write`,
+    });
+    const flightLog = (snap.missionControl as { flightLog: { tickets: Record<string, unknown>[] } })
+      .flightLog;
+    expect(flightLog.tickets).toHaveLength(1);
+    expect(flightLog.tickets[0]).toMatchObject({
+      id: `flight-log-ticket:${stamp}`,
+      text: `Gate exit ${stamp}: unanswered gate backlog-write`,
+      branchState: "unmerged",
+    });
+  });
+
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
     const source = readFileSync(dashboardDataScript, "utf8");
     const fieldsBlock = /fields: \{([\s\S]*?)\n {4}\},\n {2}\},/.exec(source)?.[1] ?? "";

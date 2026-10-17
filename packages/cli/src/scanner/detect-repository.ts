@@ -233,6 +233,9 @@ export const KIT_OWNED_IGNORE_PATTERNS = [
   ".cursor/context/flight-log.json",
   ".cursor/context/mission-timing.json",
   ".cursor/context/gate-exit.json",
+  ".cursor/context/review-ledger.json",
+  ".cursor/context/plan-index.json",
+  ".cursor/loop-logs/",
 ] as const;
 
 /** Basename glob (`*` only, no `/`) -> anchored, case-insensitive RegExp. */

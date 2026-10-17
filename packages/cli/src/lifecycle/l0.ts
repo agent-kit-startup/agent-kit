@@ -62,6 +62,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/skills/core/hitl-gates/run-plan-all-queue.md",
   },
   {
+    source: ".cursor/skills/core/hitl-gates/pending-ticket.md",
+    target: ".cursor/skills/core/hitl-gates/pending-ticket.md",
+  },
+  {
     source: ".cursor/skills/core/qa/SKILL.md",
     target: ".cursor/skills/core/qa/SKILL.md",
   },
@@ -179,6 +183,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
   {
     source: ".cursor/commands/dogfood.md",
     target: ".cursor/commands/dogfood.md",
+  },
+  {
+    source: ".cursor/commands/review-pack.md",
+    target: ".cursor/commands/review-pack.md",
   },
   // Factory-only: `.cursor/commands/public-issue-triage.md` and
   // `.cursor/commands/public-inbound-radar.md` are intentionally omitted from
