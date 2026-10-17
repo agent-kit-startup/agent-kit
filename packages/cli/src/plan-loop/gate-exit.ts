@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { findOnPath } from "../utils/find-on-path.js";
+import { ensurePathIgnored } from "../utils/git-local-exclude.js";
 import { claudeRedactions, type RedactionEntry, redactSecrets } from "./backends.js";
 import { findHitlGateInText, type HitlStop } from "./hitl-relay.js";
 
@@ -30,6 +31,11 @@ export const GATE_EXIT_MARKER_SCHEMA = 1;
 export const GATE_EXIT_STAMP_RE = /^\d{8}T\d{6}Z$/;
 /** Longest run summary carried by the note (characters, after redaction). */
 export const GATE_EXIT_SUMMARY_MAX_CHARS = 8 * 1024;
+/**
+ * Longest review findings carried by the note (`review` trigger). The note is
+ * also the PR/MR body, so this stays well under the forges' body limits.
+ */
+export const GATE_EXIT_FINDINGS_MAX_CHARS = 32 * 1024;
 
 /** Branch names the landing accepts as a base (no leading dash, no `..`). */
 const SAFE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
@@ -46,7 +52,11 @@ const FALLBACK_GIT_IDENTITY = [
 export const LAND_ON_GATE_DESCRIPTION =
   "Gate exit: when the run stops at an unanswered gate, is stopped by the operator, or fails, push the outcome note to a gate-exit/<UTC stamp> branch from a temporary worktree and open a PR/MR when gh/glab is authenticated (root tree untouched; off by default)";
 
-export type GateExitTrigger = "gate" | "stopped-by-operator" | "failure";
+/**
+ * `review` is the review job's normal end (`countdown --job review`): its
+ * findings land as a ticket even though no gate was reached.
+ */
+export type GateExitTrigger = "gate" | "stopped-by-operator" | "failure" | "review";
 
 /** UTC stamp, second resolution: `20261014T093000Z`. */
 export function gateExitStamp(now: Date = new Date()): string {
@@ -175,18 +185,14 @@ export async function writeGateExitMarker(root: string, marker: GateExitMarker):
   await rename(tmp, file);
 }
 
-/** Redaction for every line the landing writes: backend secrets plus forge tokens. */
+/**
+ * Redaction for every line the landing writes: backend secrets plus forge
+ * tokens. Same set as every backend tee (`claudeRedactions` covers
+ * `FORGE_SECRET_ENV` with derived forms), so a note, PR body, marker label or
+ * run log never differ in what they elide.
+ */
 export function gateExitRedactions(env: NodeJS.ProcessEnv): RedactionEntry[] {
-  const entries = claudeRedactions(env);
-  const seen = new Set(entries.map((e) => e.value));
-  for (const key of ["GH_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN"]) {
-    const value = env[key];
-    if (value && !seen.has(value)) {
-      seen.add(value);
-      entries.push({ label: key, value });
-    }
-  }
-  return entries;
+  return claudeRedactions(env);
 }
 
 export interface GateExitNoteInput {
@@ -203,9 +209,11 @@ export function gateExitHeadline(stamp: string, outcome: GateExitOutcome): strin
   const what =
     outcome.trigger === "failure"
       ? "run failed"
-      : outcome.trigger === "stopped-by-operator"
-        ? `stopped by operator at gate \`${outcome.askId ?? "none"}\``
-        : `unanswered gate \`${outcome.askId ?? "none"}\``;
+      : outcome.trigger === "review"
+        ? "review findings"
+        : outcome.trigger === "stopped-by-operator"
+          ? `stopped by operator at gate \`${outcome.askId ?? "none"}\``
+          : `unanswered gate \`${outcome.askId ?? "none"}\``;
   return `# Gate exit ${stamp}: ${what}`;
 }
 
@@ -219,10 +227,13 @@ export function buildGateExitNote(input: GateExitNoteInput): string {
     outcome.plan !== undefined
       ? `${outcome.plan} (ticks: ${outcome.ticks ?? 0}, pending to-dos: ${outcome.pending ?? "unknown"})`
       : "(none)";
+  const review = outcome.trigger === "review";
   const lines = [
     gateExitHeadline(input.stamp, outcome),
     "",
-    "- **Provenance:** agent-inferred. Written by `agent-kit` at the end of a headless run; no operator reply exists for this gate and none was inferred.",
+    review
+      ? "- **Provenance:** agent-inferred. Written by `agent-kit` at the end of a headless review-only run (no tools, no edits, no commits to the reviewed branches); the findings below are the reviewer's output, not an operator decision."
+      : "- **Provenance:** agent-inferred. Written by `agent-kit` at the end of a headless run; no operator reply exists for this gate and none was inferred.",
     `- **Trigger:** ${outcome.trigger}`,
     `- **Ask id:** ${outcome.askId ? `\`${outcome.askId}\`` : "(none)"}`,
     `- **Gate:** ${gateLine}`,
@@ -234,15 +245,26 @@ export function buildGateExitNote(input: GateExitNoteInput): string {
     `- **Root tree:** ${input.dirtyPaths > 0 ? `dirty (${input.dirtyPaths} path(s)), reported and not cleaned` : "clean"}`,
     `- **Base:** \`${input.base}\``,
     "",
-    "Next: answer the gate in a live session (`/continue-plan` or `/run-plan`), then accept or discard this ticket (`agent-kit ground-control`). Never `/git-prod` from a headless run.",
+    review
+      ? "Next: read the findings, act on any of them in a live session, then accept or discard this ticket (`agent-kit ground-control`). Never `/git-prod` from a headless run."
+      : "Next: answer the gate in a live session (`/continue-plan` or `/run-plan`), then accept or discard this ticket (`agent-kit ground-control`). Never `/git-prod` from a headless run.",
   ];
   const summary = outcome.summary?.trim();
   if (summary) {
+    const max = review ? GATE_EXIT_FINDINGS_MAX_CHARS : GATE_EXIT_SUMMARY_MAX_CHARS;
+    const what = review ? "findings" : "summary";
     const capped =
-      summary.length > GATE_EXIT_SUMMARY_MAX_CHARS
-        ? `${summary.slice(0, GATE_EXIT_SUMMARY_MAX_CHARS)}\n\n(summary truncated at ${GATE_EXIT_SUMMARY_MAX_CHARS} characters)`
+      summary.length > max
+        ? `${summary.slice(0, max)}\n\n(${what} truncated at ${max} characters)`
         : summary;
-    lines.push("", "## Run summary", "", "```text", capped.replaceAll("```", "'''"), "```");
+    lines.push(
+      "",
+      review ? "## Findings" : "## Run summary",
+      "",
+      "```text",
+      capped.replaceAll("```", "'''"),
+      "```",
+    );
   }
   return `${lines.join("\n")}\n`;
 }
@@ -323,6 +345,74 @@ export const defaultExec: ExecFn = (bin, args, opts) =>
     );
   });
 
+/** Git bound to one working directory (preflight and triage helpers). */
+export type GitFn = (args: readonly string[]) => Promise<ExecResult>;
+
+export interface GateExitRefs {
+  /** Base branch name: `staging` by default, else the remote default branch. */
+  base: string;
+  /** Ref the merged checks run against. */
+  baseRef: string;
+  /** Ref prefix the gate-exit branches live under. */
+  scope: string;
+}
+
+/**
+ * Base ref and branch scope for gate-exit checks, with the landing's
+ * fallbacks: `origin/<base>`, else the remote default branch; without an
+ * `origin`, the local base, else `HEAD`.
+ */
+export async function resolveGateExitRefs(
+  git: GitFn,
+  hasOrigin: boolean,
+  requestedBase: string = GATE_EXIT_DEFAULT_BASE,
+): Promise<GateExitRefs> {
+  let base = isSafeBaseRef(requestedBase) ? requestedBase : GATE_EXIT_DEFAULT_BASE;
+  const verify = (ref: string) => git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+  if (hasOrigin) {
+    const scope = `refs/remotes/origin/${GATE_EXIT_BRANCH_PREFIX}`;
+    if ((await verify(`refs/remotes/origin/${base}`)).code === 0) {
+      return { base, baseRef: `refs/remotes/origin/${base}`, scope };
+    }
+    const head = await git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+    const fallback = head.stdout.trim().replace(/^origin\//, "");
+    if (head.code === 0 && isSafeBaseRef(fallback)) {
+      base = fallback;
+      return { base, baseRef: `refs/remotes/origin/${fallback}`, scope };
+    }
+    return { base, baseRef: "HEAD", scope };
+  }
+  const scope = `refs/heads/${GATE_EXIT_BRANCH_PREFIX}`;
+  if ((await verify(`refs/heads/${base}`)).code === 0) {
+    return { base, baseRef: `refs/heads/${base}`, scope };
+  }
+  return { base, baseRef: "HEAD", scope };
+}
+
+/** Gate-exit branches under `refs.scope` (short names), optionally only those not merged into `refs.baseRef`. */
+export async function listGateExitBranches(
+  git: GitFn,
+  refs: GateExitRefs,
+  opts: { unmergedOnly?: boolean } = {},
+): Promise<{ ok: boolean; branches: string[] }> {
+  const listed = await git([
+    "for-each-ref",
+    "--format=%(refname:short)",
+    ...(opts.unmergedOnly ? [`--no-merged=${refs.baseRef}`] : []),
+    refs.scope,
+  ]);
+  return {
+    ok: listed.code === 0,
+    branches: listed.stdout.split("\n").filter((l) => l.trim()),
+  };
+}
+
+/** Tracked path of one note on its gate-exit branch. */
+export function gateExitNotePath(stamp: string): string {
+  if (!isGateExitStamp(stamp)) throw new Error(`invalid gate-exit stamp: ${stamp}`);
+  return `${GATE_EXIT_NOTE_DIR}/${stamp}.md`;
+}
+
 export interface LandGateExitOptions {
   root: string;
   outcome: GateExitOutcome;
@@ -348,7 +438,8 @@ export interface LandGateExitResult {
   note: string;
 }
 
-function isOutside(parent: string, child: string): boolean {
+/** True when `child` resolves outside `parent` (temporary worktrees and review workspaces). */
+export function isOutside(parent: string, child: string): boolean {
   const rel = path.relative(parent, child);
   return rel.startsWith("..") || path.isAbsolute(rel);
 }
@@ -428,20 +519,27 @@ export async function landGateExit(opts: LandGateExitOptions): Promise<LandGateE
       current.kind === "ok"
         ? { ...current.marker, pending: [...current.marker.pending, entry] }
         : { schema: GATE_EXIT_MARKER_SCHEMA, pending: [entry], skipped: [] };
+    // Before the write: when the repository's ignore rules miss the marker,
+    // a clone-local exclude keeps it (and its triaged leftovers) from making
+    // the next Countdown fire refuse a dirty tree.
+    if (
+      repo &&
+      !(await ensurePathIgnored(
+        (args) => git(args, opts.root),
+        opts.root,
+        GATE_EXIT_MARKER_RELPATH,
+      ))
+    ) {
+      log(
+        `${GATE_EXIT_MARKER_RELPATH} is not gitignored here; add it to .gitignore (agent-kit update adds it)`,
+      );
+    }
     try {
       await writeGateExitMarker(opts.root, marker);
       result.markerWritten = true;
     } catch (err) {
       log(`could not write ${GATE_EXIT_MARKER_RELPATH}: ${String(err)}`);
       return;
-    }
-    if (repo) {
-      const ignored = await git(["check-ignore", "-q", "--", GATE_EXIT_MARKER_RELPATH], opts.root);
-      if (ignored.code !== 0) {
-        log(
-          `${GATE_EXIT_MARKER_RELPATH} is not gitignored here; add it to .gitignore (agent-kit update adds it)`,
-        );
-      }
     }
   };
 
@@ -511,7 +609,7 @@ export async function landGateExit(opts: LandGateExitOptions): Promise<LandGateE
       log(`worktree add failed: ${added.stderr.trim().split("\n")[0] ?? ""}`);
       return result;
     }
-    const noteRel = `${GATE_EXIT_NOTE_DIR}/${stamp}.md`;
+    const noteRel = gateExitNotePath(stamp);
     await mkdir(path.join(wt, GATE_EXIT_NOTE_DIR), { recursive: true });
     await writeFile(path.join(wt, noteRel), result.note, "utf8");
     const add = await git(["add", "-f", "--", noteRel], wt);
@@ -553,7 +651,7 @@ export async function landGateExit(opts: LandGateExitOptions): Promise<LandGateE
       result.url = await openReview({
         branch,
         base,
-        title: `${outcome.trigger === "failure" ? "Gate exit: run failed" : `Gate exit: ${outcome.askId ?? "gate"}`} (${stamp})`,
+        title: `${outcome.trigger === "failure" ? "Gate exit: run failed" : outcome.trigger === "review" ? "Gate exit: review findings" : `Gate exit: ${outcome.askId ?? "gate"}`} (${stamp})`,
         body: result.note,
         cwd: wt,
         tmp,
@@ -594,11 +692,21 @@ function lastUrl(text: string): string | null {
   return urls?.at(-1) ?? null;
 }
 
-/** PR (`gh`) or MR (`glab`) when the binary is on PATH and authenticated; else the manual command. */
-async function openReview(input: OpenReviewInput): Promise<string | null> {
-  const forges: Array<"gh" | "glab"> = /gitlab/i.test(input.originUrl)
-    ? ["glab", "gh"]
-    : ["gh", "glab"];
+export type ForgeId = "gh" | "glab";
+
+/**
+ * The first forge CLI on PATH that is authenticated, `glab` first when the
+ * origin URL names GitLab. Each unauthenticated binary is reported through `log`.
+ */
+export async function findAuthenticatedForge(input: {
+  originUrl: string;
+  cwd: string;
+  exec: ExecFn;
+  which: (bin: string) => Promise<string | null>;
+  env: NodeJS.ProcessEnv;
+  log: (line: string) => void;
+}): Promise<{ forge: ForgeId; bin: string } | null> {
+  const forges: ForgeId[] = /gitlab/i.test(input.originUrl) ? ["glab", "gh"] : ["gh", "glab"];
   for (const forge of forges) {
     const bin = await input.which(forge);
     if (!bin) continue;
@@ -607,6 +715,16 @@ async function openReview(input: OpenReviewInput): Promise<string | null> {
       input.log(`${forge} is not authenticated; skipping the ${forge === "gh" ? "PR" : "MR"}`);
       continue;
     }
+    return { forge, bin };
+  }
+  return null;
+}
+
+/** PR (`gh`) or MR (`glab`) when the binary is on PATH and authenticated; else the manual command. */
+async function openReview(input: OpenReviewInput): Promise<string | null> {
+  const found = await findAuthenticatedForge(input);
+  if (found) {
+    const { forge, bin } = found;
     let created: ExecResult;
     if (forge === "gh") {
       const bodyFile = path.join(input.tmp, "pr-body.md");

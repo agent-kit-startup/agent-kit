@@ -643,6 +643,51 @@ export function listFlightLogQuietOpenTriages(reportOrAttentionItems, opts = {})
   return out;
 }
 
+/** Cap pending operator tickets on the Flight Log tickets lane. */
+export const FLIGHT_LOG_TICKETS_CAP = 5;
+
+/**
+ * Pending operator tickets for the Flight Log (read-only; prompt chrome).
+ * Input rows come from `collectGateExitTickets` (dashboard/lib/gate-exit-tickets.mjs,
+ * the read half of `agent-kit ground-control status`). No action: triage stays
+ * in the CLI (`ground-control accept|discard <stamp>`) or the `ticket` Ask.
+ * @param {object[]|null|undefined} tickets
+ * @param {{ cap?: number }} [opts]
+ * @returns {{ id: string, stamp: string, title: string, text: string, askId: string|null, branch: string|null, branchState: string, url: string|null, triage: string, sourcePath: string }[]}
+ */
+export function buildFlightLogTickets(tickets, opts = {}) {
+  const cap =
+    typeof opts.cap === "number" && opts.cap > 0 ? Math.floor(opts.cap) : FLIGHT_LOG_TICKETS_CAP;
+  if (!Array.isArray(tickets)) return [];
+  const out = [];
+  for (const t of tickets) {
+    if (!t || typeof t.stamp !== "string" || !/^\d{8}T\d{6}Z$/.test(t.stamp)) continue;
+    const headline =
+      typeof t.headline === "string" && t.headline.trim()
+        ? t.headline.replace(/^#\s*/, "").trim()
+        : `Gate exit ${t.stamp} (note not readable)`;
+    const branchState =
+      t.branchState === "merged" || t.branchState === "unmerged" ? t.branchState : "none";
+    out.push({
+      id: `flight-log-ticket:${t.stamp}`,
+      stamp: t.stamp,
+      title: "Pending ticket",
+      text: truncateStr(headline, MAX_SEMANTIC_LABEL),
+      askId: typeof t.askId === "string" && t.askId ? t.askId : null,
+      branch: typeof t.branch === "string" && t.branch ? t.branch : null,
+      branchState,
+      url: typeof t.url === "string" && /^https?:\/\//.test(t.url) ? t.url : null,
+      triage:
+        branchState === "merged"
+          ? `agent-kit ground-control accept ${t.stamp}`
+          : `agent-kit ground-control accept|discard ${t.stamp}`,
+      sourcePath: t.inMarker ? ".cursor/context/gate-exit.json" : t.branch || "gate-exit/",
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 /** Relative path of the gitignored Field Report activity cadence ledger. */
 export const FIELD_REPORT_CADENCE_LEDGER_REL = ".cursor/context/field-report-cadence.json";
 
@@ -3790,6 +3835,7 @@ export function buildMissionControlView({
   flightLogLedger = null,
   cadenceLedger = null,
   cadenceConfig = null,
+  gateExitTickets = [],
   nowMs = Date.now(),
 } = {}) {
   const nowBase = buildCurrentExecution(plans, handoff);
@@ -3814,6 +3860,7 @@ export function buildMissionControlView({
     },
   );
   flightLog.warnings = buildFlightLogWarnings(handoff);
+  flightLog.tickets = buildFlightLogTickets(gateExitTickets);
   const classifiedPlans = enrichPlans(plans, handoff);
   const planEvents = formatPlanHandoffActivity({ now, handoff, plans });
   const inventoryEvents = formatInventoryActivity(

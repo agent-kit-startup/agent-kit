@@ -32,3 +32,24 @@ export type HandoffMarkdown = {
 };
 
 export function parseHandoffMarkdown(content: string): HandoffMarkdown | null;
+
+/** Flight Log pending operator tickets lane (read-only rows). */
+export type FlightLogTicket = {
+  id: string;
+  stamp: string;
+  title: string;
+  text: string;
+  askId: string | null;
+  branch: string | null;
+  branchState: "unmerged" | "merged" | "none";
+  url: string | null;
+  triage: string;
+  sourcePath: string;
+};
+
+export const FLIGHT_LOG_TICKETS_CAP: 5;
+
+export function buildFlightLogTickets(
+  tickets: Record<string, unknown>[] | null | undefined,
+  opts?: { cap?: number },
+): FlightLogTicket[];

@@ -36,6 +36,8 @@ Example: `/backlog-add Polish Mission Control empty-state icons`
 
 Same planning blockers as `/start-project`: unresolved essential readiness → point to `/agent-kit-onboard`. Non-essential pending is advisory only.
 
+**Pending operator ticket:** only while `.cursor/context/gate-exit.json` has a pending entry, Ask `ticket` (`Read the ticket` / `Accept` / `Discard` / `Later`) before the write Ask, and list it as a Broad Intake `include` finding: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md).
+
 **Never-Ask:** `confirm-provider` / `collaboration.provider` must not become an Ask. One-line advisory or silence, then continue Broad Intake → propose → write Ask. Do not halt enqueue. Distinct from an essential-readiness hard stop (that still points to `/agent-kit-onboard`). The Broad Intake worker inherits this: do not return a readiness-gate Ask for that check.
 
 ## What to Do

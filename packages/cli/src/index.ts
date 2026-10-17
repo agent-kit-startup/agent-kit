@@ -37,6 +37,9 @@ const main = defineCommand({
     run: () => import("./commands/run.js").then((m) => m.runCommand),
     "run-plan": () => import("./commands/run-plan.js").then((m) => m.runPlanCommand),
     "run-plan-all": () => import("./commands/run.js").then((m) => m.runPlanAllCommand),
+    countdown: () => import("./commands/countdown.js").then((m) => m.countdownCommand),
+    "ground-control": () =>
+      import("./commands/ground-control.js").then((m) => m.groundControlCommand),
     dashboard: () => import("./commands/dashboard.js").then((m) => m.dashboardCommand),
     "dashboard-broadcast": () =>
       import("./commands/dashboard-broadcast.js").then((m) => m.dashboardBroadcastCommand),

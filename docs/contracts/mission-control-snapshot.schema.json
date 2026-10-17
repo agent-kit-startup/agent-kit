@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
-  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level and the runLogs rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.5.0",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows and the gateExit tickets are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.6.0",
   "type": "object",
   "required": [
     "_schema",
@@ -17,6 +17,7 @@
     "git",
     "terminals",
     "runLogs",
+    "gateExit",
     "processes",
     "skills",
     "health",
@@ -26,7 +27,7 @@
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.5.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.6.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
@@ -64,6 +65,46 @@
           "gates": { "type": "array" },
           "replies": { "type": "array" }
         }
+      }
+    },
+    "gateExit": {
+      "type": "object",
+      "required": ["marker", "base", "tickets", "skipped", "truncated"],
+      "properties": {
+        "marker": { "enum": ["absent", "ok", "invalid"] },
+        "base": { "type": "string" },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "stamp",
+              "headline",
+              "askId",
+              "labels",
+              "trigger",
+              "openedAt",
+              "url",
+              "branch",
+              "branchState",
+              "inMarker"
+            ],
+            "properties": {
+              "stamp": { "type": "string" },
+              "headline": { "type": ["string", "null"] },
+              "askId": { "type": ["string", "null"] },
+              "labels": { "type": "array" },
+              "trigger": { "enum": ["gate", "stopped-by-operator", "failure", "review", null] },
+              "openedAt": { "type": ["string", "null"] },
+              "url": { "type": ["string", "null"] },
+              "branch": { "type": ["string", "null"] },
+              "branchState": { "enum": ["unmerged", "merged", "none"] },
+              "inMarker": { "type": "boolean" }
+            }
+          }
+        },
+        "skipped": { "type": "array" },
+        "truncated": { "type": "boolean" }
       }
     },
     "processes": { "type": "array" },

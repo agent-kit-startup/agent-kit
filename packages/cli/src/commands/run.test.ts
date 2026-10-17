@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { displayPath, executeRun } from "./run.js";
+import { displayPath, executeRun, runCommand, runPlanAllCommand } from "./run.js";
 
 const whichCursor: (bin: string) => Promise<string | null> = async (bin) =>
   bin === "cursor-agent" ? "/usr/local/bin/cursor-agent" : null;
@@ -20,6 +20,49 @@ async function fixtureRoot(): Promise<string> {
 }
 
 describe("executeRun", () => {
+  it("rejects --max-pack-bytes for any slash but review-pack (usage error, nothing started)", async () => {
+    const root = await fixtureRoot();
+    for (const slash of ["backlog-add", "run-plan", "run-plan-all"]) {
+      const result = await executeRun({
+        slash,
+        cwd: root,
+        backend: "auto",
+        dryRun: true,
+        maxTicks: 10,
+        sleepSeconds: 5,
+        maxPackBytes: "4096",
+        whichFn: whichCursor,
+      });
+      expect(result.exitCode, slash).toBe(1);
+      expect(result.error).toBe("--max-pack-bytes only applies to review-pack");
+      expect(result.stdout).toBeUndefined();
+    }
+    // `run` lists it (review-pack); `run-plan-all` does not.
+    expect(Object.keys(runCommand.args ?? {})).toContain("max-pack-bytes");
+    expect(Object.keys(runPlanAllCommand.args ?? {})).not.toContain("max-pack-bytes");
+  });
+
+  it("rejects --include-reviewed for any slash but review-pack (usage error, nothing started)", async () => {
+    const root = await fixtureRoot();
+    for (const slash of ["backlog-add", "run-plan", "run-plan-all"]) {
+      const result = await executeRun({
+        slash,
+        cwd: root,
+        backend: "auto",
+        dryRun: true,
+        maxTicks: 10,
+        sleepSeconds: 5,
+        includeReviewed: true,
+        whichFn: whichCursor,
+      });
+      expect(result.exitCode, slash).toBe(1);
+      expect(result.error).toBe("--include-reviewed only applies to review-pack");
+      expect(result.stdout).toBeUndefined();
+    }
+    expect(Object.keys(runCommand.args ?? {})).toContain("include-reviewed");
+    expect(Object.keys(runPlanAllCommand.args ?? {})).not.toContain("include-reviewed");
+  });
+
   it("dry-run prints backend and L0 prompt without spawning", async () => {
     const root = await fixtureRoot();
     const result = await executeRun({

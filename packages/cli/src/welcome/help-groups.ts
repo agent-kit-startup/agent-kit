@@ -26,7 +26,15 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
   {
     id: "mission",
     title: "MISSION",
-    commands: ["handoff", "plan-index", "run", "run-plan", "run-plan-all"],
+    commands: [
+      "handoff",
+      "plan-index",
+      "run",
+      "run-plan",
+      "run-plan-all",
+      "countdown",
+      "ground-control",
+    ],
   },
   {
     id: "dashboard",

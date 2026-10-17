@@ -27,12 +27,13 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 | Inbox (post-default) | `Analyze inbox now` / `Enqueue Fix now` / `Not now` |
 | Exhaustion (post-default) | `Run review now` / `Always enable automatic` / `Not now` |
 | Owed-close (post-default) | `Adopt existing monitor` / `Ack owed without review` / `Not now` |
+| Pending ticket (preflight, id `ticket`) | `Read the ticket` / `Accept` / `Discard` / `Later` |
 
 Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
 
-1. Read HANDOFF + plan + config. Preflight API-limit stop, audits, unsatisfiable Claude reviewer, session-pile. Read a product-context extract when the plan points at one.
+1. Read HANDOFF + plan + config. Preflight API-limit stop, pending operator ticket (Ask `ticket` only while `.cursor/context/gate-exit.json` has a pending entry; inside a `/run-plan-all` Task or `--no-hitl`, list the stamps instead: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md)), audits, unsatisfiable Claude reviewer, session-pile. Read a product-context extract when the plan points at one.
 2. Next pending to-do. `force_task: true` or findings → Task. Lightweight docs-only → inline-first. Else Task or in-session.
 3. Execute only that to-do. Findings-only for `review-*`. `autoRemediate` default false: no silent product fix.
 4. Close: plan status, HANDOFF, cadence bump, `/git-staging` on a commitable diff. Staging ready: yes requires lint evidence (or `none applicable`). Dashboard HTML: `none applicable (dashboard-CSS)` covered by plugin-ux-validation. Contract string alone without that evidence is invalid.

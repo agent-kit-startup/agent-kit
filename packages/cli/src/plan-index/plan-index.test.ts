@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -237,6 +238,50 @@ describe("buildPlanIndex", () => {
     expect(parsed.source).toBe("handoff-named");
     expect(parsed.plans.map((p) => p.file)).toEqual(index.plans.map((p) => p.file));
     expect(parsed.plans.map((p) => p.file)).not.toContain("cemetery.plan.md");
+  });
+
+  it("a repo whose .gitignore misses the index gets a clone-local exclude, tree stays clean", async () => {
+    const root = await fixtureRoot();
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_AUTHOR_NAME: "Plan Index Test",
+      GIT_AUTHOR_EMAIL: "plan-index-test@example.com",
+      GIT_COMMITTER_NAME: "Plan Index Test",
+      GIT_COMMITTER_EMAIL: "plan-index-test@example.com",
+    };
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: root, env, encoding: "utf8" }).trim();
+    git("init", "-q");
+    await writeFile(path.join(root, ".gitignore"), ".cursor/HANDOFF.md\n.cursor/plans/\n", "utf8");
+    await writeFile(path.join(root, ".cursor", "HANDOFF.md"), SAMPLE_HANDOFF, "utf8");
+    await writeFile(
+      path.join(root, ".cursor", "plans", "active.plan.md"),
+      planFile("Active", [{ id: "a1", status: "pending" }]),
+      "utf8",
+    );
+    git("add", ".gitignore");
+    git("commit", "-q", "-m", "seed");
+
+    await writePlanIndex(root);
+    await writePlanIndex(root);
+
+    expect(JSON.parse(await readFile(path.join(root, PLAN_INDEX_REL), "utf8")).source).toBe(
+      "handoff-named",
+    );
+    expect(git("status", "--porcelain")).toBe("");
+    const exclude = await readFile(path.join(root, ".git", "info", "exclude"), "utf8");
+    expect(exclude.split("\n").filter((l) => l === `/${PLAN_INDEX_REL}`)).toHaveLength(1);
+  });
+
+  it("still writes the index outside a git repository", async () => {
+    const root = await fixtureRoot();
+    await writeFile(path.join(root, ".cursor", "HANDOFF.md"), SAMPLE_HANDOFF, "utf8");
+    await writePlanIndex(root);
+    expect(JSON.parse(await readFile(path.join(root, PLAN_INDEX_REL), "utf8")).source).toBe(
+      "handoff-named",
+    );
   });
 });
 

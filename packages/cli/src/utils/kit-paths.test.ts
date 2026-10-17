@@ -41,14 +41,16 @@ describe("runner state root (AGENT_KIT_STATE_ROOT)", () => {
     }
   });
 
-  it("outside .cursor the loop-logs dir ignores itself so logs never reach a commit", async () => {
+  it("the loop-logs dir ignores itself under every state dir so logs never reach a commit", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ak-state-root-"));
     const alt = runnerStatePaths(root, { [STATE_ROOT_ENV]: ".agent-kit" });
     await ensureLoopLogsDir(alt);
     expect(await readFile(path.join(alt.loopLogsDir, ".gitignore"), "utf8")).toBe("*\n");
     await ensureLoopLogsDir(alt); // idempotent
+    expect(await readFile(path.join(alt.loopLogsDir, ".gitignore"), "utf8")).toBe("*\n");
+    // `.cursor` too: a consumer .gitignore may not list `.cursor/loop-logs/`.
     const def = runnerStatePaths(root, {});
     await ensureLoopLogsDir(def);
-    await expect(readFile(path.join(def.loopLogsDir, ".gitignore"), "utf8")).rejects.toThrow();
+    expect(await readFile(path.join(def.loopLogsDir, ".gitignore"), "utf8")).toBe("*\n");
   });
 });

@@ -31,7 +31,9 @@ A host page can replace the copy-to-clipboard default by defining
 every action is one `{ kind: "copy", text, subject, destination, toastMessage }` record. The web
 dashboard keeps the copy-only default. Contract, CSP readiness counts and the innerHTML sink
 audit: `docs/mission-control-embedding.md`. The snapshot shape is versioned by `dashboardDataVersion`
-and published as `docs/contracts/mission-control-snapshot.schema.json`.
+and published as `docs/contracts/mission-control-snapshot.schema.json`. The Flight Log lists pending
+operator tickets (gate exits awaiting triage) read-only from `gateExit`
+(`lib/gate-exit-tickets.mjs`, the no-fetch mirror of `agent-kit ground-control status`).
 
 ## Git tab and DevOps tab
 

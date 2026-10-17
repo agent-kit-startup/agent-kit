@@ -268,6 +268,7 @@ Rules:
 - A refused command (permission classifier, never /git-prod class) is terminal in this worker: do not retry it.
 - Do not fabricate HITL: do not write Parked / Queue status stopped as operator action unless an Ask id and operator reply exist.
 - Do not start the next queued plan; this Task owns only this plan.
+- Pending operator ticket (`.cursor/context/gate-exit.json` has a pending entry): never Ask `ticket` in this Task and do not block; list the stamps in Notes as `Pending tickets: <stamp>, ...` ([pending-ticket.md](pending-ticket.md)).
 - Prefer orchestrated /run-plan strategy inside this Task when Task nesting is available; otherwise in-session loop for this plan only.
 - Update plan frontmatter todo statuses and HANDOFF for this plan as you go.
 - Before "Staging ready: yes": run repository-appropriate formatter/linter on touched files.

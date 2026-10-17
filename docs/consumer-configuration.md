@@ -84,6 +84,8 @@ Invocation-time inputs; not persisted configuration. The table lists consumer-fa
 | `agent-kit run` | `<slash>`, `--cwd`, `--backend auto\|cursor-agent\|claude`, `--model`, `--dry-run`, `--plain`, `--no-hitl` | One headless session from `.cursor/commands/<slash>.md`. `auto` picks the first installed CLI. Catalog: run-plan (aliases the tick loop), run-plan-all, continue-plan, start-project, backlog-*, git-staging. `git-prod` / `kit-prod` are refused (operator-gated; no `--force` promote). Factory `kit-staging` is not in the catalog. `run run-plan --backend claude` aliases the tick loop on the `claude` backend (implemented 2026-09-06); see the `agent-kit run-plan` row for flags, env, and the terminal rendering / HITL relay shared with `run-plan` and `run-plan-all` below. On the `claude` backend a catalog slash is spawned with the same headless argv as a tick (`--dangerously-skip-permissions --permission-prompts none --output-format stream-json`), because the dispatched L0 bodies edit files and run git and plain `claude -p` would deny every Edit/Write/Bash while still exiting 0; the same env passthrough, redaction, nested-session strip, version floor, and opt-in caps apply. `run-plan-all` is also a first-class citty command (`agent-kit run-plan-all`); typing `/run-plan-all` in zsh is a filesystem path. |
 | `agent-kit run-plan-all` | `--cwd`, `--backend auto\|cursor-agent\|claude`, `--model`, `--dry-run`, `--plain`, `--no-hitl` | First-class citty name for `agent-kit run run-plan-all`. Dispatches `.cursor/commands/run-plan-all.md` (catalog; not the `run-plan` tick loop). `agent-kit /run-plan-all` rewrites to this name. Typing `/run-plan-all` in zsh is a filesystem path. A `per-plan-release` queue confirm ships inside the dispatched command. `agent-kit run git-prod` stays refused. Same terminal rendering, `--plain` gate and HITL relay as `agent-kit run-plan` below (both backends; `cursor-agent` follows its own published `tool_call` event shape). |
 | `agent-kit run-plan` | `--max-ticks N`, `--model M`, `--sleep S`, `--backend auto\|cursor-agent\|claude`, `--dry-run`, `--plain`, `--no-hitl`; env `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` (gateway routing on the `claude` backend; on every backend, `cursor-agent` included, any value present in the runner environment is redacted from every tick log, tip and error), `AGENT_KIT_CLAUDE_MAX_TURNS`, `AGENT_KIT_CLAUDE_MAX_BUDGET_USD` (`claude` backend only; opt-in runaway caps, no default) | Runs the tick loop; `--backend claude` detail, terminal rendering, and the HITL relay/transport are covered below the table (`#### agent-kit run-plan detail`), not in this cell. |
+| `agent-kit countdown` | `--cwd`, `--job tick\|dispatch\|review`, `--slash <name>` (dispatch only), `--backend`, `--model`, `--max-ticks N` (default 1), `--max-pack-bytes N` (review only, default 98304), `--include-reviewed` (review only), `--window-min M` (default 120), `--stall-min M` (default 20); env `AGENT_KIT_CLAUDE_MAX_TURNS`, `AGENT_KIT_CLAUDE_MAX_BUDGET_USD` (passed through to the job) | One-shot launcher for an external timer (cron, a systemd timer, a CI schedule); never a daemon. Runs one headless job with `--no-hitl --land-on-gate` and refuses to start while a gate exit is pending. Exit codes: 0 completed (a clean review included), 2 gate exit pending, gate reached or review findings landed, 3 Circuit's Dead (failed, stalled, over the window, dirty tree, fetch failed). `git-prod` / `kit-prod` refused. See the detail below. |
+| `agent-kit ground-control` | `status [--json]`, `accept <stamp>`, `discard <stamp>`, each with `--cwd` | Exit 0 done, 1 usage or unknown stamp, 2 `accept` while the branch is unmerged, 3 a git or forge step failed (the ticket is kept). Never merges; [detail](#agent-kit-ground-control-detail) |
 | Mission Control server | `PORT` (default 3333), `HOST`, `MISSION_CONTROL_REPO_ROOT`, `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME` (Path C kit-root fallback), `MISSION_CONTROL_TOKEN` (LAN broadcast), `MISSION_CONTROL_SHARE_BASE` / `MISSION_CONTROL_SHARE_TTL_SEC` / `MISSION_CONTROL_SHARE_SHOW_LAN` (cosmetic Share URL mask), `MISSION_CONTROL_NO_OPEN`, `MISSION_CONTROL_PREFERRED_BROWSER`, `agent-kit dashboard --browser`, `agent-kit dashboard-broadcast --browser`, `AGENT_KIT_DASHBOARD_DATA_TIMEOUT_MS`, `AGENT_KIT_DASHBOARD_DATA_BUDGET_MS` | Kit-root fallback is documented in README Path C and `/dashboard`. Preferred browser: one OS open (app/binary) or OS default; never multi-open. ADR `2026-08-11_mission-control-preferred-browser.md`. Share mask: ADR `2026-08-11_mission-control-broadcast-url-mask.md`. |
 | Registry / hooks | `AGENT_KIT_REGISTRY`, `ALLOW_MAIN_PUSH` | `ALLOW_MAIN_PUSH=1` disables main-push protection for the session (doctor warns). |
 | Audits, `backend: "cloud"` | `CURSOR_API_KEY` | **Secret.** Cursor user or service-account key for Cursor Cloud Agents (`@cursor/sdk` uses the same variable). Supply it from the environment or a gitignored `.env`; `.env.example` ships an empty placeholder only. Never commit, echo, log, or persist it — it must not appear in `.cursor/context/audit-wait/*.json`, monitors, CHANGELOG, dogfood, or HANDOFF. Prefer a service-account key for shared use; Team Admin keys are not supported. ADR `2026-08-14_cursor-cloud-agents-sdk-audits-backend.md`. |
@@ -93,7 +95,7 @@ Invocation-time inputs; not persisted configuration. The table lists consumer-fa
 `--backend claude` runs each tick as headless `claude -p` under the same one-tick contract as `cursor-agent` (one to-do, `LOOP_TICK_RESULT` sentinel, `/git-staging` on a diff, never `/git-prod`). Implemented 2026-09-06. Select it with `--backend claude`, or `--backend auto` on a machine where `cursor-agent` is absent and `claude` is on PATH (default stays `cursor-agent`).
 
 Gateway routing: set `ANTHROPIC_BASE_URL` (endpoint) and `ANTHROPIC_AUTH_TOKEN` (sent as `Authorization: Bearer`) in the runner environment; leave `ANTHROPIC_API_KEY` unset when using a bearer gateway.
-Both values (and `ANTHROPIC_API_KEY`) are redacted in every tick log, CLI tip and error string (`.cursor/loop-logs/tick-*.log`) on every backend: `cursor-agent` does not read them, but its child inherits the runner environment, so the same redaction list applies to its tee.
+Both values (and `ANTHROPIC_API_KEY`) are redacted in every tick log, CLI tip and error string (`.cursor/loop-logs/tick-*.log`) on every backend: `cursor-agent` does not read them, but its child inherits the runner environment, so the same redaction list applies to its tee. The same list covers the vendor keys and the forge tokens (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `GLAB_TOKEN`) in every tick and run log (`.cursor/loop-logs/run-*.log`).
 Redaction is exact-substring and covers the value plus its enumerable derived forms: for `ANTHROPIC_BASE_URL` the trailing-slash variant, origin, `host:port` and hostname (so a gateway-down `connect ECONNREFUSED host:port` line does not print the gateway address; `localhost`-style and sub-4-char hostnames are not derived); for the token and key the common encoded forms (JSON-escaped, URL-encoded, base64 and base64url at value start, i.e. the value encoded on its own).
 A form that cannot be enumerated (an abbreviation, a hash) is not covered. Redaction is chunk-boundary safe, so a value split across two output chunks is still elided whole.
 Nested sessions: the child env drops `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_CHILD_SESSION` and `CLAUDE_CODE_BRIDGE_SESSION_ID` (the same four the `claude` CLI removes before spawning its own children), so a loop started from inside a Claude Code shell does not classify as a nested child.
@@ -116,6 +118,89 @@ Distinct from `agent-kit run`, which spawns `claude` for a one-shot L0 prompt wi
 Empty input, EOF, `skip`, `cancel`, or Ctrl-C stop the run with `stopped-by-operator` (exit code from `hitlExitCode`); a non-TTY stdin without `--no-hitl` stops the same way.
 `--no-hitl` is the CI opt-out: reaching a gate stops the run immediately with `stopped: unanswered gate` and never supplies a default answer. The relay never answers a gate on its own, and `git-prod` / `kit-prod` gates are always refused regardless of `--no-hitl`.
 Decision record: ADR `2026-09-19_headless-hitl-transport-and-live-tui.md` (amends point 7 of ADR `2026-08-27_cli-native-mission-control-tui-thin-deps-third-surface.md` to cover this headless lane; dependency lock unchanged, no new runtime dependency).
+
+#### `agent-kit countdown` detail
+
+Countdown fires one headless job per invocation and exits; scheduling belongs to the operating system timer, never to the kit. Each fire, in order:
+
+1. Fetches `origin` with `--prune` (a failed fetch is exit 3: pending gate-exit branches cannot be checked).
+2. Refuses while `.cursor/context/gate-exit.json` lists a pending gate exit: it appends `skipped <UTC stamp>` to the marker and exits 2 (an unreadable marker also exits 2). Triage the gate exit first.
+3. Refuses on a dirty working tree (exit 3); the tree is reported, never cleaned. Run Countdown in a dedicated clone or worktree, not the checkout you edit by hand.
+4. Refuses when an unmerged `gate-exit/*` branch exists and the marker has no entry for it (exit 2).
+5. Runs the job: `--job tick` (default) is `agent-kit run-plan --max-ticks 1 --no-hitl --land-on-gate`; `--job dispatch --slash <name>` is `agent-kit run <name>` with the same flags; `--job review` is `agent-kit run review-pack` (below). The child's gate stops and failures land through `--land-on-gate`.
+
+Review job (`--job review`, `claude` or `cursor-agent` only): the CLI builds a diff pack of the branches not merged into the base (`git log` and `git diff` against the merge base, newest branch first), leaving out the base, the remote default branch, `gate-exit/*` branches and `.cursor/gate-exit/`, so a review never reviews its own notes. It also leaves out, and counts in the pack header:
+
+- branches whose changes are already in the base: an ancestor of the base, or a squash or rebase merge (every file the branch changes has, in some base commit after the merge base, exactly the branch's content);
+- branches whose tip is unchanged since the last completed review. The gitignored ledger `.cursor/context/review-ledger.json` records each reviewed branch's tip after a clean review or once the findings landed, never after a stop, a failure, a reply without a verdict line or `--dry-run`, and drops branches that no longer exist or are merged. Pass `--include-reviewed` (to `agent-kit run review-pack` or `agent-kit countdown --job review`) to review them again. When the repository's `.gitignore` does not list the ledger (an install that predates the pattern), the CLI adds it to the clone-local `.git/info/exclude` before the first write, so it never makes the tree dirty.
+
+`--max-pack-bytes` caps the pack without ever cutting a branch: a branch whose section does not fit the remaining ceiling is listed at the end as `not reviewed (too large: N bytes)`, smaller branches after it still go in, and its tip is not recorded, so it is tried again next time. A branch whose full diff cannot be read (above the 4 MiB read buffer, or a git failure) is listed as `not reviewed (diff not readable)` the same way, never reviewed from a file list alone and never recorded. Known tokens are redacted from the pack before it is measured. One headless session reviews it with the review-only prompt `.cursor/commands/review-pack.md`: no tools on `claude`, `--mode ask` with the sandbox on for `cursor-agent`, in an empty temporary directory outside the repository; the pack is the whole prompt and is marked as untrusted data. The reply starts with a verdict line: `REVIEW: clean` lands nothing (one `review: clean` log line, exit 0, so the next fire runs); `REVIEW: findings`, a `REVIEW: clean` reply that still lists findings, or a reply without a valid verdict line, lands as a gate-exit note (trigger `review`) with a PR/MR, so the fire exits 2 and the next one waits for `agent-kit ground-control`. A clean review is reported in the log only (`.cursor/loop-logs/countdown-<stamp>.log`), not in Mission Control. Nothing left to review (everything merged or already reviewed), or no branch that fits the ceiling, means no session and exit 0. The reviewed branches are never edited or committed to.
+
+Caps: past `--window-min`, or after `--stall-min` minutes with no output from the job, Countdown stops it (SIGTERM to the job's process group, SIGKILL 30 seconds later) and ends as Circuit's Dead (exit 3). The cause is written to the log and landed as a gate-exit note, so the next fire refuses until you triage it. The default of one tick per fire keeps the per-run cost to one SessionStart excerpt plus one tick prompt; the `AGENT_KIT_CLAUDE_MAX_*` caps bound a `claude` tick further. Every line is redacted like the run logs and lands in `.cursor/loop-logs/countdown-<UTC stamp>.log`. A gate is never answered: no default, timer or inferred reply. On `cursor-agent` there is no relay, so a scheduled run stops at the first gate with the same record.
+
+Example cron line (nightly at 03:00; cron's minimal `PATH` must reach `node` and the agent CLI):
+
+```cron
+0 3 * * * <agent-kit> countdown --cwd <repo> --backend claude >/dev/null 2>&1
+```
+
+Example systemd user units (`~/.config/systemd/user/`):
+
+```ini
+# countdown.service
+[Unit]
+Description=Agent Kit Countdown (one headless run)
+OnFailure=<your-notify-unit>.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=<repo>
+ExecStart=<agent-kit> countdown --backend claude
+# Exit 2 is a gate waiting for you, not a failure; only Circuit's Dead (3) or a usage error (1) triggers OnFailure=.
+SuccessExitStatus=2
+```
+
+```ini
+# countdown.timer
+[Unit]
+Description=Nightly Agent Kit Countdown
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable with `systemctl --user enable --now countdown.timer`. `<agent-kit>` is the absolute path of the installed binary (`command -v agent-kit`), `<repo>` the clone Countdown owns. Decision record: ADR `2026-10-08_countdown-coming-home-generic-lane.md` point 1.
+
+One fire at a time: Countdown takes no lock of its own. A systemd timer never starts its service again while the previous run is still active, so the units above need nothing more. A cron line whose period is shorter than `--window-min` can start a second fire before the first job has changed the tree, and both then pass the preflight. Wrap the cron line in `flock -n`, which skips the fire while the lock is held:
+
+```cron
+0 */2 * * * flock -n <lock-file> <agent-kit> countdown --cwd <repo> --backend claude >/dev/null 2>&1
+```
+
+Put `<lock-file>` outside the working tree (for example under `$XDG_RUNTIME_DIR` or `/tmp`): an untracked lock file inside `<repo>` makes the next fire refuse a dirty tree. Use the same `flock -n <lock-file>` prefix when you start Countdown by hand on a clone a timer also drives.
+
+Known limitations of the review job and Ground Control:
+
+- A squash or rebase merge is recognised when the base carries each changed file exactly as the branch left it. A branch squash-merged together with conflict resolutions or edits made only on the base side still counts as unmerged and is reviewed until you delete it (or turn on the forge's automatic head-branch deletion); after one completed review the ledger skips it while its tip stays the same.
+- The `REVIEW: clean` verdict comes from the reviewing model. A branch whose diff carries instructions to the reviewer could try to make it answer `clean`; the pack is marked as untrusted data and the prompt says never to follow it, but that is a model-level guard. One clean verdict covers every branch in the pack and is remembered per tip, so a single successful injection silences that branch and every branch reviewed with it until each is pushed again; nothing lands, and the only trace is the `review: clean` and `recorded N reviewed tip(s) (<branches>)` lines in the countdown log. A clean reply that still lists findings lands, but a fully obedient model is not caught. Read the countdown log, and review by hand when branches come from someone you do not fully trust: `--include-reviewed` reviews the recorded branches again, but a fire over the same branches sees the same text.
+- A branch larger than `--max-pack-bytes` on its own is never reviewed and logged as `not reviewed (too large)` on every fire, with no ticket; a branch whose diff is above 4 MiB is logged as `not reviewed, diff not readable` the same way and needs a review by hand. Raise `--max-pack-bytes` (up to 112 KiB on `cursor-agent`, 1 MiB on `claude`) or review that branch by hand.
+- On `cursor-agent`, `--mode ask` is read-only, but whether the session can read files outside its empty `--workspace` (by absolute path) or call MCP servers you already approved is not verified. A branch whose diff carries injected instructions could then pull a local file into the findings, which land in a pushed PR/MR body. `claude` runs the review with no tools at all. Until that check is done, prefer `--backend claude` for the review job when branches may come from people you do not fully trust.
+- `agent-kit ground-control status` prints the note's headline and Ask labels as they are on the branch, without stripping terminal control characters; Mission Control escapes them. Only someone who can push a `gate-exit/*` branch to your remote can put text there.
+- The review session on `claude` starts in an empty directory, so it loads no project file, but Claude Code still loads the user-level `~/.claude/CLAUDE.md` and user-level hooks of the account Countdown runs under. Run the timer under an account whose global Claude Code setup you are fine sending into that session. Secrets that are not in the environment are not pattern-redacted; the review prompt only tells the reviewer not to repeat them.
+
+#### `agent-kit ground-control` detail
+
+Ground Control is the morning side of Countdown: it triages the tickets a gate exit leaves (an entry in `.cursor/context/gate-exit.json` and a note on a `gate-exit/<stamp>` branch, usually with a PR/MR).
+
+- `status` fetches `origin` (`--prune`) and lists each pending ticket: the note's headline, Ask id and labels, branch and whether it is merged into the base, PR/MR URL, plus unmerged `gate-exit/*` branches the marker does not know and the runs Countdown skipped. Read-only apart from the fetch.
+- `accept <stamp>` closes a ticket once you merged its PR/MR: the branch must be merged into the base (a merge, fast-forward or squash merge, detected by the note being on the base). It then deletes that branch and removes the marker entry. While the branch is unmerged it exits 2 and changes nothing.
+- `discard <stamp>` closes the PR/MR when `gh` or `glab` is authenticated, deletes the branch (remote and local) and removes the marker entry.
+
+Neither verb answers the gate the note names: answer it in a live session (`/continue-plan` or `/run-plan`). The planning commands Ask about a pending ticket before their own entry Ask (ask id `ticket`: `Read the ticket` / `Accept` / `Discard` / `Later`). Decision record: ADR `2026-10-08_countdown-coming-home-generic-lane.md` point 3.
 
 ## How the Config tab saves
 

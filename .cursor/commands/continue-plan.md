@@ -27,11 +27,13 @@ HITL contract, exact Ask labels, and numbered fallback (path 1): [hitl-gates](..
 
 **Inbox (post-default, Unprocessed non-empty):** `Analyze inbox now` / `Enqueue Fix now` / `Not now`
 
+**Pending ticket (preflight, id `ticket`, only while `.cursor/context/gate-exit.json` has a pending entry):** `Read the ticket` / `Accept` / `Discard` / `Later`
+
 Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
 
-1. Read HANDOFF + index. Do not glob `.cursor/plans/*.plan.md`. If multiple resumable plans exist, Ask the picker first.
+1. Read HANDOFF + index. Do not glob `.cursor/plans/*.plan.md`. A pending operator ticket is Asked before anything else: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md). If multiple resumable plans exist, Ask the picker first.
 2. Default-path Ask for the next unit. Persona chrome after that Ask. Default chat chrome: no cockpit emoji.
 3. On `Start [to-do-id]`: run only that unit; update plan status. Any other pick stops.
 4. When done: HANDOFF, stop, suggest `/git-staging` if there is a diff. Next phase: new conversation with `/continue-plan`.

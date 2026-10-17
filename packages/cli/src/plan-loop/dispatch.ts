@@ -16,8 +16,10 @@ import {
   claudeChildEnv,
   claudeHeadlessArgs,
   claudeRedactions,
+  claudeReviewArgs,
   claudeRunCaps,
   cursorAgentHeadlessArgs,
+  cursorAgentReviewArgs,
   redactSecrets,
   resolveHitlRunOptions,
   spawnLogged,
@@ -38,6 +40,7 @@ export const RUN_CATALOG = [
   "backlog-delete",
   "backlog-cancel",
   "git-staging",
+  "review-pack",
 ] as const;
 
 export type RunCatalogSlash = (typeof RUN_CATALOG)[number];
@@ -174,7 +177,16 @@ export async function runHeadlessDispatch(opts: {
   render?: StreamSink;
   /** Fired once the child is running (pid, stop handle). */
   onSpawn?: (info: SpawnInfo) => void;
+  /**
+   * Review-only session (the review job): no tools on claude, `--mode ask`
+   * on cursor-agent, never the write-enabled headless argv. Other backends
+   * are refused (their read-only flags are not part of the kit's contract).
+   */
+  readOnly?: boolean;
 }): Promise<BackendRunResult> {
+  if (opts.readOnly && opts.backendId !== "claude" && opts.backendId !== "cursor-agent") {
+    throw new Error(`${opts.backendId}: a review-only session runs on claude or cursor-agent only`);
+  }
   if (opts.backendId === "codex" || opts.backendId === "cursor-acp") {
     // Same backends as the tick loop: codex (pointer prompt, API key by
     // default, resume relay; codex.ts) and Cursor over `agent acp`
@@ -211,7 +223,9 @@ export async function runHeadlessDispatch(opts: {
     try {
       return await spawnLogged(
         opts.bin,
-        claudeDispatchArgs({ model: opts.model, ...caps }),
+        opts.readOnly
+          ? claudeReviewArgs({ model: opts.model, ...caps })
+          : claudeDispatchArgs({ model: opts.model, ...caps }),
         opts.logPath,
         {
           cwd: opts.workspace,
@@ -232,16 +246,16 @@ export async function runHeadlessDispatch(opts: {
       throw new Error(`claude dispatch failed to start: ${redactSecrets(String(err), redact)}`);
     }
   }
-  const args = cursorAgentDispatchArgs({
-    workspace: opts.workspace,
-    prompt: opts.prompt,
-    model: opts.model,
-  });
+  const argvInput = { workspace: opts.workspace, prompt: opts.prompt, model: opts.model };
+  const args = opts.readOnly
+    ? cursorAgentReviewArgs(argvInput)
+    : cursorAgentDispatchArgs(argvInput);
   // cursor-agent inherits process.env untouched (no cwd, no env override), but
   // any ANTHROPIC_* value present there is redacted from the console echo,
   // the run-*.log and every error exactly as on the claude backend.
   return spawnLogged(opts.bin, args, opts.logPath, {
     spawnFn: opts.spawnFn,
+    ...(opts.readOnly ? { cwd: opts.workspace } : {}),
     redact: claudeRedactions(process.env),
     hitl: resolveHitlRunOptions(opts.hitl, { kind: "none", backend: "cursor-agent" }),
     render: opts.render,

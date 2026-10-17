@@ -3397,6 +3397,23 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
   gap: 6px;
   margin-bottom: 4px;
 }
+/* Pending operator tickets lane (read-only; prompt chrome via flightLogKindClassName). */
+.flight-log-tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.flight-log-card-ticket {
+  cursor: default;
+}
+.flight-log-card-code {
+  margin-top: 6px;
+  font-family: var(--mc-font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
 .flight-log-card {
   display: block;
   width: 100%;
@@ -6499,6 +6516,13 @@ function snapshotPrevData(d) {
           quietOpenTriages: Array.isArray(d.missionControl.flightLog.quietOpenTriages)
             ? d.missionControl.flightLog.quietOpenTriages.map((i) => i?.id || i?.sourcePath || '')
             : [],
+          tickets: Array.isArray(d.missionControl.flightLog.tickets)
+            ? d.missionControl.flightLog.tickets.map((t) => ({
+                stamp: t?.stamp || '',
+                branchState: t?.branchState || '',
+                text: t?.text || '',
+              }))
+            : [],
         }
       : null,
   };
@@ -7446,6 +7470,52 @@ function renderFlightLogQuietOpenTriageCard(item, idx) {
 }
 
 /**
+ * Pending operator ticket card (gate exit awaiting triage). Read-only: no button,
+ * no handler; prompt chrome from flightLogKindClassName('prompt'). Triage stays in
+ * the CLI (`agent-kit ground-control`) or the `ticket` Ask; the card shows the command.
+ * @param {{ id?: string, stamp?: string, title?: string, text?: string, askId?: string|null, branch?: string|null, branchState?: string, url?: string|null, triage?: string, sourcePath?: string }} ticket
+ * @param {number} idx
+ */
+function renderFlightLogTicketCard(ticket, idx) {
+  const stamp = typeof ticket?.stamp === 'string' ? ticket.stamp.trim() : '';
+  const text = typeof ticket?.text === 'string' ? ticket.text.trim() : '';
+  if (!stamp || !text) return '';
+  const title =
+    typeof ticket?.title === 'string' && ticket.title.trim() ? ticket.title.trim() : 'Pending ticket';
+  const state =
+    ticket?.branchState === 'merged'
+      ? 'merged, ready to accept'
+      : ticket?.branchState === 'unmerged'
+        ? 'awaiting merge'
+        : 'no gate-exit branch';
+  const metaBits = [];
+  if (typeof ticket?.askId === 'string' && ticket.askId) metaBits.push(`Ask ${escapeHtml(ticket.askId)}`);
+  metaBits.push(
+    escapeHtml(typeof ticket?.branch === 'string' && ticket.branch ? `${ticket.branch} (${state})` : state),
+  );
+  if (typeof ticket?.url === 'string' && /^https?:\/\//.test(ticket.url)) metaBits.push(escapeHtml(ticket.url));
+  const triage = typeof ticket?.triage === 'string' && ticket.triage.trim() ? ticket.triage.trim() : '';
+  const aria = `${title} ${stamp}: ${text}`;
+  const kindClass = flightLogKindClassName('prompt');
+  return `
+    <div class="flight-log-card flight-log-card-current flight-log-card-ticket ${kindClass}" role="listitem" tabindex="0" data-focus-key="flight-log-ticket-${idx}" data-flight-log-kind="prompt" data-ticket-stamp="${escapeAttr(stamp)}" aria-label="${escapeAttr(aria)}">
+      <span class="flight-log-card-label">${escapeHtml(title)} · ${escapeHtml(stamp)}</span>
+      <div class="flight-log-card-text">${escapeHtml(text)}</div>
+      <div class="flight-log-card-meta">${metaBits.join(' · ')}</div>
+      ${triage ? `<div class="flight-log-card-code">${escapeHtml(triage)}</div>` : ''}
+    </div>
+  `;
+}
+
+/** Pending ticket rows on the Flight Log (stamp + text required, as the card renders). */
+function flightLogTicketEntries(fl) {
+  if (!fl || !Array.isArray(fl.tickets)) return [];
+  return fl.tickets.filter(
+    (t) => t && typeof t.stamp === 'string' && t.stamp.trim() && typeof t.text === 'string' && t.text.trim(),
+  );
+}
+
+/**
  * Resolve Live Gaps text for Flight Log render + fingerprint (same fallback chain).
  * Prefer fl.current; with Plan:none, fall back to now.gaps then system.handoff.gaps.
  */
@@ -7537,6 +7607,16 @@ function renderAttentionPanel(d, attentionChanged) {
     .filter(Boolean)
     .join('');
   const hasOpenTriages = openTriageCards.length > 0;
+  // Pending operator tickets render above every branch: a ticket never falls through to All clear.
+  const tickets = flightLogTicketEntries(fl);
+  const ticketCards = tickets
+    .map((t, idx) => renderFlightLogTicketCard(t, idx))
+    .filter(Boolean)
+    .join('');
+  const hasTickets = ticketCards.length > 0;
+  const ticketsBlock = hasTickets
+    ? `<div class="flight-log-tickets" role="list" aria-label="Pending operator tickets (Ground Control)">${ticketCards}</div>`
+    : '';
 
   let body;
   const hasCurrent = Boolean(current);
@@ -7546,6 +7626,8 @@ function renderAttentionPanel(d, attentionChanged) {
   if (!hasCurrent && !hasPast && !hasWarnings) {
     if (hasOpenTriages) {
       body = `<div class="flight-log-stack" role="list" aria-label="Reviews awaiting triage">${openTriageCards}</div>`;
+    } else if (hasTickets) {
+      body = '';
     } else {
       body = renderEmptyStateCta({
         headline: 'All clear',
@@ -7578,8 +7660,9 @@ function renderAttentionPanel(d, attentionChanged) {
         </div>`;
     body = `${warningsBlock}<div class="flight-log-stack" role="list">${currentCard}${pastCards}</div>`;
   }
+  body = `${ticketsBlock}${body}`;
 
-  const countLabel = hasCurrent
+  const baseCountLabel = hasCurrent
     ? hasPast
       ? `1 · ${past.length} earlier${hasWarnings ? ` · ${warnings.length} warn` : ''}`
       : hasWarnings
@@ -7592,6 +7675,12 @@ function renderAttentionPanel(d, attentionChanged) {
         : hasOpenTriages
           ? `${quietOpenTriages.length} review`
           : 'Clear';
+  const ticketCountLabel = hasTickets ? `${tickets.length} ticket${tickets.length === 1 ? '' : 's'}` : '';
+  const countLabel = !ticketCountLabel
+    ? baseCountLabel
+    : baseCountLabel === 'Clear'
+      ? ticketCountLabel
+      : `${ticketCountLabel} · ${baseCountLabel}`;
 
   return `
     <div class="card${attentionChanged ? ' card-flash' : ''}" id="attention-panel">
@@ -7695,9 +7784,13 @@ function flightLogFingerprint(d) {
           )
           .join('\n')
       : '';
+  // Pending tickets: stamp + merge state + headline, so a merge or a new note re-renders.
+  const tickets = flightLogTicketEntries(fl)
+    .map((t) => `${t.stamp}|${t.branchState || ''}|${t.text}`)
+    .join('\n');
   // Busy-outside-plan header chip must re-render the card on flip.
   const busy = (d.missionControl?.now ?? d.now)?.busyOutsidePlan?.active === true;
-  return `${current}\0${past}\0${warnings}\0${openTriages}\0${busy ? 'busy' : ''}`;
+  return `${current}\0${past}\0${warnings}\0${openTriages}\0${tickets}\0${busy ? 'busy' : ''}`;
 }
 
 // Step progress bar: one segment per plan step (completed / current / remaining).

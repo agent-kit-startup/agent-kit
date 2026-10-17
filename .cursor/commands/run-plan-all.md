@@ -28,12 +28,13 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 | Confirm queue | `Run as proposed` / `Run plans only` / `Edit order` / `Apply merges & drops only` / `Keep all plans as-is` / `Include Gate-B plans` / `Cancel` |
 | Context checkpoint | `Continue queue` / `Stop and prepare handoff` / `Change queue` |
 | Novel error / expired wait | `Retry recovery once` / `Hold and document` / `Stop the queue` |
+| Pending ticket (preflight, id `ticket`) | `Read the ticket` / `Accept` / `Discard` / `Later` |
 
 `Run as proposed`, `Edit order`, `Apply merges & drops only`, and `Keep all plans as-is` set Ship auth `per-plan-release`. `Run plans only` sets `plans-only`. Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
 
-1. Skim Unprocessed (mention only; inbox Ask is post-default). Preflight audit session-pile and unsatisfiable Claude reviewer (`warn`/`block` per `externalPlanReview.preflight`).
+1. Pending operator ticket: only while `.cursor/context/gate-exit.json` has a pending entry, Ask `ticket` before the start-vs-resume or queue confirm (a preflight outside the three in-run points; ADR `2026-10-08_countdown-coming-home-generic-lane.md` point 3). Per-plan Tasks never Ask it; they list the stamps in their return: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md). Skim Unprocessed (mention only; inbox Ask is post-default). Preflight audit session-pile and unsatisfiable Claude reviewer (`warn`/`block` per `externalPlanReview.preflight`).
 2. PO synthesis (Task explore; no `kind: resume`). Record per-plan ship expectations (intake runbook). On a stored queue, compare current Gate-A Backlog to `- **Confirmed backlog:**`. Resume when no new Backlog since confirm and queued files are valid. On new-since-confirm Backlog (or invalid queue item), Ask start-vs-resume.
 3. Queue confirm on a fresh synthesis. Apply only approved consolidations via `.cursor/scripts/run-plan-all-consolidate.sh`. Write `- **Ship auth:**`, `- **Ship runbook:**`, and `- **Confirmed backlog:**` on HANDOFF.
 4. Dispatch one `/run-plan` Task per queued plan. Worker skips chat exhaustion Ask and never `/git-prod`. Record outcomes. A plan blocked on an operator gate is deferred (`deferred-operator`, no ship) and the queue continues with the next plan. Run the ship lane (consult intake runbook; self-recover before Ask) before advancing the cursor. At each plan boundary, if the orchestrator self-estimates about 50% or more window use, Ask the context checkpoint (Claude Code has no preCompact).

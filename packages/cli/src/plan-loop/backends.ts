@@ -410,6 +410,14 @@ export const VENDOR_SECRET_ENV = [
   "CODEX_ACCESS_TOKEN",
 ] as const;
 
+/**
+ * Forge tokens a child may inherit (`gh` / `glab` auth, CI tokens). The kit
+ * uses them only through the forge CLIs; a tick, a dispatch or a review can
+ * still print them, so every backend tee and error string elides them like
+ * the vendor secrets (same derived forms).
+ */
+export const FORGE_SECRET_ENV = ["GH_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN"] as const;
+
 /** Derived forms shorter than this are not redacted (they would mangle unrelated text). */
 const REDACT_DERIVED_MIN_CHARS = 4;
 const REDACT_DERIVED_SKIP = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"]);
@@ -439,8 +447,9 @@ function derivedUrlForms(value: string): string[] {
 }
 
 /**
- * Redaction entries for the passthrough keys and the vendor secrets
- * (`VENDOR_SECRET_ENV`) present in `env`. Applied by every backend to the
+ * Redaction entries for the passthrough keys, the vendor secrets
+ * (`VENDOR_SECRET_ENV`) and the forge tokens (`FORGE_SECRET_ENV`) present in
+ * `env`. Applied by every backend to the
  * environment its child inherits. Besides the exact value, derived forms are elided under the same
  * label:
  * - `ANTHROPIC_BASE_URL`: trailing-slash toggle, origin, `host` (with port)
@@ -462,7 +471,7 @@ export function claudeRedactions(env: NodeJS.ProcessEnv): RedactionEntry[] {
     seen.add(value);
     entries.push({ label, value });
   };
-  for (const key of [...CLAUDE_ENV_PASSTHROUGH, ...VENDOR_SECRET_ENV]) {
+  for (const key of [...CLAUDE_ENV_PASSTHROUGH, ...VENDOR_SECRET_ENV, ...FORGE_SECRET_ENV]) {
     const value = env[key];
     if (!value) continue;
     add(key, value, false);
@@ -809,6 +818,35 @@ export function cursorAgentHeadlessArgs(opts: {
   return args;
 }
 
+/**
+ * Review-only `cursor-agent -p` argv: `--mode ask` (read-only Q&A) with the
+ * sandbox on and no `--force`, so the session cannot edit or run commands.
+ * The workspace is an empty temporary directory (trusted without a prompt:
+ * nothing is in it), and the prompt carries the whole diff pack as one
+ * argument, which is why the pack ceiling stays under one argv string.
+ */
+export function cursorAgentReviewArgs(opts: {
+  workspace: string;
+  prompt: string;
+  model?: string;
+}): string[] {
+  const args = [
+    "-p",
+    "--mode",
+    "ask",
+    "--sandbox",
+    "enabled",
+    "--trust",
+    "--output-format",
+    "stream-json",
+    "--workspace",
+    opts.workspace,
+  ];
+  if (opts.model) args.push("--model", opts.model);
+  args.push(opts.prompt);
+  return args;
+}
+
 export const cursorAgentBackend: AgentBackend = {
   id: "cursor-agent",
   async resolve() {
@@ -973,6 +1011,38 @@ export function claudeHeadlessArgs(opts: { model?: string } & ClaudeRunCaps = {}
 
 /** Tick argv: the shared headless argv (kept as a named alias for the loop). */
 export const claudeTickArgs = claudeHeadlessArgs;
+
+/**
+ * Review-only `claude -p` argv for the review job (`agent-kit run review-pack`,
+ * `countdown --job review`). The diff pack is the whole input, so the session
+ * gets no tool at all: `--tools ""` removes every built-in tool,
+ * `--strict-mcp-config` with no `--mcp-config` loads no MCP server, and there
+ * is no `--dangerously-skip-permissions` (with `--permission-prompts none`
+ * anything that would prompt is denied). The deny rules stay as a backstop.
+ * The landing is done by the CLI after the session ends, never by the agent.
+ * Spawned in an empty temporary directory, so no project file is in reach.
+ */
+export function claudeReviewArgs(opts: { model?: string } & ClaudeRunCaps = {}): string[] {
+  const args = [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--permission-prompts",
+    "none",
+    "--input-format",
+    "stream-json",
+    "--replay-user-messages",
+    "--tools",
+    "",
+    "--strict-mcp-config",
+  ];
+  if (opts.maxTurns !== undefined) args.push("--max-turns", String(opts.maxTurns));
+  if (opts.maxBudgetUsd !== undefined) args.push("--max-budget-usd", String(opts.maxBudgetUsd));
+  if (opts.model) args.push("--model", opts.model);
+  args.push("--disallowedTools", ...HEADLESS_DENY_RULES);
+  return args;
+}
 
 /**
  * A prompt that opens with `/<name>` is a slash command; under `claude -p` it

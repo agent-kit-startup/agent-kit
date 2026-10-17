@@ -39,6 +39,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `/plan-external-review` - External plan review launcher with audit modes
 - `/plan-review-triage` - Triage choice after external review (residuals/fixes/ack)
 - `/field-report-resolve` - Resolve Field Report findings with structured closure
+- `/review-pack` - Review-only prompt for the CLI review job (`agent-kit countdown --job review`): findings on a bounded diff pack of unmerged branches, no edits
 - `/archive-plan` - Move parked plan to archive with status update
 - `/context-status` - Context window and memory status report
 - `/dogfood` - File a private dogfood note into the factory or consumer inbox
