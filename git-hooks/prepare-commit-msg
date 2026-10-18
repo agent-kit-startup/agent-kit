@@ -18,11 +18,21 @@
 #                              push, before merge); also fine to run by hand.
 #   --list                     print the pattern list (one POSIX ERE per line,
 #                              matched case-insensitively).
+#   --check-authors <base> [head]
+#                              scan the author and committer of every commit in
+#                              <base>..<head> (head defaults to HEAD): exit 1 and
+#                              list the commits whose author or committer address
+#                              is an agent identity (same agent mail domains as
+#                              rule 1 below), no writes. Exit 2 on a usage or git
+#                              error. Run by /git-staging and /git-prod step 5 next
+#                              to --check, and by CI signature-scan on PR commits.
+#   --list-authors             print the agent identity address patterns.
 #
 # The pattern list is embedded so a single-file install stays self-contained:
 #   cp git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
-# Gate example (outgoing commits + PR body):
+# Gate example (outgoing commits + PR body, then outgoing authors and committers):
 #   git log origin/staging..HEAD --format=%B | sh git-hooks/prepare-commit-msg --check -
+#   sh git-hooks/prepare-commit-msg --check-authors origin/staging
 #
 # Portability: POSIX sh, `grep -E -i` only (BSD grep on macOS, GNU grep on
 # Linux); no \b, \s, \d, no bashisms. Extend the list here, in one place.
@@ -43,11 +53,24 @@ https?://(www\.)?(claude\.ai/code/|cursor\.com/agents|chatgpt\.com/codex|app\.de
 EOF
 }
 
+# Agent commit identities (author or committer), matched case-insensitively on the
+# address inside <...> only, never on the name (a person can be named Claude or
+# Devin). Same agent mail domains as rule 1 above; extend both together.
+agent_identity_patterns() {
+  sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' <<'EOF'
+<[^>]*@(anthropic\.com|cursor\.com|openai\.com|devin\.ai|cognition\.ai|ampcode\.com)>
+<[^>]*copilot@users\.noreply\.github\.com>
+EOF
+}
+
 usage() {
   cat <<'EOF' >&2
 usage: prepare-commit-msg <msg-file> [source] [sha]   (git hook mode: strip in place)
        prepare-commit-msg --check [file|-]           (scan; exit 1 on a match, no writes)
        prepare-commit-msg --list                     (print the pattern list)
+       prepare-commit-msg --check-authors <base> [head]
+                                                     (scan authors/committers of base..head; exit 1 on an agent identity)
+       prepare-commit-msg --list-authors             (print the agent identity patterns)
 EOF
 }
 
@@ -70,6 +93,44 @@ make_tmpdir() {
 case "${1:-}" in
   --list)
     agent_signature_patterns
+    exit 0
+    ;;
+  --list-authors)
+    agent_identity_patterns
+    exit 0
+    ;;
+  --check-authors)
+    base="${2:-}"
+    head="${3:-HEAD}"
+    if [ -z "$base" ]; then
+      usage
+      exit 2
+    fi
+    make_tmpdir
+    patterns="$tmpdir/identity-patterns"
+    agent_identity_patterns > "$patterns"
+    commits="$tmpdir/commits"
+    if ! git log --format='%H%x09%an <%ae>%x09%cn <%ce>' "$base..$head" -- > "$commits"; then
+      echo "prepare-commit-msg --check-authors: git log $base..$head failed" >&2
+      exit 2
+    fi
+    total=$(wc -l < "$commits" | tr -d ' ')
+    matches=$(grep -i -E -f "$patterns" -- "$commits")
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      tab=$(printf '\t')
+      echo "BLOCKED: agent identity as commit author or committer in $base..$head:" >&2
+      printf '%s\n' "$matches" | sed -e "s/$tab/  author: /" -e "s/$tab/  committer: /" -e 's/^/  /' >&2
+      echo "Set your own identity first (git config user.name / user.email; in a cloud agent session set GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL in the environment settings)." >&2
+      echo "Then rewrite on the working branch: git commit --amend --no-edit --reset-author (last commit), or git rebase --exec 'git commit --amend --no-edit --reset-author' $base (every commit), push again and re-run." >&2
+      echo "Patterns: sh git-hooks/prepare-commit-msg --list-authors." >&2
+      exit 1
+    fi
+    if [ "$rc" -ne 1 ]; then
+      echo "prepare-commit-msg --check-authors: grep failed (rc=$rc)" >&2
+      exit 2
+    fi
+    echo "prepare-commit-msg --check-authors: ok ($total commit(s), no agent author or committer)"
     exit 0
     ;;
   --help|-h)

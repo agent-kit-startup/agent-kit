@@ -254,3 +254,83 @@ describe("installCommand RootRefusedError", () => {
     }
   });
 });
+
+describe("installCommand stale CLI guard", () => {
+  async function makeDirs(version: string) {
+    const { mkdir, mkdtemp, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const project = await mkdtemp(path.join(tmpdir(), "ak-install-stale-p-"));
+    const kit = await mkdtemp(path.join(tmpdir(), "ak-install-stale-k-"));
+    await mkdir(path.join(kit, "registry"), { recursive: true });
+    await writeFile(path.join(kit, "registry", "registry.json"), "{}\n", "utf8");
+    await mkdir(path.join(kit, "packages", "cli"), { recursive: true });
+    await writeFile(path.join(kit, "packages", "cli", "package.json"), JSON.stringify({ version }));
+    return { project, kit };
+  }
+
+  async function runInstall(project: string, extra: Record<string, unknown> = {}) {
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...parts: unknown[]) => {
+      errors.push(parts.map(String).join(" "));
+    });
+    try {
+      await (
+        installCommand.run as unknown as (ctx: { args: Record<string, unknown> }) => Promise<void>
+      )({
+        args: {
+          _: [],
+          cwd: project,
+          yes: true,
+          "force-root": false,
+          "allow-stale-cli": false,
+          claude: true,
+          pack: undefined as unknown as string,
+          profile: undefined as unknown as string,
+          registry: undefined as unknown as string,
+          url: undefined as unknown as string,
+          ref: undefined as unknown as string,
+          refresh: false,
+          ...extra,
+        },
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    return errors.join("\n");
+  }
+
+  afterEach(() => {
+    mockResolveRegistryFromCli.mockReset();
+    process.exitCode = undefined;
+  });
+
+  it("refuses when the registry is newer than the CLI, keeping the operator's flags", async () => {
+    const { existsSync } = await import("node:fs");
+    const path = await import("node:path");
+    const { project, kit } = await makeDirs("999.0.0");
+    mockConfirmProjectRoot.mockResolvedValue(project);
+    const unlock = vi.fn();
+    mockResolveRegistryFromCli.mockResolvedValue({ root: kit, source: "local", unlock });
+
+    const stderr = await runInstall(project);
+
+    expect(process.exitCode).toBe(1);
+    expect(stderr).toContain("older than the registry it would apply (v999.0.0)");
+    expect(stderr).toContain(`agent-kit install --claude -y --cwd ${project}`);
+    expect(stderr).toContain(`npx -y @dadado/agent-kit-cli@999.0.0 install --claude -y`);
+    // Refusing must not have written a capped manifest, and the registry lock is released.
+    expect(existsSync(path.join(project, ".cursor", "agent-kit.json"))).toBe(false);
+    expect(unlock).toHaveBeenCalled();
+  }, 15_000);
+
+  it("--allow-stale-cli gets past the guard", async () => {
+    const { project, kit } = await makeDirs("999.0.0");
+    mockConfirmProjectRoot.mockResolvedValue(project);
+    mockResolveRegistryFromCli.mockResolvedValue({ root: kit, source: "local", unlock: vi.fn() });
+
+    const stderr = await runInstall(project, { "allow-stale-cli": true });
+
+    expect(stderr).not.toContain("older than the registry");
+  }, 15_000);
+});

@@ -334,6 +334,26 @@ describe("updateCommand", () => {
       expect(saved.version).toBe("5.0.0");
     }, 15_000);
 
+    it("repeats the flags the operator passed in the re-run hint", async () => {
+      const consumer = await makeConsumer();
+      const kit = await makeKit("999.0.0");
+      const errors: string[] = [];
+      const spy = vi.spyOn(console, "error").mockImplementation((...parts: unknown[]) => {
+        errors.push(parts.map(String).join(" "));
+      });
+      try {
+        await run(applyArgs(consumer, kit, { claude: true }));
+      } finally {
+        spy.mockRestore();
+      }
+
+      const hint = errors.join("\n");
+      const rerun = `update --claude -y --force-root --cwd ${consumer} --registry ${kit}`;
+      expect(hint).toContain(`agent-kit ${rerun}`);
+      expect(hint).toContain(`npx -y @dadado/agent-kit-cli@999.0.0 ${rerun}`);
+      expect(hint).not.toContain("--allow-stale-cli --");
+    }, 15_000);
+
     it("--yes does not bypass the guard", async () => {
       const consumer = await makeConsumer();
       const kit = await makeKit("999.0.0");

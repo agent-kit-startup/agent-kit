@@ -13,6 +13,12 @@ import {
   SkippedSymlinkError,
 } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
+import {
+  detectStaleCli,
+  formatRerunFlags,
+  formatStaleCliRefusal,
+  StaleCliError,
+} from "../lifecycle/stale-cli.js";
 import { installL0, syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import { DOMAIN_PACK_IDS, loadAgentKitManifest } from "../manifest/index.js";
@@ -58,6 +64,8 @@ interface InstallOptions {
    * a SessionStart context hook into .claude/settings.json (default false).
    */
   claudeAdapters?: boolean;
+  /** Apply even when the registry is newer than this CLI (manifest stays capped at KIT_VERSION). */
+  allowStaleCli?: boolean;
 }
 
 export interface InstallResult {
@@ -200,6 +208,12 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
     manifest: existing,
   });
   try {
+    // Same guard as update: the manifest below is stamped with KIT_VERSION,
+    // so a stale binary would record its own version over newer content.
+    // Without it, install was the way around update's refusal.
+    const stale = await detectStaleCli(registry.root, { warn: logger.warn });
+    if (stale && !options.allowStaleCli) throw new StaleCliError(stale);
+
     const draft = buildManifest({
       version: KIT_VERSION,
       profile: options.profile ?? existing?.profile ?? "default",
@@ -279,6 +293,19 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
   }
 }
 
+/** Flags a stale-CLI refusal repeats in its re-run line, in this order. */
+const INSTALL_RERUN_FLAGS = [
+  "pack",
+  "claude",
+  "yes",
+  "force-root",
+  "cwd",
+  "registry",
+  "url",
+  "ref",
+  "refresh",
+] as const;
+
 export const installCommand = defineCommand({
   meta: {
     name: "install",
@@ -295,6 +322,12 @@ export const installCommand = defineCommand({
       description: `Comma-separated L1 pack ids (e.g. cybersec,devops). Known: ${DOMAIN_PACK_IDS.join(", ")}`,
     },
     ...NON_INTERACTIVE_ROOT_ARGS,
+    "allow-stale-cli": {
+      type: "boolean",
+      description:
+        "Install even when this CLI is older than the registry it is syncing from; the manifest is then stamped with this CLI's version, not the registry's (factory/dev only)",
+      default: false,
+    },
     claude: {
       type: "boolean",
       description:
@@ -351,6 +384,7 @@ export const installCommand = defineCommand({
           ref: args.ref,
           refresh: args.refresh,
           claudeAdapters: args.claude,
+          allowStaleCli: args["allow-stale-cli"],
         }),
       );
       logApplyStats(result.stats);
@@ -363,6 +397,18 @@ export const installCommand = defineCommand({
       }
       if (result.claudeAdapterHint) logger.info(result.claudeAdapterHint);
     } catch (err) {
+      if (err instanceof StaleCliError) {
+        const profile = typeof args.profile === "string" && args.profile ? `${args.profile} ` : "";
+        const refusal = formatStaleCliRefusal({
+          command: "install",
+          stale: err.stale,
+          rerun: `${profile}${formatRerunFlags(args, INSTALL_RERUN_FLAGS)}`.trim(),
+        });
+        logger.error(refusal.error);
+        console.error(refusal.recovery);
+        process.exitCode = 1;
+        return;
+      }
       if (err instanceof SkippedSymlinkError) {
         logApplyStats(err.stats);
         logger.error(err.message);
