@@ -10,9 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
-### Changed
+## [6.3.0] - 2026-10-18
 
-- The README shows the HOL Registry trust badge instead of the HOL guard badge. The guard badge measures HOL Guard adoption and read "Unprotected"; the trust badge shows the registry trust score.
+### Added
+
+- `/git-staging` and `/git-prod` now stop when a commit's author or committer is a coding agent, the way they already stop on an agent trailer. `sh git-hooks/prepare-commit-msg --check-authors <base> [head]` reads the author and committer of every commit in the range and exits 1 listing each commit whose address is an agent identity (`noreply@anthropic.com`, `cursoragent@cursor.com`, the Copilot bot and the other agent mail domains of the trailer rule), with the fix: set your own identity, then `git commit --amend --no-edit --reset-author`. It matches the address only, so GitHub merge commits, Dependabot and people named Claude pass. It never sets an identity or rewrites history. `--list-authors` prints the patterns. The getting-started guide has a new section on setting your own commit identity in cloud agent sessions (environment variables, signing, the PR-body footer).
+
+### Fixed
+
+- `agent-kit install` now refuses to run when the CLI is older than the registry, as `update` already did. Before, it applied the newer registry content but stamped the older CLI version into `.cursor/agent-kit.json`, so a refused `update --claude` could be bypassed with `install --claude` and leave the manifest version wrong. `--allow-stale-cli` still skips the check (factory/dev only).
+- The stale-CLI refusal from `install` and `update` now repeats the flags you passed (`--claude`, `-y`, `--cwd`, `--ref`, ...) in its re-run line. It also offers a one-off `npx -y @dadado/agent-kit-cli@<version>` form. Before, following the hint ran plain `agent-kit update` and silently skipped the Claude Code command adapters.
 
 ## [6.2.0] - 2026-10-16
 
@@ -22,6 +29,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 - `agent-kit countdown --job review` (and `agent-kit run review-pack`): a review-only pass over the branches not merged into the base. The CLI builds a diff pack (commits and diff against the merge base, newest branch first) that leaves out the base, the remote default branch, `gate-exit/*` branches and `.cursor/gate-exit/`, branches whose changes are already in the base (including squash and rebase merges), and branches whose tip has not changed since the last completed review (recorded in the gitignored `.cursor/context/review-ledger.json`; `--include-reviewed` reviews them again). The pack is capped at `--max-pack-bytes` (default 98304) without ever cutting a branch: a branch that does not fit is listed as `not reviewed (too large: N bytes)` and smaller branches still go in; a branch whose full diff cannot be read is listed as `not reviewed (diff not readable)`. Known tokens are redacted before the pack is measured. One headless session on `claude` (no tools) or `cursor-agent` (`--mode ask`, sandbox on) reviews it from an empty temporary directory outside your repository, with the pack marked as untrusted data, using the new review-only prompt `.cursor/commands/review-pack.md`. A reply that starts with `REVIEW: clean` and lists no findings lands nothing and the fire exits 0; findings (or any other reply) land as a gate-exit note with a PR/MR (exit 2 until you triage it with `agent-kit ground-control`). The reviewed branches are never edited or committed to. Nothing left to review, or nothing that fits the ceiling, means no session and exit 0. `--max-pack-bytes` and `--include-reviewed` apply to `review-pack` only: `agent-kit run` rejects them for any other slash, and `agent-kit countdown` for any other job.
 - `agent-kit ground-control`: morning triage for gate exits. `status` lists each pending operator ticket (Ask id and labels, the note's headline, the `gate-exit/<stamp>` branch and whether it is merged, the PR/MR URL) plus the runs Countdown skipped while it waited (`--json` for scripts). `accept <stamp>` clears a ticket only once its branch is merged into the base (a merge, fast-forward or squash merge counts), then deletes that branch; while it is unmerged it exits 2 and changes nothing. `discard <stamp>` closes the PR/MR when `gh` or `glab` is authenticated, deletes the branch and clears the ticket. It never merges and never promotes. `/start-project`, `/backlog-add`, `/continue-plan`, `/run-plan` and `/run-plan-all` now Ask about a pending ticket first (ask id `ticket`: `Read the ticket` / `Accept` / `Discard` / `Later`); unattended runs list the pending stamps instead of asking.
 - Mission Control's Flight Log lists pending operator tickets at the top of the card (read-only): the note's headline, its Ask id, the `gate-exit/<stamp>` branch and whether it is merged, the PR/MR URL and the `agent-kit ground-control` command that closes it. A pending ticket never shows as "All clear". The dashboard reads the marker and the branches already fetched, so a refresh never touches the network; run `agent-kit ground-control status` to fetch. The snapshot (`dashboard/dashboard-data.mjs`, `dashboardDataVersion` 1.6.0) adds a `gateExit` field with the same rows, published in `docs/contracts/mission-control-snapshot.schema.json`.
+
+### Changed
+
+- The README shows the HOL Registry trust badge instead of the HOL guard badge. The guard badge measures HOL Guard adoption and read "Unprotected"; the trust badge shows the registry trust score.
 
 ### Fixed
 

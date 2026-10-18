@@ -9,6 +9,27 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * True when `//` or `/*` appears outside a double-quoted string literal.
+ * @param {string} content - File content
+ * @returns {boolean}
+ */
+function hasCommentOutsideStrings(content) {
+  let inString = false;
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    if (inString) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === '/' && (content[i + 1] === '/' || content[i + 1] === '*')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Validates JSON content.
  * @param {string} content - File content
  * @param {string} [filePath] - File path (for error messages)
@@ -17,23 +38,26 @@ const path = require('path');
 function validateJson(content, filePath = '') {
   const label = filePath ? ` in ${filePath}` : '';
 
+  let parsed;
   try {
-    JSON.parse(content);
+    parsed = JSON.parse(content);
   } catch (e) {
+    // Valid JSON can never hold a comment, so only a parse failure is
+    // diagnosed as one. The scan skips string literals: a value such as
+    // ".cursor/plans/**" or "https://..." is not a comment.
+    if (hasCommentOutsideStrings(content)) {
+      return {
+        valid: false,
+        error: `JSON does not support comments${label}. Use _comment if you need notes.`
+      };
+    }
     return {
       valid: false,
       error: `Syntax error${label}: ${e.message}`
     };
   }
 
-  if (content.includes('//') || content.includes('/*')) {
-    return {
-      valid: false,
-      error: `JSON does not support comments${label}. Use _comment if you need notes.`
-    };
-  }
-
-  const formatted = JSON.stringify(JSON.parse(content), null, 2);
+  const formatted = JSON.stringify(parsed, null, 2);
   if (content.trim() !== formatted) {
     return {
       valid: true,
@@ -94,5 +118,5 @@ function main() {
 if (require.main === module) {
   main();
 } else {
-  module.exports = { validateJson, validateJsonFile };
+  module.exports = { validateJson, validateJsonFile, hasCommentOutsideStrings };
 }
