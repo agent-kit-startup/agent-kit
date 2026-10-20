@@ -7,11 +7,13 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { collectChats } from "./lib/chat-sessions.mjs";
 import { collectGateExitTickets } from "./lib/gate-exit-tickets.mjs";
 import {
   allowlistConfig,
   MAX_STRING,
   parseGitStatusShort,
+  resolveBroadcastAuth,
   resolveSnapshotRepoRoot,
   truncateStr,
 } from "./lib/guards.mjs";
@@ -133,7 +135,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.6.0",
+    version: "1.7.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -154,6 +156,8 @@ const SNAPSHOT = {
         "Newest headless agent-kit run / tick logs from <state root>/loop-logs (AGENT_KIT_STATE_ROOT: .cursor by default, or .agent-kit; no ~/.cursor dependency): format, session id, capped last agent text, result, LOOP_TICK_RESULT line, HITL gate ids and reply stamps (1.5.0)",
       gateExit:
         "Pending operator tickets (read-only, never fetches): {marker: absent|ok|invalid, base, tickets[] (stamp, headline, askId, labels, trigger, openedAt, url, branch, branchState unmerged|merged|none, inMarker), skipped[] (latest launcher skip records), truncated} from .cursor/context/gate-exit.json and gate-exit/<stamp> branches; same contract as agent-kit ground-control status (1.6.0)",
+      chats:
+        "Saved agent chats of this workspace: {withheld, vendors[]} with one envelope per vendor {vendor: claude|codex|cursor, status: ok|unsupported|none, projectDir, sessions[] ({id, title, titleSource: custom|ai|first-prompt|none, modified unix ms, sizeBytes}, newest first, capped at 200), total}; same contract as agent-kit sessions --json. withheld is true (vendors empty) in broadcast mode: chat titles never leave the machine (1.7.0)",
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
@@ -162,7 +166,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.6.0",
+  dashboardDataVersion: "1.7.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -175,6 +179,7 @@ const SNAPSHOT = {
   terminals: [],
   runLogs: [],
   gateExit: { marker: "absent", base: "staging", tickets: [], skipped: [], truncated: false },
+  chats: { withheld: false, vendors: [] },
   processes: [],
   skills: [],
   health: { status: "ok", checks: [] },
@@ -788,6 +793,13 @@ if (withinSnapshotBudget(200)) {
 if (withinSnapshotBudget(200)) {
   SNAPSHOT.gateExit = collectGateExitTickets(ROOT, { redact: redactTerminalOutput });
 }
+
+// 7d. Saved agent chats (~/.claude/projects/<slug>/<uuid>.jsonl), read-only. Titles are private:
+// a broadcast (non-loopback, token-gated) server never gets them (serve.mjs strips them too).
+SNAPSHOT.chats = collectChats({
+  cwd: ROOT,
+  withhold: resolveBroadcastAuth(process.env).broadcast !== false,
+});
 
 // 8. Config
 const configPath = join(ROOT, ".cursor", "context", "config.json");

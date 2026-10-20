@@ -65,7 +65,7 @@ This project does **not** publish a dedicated conduct mailbox. Until one exists,
 use whichever of these fits the report:
 
 - **Anything that is also a security issue** — use the private channel in
-  [SECURITY.md](SECURITY.md). Never file a security report in a public issue.
+  [SECURITY.md](../SECURITY.md). Never file a security report in a public issue.
 - **Platform-level abuse** (harassment, spam, impersonation, threats) — GitHub's
   [Report abuse](https://github.com/contact/report-abuse) form. It routes to
   GitHub Trust & Safety, who can act on accounts and escalate to repository

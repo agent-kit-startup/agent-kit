@@ -33,21 +33,23 @@ The panel then hands the frozen record to `perform()` instead of writing the cli
 
 ## Snapshot contract
 
-`dashboard/dashboard-data.mjs` prints one JSON snapshot per refresh. Its shape is versioned by `dashboardDataVersion` (currently **1.6.0**) and published as `docs/contracts/mission-control-snapshot.schema.json` (JSON Schema 2020-12): every top-level field is required with its type, and the `runLogs` rows and `gateExit` tickets are fixed; nested collector shapes stay open so collectors can grow. An added field is a minor bump, a removed or retyped top-level field a major bump. A test runs the real script against a scratch repo and checks the output against the schema of its version.
+`dashboard/dashboard-data.mjs` prints one JSON snapshot per refresh. Its shape is versioned by `dashboardDataVersion` (currently **1.7.0**) and published as `docs/contracts/mission-control-snapshot.schema.json` (JSON Schema 2020-12): every top-level field is required with its type, and the `runLogs` rows, `gateExit` tickets and `chats` envelopes are fixed; nested collector shapes stay open so collectors can grow. An added field is a minor bump, a removed or retyped top-level field a major bump. A test runs the real script against a scratch repo and checks the output against the schema of its version.
 
 **Run feed without `~/.cursor`.** `runLogs` (1.5.0) lists the newest headless logs the kit writes itself (`.cursor/loop-logs/tick-*.log` from `agent-kit run-plan`, `run-*.log` from `agent-kit run`): `format` (`stream-json`, `codex` or `acp`), `sessionId`, capped `lastText`, `result`, the `LOOP_TICK_RESULT` line, HITL gate ids and reply stamps. The logs are redacted when written and again when read. The runner keeps these logs (and `loop.stop`) under `AGENT_KIT_STATE_ROOT`: `.cursor` by default, or `.agent-kit` for a host that keeps runner output out of `.cursor/` (the `loop-logs/` directory ignores itself in git either way). Plans, HANDOFF and the other agent contract files stay under `.cursor/`. A host that drives the CLI in driver mode (`docs/driver-events-protocol.md`) gets the same information live; `runLogs` is the at-rest view.
 
 **Pending operator tickets.** `gateExit` (1.6.0) is the read half of `agent-kit ground-control status`: `marker` (`absent`, `ok` or `invalid` for `.cursor/context/gate-exit.json`), `base`, `tickets[]` (`stamp`, note `headline`, `askId`, `labels`, `trigger`, `openedAt`, `url`, `branch`, `branchState` `unmerged` / `merged` / `none`, `inMarker`), the latest `skipped` launcher records and `truncated`. Same contract as the CLI (marker entries plus unmerged `gate-exit/<stamp>` branches; a merged branch with no entry is history), but it never fetches: it shows the refs as last fetched. `missionControl.flightLog.tickets` is the panel projection (read-only, no action; the card shows the `agent-kit ground-control` command).
 
+**Saved chats.** `chats` (1.7.0) is the workspace's saved agent sessions, the same object `agent-kit sessions --json` prints: `{withheld, vendors[]}` with one envelope per vendor `{vendor, status, projectDir, sessions, total}`. Claude Code is read from `~/.claude/projects/<slug>/<uuid>.jsonl`, where `<slug>` is the workspace path with every character that is not an ASCII letter or digit replaced by `-`; subagent transcripts are not sessions. Each session is `{id, title, titleSource, modified, sizeBytes}`: `titleSource` is `custom` (the name the operator set), `ai` (the generated title), `first-prompt` (the first typed prompt, cut to 80 characters) or `none`; `modified` is unix milliseconds. Sessions are newest first and capped at 200, `total` counts them all. `status` is `ok`, `none` (no saved session for this folder) or `unsupported` (Codex and Cursor for now). Chat titles are private: in broadcast mode the snapshot carries `{withheld: true, vendors: []}`. The Chats card copies `cd <workspace> && claude --resume <id>`; a web page cannot open a terminal.
+
 ## Content security policy readiness
 
-Measured with `node scripts/dashboard-csp.mjs` (`--json` for the full report) on 2026-10-08:
+Measured with `node scripts/dashboard-csp.mjs` (`--json` for the full report) on 2026-10-19:
 
 | Item | Count |
 |------|-------|
 | Inline `<script>` blocks | 2 (hashable) |
 | Inline `<style>` blocks | 1 (hashable) |
-| Static inline event-handler attributes | 24 (hashable with `'unsafe-hashes'`) |
+| Static inline event-handler attributes | 25 (hashable with `'unsafe-hashes'`) |
 | Static inline style attributes | 12 (hashable with `'unsafe-hashes'`) |
 | Event-handler attributes written at runtime by `innerHTML` templates | 62 (not hashable) |
 | Style attributes written at runtime by `innerHTML` templates | 37 (not hashable) |

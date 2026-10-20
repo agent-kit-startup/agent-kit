@@ -8,7 +8,13 @@ import {
 } from "../hooks/format-guard-shell.js";
 import { readStdinJson } from "../hooks/read-stdin-json.js";
 import { scanTextForSecrets, secretsAdviseMessage } from "../invariants/secrets-scan.js";
-import { evaluateShellCommand, type ShellGuardResult } from "../invariants/shell-guard.js";
+import {
+  evaluateShellCommand,
+  type PrMergeTarget,
+  prMergeKey,
+  prMergeTargets,
+  type ShellGuardResult,
+} from "../invariants/shell-guard.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,27 +46,67 @@ async function detectRemotes(cwd: string): Promise<Record<string, string> | unde
   }
 }
 
+/** Under the Cursor hook's 5 s budget, so a slow forge denies instead of timing the hook out. */
+const PR_BASE_TIMEOUT_MS = 3000;
+
+/** Base branch of the PR/MR a merge names (`gh pr view` / `glab mr view`); null when unresolved. */
+async function resolvePrBase(target: PrMergeTarget, cwd: string): Promise<string | null> {
+  const selector = target.selector ? [target.selector] : [];
+  try {
+    if (target.forge === "github") {
+      const repo = target.repo ? ["--repo", target.repo] : [];
+      const { stdout } = await execFileAsync(
+        "gh",
+        ["pr", "view", ...selector, ...repo, "--json", "baseRefName", "-q", ".baseRefName"],
+        { encoding: "utf8", cwd, timeout: PR_BASE_TIMEOUT_MS },
+      );
+      return stdout.trim() || null;
+    }
+    const repo = target.repo ? ["-R", target.repo] : [];
+    const { stdout } = await execFileAsync(
+      "glab",
+      ["mr", "view", ...selector, ...repo, "-F", "json"],
+      {
+        encoding: "utf8",
+        cwd,
+        timeout: PR_BASE_TIMEOUT_MS,
+      },
+    );
+    const base = (JSON.parse(stdout) as { target_branch?: unknown }).target_branch;
+    return typeof base === "string" && base ? base : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface GuardShellDeps {
   detectCurrentBranch: (cwd: string) => Promise<string | undefined>;
   detectRemotes: (cwd: string) => Promise<Record<string, string> | undefined>;
+  resolvePrBase: (target: PrMergeTarget, cwd: string) => Promise<string | null>;
 }
 
-const defaultGuardShellDeps: GuardShellDeps = { detectCurrentBranch, detectRemotes };
+const defaultGuardShellDeps: GuardShellDeps = { detectCurrentBranch, detectRemotes, resolvePrBase };
 
-/** Every deny rule targets `git` or `gh`; other commands skip both git spawns. */
-const GIT_OR_GH_RE = /\b(git|gh)\b/;
+/** Every deny rule targets `git`, `gh` or `glab`; other commands skip the spawns. */
+const GIT_OR_FORGE_RE = /\b(git|gh|glab)\b/;
 
 export async function evaluateGuardShell(
   command: string,
   cwd: string = process.cwd(),
   deps: GuardShellDeps = defaultGuardShellDeps,
 ): Promise<ShellGuardResult> {
-  if (!GIT_OR_GH_RE.test(command)) return evaluateShellCommand(command);
-  const [currentBranch, remotes] = await Promise.all([
+  if (!GIT_OR_FORGE_RE.test(command)) return evaluateShellCommand(command);
+  const targets = prMergeTargets(command);
+  const [currentBranch, remotes, bases] = await Promise.all([
     deps.detectCurrentBranch(cwd),
     deps.detectRemotes(cwd),
+    Promise.all(targets.map((t) => deps.resolvePrBase(t, cwd))),
   ]);
-  return evaluateShellCommand(command, { currentBranch, remotes });
+  const prMergeBases =
+    targets.length > 0
+      ? Object.fromEntries(targets.map((t, i) => [prMergeKey(t), bases[i] ?? null]))
+      : undefined;
+  return evaluateShellCommand(command, { currentBranch, remotes, prMergeBases });
 }
 
 export interface RunGuardShellHookDeps extends Partial<GuardShellDeps> {
@@ -93,6 +139,7 @@ export async function runGuardShellHook(
     const result = await evaluateGuardShell(command, cwd, {
       detectCurrentBranch: deps.detectCurrentBranch ?? defaultGuardShellDeps.detectCurrentBranch,
       detectRemotes: deps.detectRemotes ?? defaultGuardShellDeps.detectRemotes,
+      resolvePrBase: deps.resolvePrBase ?? defaultGuardShellDeps.resolvePrBase,
     });
     return formatGuardShellOutput(result, format);
   };
@@ -114,7 +161,7 @@ export const guardCommand = defineCommand({
       meta: {
         name: "shell",
         description:
-          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod + direct git push/gh pr create|merge against the public repo). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
+          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod + gh pr merge / glab mr merge into main/master/prod or an unresolved base + direct git push/gh pr create|merge against the public repo). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
       },
       args: {
         json: {

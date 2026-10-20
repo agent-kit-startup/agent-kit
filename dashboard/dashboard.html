@@ -49,7 +49,7 @@ html[data-dashboard-skin="legacy"] {
   --border-active: #2a3a5a;
   --text-primary: #e2e8f0;
   --text-secondary: #8899aa;
-  --text-muted: #6d8094; /* landing uses #7f93a8 (AA over marketing gradient); see docs/design-system.md */
+  --text-muted: #7f93a8; /* same as the landing; >= 4.5:1 (WCAG AA) on every bg-* surface incl. hover; see docs/design-system.md */
   --green: #22c55e;
   --green-bg: rgba(34,197,94,0.12);
   --yellow: #eab308;
@@ -122,7 +122,7 @@ html[data-dashboard-skin="cursor"] {
   --border-active: #3a3a3a;
   --text-primary: #e4e4e4;
   --text-secondary: #a0a0a0;
-  --text-muted: #6e6e6e;
+  --text-muted: #8b8b8b; /* >= 4.5:1 (WCAG AA) on every bg-* surface incl. hover; see docs/design-system.md */
 }
 html, body {
   height: 100%;
@@ -934,6 +934,31 @@ body.mc-fullscreen .top-tabs-row {
 }
 .terminal-item:hover { background: var(--bg-card-hover); }
 
+/* ===== Chats (saved agent sessions) ===== */
+.chat-list { display: flex; flex-direction: column; gap: 4px; }
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.chat-item:hover { background: var(--bg-card-hover); }
+.chat-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.chat-title[data-untitled="true"] { color: var(--text-muted); font-style: italic; }
+.chat-age,
+.chat-id { color: var(--text-muted); font-family: var(--mc-font-mono); white-space: nowrap; }
+.chat-note { font-size: 12px; color: var(--text-muted); margin: 8px 10px 0; }
+
 /* ===== Healthcenter ===== */
 .healthcenter {
   display: flex;
@@ -1230,7 +1255,7 @@ body.mc-fullscreen .top-tabs-row {
 .git-hygiene-paths {
   font-family: var(--mc-font-mono);
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary); /* muted fails AA on the --yellow-bg tint */
   margin-top: 4px;
   word-break: break-all;
 }
@@ -3711,6 +3736,10 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
           Terminals
           <span class="top-tab-badge" id="navTerminalsBadge">0</span>
         </a>
+        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="chats" tabindex="0" onclick="return showSection('chats')" aria-label="Chats section">
+          Chats
+          <span class="top-tab-badge" id="navChatsBadge">0</span>
+        </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="processes" tabindex="0" onclick="return showSection('processes')" aria-label="Processes section">
           Processes
           <span class="top-tab-badge" id="navProcessesBadge">0</span>
@@ -3882,6 +3911,7 @@ const SECTION_IDS = [
   'devops',
   'memory',
   'terminals',
+  'chats',
   'processes',
   'config',
 ];
@@ -6321,6 +6351,98 @@ function showTerminalPopup(content, title) {
   document.body.appendChild(overlay);
 }
 
+/**
+ * POSIX single-quote for a pasted shell command.
+ * Mirror of `shellQuote` in dashboard/lib/chat-sessions.mjs (inline HTML cannot import it).
+ */
+function chatShellQuote(value) {
+  const s = String(value ?? '');
+  if (/^[A-Za-z0-9_./-]+$/.test(s)) return s;
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Mirror of `claudeResumeCommand` in dashboard/lib/chat-sessions.mjs. */
+function chatResumeCommand(workspace, id) {
+  return `cd ${chatShellQuote(workspace)} && claude --resume ${chatShellQuote(id)}`;
+}
+
+/** Claude Code envelope of the snapshot `chats` field (null when absent or withheld). */
+function claudeChatsEnvelope(d) {
+  const vendors = Array.isArray(d?.chats?.vendors) ? d.chats.vendors : [];
+  return vendors.find((v) => v && v.vendor === 'claude') || null;
+}
+
+function chatsTotal(d) {
+  const claude = claudeChatsEnvelope(d);
+  return claude && claude.status === 'ok' && Number.isFinite(claude.total) ? claude.total : 0;
+}
+
+/** Chats section body. Titles are user content: escapeHtml / escapeAttr only. */
+function renderChatsSection(d) {
+  const chats = d?.chats || null;
+  const workspace = d?.system?.repoRoot || '';
+  const claude = claudeChatsEnvelope(d);
+  const sessions = claude && claude.status === 'ok' && Array.isArray(claude.sessions) ? claude.sessions : [];
+  const total = chatsTotal(d);
+  const unsupported = (Array.isArray(chats?.vendors) ? chats.vendors : [])
+    .filter((v) => v && v.status === 'unsupported')
+    .map((v) => ({ codex: 'Codex', cursor: 'Cursor' }[v.vendor] || String(v.vendor || '')));
+  let subtitle = `${total} saved`;
+  if (sessions.length < total) subtitle = `${sessions.length} newest of ${total}`;
+  let body;
+  if (chats?.withheld === true) {
+    subtitle = 'hidden';
+    body = renderEmptyStateCta({
+      iconKind: 'chats',
+      headline: 'Chats stay private',
+      support: 'This Mission Control is broadcast on the network, so saved chat titles are left out. Open it on this machine to see them.',
+    });
+  } else if (sessions.length === 0) {
+    body = renderEmptyStateCta({
+      iconKind: 'chats',
+      headline: 'No saved chats',
+      support: 'The agent CLI saves each session per folder. Start claude in this workspace folder and it shows up here, ready to resume.',
+    });
+  } else {
+    body = `<div class="chat-list">${sessions.map((s) => {
+      const id = String(s.id || '');
+      const untitled = !s.title;
+      const title = untitled ? 'Untitled chat' : String(s.title);
+      const modifiedIso = Number.isFinite(s.modified) ? new Date(s.modified).toISOString() : '';
+      const cmd = chatResumeCommand(workspace, id);
+      return `
+        <div class="chat-item">
+          <span class="chat-title"${untitled ? ' data-untitled="true"' : ''} title="${escapeAttr(title)}">${escapeHtml(title)}</span>
+          <span class="chat-age" title="${escapeAttr(modifiedIso)}">${escapeHtml(relativeTime(modifiedIso))}</span>
+          <span class="chat-id" title="${escapeAttr(id)}">${escapeHtml(id.slice(0, 8))}</span>
+          <button type="button" class="process-copy-btn chat-resume-btn" data-chat-resume="${escapeAttr(cmd)}" aria-label="${escapeAttr(`Copy the resume command for chat ${title}`)}" title="${escapeAttr(copyActionTitle('resume command', 'terminal'))}">Copy resume</button>
+        </div>`;
+    }).join('')}</div>`;
+  }
+  const note = unsupported.length
+    ? `<p class="chat-note">${escapeHtml(unsupported.map((name) => `${name}: not supported yet`).join(' \u00b7 '))}</p>`
+    : '';
+  return `
+    <div class="content-section" id="section-chats">
+      <div class="section-title">
+        Chats
+        <span class="section-subtitle">${escapeHtml(subtitle)}</span>
+      </div>
+      ${body}
+      ${note}
+    </div>
+  `;
+}
+
+function wireChatResumeButtons() {
+  document.querySelectorAll('.chat-resume-btn[data-chat-resume]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copyForPaste(btn.dataset.chatResume, 'resume command', 'terminal');
+    });
+  });
+}
+
 function wireTerminalExpandButtons() {
   document.querySelectorAll('.terminal-expand-btn[data-terminal-id]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -7107,7 +7229,7 @@ function nowMetaIconSvg(kind, opts) {
  * features >= 1 unit. Detail that cannot meet the floor is drawn filled
  * (fill="currentColor" stroke="none"), never as a sub-stroke stroked shape.
  * Static path markup only; never concatenate untrusted text into the SVG.
- * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'devops'|'memory'|'terminals'|'processes'|'config'} kind
+ * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'devops'|'memory'|'terminals'|'chats'|'processes'|'config'} kind
  * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
  *   decorative false: role=img + aria-label + title for icon-only controls (e.g. more-sections).
  */
@@ -7132,6 +7254,7 @@ function spaceIconSvg(kind, opts) {
     devops: 'DevOps',
     memory: 'Memory',
     terminals: 'Terminals',
+    chats: 'Chats',
     processes: 'Processes',
     config: 'Config',
   };
@@ -7212,6 +7335,9 @@ function spaceIconSvg(kind, opts) {
     terminals:
       '<path d="M1.5 3.5h13a1 1 0 011 1v7a1 1 0 01-1 1H1.5a1 1 0 01-1-1v-7a1 1 0 011-1z"/>' +
       '<path d="M5.5 12.5v2M10.5 12.5v2M4 14.5h8"/>',
+    // Speech bubble (chats) — Feather message-square on the 16 grid
+    chats:
+      '<path d="M14 10a1.5 1.5 0 01-1.5 1.5H5L2 14.5v-11A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5z"/>',
     // Layers (processes)
     processes:
       '<path d="M8 2.5l6 3-6 3-6-3 6-3z"/>' +
@@ -8158,6 +8284,11 @@ function renderUnsafe() {
   const navTerminalsBadge = document.getElementById('navTerminalsBadge');
   navTerminalsBadge.textContent = d.terminals.length;
   navTerminalsBadge.className = 'top-tab-badge';
+  const navChatsBadge = document.getElementById('navChatsBadge');
+  if (navChatsBadge) {
+    navChatsBadge.textContent = chatsTotal(d);
+    navChatsBadge.className = 'top-tab-badge';
+  }
   const navProcessesBadge = document.getElementById('navProcessesBadge');
   navProcessesBadge.textContent = d.processes.length;
   navProcessesBadge.className = 'top-tab-badge';
@@ -8732,6 +8863,9 @@ function renderUnsafe() {
     </div>
   `);
 
+  // ===== Chats =====
+  parts.push(renderChatsSection(d));
+
   // ===== Processes =====
   const processes = d.processes || [];
   // Detached audit-session visibility (phase3): host-wide agent-kit-audit-* PTYs.
@@ -8894,6 +9028,7 @@ function renderUnsafe() {
   contentEl.innerHTML = parts.join('');
 
   wireTerminalExpandButtons();
+  wireChatResumeButtons();
 
   updateTransportChrome();
 

@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
-  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows and the gateExit tickets are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.6.0",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets and the chats envelopes and sessions are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.7.0",
   "type": "object",
   "required": [
     "_schema",
@@ -18,6 +18,7 @@
     "terminals",
     "runLogs",
     "gateExit",
+    "chats",
     "processes",
     "skills",
     "health",
@@ -27,7 +28,7 @@
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.6.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.7.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
@@ -105,6 +106,40 @@
         },
         "skipped": { "type": "array" },
         "truncated": { "type": "boolean" }
+      }
+    },
+    "chats": {
+      "type": "object",
+      "required": ["withheld", "vendors"],
+      "properties": {
+        "withheld": { "type": "boolean" },
+        "vendors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["vendor", "status", "projectDir", "sessions", "total"],
+            "properties": {
+              "vendor": { "enum": ["claude", "codex", "cursor"] },
+              "status": { "enum": ["ok", "unsupported", "none"] },
+              "projectDir": { "type": ["string", "null"] },
+              "sessions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "title", "titleSource", "modified", "sizeBytes"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": ["string", "null"] },
+                    "titleSource": { "enum": ["custom", "ai", "first-prompt", "none"] },
+                    "modified": { "type": "number" },
+                    "sizeBytes": { "type": "number" }
+                  }
+                }
+              },
+              "total": { "type": "number" }
+            }
+          }
+        }
       }
     },
     "processes": { "type": "array" },

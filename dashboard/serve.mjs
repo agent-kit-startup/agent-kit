@@ -11,6 +11,7 @@ import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { shareShellTokenRequired } from "./lib/broadcast-share.mjs";
+import { withholdChatsFromPayload } from "./lib/chat-sessions.mjs";
 import {
   allowlistConfig,
   applyCorsHeaders,
@@ -260,6 +261,7 @@ function errorPayload(message) {
     memory: {},
     git: {},
     terminals: [],
+    chats: { withheld: authResolved.broadcast, vendors: [] },
     processes: [],
     health: { status: "error", checks: [] },
     missionControl: null,
@@ -308,7 +310,9 @@ function runDataScript() {
         if (baseline) previousInventoryJson = baseline;
         const pipelineCache = pipelineCacheJsonFromPayload(stdout);
         if (pipelineCache) previousPipelineJson = pipelineCache;
-        resolve(stdout);
+        // Chat titles are private: a broadcast (LAN, token-gated) server never serves them, even
+        // if the child missed the bind env. Every route (/api/data, SSE connect, push) reads this.
+        resolve(authResolved.broadcast ? withholdChatsFromPayload(stdout) : stdout);
       },
     );
   });

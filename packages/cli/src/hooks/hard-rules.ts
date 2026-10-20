@@ -21,6 +21,11 @@ export const DOGFOOD_INBOX_HINT = `## Dogfood inbox
 
 Unprocessed files are listed under \`dogfood/README.md\` (factory) or \`.cursor/dogfood/README.md\` (consumer). To file a new note, use \`/dogfood <topic> [summary]\`. Follow the ingest ritual (detect → analyze → memory WRITE → triage). Do not auto-start analysis unless the user asks.`;
 
+// Colony exports COLONY_HOST_CLI into its terminal tabs and agent runs; the
+// request waits for the operator's click on an approval card in Colony.
+export const COLONY_HOST_HINT =
+  '**Colony host:** git/forge actions you may not run yourself (merge a PR, rerun failed checks, push a branch) go through `"$COLONY_HOST_CLI" request merge-pr <N> | rerun-checks <run-id>|--pr <N> | push-branch [<branch>] [--reason "..."]`; it waits for the operator\'s click in Colony (exit 0 done, 2 denied: final, 3 failed, 4 timeout).';
+
 export const UPDATE_CHECK_NUDGE = `## Agent Kit update available
 
 Installed **v{installed}**; latest public **v{latest}**.

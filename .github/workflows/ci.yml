@@ -42,7 +42,7 @@ jobs:
       ${{ !(github.event_name == 'pull_request'
         && github.base_ref == 'main'
         && github.head_ref == 'staging') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -135,6 +135,13 @@ jobs:
           pnpm test:root-node
           pnpm test:factory-root-node
 
+      # Engine artifact (ADR 2026-10-19_colony-managed-engine-distribution): the npm
+      # package contents plus the runtime node_modules and engine.json, as one tarball.
+      # Built and self-verified (extract, --version, engine-info) on every run so a tag
+      # never finds it broken; publish-engine attaches it to the Release. No secrets.
+      - name: Engine artifact
+        run: node scripts/build-engine-artifact.mjs --out dist/engine
+
       - name: Guard generated CLI dashboard is untracked
         run: |
           set -euo pipefail
@@ -166,7 +173,7 @@ jobs:
       && (startsWith(github.ref, 'refs/tags/v')
           || (github.event_name == 'workflow_dispatch'
               && github.event.inputs.sync_public == 'true'))
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -216,7 +223,7 @@ jobs:
     if: >-
       github.repository == 'agent-kit-startup/agent-kit-dev'
       && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     permissions:
       contents: read
       id-token: write
@@ -269,7 +276,7 @@ jobs:
       && (startsWith(github.ref, 'refs/tags/v')
           || (github.event_name == 'workflow_dispatch'
               && github.event.inputs.sync_landing == 'true'))
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -301,3 +308,77 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PUBLIC_LANDING_LATEST_ATTEMPTS: "24"
           PUBLIC_LANDING_LATEST_DELAY_MS: "15000"
+
+  # ── Engine artifact on the public GitHub Release (tag only) ──
+  # agent-kit-engine-<version>.tar.gz + SHA256SUMS (scripts/build-engine-artifact.mjs),
+  # attached to the public Release that sync-public creates for this tag; an IDE host installs
+  # the engine from there (ADR 2026-10-19_colony-managed-engine-distribution). Does not
+  # touch npm: publish-npm is unchanged and independent of this job.
+  # Private-origin allowlist only (same SoT as sync-public / publish-npm).
+  # Adding another allowlisted site (this job `if` counts) requires updating the
+  # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
+  # Secret PUBLIC_REPO_TOKEN (same as sync-public): fail loud when unset on a tag.
+  # Secret ENGINE_SIGNING_KEY: signing placeholder, skipped while the key does not exist.
+  publish-engine:
+    needs: [build, sync-public]
+    if: >-
+      github.repository == 'agent-kit-startup/agent-kit-dev'
+      && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install & Build
+        run: pnpm install --frozen-lockfile=false && pnpm build
+
+      - name: Build engine artifact
+        run: node scripts/build-engine-artifact.mjs --out dist/engine
+
+      # PLACEHOLDER: the signing key and publishing identity are operator-owned and do not
+      # exist yet (ADR 2026-10-19_colony-managed-engine-distribution, Consequence 4). Until
+      # then the artifact ships with SHA256SUMS only. Setting the secret without replacing
+      # this step fails the job, so a key is never silently ignored.
+      - name: Sign engine artifact (placeholder)
+        run: |
+          if [ -z "$ENGINE_SIGNING_KEY" ]; then
+            echo "ENGINE_SIGNING_KEY not configured: engine artifact ships unsigned (SHA256SUMS only)."
+            exit 0
+          fi
+          echo "::error::ENGINE_SIGNING_KEY is set but engine signing is not implemented yet; replace this placeholder step."
+          exit 1
+        env:
+          ENGINE_SIGNING_KEY: ${{ secrets.ENGINE_SIGNING_KEY }}
+
+      - name: Upload to the public Release
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::PUBLIC_REPO_TOKEN is not configured. The engine artifact was not uploaded."
+            exit 1
+          fi
+          slug="$(printf '%s' "$PUBLIC_REPO_URL" | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+          tag="$GITHUB_REF_NAME"
+          tarball="dist/engine/agent-kit-engine-${tag#v}.tar.gz"
+          if [ ! -f "$tarball" ]; then
+            echo "::error::$tarball not found: the tag does not match the CLI package version."
+            exit 1
+          fi
+          if ! gh release view "$tag" --repo "$slug" > /dev/null; then
+            echo "::error::Public Release $tag not found on $slug (sync-public creates it); the engine artifact was not uploaded."
+            exit 1
+          fi
+          gh release upload "$tag" "$tarball" dist/engine/SHA256SUMS --repo "$slug" --clobber
+          echo "Uploaded $tarball and SHA256SUMS to $slug Release $tag."
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}

@@ -61,12 +61,12 @@ before reporting.
   interface only with explicit intent and a required session token. Config writes
   stay loopback-only and allowlisted. Multi-user or internet-facing hosting is
   out of scope by design — see
-  [Mission Control production-ship constraints](../docs/getting-started.md#mission-control-production-ship-constraints).
+  [Mission Control production-ship constraints](docs/getting-started.md#mission-control-production-ship-constraints).
 - **Continuous plan execution runs with the IDE sandbox disabled.** `/run-plan`
   needs filesystem and git access to do its job. Plan to-dos and registry skills
   therefore function as direct agent instructions and must be reviewed before
   they are run — see
-  [Security considerations](../docs/getting-started.md#security-considerations).
+  [Security considerations](docs/getting-started.md#security-considerations).
 - **Prompt content is not a trust boundary.** A malicious skill, plan, or rule
   that a user installs on purpose can instruct the agent. Report the *delivery*
   path (for example: a way to get unreviewed content into an install) rather than
@@ -86,6 +86,6 @@ in an issue.
 
 ## Related
 
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Support](SUPPORT.md)
-- [Contributing](../docs/CONTRIBUTING.md)
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+- [Support](.github/SUPPORT.md)
+- [Contributing](docs/CONTRIBUTING.md)

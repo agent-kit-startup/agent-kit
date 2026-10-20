@@ -42,5 +42,5 @@
 ## Community
 
 - [Code of Conduct](../.github/CODE_OF_CONDUCT.md) - Contributor Covenant 2.1 and how to report a concern
-- [Security policy](../.github/SECURITY.md) - private disclosure channel, supported versions, documented posture (never open a public issue for a vulnerability)
+- [Security policy](../SECURITY.md) - private disclosure channel, supported versions, documented posture (never open a public issue for a vulnerability)
 - [Support](../.github/SUPPORT.md) - where to ask what, and what makes a question answerable

@@ -32,7 +32,7 @@ Skills live at `registry/skills/community/<id>/SKILL.md`. If you work from a pro
 - Production promotion is human-confirmed, always. No PR changes that.
 - When in doubt, open a small PR and ask in it. A rough patch with a clear question beats a polished guess.
 
-Participation is covered by the [Code of Conduct](../.github/CODE_OF_CONDUCT.md). Not sure where a question belongs? [SUPPORT.md](../.github/SUPPORT.md). **Never** report a vulnerability in a public issue or PR - use the private channel in [SECURITY.md](../.github/SECURITY.md).
+Participation is covered by the [Code of Conduct](../.github/CODE_OF_CONDUCT.md). Not sure where a question belongs? [SUPPORT.md](../.github/SUPPORT.md). **Never** report a vulnerability in a public issue or PR - use the private channel in [SECURITY.md](../SECURITY.md).
 
 ## Standards
 
@@ -112,7 +112,7 @@ See [contribute-upstream.md](contribute-upstream.md). Registry contributions now
 1. **Question or bug:** GitHub issue forms (Discussions is not enabled; see [SUPPORT.md](../.github/SUPPORT.md)).
 2. **Code or skill PR:** this guide; public repo targets `main`, factory targets `staging`.
 3. **Consumer-project drift:** [`agent-kit contribute`](contribute-upstream.md) (CLI never pushes).
-4. **Vulnerability:** [SECURITY.md](../.github/SECURITY.md) private channel only.
+4. **Vulnerability:** [SECURITY.md](../SECURITY.md) private channel only.
 
 Maintainer replies that are promotional still need HITL (skill `mission-kit-comms`). Cursor Marketplace publisher submit is not this funnel.
 

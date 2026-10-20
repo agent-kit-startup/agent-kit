@@ -184,8 +184,8 @@ before you touch them:
 - `evidence:file-ledger:check` is a **local replay** tool, not a CI gate - the census includes the
   working tree, stashes and ignored-operational files, so it only reproduces on the machine that
   generated it.
-- `evidence:knowledge-classification` refuses a dirty tree, so a `.cursor/**` change ships as two
-  commits: the change, then the regenerated artifact.
+- `knowledge-classification.json` is gitignored: CI validates a fresh census
+  (`evidence:knowledge-classification:check`), so a `.cursor/**` change needs no regen commit.
 
 ## Related docs
 

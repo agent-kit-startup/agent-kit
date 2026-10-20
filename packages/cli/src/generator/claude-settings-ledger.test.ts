@@ -37,6 +37,7 @@ describe("claude settings ledger", () => {
     expect(saved).toEqual({
       schemaVersion: 1,
       denyRowsWritten: ["Bash(a)", "Bash(b)"],
+      allowRowsWritten: [],
       hookEntriesWritten: [
         { event: "PreToolUse", marker: "m1" },
         { event: "SessionStart", marker: "m2" },
@@ -103,5 +104,17 @@ describe("claude settings ledger", () => {
       { overwriteInvalid: true },
     );
     expect(saved.denyRowsWritten).toEqual(["Bash(a)"]);
+  });
+
+  it("reads a ledger written before allowRowsWritten existed and grows it", async () => {
+    await mkdir(path.dirname(file()), { recursive: true });
+    await writeFile(
+      file(),
+      JSON.stringify({ schemaVersion: 1, denyRowsWritten: ["Bash(a)"], hookEntriesWritten: [] }),
+    );
+    expect((await loadClaudeSettingsLedger(root))?.allowRowsWritten).toEqual([]);
+    const saved = await saveClaudeSettingsLedger(root, { allowRowsWritten: ["Bash(m)"] });
+    expect(saved.denyRowsWritten).toEqual(["Bash(a)"]);
+    expect(saved.allowRowsWritten).toEqual(["Bash(m)"]);
   });
 });

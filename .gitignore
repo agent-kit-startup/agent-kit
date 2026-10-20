@@ -110,3 +110,9 @@ __pycache__/
 # large (binary assets), and account-specific; not source. See
 # docs/agentkit-landing.md and missionkit-staging-promote.plan.md.
 .cursor/context/landing-missionkit/releases/
+
+# Knowledge-classification ledger: derived from the tracked tree on demand
+# (`pnpm evidence:knowledge-classification`). CI validates a fresh census
+# (`--validate`); committing it conflicted on every parallel PR. See
+# .cursor/memory/decisions/2026-10-19_knowledge-classification-untracked.md.
+docs/evidence/knowledge-classification.json

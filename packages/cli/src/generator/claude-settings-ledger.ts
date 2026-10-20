@@ -1,6 +1,7 @@
 /**
  * Grow-only ledger of what the kit has ever written into `.claude/settings.json`
- * (deny rows and hook entries), stored at `.cursor/agent-kit.claude-settings.json`.
+ * (deny rows, allow rows and hook entries), stored at `.cursor/agent-kit.claude-settings.json`.
+ * `allowRowsWritten` came later under the same schemaVersion: absent reads as empty.
  *
  * Dedicated file on purpose: the managed-hash ledger (lifecycle/overlay.ts) drops
  * sibling keys on save, so it cannot carry this data.
@@ -28,6 +29,7 @@ export interface ClaudeHookEntryRecord {
 export interface ClaudeSettingsLedger {
   schemaVersion: 1;
   denyRowsWritten: string[];
+  allowRowsWritten: string[];
   hookEntriesWritten: ClaudeHookEntryRecord[];
 }
 
@@ -56,7 +58,7 @@ type ReadState =
   | { kind: "ok"; ledger: ClaudeSettingsLedger };
 
 function emptyLedger(): ClaudeSettingsLedger {
-  return { schemaVersion: 1, denyRowsWritten: [], hookEntriesWritten: [] };
+  return { schemaVersion: 1, denyRowsWritten: [], allowRowsWritten: [], hookEntriesWritten: [] };
 }
 
 function hookKey(r: ClaudeHookEntryRecord): string {
@@ -65,6 +67,7 @@ function hookKey(r: ClaudeHookEntryRecord): string {
 
 function normalize(
   denyRows: readonly string[],
+  allowRows: readonly string[],
   hooks: readonly ClaudeHookEntryRecord[],
 ): ClaudeSettingsLedger {
   const seen = new Map<string, ClaudeHookEntryRecord>();
@@ -72,6 +75,7 @@ function normalize(
   return {
     schemaVersion: 1,
     denyRowsWritten: [...new Set(denyRows)].sort(),
+    allowRowsWritten: [...new Set(allowRows)].sort(),
     hookEntriesWritten: [...seen.values()].sort(
       (a, b) => a.event.localeCompare(b.event) || a.marker.localeCompare(b.marker),
     ),
@@ -91,6 +95,8 @@ function parseLedger(raw: string): ClaudeSettingsLedger | null {
   if (!Array.isArray(o.denyRowsWritten) || !o.denyRowsWritten.every((r) => typeof r === "string")) {
     return null;
   }
+  const allowRows = o.allowRowsWritten ?? [];
+  if (!Array.isArray(allowRows) || !allowRows.every((r) => typeof r === "string")) return null;
   if (!Array.isArray(o.hookEntriesWritten)) return null;
   const hooks: ClaudeHookEntryRecord[] = [];
   for (const h of o.hookEntriesWritten) {
@@ -107,7 +113,7 @@ function parseLedger(raw: string): ClaudeSettingsLedger | null {
       marker: (h as ClaudeHookEntryRecord).marker,
     });
   }
-  return normalize(o.denyRowsWritten as string[], hooks);
+  return normalize(o.denyRowsWritten as string[], allowRows as string[], hooks);
 }
 
 async function readState(root: string): Promise<{ abs: string; state: ReadState }> {
@@ -147,6 +153,7 @@ export async function saveClaudeSettingsLedger(
   root: string,
   additions: {
     denyRowsWritten?: readonly string[];
+    allowRowsWritten?: readonly string[];
     hookEntriesWritten?: readonly ClaudeHookEntryRecord[];
   },
   opts: { overwriteInvalid?: boolean } = {},
@@ -158,6 +165,7 @@ export async function saveClaudeSettingsLedger(
   const base = state.kind === "ok" ? state.ledger : emptyLedger();
   const merged = normalize(
     [...base.denyRowsWritten, ...(additions.denyRowsWritten ?? [])],
+    [...base.allowRowsWritten, ...(additions.allowRowsWritten ?? [])],
     [...base.hookEntriesWritten, ...(additions.hookEntriesWritten ?? [])],
   );
   await mkdir(path.dirname(abs), { recursive: true });

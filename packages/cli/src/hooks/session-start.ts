@@ -20,6 +20,7 @@ import { fileExists } from "../utils/fs.js";
 import { HANDOFF_REL } from "../utils/kit-paths.js";
 import { capHandoffExcerpt, HANDOFF_EXCERPT_MAX_BYTES } from "./handoff-excerpt.js";
 import {
+  COLONY_HOST_HINT,
   CURSOR_AWARENESS_NUDGE,
   DOGFOOD_INBOX_HINT,
   HARD_RULES,
@@ -213,6 +214,11 @@ async function dogfoodInboxSection(root: string): Promise<string | null> {
     }
   }
   return null;
+}
+
+/** One line when the session runs inside Colony (it sets `COLONY_HOST_CLI`). */
+export function colonyHostSection(env: NodeJS.ProcessEnv = process.env): string | null {
+  return env.COLONY_HOST_CLI?.trim() ? COLONY_HOST_HINT : null;
 }
 
 async function loadUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
@@ -802,6 +808,9 @@ export async function buildSessionStartAdditionalContext(
 
   const dogfood = await dogfoodInboxSection(root);
   if (dogfood) parts.push(dogfood);
+
+  const colonyHost = colonyHostSection();
+  if (colonyHost) parts.push(colonyHost);
 
   // The three spawn-backed nudges run concurrently, each capped by a deadline that
   // kills its children, so one hung check cannot stall sessionStart. parts[] order

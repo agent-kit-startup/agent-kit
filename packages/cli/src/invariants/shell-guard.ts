@@ -28,6 +28,12 @@ export interface ShellGuardOptions {
    * when the public repo isn't named directly on the command line.
    */
   remotes?: Record<string, string> | null;
+  /**
+   * Base branch of each PR/MR a `gh pr merge` / `glab mr merge` segment names, keyed by
+   * `prMergeKey`, resolved by the caller (`gh pr view` / `glab mr view`); `null` = could not
+   * resolve. When absent, the `pr-merge-protected-base` rule does not run (pure callers).
+   */
+  prMergeBases?: Record<string, string | null> | null;
 }
 
 const CITE = "agent-kit guard shell (ADR 2026-07-29_cli-invariants-thin-hook-adapters)";
@@ -282,6 +288,77 @@ function ghTargetsPublicRepo(head: string): boolean {
   return PUBLIC_REPO_RE.test(head);
 }
 
+/** A `gh pr merge` / `glab mr merge` invocation: which PR/MR, in which repo. */
+export interface PrMergeTarget {
+  forge: "github" | "gitlab";
+  /** Number, URL or branch; null = the PR/MR of the current branch. */
+  selector: string | null;
+  /** `-R`/`--repo` value; null = the repo of the working directory. */
+  repo: string | null;
+}
+
+const PR_MERGE_HEAD_RE = /^(?:[\w./-]+\/)?(gh\s+pr|glab\s+mr)\s+merge\b/;
+/** Merge flags that take a value (gh and glab), so the value is not read as the selector. */
+const PR_MERGE_VALUE_FLAGS: ReadonlySet<string> = new Set([
+  "-R",
+  "--repo",
+  "-t",
+  "--subject",
+  "-b",
+  "--body",
+  "-F",
+  "--body-file",
+  "-A",
+  "--author-email",
+  "--match-head-commit",
+  "-m",
+  "--message",
+  "--squash-message",
+  "--sha",
+]);
+
+/**
+ * Parse one canonical head as a PR/MR merge. Whitespace tokens only: a quoted
+ * multi-word flag value before the selector misreads the selector, which then
+ * fails to resolve and the rule denies (fail-closed).
+ */
+export function parsePrMergeHead(head: string): PrMergeTarget | null {
+  const m = PR_MERGE_HEAD_RE.exec(head);
+  if (!m?.[1]) return null;
+  const forge = m[1].startsWith("gh") ? "github" : "gitlab";
+  const tokens = head.slice(m[0].length).trim().split(/\s+/).filter(Boolean);
+  let selector: string | null = null;
+  let repo: string | null = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i] as string;
+    const inline = /^(--?[\w-]+)=(.*)$/.exec(t);
+    if (inline) {
+      if (inline[1] === "-R" || inline[1] === "--repo") repo = inline[2] || null;
+      continue;
+    }
+    if (t.startsWith("-")) {
+      if (PR_MERGE_VALUE_FLAGS.has(t)) {
+        if ((t === "-R" || t === "--repo") && tokens[i + 1]) repo = tokens[i + 1] as string;
+        i++;
+      }
+      continue;
+    }
+    if (selector === null) selector = t;
+  }
+  return { forge, selector, repo };
+}
+
+export function prMergeKey(target: PrMergeTarget): string {
+  return `${target.forge}\u0000${target.repo ?? ""}\u0000${target.selector ?? ""}`;
+}
+
+/** Every PR/MR merge the command runs, so the caller can resolve their bases. */
+export function prMergeTargets(command: string): PrMergeTarget[] {
+  return shellSegments(command)
+    .map((segment) => parsePrMergeHead(canonicalGitHead(segment)))
+    .filter((t): t is PrMergeTarget => t !== null);
+}
+
 function anyHeadMatches(command: string, re: RegExp): boolean {
   return shellInvocationHeads(command).some((head) => re.test(head));
 }
@@ -427,6 +504,25 @@ export const SHELL_DENY_RULES: Array<{
         }
         return false;
       }),
+  },
+  {
+    // Claude settings allow `gh pr merge` / `glab mr merge` so the /git-staging merge
+    // skips the auto-mode classifier; this rule keeps that allowance to non-protected bases.
+    id: "pr-merge-protected-base",
+    description:
+      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too",
+    test: (cmd, opts) => {
+      const bases = opts?.prMergeBases;
+      if (!bases) return false;
+      return shellSegments(cmd).some((segment) => {
+        // Same authorization as the /git-prod main push.
+        if (segmentHasAllowMainPushEnv(segment)) return false;
+        const target = parsePrMergeHead(canonicalGitHead(segment));
+        if (!target) return false;
+        const base = bases[prMergeKey(target)];
+        return typeof base !== "string" || isProtectedBranch(base);
+      });
+    },
   },
 ];
 

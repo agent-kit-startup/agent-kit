@@ -48,7 +48,9 @@ const main = defineCommand({
     hook: () => import("./commands/hook.js").then((m) => m.hookCommand),
     guard: () => import("./commands/guard.js").then((m) => m.guardCommand),
     monitors: () => import("./commands/monitors.js").then((m) => m.monitorsCommand),
+    sessions: () => import("./commands/sessions.js").then((m) => m.sessionsCommand),
     validate: () => import("./commands/validate.js").then((m) => m.validateCommand),
+    "engine-info": () => import("./commands/engine-info.js").then((m) => m.engineInfoCommand),
   },
   async run({ rawArgs }) {
     // citty also invokes parent `run` after a subcommand; skip when one was selected.

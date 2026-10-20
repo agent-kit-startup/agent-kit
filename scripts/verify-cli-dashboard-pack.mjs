@@ -33,6 +33,7 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/dashboard-data.mjs",
   "package/dashboard/open.html",
   "package/dashboard/lib/broadcast-share.mjs",
+  "package/dashboard/lib/chat-sessions.mjs",
   "package/dashboard/lib/gate-exit-tickets.mjs",
   "package/dashboard/lib/guards.mjs",
   "package/dashboard/lib/open-browser.mjs",

@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { HEADLESS_ONLY_DENY_RULES, INTERACTIVE_DENY_RULES } from "./claude-permissions.js";
+import {
+  HEADLESS_ONLY_DENY_RULES,
+  INTERACTIVE_ALLOW_RULES,
+  INTERACTIVE_DENY_RULES,
+} from "./claude-permissions.js";
 import {
   buildGuardShellHookCommand,
   buildGuardShellHookEntry,
@@ -226,6 +230,7 @@ describe("mergeSessionStartHookIntoSettings", () => {
     }
     expect(JSON.parse(first.content ?? "{}").permissions.allow).toEqual([
       "Bash(git push origin *)",
+      ...INTERACTIVE_ALLOW_RULES,
     ]);
 
     const second = mergeSessionStartHookIntoSettings(first.content);
@@ -233,10 +238,37 @@ describe("mergeSessionStartHookIntoSettings", () => {
     expect(second.content).toBe(first.content);
   });
 
-  it("leaves a non-array permissions.deny untouched", () => {
-    const existing = JSON.stringify({ permissions: { deny: "Bash(rm *)" } });
-    const parsed = JSON.parse(mergeSessionStartHookIntoSettings(existing).content ?? "{}");
-    expect(parsed.permissions).toEqual({ deny: "Bash(rm *)" });
+  it("leaves a non-array permissions.deny or permissions.allow untouched", () => {
+    const badDeny = JSON.stringify({ permissions: { deny: "Bash(rm *)" } });
+    const parsed = JSON.parse(mergeSessionStartHookIntoSettings(badDeny).content ?? "{}");
+    expect(parsed.permissions).toEqual({ deny: "Bash(rm *)", allow: [...INTERACTIVE_ALLOW_RULES] });
+    const badAllow = JSON.stringify({ permissions: { allow: "Bash(ls)" } });
+    const both = JSON.parse(mergeSessionStartHookIntoSettings(badAllow).content ?? "{}");
+    expect(both.permissions).toEqual({ allow: "Bash(ls)", deny: [...INTERACTIVE_DENY_RULES] });
+  });
+
+  it("unions the interactive allow rows ledger-aware: a deleted row stays deleted", () => {
+    const ledger = {
+      schemaVersion: 1 as const,
+      denyRowsWritten: [...INTERACTIVE_DENY_RULES],
+      allowRowsWritten: [...INTERACTIVE_ALLOW_RULES],
+      hookEntriesWritten: [],
+    };
+    const raw = JSON.stringify({
+      permissions: { deny: [...INTERACTIVE_DENY_RULES], allow: ["Bash(mine)"] },
+    });
+    const kept = mergeSessionStartHookIntoSettings(raw, { ledger });
+    expect(JSON.parse(kept.content ?? "{}").permissions.allow).toEqual(["Bash(mine)"]);
+    const fresh = mergeSessionStartHookIntoSettings(raw, {
+      ledger: { ...ledger, allowRowsWritten: [] },
+    });
+    expect(JSON.parse(fresh.content ?? "{}").permissions.allow).toEqual([
+      "Bash(mine)",
+      ...INTERACTIVE_ALLOW_RULES,
+    ]);
+    expect(fresh.ledgerAdditions?.allowRowsWritten).toEqual([...INTERACTIVE_ALLOW_RULES]);
+    const dry = mergeSessionStartHookIntoSettings(raw, { authorized: false });
+    expect(dry.pending?.allowRows).toEqual([...INTERACTIVE_ALLOW_RULES]);
   });
 
   it("degrades to print-instructions on unparseable existing JSON, never guesses/overwrites", () => {
@@ -355,7 +387,7 @@ describe("writeClaudeSessionStartHook", () => {
     expect(result.status).toBe("applied");
     const parsed = JSON.parse(await readFile(path.join(dir, "settings.json"), "utf8"));
     expect(parsed.permissions).toEqual({
-      allow: ["Bash(git status:*)"],
+      allow: ["Bash(git status:*)", ...INTERACTIVE_ALLOW_RULES],
       deny: [...INTERACTIVE_DENY_RULES],
     });
     expect(parsed.hooks.SessionStart).toHaveLength(1);
@@ -561,6 +593,7 @@ describe("ledger-aware settings merge", () => {
     const ledger = {
       schemaVersion: 1 as const,
       denyRowsWritten: [...rows],
+      allowRowsWritten: [],
       hookEntriesWritten: [
         { event: "SessionStart", marker: SESSION_START_HOOK_MARKER },
         { event: "PreToolUse", marker: GUARD_SHELL_HOOK_MARKER },

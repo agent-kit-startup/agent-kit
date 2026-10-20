@@ -29,9 +29,10 @@
  *     removable.
  *
  * Same merge also unions INTERACTIVE_DENY_RULES (claude-permissions.ts) into
- * `permissions.deny`: kit rows are added once, user rows are never removed or
- * reordered, and the headless-only rows (`ALLOW_MAIN_PUSH=`, promote skills)
- * never land here so attended /git-prod keeps working.
+ * `permissions.deny` and INTERACTIVE_ALLOW_RULES into `permissions.allow`: kit
+ * rows are added once, user rows are never removed or reordered, and the
+ * headless-only rows (`ALLOW_MAIN_PUSH=`, promote skills) never land here so
+ * attended /git-prod keeps working.
  *
  * The one case merge cannot handle safely — existing `.claude/settings.json`
  * that is not valid JSON — degrades to `print-instructions` (`unavailable`
@@ -61,7 +62,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isRealWriteTargetContained, resolveContained } from "../lifecycle/paths.js";
 import { ensureDir } from "../utils/fs.js";
-import { INTERACTIVE_DENY_RULES } from "./claude-permissions.js";
+import { INTERACTIVE_ALLOW_RULES, INTERACTIVE_DENY_RULES } from "./claude-permissions.js";
 import {
   CLAUDE_SETTINGS_LEDGER_REL,
   type ClaudeHookEntryRecord,
@@ -184,11 +185,13 @@ export interface SessionStartHookMergeResult {
 
 export interface ClaudeSettingsPending {
   denyRows: string[];
+  allowRows: string[];
   hookEntries: ClaudeHookEntryRecord[];
 }
 
 export interface ClaudeLedgerAdditions {
   denyRowsWritten: string[];
+  allowRowsWritten: string[];
   hookEntriesWritten: ClaudeHookEntryRecord[];
 }
 
@@ -206,8 +209,8 @@ const PRE_TOOL_USE_EVENT = "PreToolUse";
  * Pure merge: given the existing `.claude/settings.json` text (or null when
  * the file does not exist yet), return the next file content. Touches only
  * `hooks.SessionStart`, the kit `hooks.PreToolUse` Bash group and
- * `permissions.deny` (union); never touches other
- * SessionStart hook groups or deny entries the user already has.
+ * `permissions.deny` / `permissions.allow` (union); never touches other
+ * SessionStart hook groups or deny/allow entries the user already has.
  */
 export function mergeSessionStartHookIntoSettings(
   existingRaw: string | null,
@@ -233,8 +236,12 @@ export function mergeSessionStartHookIntoSettings(
     }
   }
 
-  const pending: ClaudeSettingsPending = { denyRows: [], hookEntries: [] };
-  const additions: ClaudeLedgerAdditions = { denyRowsWritten: [], hookEntriesWritten: [] };
+  const pending: ClaudeSettingsPending = { denyRows: [], allowRows: [], hookEntries: [] };
+  const additions: ClaudeLedgerAdditions = {
+    denyRowsWritten: [],
+    allowRowsWritten: [],
+    hookEntriesWritten: [],
+  };
 
   const hooks = isPlainObject(root.hooks) ? { ...root.hooks } : {};
   const sessionStart = Array.isArray(hooks.SessionStart) ? [...hooks.SessionStart] : [];
@@ -285,8 +292,18 @@ export function mergeSessionStartHookIntoSettings(
     (acc, next, i) => (i === 0 ? next : combineStatus(acc, next)),
     "unchanged",
   );
-  const denyAdded = mergeKitDenyRules(root, { ledger, authorized }, pending, additions);
-  const finalStatus: UpsertGroupStatus = denyAdded && status === "unchanged" ? "refreshed" : status;
+  const ctx = { ledger, authorized };
+  const denyAdded = mergeKitRuleRows(root, "deny", INTERACTIVE_DENY_RULES, ctx, pending, additions);
+  const allowAdded = mergeKitRuleRows(
+    root,
+    "allow",
+    INTERACTIVE_ALLOW_RULES,
+    ctx,
+    pending,
+    additions,
+  );
+  const finalStatus: UpsertGroupStatus =
+    (denyAdded || allowAdded) && status === "unchanged" ? "refreshed" : status;
 
   return {
     content: `${JSON.stringify(root, null, 2)}\n`,
@@ -302,36 +319,40 @@ function combineStatus(a: UpsertGroupStatus, b: UpsertGroupStatus): UpsertGroupS
 }
 
 /**
- * Ledger-aware union of INTERACTIVE_DENY_RULES into `root.permissions.deny` in
- * place. toAdd = kit rows - present - ledger.denyRowsWritten (appended; user
- * rows never reordered or removed). Without a ledger a missing row is
- * ambiguous: added only when authorized, else recorded in `pending`. Present
- * kit rows are seeded into the ledger additions. Returns true when a rule was
- * added. A non-object `permissions` or non-array `deny` is left alone (never
- * guess at repairing user settings).
+ * Ledger-aware union of the kit `rules` into `root.permissions[kind]` in place.
+ * toAdd = kit rows - present - ledger rows of that kind (appended; user rows
+ * never reordered or removed). Without a ledger a missing row is ambiguous:
+ * added only when authorized, else recorded in `pending`. Present kit rows are
+ * seeded into the ledger additions. Returns true when a rule was added. A
+ * non-object `permissions` or non-array list is left alone (never guess at
+ * repairing user settings).
  */
-function mergeKitDenyRules(
+function mergeKitRuleRows(
   root: Record<string, unknown>,
+  kind: "deny" | "allow",
+  rules: readonly string[],
   ctx: { ledger: ClaudeSettingsLedger | null; authorized: boolean },
   pending: ClaudeSettingsPending,
   additions: ClaudeLedgerAdditions,
 ): boolean {
   if (root.permissions !== undefined && !isPlainObject(root.permissions)) return false;
   const permissions = isPlainObject(root.permissions) ? { ...root.permissions } : {};
-  if (permissions.deny !== undefined && !Array.isArray(permissions.deny)) return false;
-  const deny: unknown[] = Array.isArray(permissions.deny) ? [...permissions.deny] : [];
-  const written = new Set(ctx.ledger?.denyRowsWritten ?? []);
-  for (const rule of INTERACTIVE_DENY_RULES) {
-    if (deny.includes(rule)) additions.denyRowsWritten.push(rule);
-  }
-  const missing = INTERACTIVE_DENY_RULES.filter(
-    (rule) => !deny.includes(rule) && !written.has(rule),
+  if (permissions[kind] !== undefined && !Array.isArray(permissions[kind])) return false;
+  const list: unknown[] = Array.isArray(permissions[kind]) ? [...permissions[kind]] : [];
+  const pendingRows = kind === "deny" ? pending.denyRows : pending.allowRows;
+  const written = kind === "deny" ? additions.denyRowsWritten : additions.allowRowsWritten;
+  const ledgerRows = new Set(
+    (kind === "deny" ? ctx.ledger?.denyRowsWritten : ctx.ledger?.allowRowsWritten) ?? [],
   );
+  for (const rule of rules) {
+    if (list.includes(rule)) written.push(rule);
+  }
+  const missing = rules.filter((rule) => !list.includes(rule) && !ledgerRows.has(rule));
   const toAdd = ctx.ledger === null && !ctx.authorized ? [] : missing;
-  if (ctx.ledger === null && !ctx.authorized) pending.denyRows.push(...missing);
+  if (ctx.ledger === null && !ctx.authorized) pendingRows.push(...missing);
   if (toAdd.length === 0) return false;
-  additions.denyRowsWritten.push(...toAdd);
-  permissions.deny = [...deny, ...toAdd];
+  written.push(...toAdd);
+  permissions[kind] = [...list, ...toAdd];
   root.permissions = permissions;
   return true;
 }
@@ -405,7 +426,12 @@ export async function writeClaudeSessionStartHook(
     relativePath: CLAUDE_SETTINGS_REL,
     status: merged.status,
   };
-  if (merged.pending && (merged.pending.denyRows.length || merged.pending.hookEntries.length)) {
+  if (
+    merged.pending &&
+    (merged.pending.denyRows.length ||
+      merged.pending.allowRows.length ||
+      merged.pending.hookEntries.length)
+  ) {
     result.pending = merged.pending;
   }
   if (authorized && merged.ledgerAdditions && ledgerGrows(ledger, merged.ledgerAdditions)) {
@@ -419,9 +445,11 @@ export async function writeClaudeSessionStartHook(
 function ledgerGrows(ledger: ClaudeSettingsLedger | null, add: ClaudeLedgerAdditions): boolean {
   if (ledger === null) return true;
   const rows = new Set(ledger.denyRowsWritten);
+  const allowRows = new Set(ledger.allowRowsWritten);
   const hooks = new Set(ledger.hookEntriesWritten.map((h) => `${h.event}\0${h.marker}`));
   return (
     add.denyRowsWritten.some((r) => !rows.has(r)) ||
+    add.allowRowsWritten.some((r) => !allowRows.has(r)) ||
     add.hookEntriesWritten.some((h) => !hooks.has(`${h.event}\0${h.marker}`))
   );
 }
@@ -431,6 +459,10 @@ export interface ClaudeSettingsDriftReport {
   denyRows: string[];
   /** Kit rows with no ledger to say whether the operator deleted them. */
   ambiguousDenyRows: string[];
+  /** Kit allow rows the merge would add (ledger present, operator never had them). */
+  allowRows: string[];
+  /** Kit allow rows with no ledger to say whether the operator deleted them. */
+  ambiguousAllowRows: string[];
   /** Kit hook entries absent from the file (missing or ambiguous). */
   hookEntries: ClaudeHookEntryRecord[];
 }
@@ -481,22 +513,31 @@ export async function planClaudeSettingsDrift(
   const merged = mergeSessionStartHookIntoSettings(raw, { ledger, authorized: false });
   if (merged.content === null) return null;
   const next = JSON.parse(merged.content) as Record<string, unknown>;
-  const deny = (r: Record<string, unknown>): string[] =>
-    isPlainObject(r.permissions) && Array.isArray(r.permissions.deny)
-      ? r.permissions.deny.filter((x): x is string => typeof x === "string")
-      : [];
-  const had = new Set(deny(existing));
-  const denyRows = deny(next).filter((r) => !had.has(r));
+  const rowsOf = (r: Record<string, unknown>, kind: "deny" | "allow"): string[] => {
+    const list = isPlainObject(r.permissions) ? r.permissions[kind] : undefined;
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+  };
+  const hadDeny = new Set(rowsOf(existing, "deny"));
+  const hadAllow = new Set(rowsOf(existing, "allow"));
+  const denyRows = rowsOf(next, "deny").filter((r) => !hadDeny.has(r));
+  const allowRows = rowsOf(next, "allow").filter((r) => !hadAllow.has(r));
   const ambiguousDenyRows = merged.pending?.denyRows ?? [];
+  const ambiguousAllowRows = merged.pending?.allowRows ?? [];
   const missingEntries = kitEntries.filter((e) => !present.includes(e));
   const ledgerHas = (e: ClaudeHookEntryRecord): boolean =>
     Boolean(ledger?.hookEntriesWritten.some((h) => h.event === e.event && h.marker === e.marker));
   // A ledger-recorded deletion is the operator's choice: not drift.
   const hookEntries = missingEntries.filter((e) => !ledgerHas(e));
-  if (denyRows.length === 0 && ambiguousDenyRows.length === 0 && hookEntries.length === 0) {
+  if (
+    denyRows.length === 0 &&
+    ambiguousDenyRows.length === 0 &&
+    allowRows.length === 0 &&
+    ambiguousAllowRows.length === 0 &&
+    hookEntries.length === 0
+  ) {
     return null;
   }
-  return { denyRows, ambiguousDenyRows, hookEntries };
+  return { denyRows, ambiguousDenyRows, allowRows, ambiguousAllowRows, hookEntries };
 }
 
 export function formatClaudeSettingsDrift(
@@ -512,6 +553,15 @@ export function formatClaudeSettingsDrift(
     if (report.ambiguousDenyRows.length > 0) {
       lines.push(
         `(${report.ambiguousDenyRows.length} row(s) ambiguous: no ${CLAUDE_SETTINGS_LEDGER_REL} ledger, so a deliberate deletion cannot be told apart.)`,
+      );
+    }
+  }
+  const allowRows = [...report.allowRows, ...report.ambiguousAllowRows];
+  if (allowRows.length > 0) {
+    lines.push("Add to permissions.allow:", JSON.stringify(allowRows, null, 2));
+    if (report.ambiguousAllowRows.length > 0) {
+      lines.push(
+        `(${report.ambiguousAllowRows.length} row(s) ambiguous: no ${CLAUDE_SETTINGS_LEDGER_REL} ledger, so a deliberate deletion cannot be told apart.)`,
       );
     }
   }

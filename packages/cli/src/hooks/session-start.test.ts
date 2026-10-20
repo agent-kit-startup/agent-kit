@@ -6,12 +6,13 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { formatSessionStartOutput } from "./format-session-start.js";
 import { HANDOFF_EXCERPT_MAX_BYTES } from "./handoff-excerpt.js";
-import { CURSOR_AWARENESS_NUDGE, HARD_RULES } from "./hard-rules.js";
+import { COLONY_HOST_HINT, CURSOR_AWARENESS_NUDGE, HARD_RULES } from "./hard-rules.js";
 import { buildPreCompactUserMessage } from "./pre-compact.js";
 import {
   type AuditSessionCommandRunner,
   buildSessionStartAdditionalContext,
   type CursorAwarenessSpawn,
+  colonyHostSection,
   cursorAwarenessSection,
   detachedAuditSessionsSection,
   formatSessionAge,
@@ -337,6 +338,33 @@ describe("buildSessionStartAdditionalContext", () => {
     );
     const { additional_context } = await buildSessionStartAdditionalContext(root);
     expect(additional_context).not.toContain("## Dogfood inbox");
+  });
+
+  it("adds the Colony host line only when COLONY_HOST_CLI is set", async () => {
+    const root = await fixtureRoot();
+    vi.stubEnv("COLONY_HOST_CLI", "");
+    try {
+      const off = await buildSessionStartAdditionalContext(root);
+      expect(off.additional_context).not.toContain("Colony host");
+      vi.stubEnv("COLONY_HOST_CLI", "/opt/colony/colony");
+      const on = await buildSessionStartAdditionalContext(root);
+      expect(on.additional_context).toContain(COLONY_HOST_HINT);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("colonyHostSection", () => {
+  it("names the request kinds and waits for the operator", () => {
+    expect(colonyHostSection({})).toBeNull();
+    expect(colonyHostSection({ COLONY_HOST_CLI: "  " })).toBeNull();
+    const line = colonyHostSection({ COLONY_HOST_CLI: "/usr/bin/colony" }) ?? "";
+    expect(line.split("\n")).toHaveLength(1);
+    for (const kind of ["merge-pr <N>", "rerun-checks", "push-branch"])
+      expect(line).toContain(kind);
+    expect(line).toContain('"$COLONY_HOST_CLI" request');
+    expect(line).toContain("2 denied: final");
   });
 });
 

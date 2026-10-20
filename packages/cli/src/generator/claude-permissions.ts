@@ -18,6 +18,7 @@
  * - INTERACTIVE_DENY_RULES: merged into `.claude/settings.json`
  *   `permissions.deny`. Keeps attended /git-prod working: its authorized
  *   `ALLOW_MAIN_PUSH=1 git push origin main` and the Skill rows stay allowed.
+ * - INTERACTIVE_ALLOW_RULES: merged into `permissions.allow` (same ledger rules).
  */
 
 /** Rows shared by both modes: plain main/master pushes and force pushes. */
@@ -66,3 +67,19 @@ export const HEADLESS_DENY_RULES: readonly string[] = [
 ];
 
 export const INTERACTIVE_DENY_RULES: readonly string[] = [...SHARED_DENY_RULES];
+
+/**
+ * Interactive allow rows: the /git-staging merge step. Narrow rules resolve before
+ * the auto-mode classifier, so the kit routine, not the classifier, decides the
+ * staging merge; auto mode already allows the push and the PR creation. The
+ * PreToolUse guard still denies a merge whose base is main/master/prod or cannot be
+ * resolved (shell-guard.ts `pr-merge-protected-base`), and /git-prod never merges
+ * into main from the agent. Headless ticks need no row (`--dangerously-skip-permissions`).
+ * ADR 2026-08-13_claude-cli-kit-load-bootstrap.md, Amend (2026-10-19).
+ */
+export const INTERACTIVE_ALLOW_RULES: readonly string[] = [
+  "Bash(gh pr merge)",
+  "Bash(gh pr merge *)",
+  "Bash(glab mr merge)",
+  "Bash(glab mr merge *)",
+];
