@@ -85,6 +85,7 @@ assertion, in code) to write anywhere outside `staging/`.
 3. Injects a static `<title>`, description, canonical, Open Graph, Twitter Card, and favicon
    into `<head>` for crawlers (dc-runtime moves `<helmet>` into `<head>` at boot, which is
    too late for anything that does not execute JS)
+4. Seeds the public numbers from the tracked stamp (see "Public numbers (build-time stamp)")
 
 Release version and changelog notes are **not** a build-time feed. They live in the
 canvas fields below and are stamped with `pnpm landing:update-release` (does not deploy).
@@ -92,6 +93,8 @@ canvas fields below and are stamped with `pnpm landing:update-release` (does not
 ### Release version and product notes
 
 Two existing canvas fields. The hero is the wordmark "Mission Kit", a grey "release" chip, and a cyan version link. There is no "New release" pill and no live GitHub release badge. Product notes are not a `CHANGELOG.md` dump.
+
+Under the hero buttons sit two text links: **Become a contributor** opens the public `docs/CONTRIBUTING.md`, and **Sponsor Mission Kit** opens `https://github.com/sponsors/agent-kit-startup`, a GitHub Sponsors tier checkout (verified 2026-10-19). `.github/FUNDING.yml` names the same account (`github: [agent-kit-startup]`), so the repository Sponsor button and the landing link go to the same place. If the receiving account ever changes, update both in the same change (the canvas href through a Claude Design zip).
 
 | Field | Selector | Content |
 |---|---|---|
@@ -113,7 +116,26 @@ Then `pnpm landing:build`. Deploy stays `landing:deploy:staging` / `landing:prom
 
 **Release closeout (autonomous):** after public GitHub Release Latest exists for `vX.Y.Z`, private tag CI job `sync-landing` runs `node scripts/sync-landing-release.mjs` (same stamp + staging hop + promote). It fails if Latest does not match, `HOSTINGER_API_TOKEN` is unset, or live HTML would stay stale. Manual retry: Actions workflow_dispatch `sync_landing` (optional `landing_version`). Local: `pnpm landing:sync-release -- --version X.Y.Z`. This does not merge the public sync PR and does not skip the staging hop. Design-canvas visual deploys stay on `/kit-staging` HITL.
 
-`landing:sync` overwrites `remote/` wholesale. Re-run `landing:update-release` after a Design zip so the two fields are not reverted to a live badge or an empty box.
+`landing:sync` overwrites `remote/` wholesale. Re-run `landing:update-release` after a Design zip so the two fields are not reverted to a live badge or an empty box. The numbers stamp lives outside `remote/` and survives a sync.
+
+### Public numbers (build-time stamp)
+
+GitHub stars for `agent-kit-startup/agent-kit` and npm monthly downloads for `@dadado/agent-kit-cli` come from a tracked stamp, `.cursor/context/landing-missionkit/numbers.json` (schema 1: `stampedAt`, `githubStars`, `npmDownloadsLastMonth`). `landing:build` injects it into `dist/` only and never edits the canvas:
+
+- every `span[data-star-count]` gets `data-value`, `data-stamped` and a `title` ("GitHub stars as of YYYY-MM-DD"). The canvas logic `fetchStars()` already reads `[data-star-count][data-value]` as its starting value.
+- a `<script type="application/json" id="mk-numbers">` block before `</head>` carries the whole stamp for a later numbers strip.
+
+The build fails if the stamp is missing or invalid, or if the canvas has no star chip. `verify-landing` fails if the hydrated DOM lacks a seeded chip or a valid `#mk-numbers` block.
+
+```bash
+pnpm landing:update-numbers                    # fetch both numbers live, stamp today (UTC)
+pnpm landing:update-numbers -- --dry-run       # print only
+pnpm landing:update-numbers -- --stars 20 --downloads 4802 --date 2026-10-19   # offline override
+```
+
+`GITHUB_TOKEN` (environment only, never written) raises the GitHub API rate limit. Re-stamp before a landing deploy you want fresh numbers on, then commit the JSON. The stamp is not wired into tag CI `sync-landing` yet.
+
+Known gap: the canvas still fetches `api.github.com` at load to refresh the star count, and `verify-landing` treats that host as noise. Proposed ADR `decisions/2026-10-19_missionkit-landing-soft-onboarding-engine-numbers-waitlist-prompt.md` item (b) removes the runtime fetch through Claude Design. After that sync, `api.github.com` leaves `IGNORED_NOISE_HOSTS`. Showing the stamp date visibly is also a Design change; today it is only the chip `title`.
 
 ### On-load vs on-interaction requests
 

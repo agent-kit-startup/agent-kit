@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { evaluateShellCommand, SHELL_DENY_RULES } from "./shell-guard.js";
+import {
+  evaluateShellCommand,
+  parsePrMergeHead,
+  prMergeKey,
+  prMergeTargets,
+  SHELL_DENY_RULES,
+} from "./shell-guard.js";
 
 describe("evaluateShellCommand", () => {
   afterEach(() => {
@@ -371,6 +377,7 @@ describe("evaluateShellCommand", () => {
       "git-clean-fd",
       "public-repo-direct-write",
       "git-push-main",
+      "pr-merge-protected-base",
     ]);
     for (const rule of SHELL_DENY_RULES) {
       expect(typeof rule.test).toBe("function");
@@ -379,11 +386,12 @@ describe("evaluateShellCommand", () => {
   });
 });
 
-describe("SHELL_DENY_RULES scope (git-workflow + public-repo-write, deliberately)", () => {
-  it("is exactly the six rules (five git-scoped + the public-repo-write ADR amendment)", () => {
+describe("SHELL_DENY_RULES scope (git-workflow + two named forge exceptions, deliberately)", () => {
+  it("is exactly the seven rules (five git-scoped + public-repo-write + PR merge base)", () => {
     // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11 for
-    // agent-signature-leak-guard phase2: widening beyond git-only to also deny
-    // `gh pr create|merge` against the public repo is a deliberate, named exception.
+    // agent-signature-leak-guard phase2 (`gh pr create|merge` against the public
+    // repo) and 2026-10-19 (`gh pr merge` / `glab mr merge` into a protected or
+    // unresolved base): each widening beyond git-only is a deliberate, named exception.
     expect(SHELL_DENY_RULES.map((r) => r.id)).toEqual([
       "git-checkout-path",
       "git-restore",
@@ -391,6 +399,7 @@ describe("SHELL_DENY_RULES scope (git-workflow + public-repo-write, deliberately
       "git-clean-fd",
       "public-repo-direct-write",
       "git-push-main",
+      "pr-merge-protected-base",
     ]);
   });
 
@@ -401,5 +410,73 @@ describe("SHELL_DENY_RULES scope (git-workflow + public-repo-write, deliberately
     for (const cmd of ["rm -rf /", "rm -rf ~", "chmod -R 777 /", "dd if=/dev/zero of=/dev/sda"]) {
       expect(evaluateShellCommand(cmd).permission).toBe("allow");
     }
+  });
+});
+
+describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
+  afterEach(() => {
+    delete process.env.ALLOW_MAIN_PUSH;
+  });
+
+  it("parses the selector, the repo and the forge, skipping flag values", () => {
+    expect(parsePrMergeHead("gh pr merge 12 --squash")).toEqual({
+      forge: "github",
+      selector: "12",
+      repo: null,
+    });
+    expect(parsePrMergeHead("gh pr merge -R acme/app --subject x 34 --merge")).toEqual({
+      forge: "github",
+      selector: "34",
+      repo: "acme/app",
+    });
+    expect(parsePrMergeHead("gh pr merge --repo=acme/app")).toEqual({
+      forge: "github",
+      selector: null,
+      repo: "acme/app",
+    });
+    expect(parsePrMergeHead("glab mr merge 5 -m done")).toEqual({
+      forge: "gitlab",
+      selector: "5",
+      repo: null,
+    });
+    expect(parsePrMergeHead("gh pr view 12")).toBeNull();
+  });
+
+  it("finds every merge in a compound command, after wrappers and env", () => {
+    const targets = prMergeTargets("gh pr checks 3 && sudo FOO=1 gh pr merge 3 ; glab mr merge 9");
+    expect(targets.map((t) => `${t.forge}:${t.selector}`)).toEqual(["github:3", "gitlab:9"]);
+  });
+
+  const bases = (base: string | null, command: string) => {
+    const [target] = prMergeTargets(command);
+    if (!target) throw new Error(`no merge in ${command}`);
+    return { prMergeBases: { [prMergeKey(target)]: base } };
+  };
+
+  it("allows a merge into staging, develop or a feature base", () => {
+    for (const base of ["staging", "develop", "homologacao", "feat/x"]) {
+      const cmd = "gh pr merge 12 --merge";
+      expect(evaluateShellCommand(cmd, bases(base, cmd)).permission, base).toBe("allow");
+    }
+  });
+
+  it("denies a merge into main, master or prod, and an unresolved base", () => {
+    for (const base of ["main", "master", "prod", null]) {
+      const cmd = "gh pr merge 12 --merge";
+      const r = evaluateShellCommand(cmd, bases(base, cmd));
+      expect(r.permission, String(base)).toBe("deny");
+      expect(r.rule, String(base)).toBe("pr-merge-protected-base");
+    }
+    const glab = "glab mr merge 5";
+    expect(evaluateShellCommand(glab, bases("main", glab)).rule).toBe("pr-merge-protected-base");
+  });
+
+  it("lets the authorized /git-prod env through, like the main push", () => {
+    const cmd = "ALLOW_MAIN_PUSH=1 gh pr merge 12 --merge";
+    expect(evaluateShellCommand(cmd, bases("main", cmd)).permission).toBe("allow");
+  });
+
+  it("does not run without resolved bases (pure callers)", () => {
+    expect(evaluateShellCommand("gh pr merge 12").permission).toBe("allow");
   });
 });

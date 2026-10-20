@@ -11,7 +11,7 @@ Want to help Mission Kit?
 - From a consumer project: agent-kit contribute (docs/contribute-upstream.md)
 - Bugs and questions: GitHub issues (Discussions is not enabled)
 - Code of Conduct: .github/CODE_OF_CONDUCT.md
-- Security: private channel in .github/SECURITY.md (never a public issue)
+- Security: private channel in SECURITY.md (never a public issue)
 
 Public repo: https://github.com/agent-kit-startup/agent-kit
 Install: npx @dadado/agent-kit-cli@5.0.0 install

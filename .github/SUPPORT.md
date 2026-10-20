@@ -38,7 +38,7 @@ subset. Its output is the single most useful thing to paste into an issue.
 | Something is missing | Feature request issue |
 | "How do I…" / "is this supported?" | Open an issue; questions are in scope |
 | Docs are wrong, stale, or unclear | Bug report issue, with the doc path |
-| Security vulnerability | **Not an issue** — follow [SECURITY.md](SECURITY.md) |
+| Security vulnerability | **Not an issue** — follow [SECURITY.md](../SECURITY.md) |
 | Conduct concern | [Code of Conduct](CODE_OF_CONDUCT.md) |
 | Code, docs, or skill contribution | PR — see [Contributing](../docs/CONTRIBUTING.md) |
 

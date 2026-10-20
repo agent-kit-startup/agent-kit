@@ -29,16 +29,19 @@ describe("guard shell help text matches SHELL_DENY_RULES", () => {
     expect(description).toMatch(/protected-branch/i);
   });
 
-  // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11: the
-  // guard is git-scoped by default, with exactly one named, deliberate
-  // exception (`public-repo-direct-write`, which also denies `gh pr
-  // create|merge`) for agent-signature-leak-guard phase2. A new rule must be
-  // either `git-`-prefixed or explicitly added to GIT_SCOPE_EXCEPTIONS below —
-  // never silently widen scope past that.
-  const GIT_SCOPE_EXCEPTIONS = new Set(["public-repo-direct-write"]);
+  // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11 and
+  // 2026-10-19: the guard is git-scoped by default, with two named, deliberate
+  // exceptions (`public-repo-direct-write`, which also denies `gh pr
+  // create|merge`, and `pr-merge-protected-base`, the base check behind the
+  // Claude merge allow rows). A new rule must be either `git-`-prefixed or
+  // explicitly added to GIT_SCOPE_EXCEPTIONS below — never silently widen scope.
+  const GIT_SCOPE_EXCEPTIONS = new Map([
+    ["public-repo-direct-write", "repo"],
+    ["pr-merge-protected-base", "merge"],
+  ]);
 
-  it("ships only git-scoped rules plus the named public-repo-write exception", () => {
-    expect(SHELL_DENY_RULES).toHaveLength(6);
+  it("ships only git-scoped rules plus the named exceptions", () => {
+    expect(SHELL_DENY_RULES).toHaveLength(7);
     for (const rule of SHELL_DENY_RULES) {
       expect(rule.id.startsWith("git-") || GIT_SCOPE_EXCEPTIONS.has(rule.id)).toBe(true);
     }
@@ -48,8 +51,8 @@ describe("guard shell help text matches SHELL_DENY_RULES", () => {
     // Derived from the rule ids: git-checkout-path, git-restore, git-reset-hard,
     // git-clean-fd, public-repo-direct-write, git-push-main. A new rule family
     // must reach the help sentence.
-    const families = SHELL_DENY_RULES.map((rule) =>
-      GIT_SCOPE_EXCEPTIONS.has(rule.id) ? "repo" : rule.id.split("-")[1],
+    const families = SHELL_DENY_RULES.map(
+      (rule) => GIT_SCOPE_EXCEPTIONS.get(rule.id) ?? rule.id.split("-")[1],
     );
     for (const family of families) {
       expect(description.toLowerCase()).toContain(family);
@@ -69,6 +72,10 @@ describe("evaluateGuardShell git helper gating", () => {
         calls.push(`remotes:${cwd}`);
         return { origin: "git@github.com:example/repo.git" };
       },
+      resolvePrBase: async (target, cwd) => {
+        calls.push(`base:${target.forge}:${target.selector ?? ""}:${cwd}`);
+        return target.selector === "7" ? "main" : "staging";
+      },
     };
     return { calls, deps };
   }
@@ -86,12 +93,39 @@ describe("evaluateGuardShell git helper gating", () => {
     expect(calls.sort()).toEqual(["branch:/tmp/repo", "remotes:/tmp/repo"]);
     expect(result.permission).toBe("deny");
   });
+
+  it("resolves the base of each PR/MR merge and only then evaluates", async () => {
+    const { calls, deps } = spyDeps();
+    const staging = await evaluateGuardShell("gh pr merge 12 --merge", "/tmp/repo", deps);
+    expect(staging.permission).toBe("allow");
+    expect(calls).toContain("base:github:12:/tmp/repo");
+    const main = await evaluateGuardShell("gh pr merge 7 --squash", "/tmp/repo", deps);
+    expect(main.rule).toBe("pr-merge-protected-base");
+    const gitlab = await evaluateGuardShell("glab mr merge 7", "/tmp/repo", deps);
+    expect(gitlab.rule).toBe("pr-merge-protected-base");
+  });
+
+  it("denies a merge whose base cannot be resolved", async () => {
+    const { deps } = spyDeps();
+    const result = await evaluateGuardShell("gh pr merge 12", "/tmp/repo", {
+      ...deps,
+      resolvePrBase: async () => null,
+    });
+    expect(result.rule).toBe("pr-merge-protected-base");
+  });
+
+  it("resolves no base for commands that merge nothing", async () => {
+    const { calls, deps } = spyDeps();
+    await evaluateGuardShell("gh pr view 12 && git push origin feat/x", "/tmp/repo", deps);
+    expect(calls.some((c) => c.startsWith("base:"))).toBe(false);
+  });
 });
 
 describe("runGuardShellHook --format claude (PreToolUse)", () => {
   const featureBranchDeps = {
     detectCurrentBranch: async () => "feat/x",
     detectRemotes: async () => ({ origin: "git@github.com:example/repo.git" }),
+    resolvePrBase: async () => "staging",
   };
   const claudeStdin = (command: string) => async () => ({
     session_id: "s",

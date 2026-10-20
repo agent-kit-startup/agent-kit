@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Do **not** use this form for a security vulnerability. Follow the
-        [security policy](https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SECURITY.md)
+        [security policy](https://github.com/agent-kit-startup/agent-kit/blob/main/SECURITY.md)
         instead - a public issue exposes the problem before a fix exists.
 
   - type: checkboxes

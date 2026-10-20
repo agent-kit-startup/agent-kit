@@ -41,5 +41,5 @@ Skip this block if you did not touch `registry/`.
 
 <!--
 By opening this PR you agree to the Code of Conduct (.github/CODE_OF_CONDUCT.md).
-Security issue? Do not open a PR or an issue — see .github/SECURITY.md.
+Security issue? Do not open a PR or an issue — see SECURITY.md at the repository root.
 -->

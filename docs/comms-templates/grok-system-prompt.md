@@ -104,4 +104,4 @@ STATUS: HITL pending
 - `docs/getting-started.md`, `README.md`, `install.md`
 - `docs/five-layer-claim-matrix.md`, `docs/public-launch-announcement.md`
 - `docs/comms-channel-map.md`, `docs/comms-content-calendar.md`
-- `.github/SUPPORT.md`, `.github/SECURITY.md`, `docs/CONTRIBUTING.md`
+- `.github/SUPPORT.md`, `SECURITY.md`, `docs/CONTRIBUTING.md`

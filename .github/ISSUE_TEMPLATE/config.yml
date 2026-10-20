@@ -7,7 +7,7 @@ contact_links:
     url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SUPPORT.md
     about: Where to file what, and what makes a question answerable. Questions are welcome as issues - this page tells you which template to pick.
   - name: Report a security vulnerability
-    url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/SECURITY.md
+    url: https://github.com/agent-kit-startup/agent-kit/blob/main/SECURITY.md
     about: Never report a vulnerability in a public issue. Use the private channel described here.
   - name: Code of Conduct
     url: https://github.com/agent-kit-startup/agent-kit/blob/main/.github/CODE_OF_CONDUCT.md

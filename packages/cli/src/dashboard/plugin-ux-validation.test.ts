@@ -2599,6 +2599,7 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       git: "Git",
       memory: "Memory",
       terminals: "Terminals",
+      chats: "Chats",
       processes: "Processes",
       config: "Config",
     };
@@ -2652,6 +2653,7 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       "git",
       "memory",
       "terminals",
+      "chats",
       "processes",
       "config",
     ];

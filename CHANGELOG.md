@@ -10,6 +10,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-10-20
+
+### Added
+
+- `agent-kit engine-info [--json]` prints the engine manifest: the CLI name and version, the supported Node range (`engines.node`), the driver events protocol version and the Mission Control snapshot schema version (`dashboardDataVersion`). A host that runs the CLI as a managed component reads it to decide whether it supports that build.
+- Each release also publishes a platform-neutral engine tarball on its GitHub Release: `agent-kit-engine-<version>.tar.gz` with `SHA256SUMS`. It holds the same files as the npm package plus the runtime dependencies and an `engine.json` manifest (the `engine-info --json` output), so `node dist/index.js` runs from the extracted folder with nothing installed. npm stays a channel. `pnpm engine:artifact` builds it locally after `pnpm build`.
+- `agent-kit sessions [--json] [--cwd <dir>]` lists the folder's saved agent chats, newest first: title, age, short id and the `claude --resume <id>` command that reopens each one. The title is the name you set, else the generated title, else the first prompt you typed. Mission Control has a matching **Chats** section whose rows copy `cd <workspace> && claude --resume <id>` (a web page cannot open a terminal). Claude Code sessions are read from `~/.claude/projects/`; Codex and Cursor say "not supported yet". The snapshot gains a `chats` field (`dashboardDataVersion` 1.7.0, additive; same object as `sessions --json`). Chat titles are private: a broadcast Mission Control leaves them out.
+- The repository has a `.github/FUNDING.yml`, so GitHub shows a Sponsor button that opens the GitHub Sponsors checkout for `agent-kit-startup`. The **Sponsor Mission Kit** link on missionkit.io goes to the same checkout.
+- Inside Colony, the session-start context now says that a Colony host is available: when `COLONY_HOST_CLI` is set, an agent that may not merge a PR, rerun failed checks or push a branch itself files `"$COLONY_HOST_CLI" request merge-pr <N> | rerun-checks ... | push-branch` and waits for the operator's click. `/git-staging` uses it for an operator-owed merge instead of stopping; a denial is final for the run.
+
+### Changed
+
+- Claude Code: `agent-kit install --claude` and `agent-kit update --claude` also add `gh pr merge` and `glab mr merge` to `permissions.allow` in `.claude/settings.json`, so the `/git-staging` merge step runs in auto mode instead of being refused by the auto-mode classifier as a merge without review. `agent-kit guard shell` (Claude and Cursor) now looks up the PR or MR base and denies a merge into `main`, `master` or `prod`, or into a base it cannot resolve; `ALLOW_MAIN_PUSH=1` lifts it as it does for the main push. The rows follow the deny rows' rules: written only by the `--claude` commands, recorded in `.cursor/agent-kit.claude-settings.json`, and a row you delete stays deleted. Plain `agent-kit update` prints the rows it would add.
+- The security policy moved from `.github/SECURITY.md` to `SECURITY.md` at the repository root, where GitHub and plugin registries both look for it. It is the only copy. The README, contributing guide, docs index, Code of Conduct, support page, PR template and issue-template links now point at the root file; old `.github/SECURITY.md` links no longer resolve.
+
+### Fixed
+
+- Mission Control: muted text (`--text-muted`) now meets WCAG AA contrast (at least 4.5:1) on every `--bg-*` surface of both skins (primary, secondary, card and card hover). The Staging hygiene banner's path list, which sits on the yellow tint, moves to `--text-secondary`. The `legacy` skin moves from `#6d8094` to `#7f93a8` (the landing's value) and the `cursor` skin from `#6e6e6e` to `#8b8b8b`. Colony uses the same values.
+
 ## [6.3.0] - 2026-10-18
 
 ### Added

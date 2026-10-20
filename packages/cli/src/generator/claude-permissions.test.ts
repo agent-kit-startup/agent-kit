@@ -3,6 +3,7 @@ import { evaluateShellCommand } from "../invariants/shell-guard.js";
 import {
   HEADLESS_DENY_RULES,
   HEADLESS_ONLY_DENY_RULES,
+  INTERACTIVE_ALLOW_RULES,
   INTERACTIVE_DENY_RULES,
 } from "./claude-permissions.js";
 
@@ -212,5 +213,42 @@ describe("claude permission deny rules", () => {
     const authorized = "ALLOW_MAIN_PUSH=1 git push origin main";
     expect(INTERACTIVE_DENY_RULES.some((r) => bashRuleMatches(r, authorized))).toBe(false);
     expect(evaluateShellCommand(authorized).permission).toBe("allow");
+  });
+});
+
+describe("INTERACTIVE_ALLOW_RULES (the /git-staging merge step)", () => {
+  const merges = ["gh pr merge", "gh pr merge 12 --merge", "glab mr merge", "glab mr merge 5"];
+  const others = [
+    "gh pr view 12",
+    "gh pr create --base staging",
+    "glab mr view 5",
+    "git push origin main",
+  ];
+
+  it("covers every merge form and nothing else", () => {
+    for (const cmd of merges) {
+      expect(
+        INTERACTIVE_ALLOW_RULES.some((r) => bashRuleMatches(r, cmd)),
+        cmd,
+      ).toBe(true);
+    }
+    for (const cmd of others) {
+      expect(
+        INTERACTIVE_ALLOW_RULES.some((r) => bashRuleMatches(r, cmd)),
+        cmd,
+      ).toBe(false);
+    }
+  });
+
+  it("is not shadowed by a deny row and never lands in the headless deny list", () => {
+    for (const cmd of merges) {
+      expect(
+        INTERACTIVE_DENY_RULES.some((r) => bashRuleMatches(r, cmd)),
+        cmd,
+      ).toBe(false);
+    }
+    for (const rule of INTERACTIVE_ALLOW_RULES) {
+      expect(HEADLESS_DENY_RULES, rule).not.toContain(rule);
+    }
   });
 });

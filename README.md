@@ -147,4 +147,4 @@ Mission Kit (Agent Kit) is open source under the [Apache License 2.0](https://ww
 
 Want to improve skills, docs, or the CLI? Start at [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). Factory and sync details live in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-Participation is covered by the [Code of Conduct](.github/CODE_OF_CONDUCT.md). Stuck or unsure where to ask? [Support](.github/SUPPORT.md). Found a vulnerability? Do not open an issue - follow the [security policy](.github/SECURITY.md).
+Participation is covered by the [Code of Conduct](.github/CODE_OF_CONDUCT.md). Stuck or unsure where to ask? [Support](.github/SUPPORT.md). Found a vulnerability? Do not open an issue - follow the [security policy](SECURITY.md).

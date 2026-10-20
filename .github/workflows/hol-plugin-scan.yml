@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,6 +28,7 @@ jobs:
         with:
           plugin_dir: "."
           fail_on_severity: high
-          # Tracked checkout, plugin-scanner 3.0.123: Final Score 94/100.
-          # The remaining low is root SECURITY.md, which stays under .github/.
+          # Tracked checkout, plugin-scanner 3.0.123: Final Score 94/100 while
+          # SECURITY.md lived under .github/ (its only low). SECURITY.md is at
+          # the repo root since 2026-10-19 (ADR 2026-08-05 amend).
           min_score: 80

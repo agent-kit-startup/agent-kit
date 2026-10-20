@@ -13,7 +13,7 @@ Related: [comms hub](comms.md), [channel map](comms-channel-map.md), [calendar](
 | Draft replies | Answer support questions grounded in shipped docs (getting-started, README, install.md); route bugs to GitHub issues; answer licensing from the README Licensing section | Draft → HITL Ask → human posts |
 | Draft posts | Recap / release / contributor-ask copy per the [calendar](comms-content-calendar.md) and [templates](comms-templates/recap.md) | Draft → HITL Ask → human posts |
 | Report | Weekly community digest: mention volume, sentiment, top questions, open-issue movement | Autonomous (local file / DM to operator) |
-| Escalate | Security reports → private path in `.github/SECURITY.md`; CoC violations → maintainer; anything ambiguous → operator | Always to a human |
+| Escalate | Security reports → private path in `SECURITY.md`; CoC violations → maintainer; anything ambiguous → operator | Always to a human |
 
 **Never (hard rules, same as the comms loop):**
 
@@ -87,7 +87,7 @@ Paste [comms-templates/grok-system-prompt.md](comms-templates/grok-system-prompt
 
 | Signal | Route |
 |--------|-------|
-| Security vulnerability mention | Private reporting path in `.github/SECURITY.md`; never discuss publicly |
+| Security vulnerability mention | Private reporting path in `SECURITY.md`; never discuss publicly |
 | Commercial/licensing question | Apache-2.0, free for commercial use; no sales contact today |
 | CoC violation / harassment | Operator/maintainer; bot does not moderate publicly |
 | Docs contradiction (CHANGELOG vs missionkit.io vs Releases) | Stop drafting; flag to operator to fix docs first |

@@ -25,9 +25,9 @@ function initGitRepo(dir: string) {
   execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: dir });
 }
 
-/** Run dashboard-data.mjs against `repo` as MISSION_CONTROL_REPO_ROOT and parse its JSON stdout. */
-function runDashboardData(repo: string): Record<string, unknown> {
-  const out = execFileSync("node", [dashboardDataScript], {
+/** Raw stdout of dashboard-data.mjs run against `repo` as MISSION_CONTROL_REPO_ROOT. */
+function runDashboardDataRaw(repo: string, extraEnv: Record<string, string> = {}): string {
+  return execFileSync("node", [dashboardDataScript], {
     cwd: repo,
     encoding: "utf8",
     env: {
@@ -36,9 +36,31 @@ function runDashboardData(repo: string): Record<string, unknown> {
       MISSION_CONTROL_REPO_ROOT: repo,
       // Keep optional collectors from doing extra work on a scratch repo.
       AGENT_KIT_DASHBOARD_DATA_BUDGET_MS: "5000",
+      // Loopback unless a test opts into broadcast.
+      HOST: "127.0.0.1",
+      MISSION_CONTROL_TOKEN: "",
+      ...extraEnv,
     },
   });
-  return JSON.parse(out);
+}
+
+/** Run dashboard-data.mjs against `repo` as MISSION_CONTROL_REPO_ROOT and parse its JSON stdout. */
+function runDashboardData(
+  repo: string,
+  extraEnv: Record<string, string> = {},
+): Record<string, unknown> {
+  return JSON.parse(runDashboardDataRaw(repo, extraEnv));
+}
+
+/** Seed one saved Claude Code chat for `repo` under the fake HOME. */
+function seedChat(repo: string, id: string, title: string) {
+  const dir = join(fakeHome, ".claude", "projects", repo.replace(/[^a-zA-Z0-9]/g, "-"));
+  mkdirSync(join(dir, id, "subagents"), { recursive: true });
+  writeFileSync(
+    join(dir, `${id}.jsonl`),
+    `${JSON.stringify({ type: "user", message: { content: "hello" } })}\n${JSON.stringify({ type: "custom-title", customTitle: title })}\n`,
+  );
+  writeFileSync(join(dir, id, "subagents", "agent-1.jsonl"), "{}\n");
 }
 
 describe(
@@ -342,6 +364,54 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
       text: `Gate exit ${stamp}: unanswered gate backlog-write`,
       branchState: "unmerged",
     });
+  });
+
+  it("lists the workspace's saved chats in `chats` and matches the schema (1.7.0)", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-chats-"));
+    initGitRepo(repo);
+    const id = "33333333-3333-4333-8333-333333333333";
+    seedChat(repo, id, "chat <b>title</b>");
+
+    const snap = runDashboardData(repo);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    const chats = snap.chats as {
+      withheld: boolean;
+      vendors: {
+        vendor: string;
+        status: string;
+        sessions: Record<string, unknown>[];
+        total: number;
+      }[];
+    };
+    expect(chats.withheld).toBe(false);
+    expect(chats.vendors.map((v) => [v.vendor, v.status, v.total])).toEqual([
+      ["claude", "ok", 1],
+      ["codex", "unsupported", 0],
+      ["cursor", "unsupported", 0],
+    ]);
+    expect(chats.vendors[0].sessions[0]).toMatchObject({
+      id,
+      title: "chat <b>title</b>",
+      titleSource: "custom",
+    });
+  });
+
+  it("withholds chats when the snapshot is generated for a broadcast server", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-chats-bc-"));
+    initGitRepo(repo);
+    const id = "44444444-4444-4444-8444-444444444444";
+    const sentinel = "broadcast-sentinel-title-91c2";
+    seedChat(repo, id, sentinel);
+
+    const raw = runDashboardDataRaw(repo, {
+      HOST: "0.0.0.0",
+      MISSION_CONTROL_TOKEN: "t".repeat(24),
+    });
+    expect(raw).not.toContain(sentinel);
+    expect(raw).not.toContain(id);
+    const snap = JSON.parse(raw);
+    expect(snap.chats).toEqual({ withheld: true, vendors: [] });
+    expect(schemaErrors(schema, snap)).toEqual([]);
   });
 
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
