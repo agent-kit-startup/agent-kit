@@ -23,8 +23,11 @@ on:
         type: string
         default: ""
 
-# Read-only GITHUB_TOKEN by default. Public pushes and Releases use the
-# PUBLIC_REPO_TOKEN PAT; publish-npm adds id-token: write for provenance.
+# Read-only GITHUB_TOKEN by default. Public pushes and Releases use a
+# public-sync GitHub App installation token when vars.PUBLIC_SYNC_APP_CLIENT_ID
+# is set, else the PUBLIC_REPO_TOKEN PAT. publish-npm adds id-token: write (OIDC); npm makes no
+# provenance from a private repo or a self-hosted runner, so --provenance is a
+# no-op here (ADR 2026-10-21_ci-auth-without-expiring-secrets point 4).
 permissions:
   contents: read
 
@@ -154,10 +157,13 @@ jobs:
 
 
   # ── Sync to public mirror (tag or manual trigger) ──
-  # Secret PUBLIC_REPO_TOKEN: fine-grained token on the public repo with
-  # Contents, Pull requests, Workflows, and Administration. Administration is
-  # what lets the job use the Protect main admin bypass (one required review,
-  # squash only, auto-merge disabled). Opt out: PUBLIC_SYNC_AUTO_MERGE=false.
+  # Credential: the public-sync GitHub App (vars.PUBLIC_SYNC_APP_CLIENT_ID +
+  # secrets.PUBLIC_SYNC_APP_PRIVATE_KEY, installed on the public repo and listed as
+  # a bypass actor on its ruleset) when configured, else the PUBLIC_REPO_TOKEN PAT.
+  # Either needs Contents, Pull requests, Workflows, and Administration on the
+  # public repo. Administration is what lets the job use the Protect main bypass
+  # (one required review, squash only, auto-merge disabled). Opt out:
+  # PUBLIC_SYNC_AUTO_MERGE=false.
   # The job fails if the public build is red or the squash merge does not land.
   # Private-origin allowlist only (SoT: agent-kit-startup/agent-kit-dev).
   # Path C mirrors ci.yml; public / forks have no PUBLIC_REPO_TOKEN by design.
@@ -192,16 +198,31 @@ jobs:
           node-version: 22
           package-manager-cache: false
 
+      # GitHub App installation token for the public repo (ADR
+      # 2026-10-21_ci-auth-without-expiring-secrets point 3): minted per run, lasts
+      # one hour, nothing to expire between releases. Inert until the operator sets
+      # vars.PUBLIC_SYNC_APP_CLIENT_ID and secrets.PUBLIC_SYNC_APP_PRIVATE_KEY; until
+      # then GH_TOKEN falls back to the PUBLIC_REPO_TOKEN PAT.
+      - name: Mint public repo App token (when configured)
+        id: app-token
+        if: vars.PUBLIC_SYNC_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
+        with:
+          client-id: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PUBLIC_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ vars.PUBLIC_SYNC_APP_OWNER || 'agent-kit-startup' }}
+          repositories: ${{ vars.PUBLIC_SYNC_APP_REPOSITORIES || 'agent-kit' }}
+
       - name: Run sync
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::PUBLIC_REPO_TOKEN is not configured. Tag and manual public-sync runs require this secret; sync did not run."
+            echo "::error::No public repo credential: neither the public-sync App (vars.PUBLIC_SYNC_APP_CLIENT_ID) nor PUBLIC_REPO_TOKEN is configured. Tag and manual public-sync runs require one; sync did not run."
             exit 1
           fi
           gh auth setup-git
           node scripts/sync-public.mjs
         env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PUBLIC_REPO_TOKEN }}
           # Slug for gh --repo is derived from this URL in sync-public.mjs (no hardcoded PUBLIC_REPO_SLUG).
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}
           PUBLIC_BRANCH: main
@@ -216,8 +237,10 @@ jobs:
   # Private-origin allowlist only (same SoT as sync-public; Path C mirror).
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
-  # Secret NPM_TOKEN: the publish step skips gracefully if not configured
-  # (secrets context is not allowed in job-level `if`).
+  # Secret NPM_TOKEN: the publish step fails the job when it is not configured
+  # (secrets context is not allowed in job-level `if`); a tag run with no token
+  # must not be a green job with no upload. Lifetime is checked before the tag by
+  # scripts/secret-lifetime-preflight.mjs (/kit-prod section 5).
   publish-npm:
     needs: build
     if: >-
@@ -250,8 +273,8 @@ jobs:
       - name: Publish
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN not configured — skipping npm publish."
-            exit 0
+            echo "::error::NPM_TOKEN is not configured. Tag runs require this secret; npm publish did not run."
+            exit 1
           fi
           pnpm --filter @dadado/agent-kit-cli publish --provenance --access public --no-git-checks
         env:
@@ -317,7 +340,7 @@ jobs:
   # Private-origin allowlist only (same SoT as sync-public / publish-npm).
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
-  # Secret PUBLIC_REPO_TOKEN (same as sync-public): fail loud when unset on a tag.
+  # Public repo credential (same App or PUBLIC_REPO_TOKEN as sync-public): fail loud when neither is set.
   # Secret ENGINE_SIGNING_KEY: signing placeholder, skipped while the key does not exist.
   publish-engine:
     needs: [build, sync-public]
@@ -359,11 +382,22 @@ jobs:
         env:
           ENGINE_SIGNING_KEY: ${{ secrets.ENGINE_SIGNING_KEY }}
 
+      # Same App token as sync-public (inert until configured; PAT fallback).
+      - name: Mint public repo App token (when configured)
+        id: app-token
+        if: vars.PUBLIC_SYNC_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
+        with:
+          client-id: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PUBLIC_SYNC_APP_PRIVATE_KEY }}
+          owner: ${{ vars.PUBLIC_SYNC_APP_OWNER || 'agent-kit-startup' }}
+          repositories: ${{ vars.PUBLIC_SYNC_APP_REPOSITORIES || 'agent-kit' }}
+
       - name: Upload to the public Release
         run: |
           set -euo pipefail
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::PUBLIC_REPO_TOKEN is not configured. The engine artifact was not uploaded."
+            echo "::error::No public repo credential (public-sync App or PUBLIC_REPO_TOKEN). The engine artifact was not uploaded."
             exit 1
           fi
           slug="$(printf '%s' "$PUBLIC_REPO_URL" | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
@@ -380,5 +414,5 @@ jobs:
           gh release upload "$tag" "$tarball" dist/engine/SHA256SUMS --repo "$slug" --clobber
           echo "Uploaded $tarball and SHA256SUMS to $slug Release $tag."
         env:
-          GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PUBLIC_REPO_TOKEN }}
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}

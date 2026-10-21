@@ -76,7 +76,9 @@ function settingsMissingRow(row: string): string {
   return `${JSON.stringify(parsed, null, 2)}\n`;
 }
 
-describe("update --claude (opt-in ledger-aware merge)", () => {
+// A full updateCommand run takes ~5 s on a slow hosted runner; the 5 s default timed out and the
+// still-running update leaked "Update complete" into the next test's captured log.
+describe("update --claude (opt-in ledger-aware merge)", { timeout: 30_000 }, () => {
   const originalExitCode = process.exitCode;
   afterEach(() => {
     vi.restoreAllMocks();

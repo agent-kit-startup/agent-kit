@@ -452,6 +452,7 @@ This section contains the detailed prompts that should be followed when commands
 #### 9.5. **Create and push annotated tag (when absent)**  
    - Check if tag exists for current version: `git tag -l "v<version>"` where `<version>` matches `package.json`.
    - If tag does not exist, create annotated tag: `git tag -a v<version> -m "Release v<version>"` on the current main commit.
+   - **Release preflight first:** when the project defines a pre-tag release preflight (factory: `/kit-prod` §5 secret-lifetime preflight), run it before pushing the tag; red is a STOP, not a reason to tag and fix in CI.
    - Push the tag: `git push origin v<version>`.
    - **Effect**: an annotated `vX.Y.Z` tag triggers whatever tag CI the project configures (build, publish, deploy).
    - **Immutable tags — never force-move `v*`:**

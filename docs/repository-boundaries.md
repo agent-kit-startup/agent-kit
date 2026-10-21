@@ -32,19 +32,19 @@ Do not `git add -f` session paths. Contributions after Phase B: registry PRs go 
 |------|------------|------------|-------|
 | **Private** | [agent-kit-startup/agent-kit-dev](https://github.com/agent-kit-startup/agent-kit-dev) | `origin` | Core product SoT (CLI, feats, sync). Phase A also authors registry. |
 | **Public** | [agent-kit-startup/agent-kit](https://github.com/agent-kit-startup/agent-kit) | sync / community PRs | Phase A: allowlist mirror. Phase B: **registry SoT** + contribution surface. |
-| **npm** | `@dadado/agent-kit-cli` | Publish on `v*` tags when `NPM_TOKEN` is configured | Dist only |
+| **npm** | `@dadado/agent-kit-cli` | Publish on `v*` tags; requires `NPM_TOKEN` (the job fails without it) | Dist only |
 
 ## Flow: `git staging` → `git prod` → public
 
 1. **`git staging`** - PR to `staging` on the **private** repo (`agent-kit-dev`). Everything committed goes to private.
 2. **`git prod`** - `staging` → `main` on **private**; push `origin main`; create/push annotated vX.Y.Z tag when absent.
-3. **Automatic triggers** - Annotated `v*` tags on the **private** repo (`agent-kit-startup/agent-kit-dev`) trigger both `publish-npm` (when `NPM_TOKEN` configured) and `sync-public` (when `PUBLIC_REPO_TOKEN` configured) CI jobs. The same workflow file is mirrored to the public storefront; those two jobs run only on the private-origin allowlist (`github.repository == 'agent-kit-startup/agent-kit-dev'`), so public tag CI does not fail on missing private-only secrets. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from the URL). When that URL var is unset, `PUBLIC_REPO_SLUG` may override the `gh --repo` slug; when both are set, URL wins (stderr warning). The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither overrides that job-level `if`.
+3. **Automatic triggers** - Annotated `v*` tags on the **private** repo (`agent-kit-startup/agent-kit-dev`) trigger both `publish-npm` (needs `NPM_TOKEN`) and `sync-public` (needs `PUBLIC_REPO_TOKEN`) CI jobs; on the private repo each fails loud when its secret is unset. The same workflow file is mirrored to the public storefront; those two jobs run only on the private-origin allowlist (`github.repository == 'agent-kit-startup/agent-kit-dev'`), so public tag CI does not fail on missing private-only secrets. `vars.PUBLIC_REPO_URL` redirects the sync target for both `git push` and `gh --repo` (slug derived from the URL). When that URL var is unset, `PUBLIC_REPO_SLUG` may override the `gh --repo` slug; when both are set, URL wins (stderr warning). The same stderr warning fires when `PUBLIC_REPO_SLUG` diverges from a slug derivable from `--url` or the configured `public` remote. Neither overrides that job-level `if`.
 4. **Public sync PR** - Creates semantic PR body (Summary + public CHANGELOG excerpt + source SHA) against public `main`. The copied `CHANGELOG.md` and GitHub Release notes are the stripped public excerpt, not the private-full developer log.
 5. **Squash merge** - After public `build` is green, the job squash-merges. Protect main still requires one review and has auto-merge off, so a plain squash is retried with the Admin bypass. The job fails if public `main` did not move. Set `PUBLIC_SYNC_AUTO_MERGE=false` to leave the PR for a manual squash.
 6. **Public GitHub Release** - After the sync PR merges, sync creates/updates a public GitHub Release `vX.Y.Z` (public excerpt notes; Latest badge). Opt out with `PUBLIC_SYNC_CREATE_RELEASE=false`. Git tags alone do not move the Releases sidebar. Landing product notes are a separate short blurb (`node scripts/public-changelog.mjs --version X.Y.Z --blurb` into `pnpm landing:update-release`), not a `## [x.y.z]` dump.
 7. **Fallback** (manual dispatch): `pnpm git:trigger-public-sync` or *workflow_dispatch* in Actions when tag-based trigger is insufficient.
 
-Without `PUBLIC_REPO_TOKEN` configured on the **private** GitHub repo, tag and manual public-sync jobs **fail loudly** (visible Actions error). Do not configure that secret on the **public** storefront; public tag runs skip `sync-public` / `publish-npm` entirely.
+Without a public repo credential on the **private** GitHub repo (the public-sync GitHub App or `PUBLIC_REPO_TOKEN`), tag and manual public-sync jobs **fail loudly** (visible Actions error). Do not configure that secret on the **public** storefront; public tag runs skip `sync-public` / `publish-npm` entirely.
 
 ### Public launch checklist
 
@@ -81,8 +81,17 @@ Before the first publish or any new registry version, follow [npm-publish-checkl
 
 | Secret | Purpose |
 |--------|---------|
-| `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, and `Workflows: write` (required when the sync tree includes `.github/workflows/`). **Private repo only**; never set on the public storefront. |
+| `PUBLIC_REPO_TOKEN` | Fine-grained token limited to the public repo, with `Contents: write`, `Pull requests: write`, `Workflows: write` (required when the sync tree includes `.github/workflows/`), and `Administration: write` (the Protect main bypass). Fallback used only while the public-sync GitHub App below is not configured. **Private repo only**; never set on the public storefront. |
+| `PUBLIC_SYNC_APP_PRIVATE_KEY` | Private key of the public-sync GitHub App. Used with the repository **variable** `PUBLIC_SYNC_APP_CLIENT_ID`; when that variable is set, `sync-public` and `publish-engine` mint a one-hour installation token per run instead of using `PUBLIC_REPO_TOKEN`. |
 | `NPM_TOKEN` | Token to publish to the npm registry (**private** tag CI only) |
+
+**Public-sync GitHub App (replaces the PAT):** an installation token is minted per run, so nothing expires between releases. Setup, in this order:
+
+1. Create a GitHub App owned by the organization, with repository permissions `Contents: write`, `Pull requests: write`, `Workflows: write`, and `Administration: write`; no webhook.
+2. Install it on the public repository only.
+3. Add the App as a bypass actor on the public repository's Protect main ruleset (the PAT used the admin bypass).
+4. On the private repo, set the variable `PUBLIC_SYNC_APP_CLIENT_ID` and the secret `PUBLIC_SYNC_APP_PRIVATE_KEY`. Optional variables `PUBLIC_SYNC_APP_OWNER` and `PUBLIC_SYNC_APP_REPOSITORIES` default to `agent-kit-startup` and `agent-kit`.
+5. Run one public sync with the App (`pnpm git:trigger-public-sync` or the next `v*` tag). Delete `PUBLIC_REPO_TOKEN` only after that run is green.
 
 Optional repository variable `PUBLIC_REPO_URL` overrides the default public Git URL (and the derived `owner/repo` slug for `gh` PR/Release calls) without embedding credentials. Optional `PUBLIC_REPO_SLUG` sets `owner/repo` when `PUBLIC_REPO_URL` is unset (and remains the parse-failure fallback); when both are set, the URL-derived slug wins. A stderr warning is emitted whenever `PUBLIC_REPO_SLUG` diverges from a derivable URL slug.
 

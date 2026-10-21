@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" fill="none">
   <!-- GitHub repository social preview (1280x640, 2:1). Plate fill is Mission
        Control bg-primary #0b0e14, matching the marketplace logo spec
-       (dashboard/logo-marketplace.svg). Artwork is the same Cursor-skin
-       stroke helmet from dashboard/logo-cursor.svg, centered. Manual upload
+       (dashboard/logo-marketplace.svg). Artwork is the same Bare Metal skin
+       stroke helmet from dashboard/logo-bare-metal.svg, centered. Manual upload
        step: docs/github-about.md "Social preview". -->
   <rect width="1280" height="640" fill="#0b0e14"/>
   <g transform="translate(471 84) scale(15)">

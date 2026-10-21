@@ -354,10 +354,23 @@ export const CLAUDE_NESTED_SESSION_KEYS = [
   "CLAUDE_CODE_BRIDGE_SESSION_ID",
 ] as const;
 
-/** Child env for a `claude -p` spawn: mergeChildEnv minus the nested-session markers. */
+/**
+ * How long `claude -p` lets background tasks run after the last turn before
+ * it stops them (CLI default 10 minutes). A run-plan / run-plan-all worker
+ * backgrounded by the agent often takes longer, so a headless run waits for
+ * it ("0" = no ceiling) unless the operator set a value; the run itself stays
+ * stoppable (q, Ctrl-C, driver `stop`).
+ */
+export const CLAUDE_BG_WAIT_CEILING_ENV = "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS";
+
+/**
+ * Child env for a `claude -p` spawn: mergeChildEnv minus the nested-session
+ * markers, with no background-task wait ceiling unless one is set.
+ */
 export function claudeChildEnv(overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env = mergeChildEnv(overrides);
   for (const key of CLAUDE_NESTED_SESSION_KEYS) delete env[key];
+  if (!env[CLAUDE_BG_WAIT_CEILING_ENV]) env[CLAUDE_BG_WAIT_CEILING_ENV] = "0";
   return env;
 }
 
@@ -719,7 +732,8 @@ function createRelay(
     if (record.stop || closed) return;
     const gate = detectHitlGate(resultText, assistantTexts);
     if (!gate) {
-      endStdin();
+      // A background task still running will open another turn (maybe a gate): keep stdin for it.
+      if (turn.backgroundTasks === 0) endStdin();
       return;
     }
     if (gate.detection === "fallback") record.fallbackDetections += 1;

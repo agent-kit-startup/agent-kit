@@ -252,9 +252,35 @@ describe("TurnWatcher", () => {
     watcher.feed(Buffer.from(stream.slice(half)));
     watcher.end();
     expect(seen).toEqual([
-      { resultText: "r1", assistantTexts: ["one"], isError: false, subtype: null, errors: [] },
-      { resultText: "r2", assistantTexts: ["two"], isError: false, subtype: null, errors: [] },
+      {
+        resultText: "r1",
+        assistantTexts: ["one"],
+        isError: false,
+        subtype: null,
+        errors: [],
+        backgroundTasks: 0,
+      },
+      {
+        resultText: "r2",
+        assistantTexts: ["two"],
+        isError: false,
+        subtype: null,
+        errors: [],
+        backgroundTasks: 0,
+      },
     ]);
+  });
+
+  it("counts the background tasks still running when a turn closes", () => {
+    const counts: number[] = [];
+    const watcher = new TurnWatcher((info) => counts.push(info.backgroundTasks));
+    const changed = (tasks: unknown[]) =>
+      JSON.stringify({ type: "system", subtype: "background_tasks_changed", tasks });
+    const result = JSON.stringify({ type: "result", result: "r" });
+    watcher.feed(`${changed([{ task_id: "a" }, { task_id: "b" }])}\n${result}\n`);
+    watcher.feed(`${changed([])}\n${result}\n`);
+    watcher.end();
+    expect(counts).toEqual([2, 0]);
   });
 });
 
@@ -406,6 +432,17 @@ describe("claude relay with the fake claude (stream-json stdin transport)", () =
     expect(result.exitCode).toBe(0);
   });
 
+  it("keeps stdin open while a background task runs, so the gate it opens is still answered", async () => {
+    const { result, log, asked } = await run({ mode: "background", answers: [line("2")] });
+    expect(asked).toEqual(["demo"]);
+    expect(result.hitl?.stop).toBeUndefined();
+    expect(result.hitl?.replies.map((r) => r.line)).toEqual([
+      "HITL_REPLY: demo | operator reply 2 | Beta",
+    ]);
+    expect(log).toContain("received: HITL_REPLY: demo | operator reply 2 | Beta");
+    expect(result.exitCode).toBe(0);
+  });
+
   it("detects a pre-sentinel numbered list through the prose fallback and records it as such", async () => {
     const { result, asked, terminal } = await run({ mode: "fallback", answers: [line("2")] });
     expect(asked).toEqual([FALLBACK_ASK_ID]);
@@ -546,6 +583,7 @@ describe("cursor-agent has no relay", () => {
         isError: false,
         subtype: "success",
         errors: [],
+        backgroundTasks: 0,
       },
     });
   });
