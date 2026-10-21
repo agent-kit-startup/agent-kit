@@ -34,7 +34,7 @@ Legacy `agent.startupkit.com.br` redirects here; do not set it as the GitHub Web
 
 ## Social preview
 
-Asset: `dashboard/social-preview.png` (1280×640, `dashboard/social-preview.svg` is the vector source) — helmet mark on the Mission Control `#0b0e14` plate, same recipe as `dashboard/logo-marketplace.svg` (Cursor-skin stroke art, centered), plus the "Mission Kit" wordmark. Synced via `dashboard/**` in `scripts/public-sync.manifest`, so it's present on the public mirror after the next promote + sync-public.
+Asset: `dashboard/social-preview.png` (1280×640, `dashboard/social-preview.svg` is the vector source) — helmet mark on the Mission Control `#0b0e14` plate, same recipe as `dashboard/logo-marketplace.svg` (Bare Metal skin stroke art, centered), plus the "Mission Kit" wordmark. Synced via `dashboard/**` in `scripts/public-sync.manifest`, so it's present on the public mirror after the next promote + sync-public.
 
 **Apply checklist (manual, public repo, after the asset has synced):**
 

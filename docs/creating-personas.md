@@ -2,7 +2,7 @@
 
 Agent Personas provide execution mode-specific UX chrome for Agent Kit while preserving professional output. They affect chat tone and CLI banners only, never commits, HANDOFF, memory, or product documentation.
 
-Do not confuse Agent Personas with Mission Control **Interface Skins** (`legacy` / `cursor`).
+Do not confuse Agent Personas with Mission Control **Interface Skins** (`bare-metal` / `legacy`).
 
 ## Persona Pack Format
 

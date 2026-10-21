@@ -38,7 +38,11 @@ Do not tag or publish if any of these diverge.
 
 ### Behavior when the token is missing
 
-The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. If `NPM_TOKEN` is unset, the Publish step prints `NPM_TOKEN not configured — skipping npm publish.` and exits **0** (green job, no upload). Do not rely on a missing token as a safety gate: pushing a new `v*` tag still runs the job and will publish once the secret exists.
+The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. If `NPM_TOKEN` is unset, the Publish step fails the job with `NPM_TOKEN is not configured` (exit 1, no upload). A missing token is a red tag run, never a green job that skipped the upload. An expired token fails at upload time (npm answers E404 on PUT), so check token lifetimes before the tag with the project's release preflight.
+
+### Trusted publishing (OIDC) and provenance
+
+npm trusted publishing removes the long-lived token, but it does not run on self-hosted GitHub runners, and npm generates no provenance when the source repository is private (npm docs, "Trusted publishing for npm packages"). It also needs npm CLI 11.5.1 or later. Until the publish job runs on a GitHub-hosted runner with a Trusted Publisher registered on npmjs, the token above stays the publish path, and `--provenance` produces no attestation.
 
 ## Tag strategy and CI
 

@@ -343,12 +343,16 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toMatch(
       /\.plan-accordion-overview\s*\{[^}]*font-size:\s*var\(--mc-chrome-subtitle-size\)/,
     );
-    // Skins stay color/surface swaps; structure tokens live on :root / legacy.
-    const cursorBlock = dashboardHtml.match(/html\[data-dashboard-skin="cursor"\]\s*\{([^}]+)\}/);
-    expect(cursorBlock).not.toBeNull();
-    expect(cursorBlock?.[1]).not.toMatch(/--mc-radius/);
-    expect(cursorBlock?.[1]).not.toMatch(/--mc-card-padding/);
-    expect(cursorBlock?.[1]).not.toMatch(/--mc-chrome-meta-size/);
+    // Skins stay color/surface swaps; structure tokens live on the shared :root block.
+    for (const skin of ["bare-metal", "legacy"]) {
+      const block = dashboardHtml.match(
+        new RegExp(`html\\[data-dashboard-skin="${skin}"\\]\\s*\\{([^}]+)\\}`),
+      );
+      expect(block, skin).not.toBeNull();
+      expect(block?.[1]).not.toMatch(/--mc-radius/);
+      expect(block?.[1]).not.toMatch(/--mc-card-padding/);
+      expect(block?.[1]).not.toMatch(/--mc-chrome-meta-size/);
+    }
     // Status/lifecycle pills squared off to the chrome radius (design v2): the
     // capsule read as a foreign shape next to the chrome it always sits beside.
     // The capsule token stays alive for the queue-role pill below, which is the
@@ -443,18 +447,23 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     );
   });
 
-  it("exposes Legacy and Cursor dashboard skins in the More menu with local persistence", () => {
+  it("exposes Bare Metal (default) and Legacy dashboard skins in the More menu with local persistence", () => {
     // Interface Skins group lives in the More menu, separate from Agent Persona packs.
     expect(dashboardHtml).toContain('id="navSkinsLabel"');
     expect(dashboardHtml).toMatch(/navSkinsLabel[\s\S]*?>Skins</);
     expect(dashboardHtml).toContain('data-icon="skins"');
     expect(dashboardHtml).toContain("spaceIconSvg('skins', { decorative: true })");
     expect(dashboardHtml).toContain('data-dashboard-skin-option="legacy"');
-    expect(dashboardHtml).toContain('data-dashboard-skin-option="cursor"');
+    expect(dashboardHtml).toContain('data-dashboard-skin-option="bare-metal"');
+    expect(dashboardHtml).not.toContain('data-dashboard-skin-option="cursor"');
+    // Bare Metal is listed first and checked in the static markup (the default).
+    expect(dashboardHtml).toMatch(
+      /aria-checked="true" data-dashboard-skin-option="bare-metal"[^>]*>\s*Bare Metal\s*<\/button>\s*<button[^>]*aria-checked="false" data-dashboard-skin-option="legacy"[^>]*>\s*Legacy\s*</,
+    );
     expect(dashboardHtml).toContain('role="menuitemradio"');
     expect(dashboardHtml).toContain("aria-checked");
     expect(dashboardHtml).toContain("onclick=\"return setDashboardSkin('legacy')\"");
-    expect(dashboardHtml).toContain("onclick=\"return setDashboardSkin('cursor')\"");
+    expect(dashboardHtml).toContain("onclick=\"return setDashboardSkin('bare-metal')\"");
     // Namespaced localStorage preference; no repo config writes.
     expect(dashboardHtml).toContain("agent-kit:dashboard-skin");
     expect(dashboardHtml).toContain("function applyDashboardSkin(");
@@ -462,23 +471,109 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(dashboardHtml).toContain("localStorage.setItem(DASHBOARD_SKIN_KEY");
     expect(dashboardHtml).toContain("localStorage.getItem(key)");
     expect(dashboardHtml).toContain("data-dashboard-skin");
-    // Legacy keeps the pre-change palette; Cursor overrides base chrome only.
+    // Shared tokens on :root; each skin overrides exactly the 9 surface variables.
     expect(dashboardHtml).toContain("--bg-primary: #0b0e14");
-    expect(dashboardHtml).toContain('html[data-dashboard-skin="cursor"]');
     expect(dashboardHtml).toContain("--bg-primary: #141414");
-    const cursorBlock = dashboardHtml.match(/html\[data-dashboard-skin="cursor"\]\s*\{([^}]+)\}/);
-    expect(cursorBlock).not.toBeNull();
-    expect(cursorBlock?.[1]).not.toMatch(/--green\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--red\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--yellow\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--blue\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--purple\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--cyan\s*:/);
-    expect(cursorBlock?.[1]).not.toMatch(/--orange\s*:/);
+    expect(dashboardHtml).not.toContain('html[data-dashboard-skin="cursor"]');
+    // Bare Metal carries the default surfaces on :root too (no-JS fallback).
+    expect(dashboardHtml).toMatch(/:root,\s*\nhtml\[data-dashboard-skin="bare-metal"\]\s*\{/);
+    const surfaceVars = [
+      "bg-primary",
+      "bg-secondary",
+      "bg-card",
+      "bg-card-hover",
+      "border",
+      "border-active",
+      "text-primary",
+      "text-secondary",
+      "text-muted",
+    ];
+    for (const skin of ["bare-metal", "legacy"]) {
+      const block = dashboardHtml.match(
+        new RegExp(`html\\[data-dashboard-skin="${skin}"\\]\\s*\\{([^}]+)\\}`),
+      )?.[1];
+      expect(block, skin).toBeTruthy();
+      const declared = [...(block ?? "").matchAll(/--([a-z-]+)\s*:/g)].map((m) => m[1]);
+      expect(declared, skin).toEqual(surfaceVars);
+    }
     // Skin options stay in the keyboard-navigable .nav-more-item set.
     expect(dashboardHtml).toMatch(
       /data-dashboard-skin-option="legacy"[^>]*class="nav-more-item"|class="nav-more-item"[^>]*data-dashboard-skin-option="legacy"/,
     );
+  });
+
+  it("migrates a stored 'cursor' skin to 'bare-metal' and defaults to Bare Metal", () => {
+    // Fake storage + documentElement so both the pre-paint script and the
+    // runtime helpers run as shipped (no DOM needed).
+    const makeEnv = (stored: string | null) => {
+      const store = new Map<string, string>();
+      if (stored !== null) store.set("agent-kit:dashboard-skin", stored);
+      const attrs: Record<string, string> = {};
+      const favicon: Record<string, string> = {};
+      return {
+        store,
+        attrs,
+        favicon,
+        localStorage: {
+          getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+          setItem: (k: string, v: string) => store.set(k, v),
+        },
+        document: {
+          documentElement: { setAttribute: (k: string, v: string) => (attrs[k] = v) },
+          getElementById: (id: string) =>
+            id === "favicon" ? { setAttribute: (k: string, v: string) => (favicon[k] = v) } : null,
+        },
+      };
+    };
+    const prePaint = dashboardHtml.match(
+      /\/\* Restore dashboard skin before first paint[\s\S]*?\n(\(function \(\) \{[\s\S]*?\n\}\)\(\);)/,
+    )?.[1];
+    expect(prePaint).toBeTruthy();
+    const cases: Array<[string | null, string, string | null, string]> = [
+      [null, "bare-metal", null, "/logo-bare-metal.svg"],
+      ["cursor", "bare-metal", "bare-metal", "/logo-bare-metal.svg"],
+      ["bare-metal", "bare-metal", "bare-metal", "/logo-bare-metal.svg"],
+      ["legacy", "legacy", "legacy", "/logo.svg"],
+      ["bogus", "bare-metal", "bogus", "/logo-bare-metal.svg"],
+    ];
+    for (const [stored, skin, after, logo] of cases) {
+      const env = makeEnv(stored);
+      runInNewContext(prePaint as string, {
+        localStorage: env.localStorage,
+        document: env.document,
+      });
+      expect(env.attrs["data-dashboard-skin"], String(stored)).toBe(skin);
+      expect(env.store.get("agent-kit:dashboard-skin") ?? null, String(stored)).toBe(after);
+      expect(env.favicon.href, String(stored)).toBe(logo);
+    }
+
+    const runtime = [
+      /const DASHBOARD_SKIN_KEY = [^\n]*;/,
+      /const DASHBOARD_SKINS = [^\n]*;/,
+      /const DASHBOARD_SKIN_DEFAULT = [^\n]*;/,
+      /const DASHBOARD_SKIN_ALIASES = [^\n]*;/,
+      /function normalizeDashboardSkin\(skin\) \{[\s\S]*?\n\}/,
+      /function getStoredDashboardSkin\(\) \{[\s\S]*?\n\}/,
+    ]
+      .map((re) => {
+        const m = dashboardHtml.match(re);
+        expect(m, String(re)).not.toBeNull();
+        return m?.[0] ?? "";
+      })
+      .join("\n");
+    for (const [stored, skin, after] of cases) {
+      const env = makeEnv(stored);
+      const api = runInNewContext(
+        `${runtime}\n({ normalizeDashboardSkin, getStoredDashboardSkin })`,
+        { localStorage: env.localStorage },
+      ) as {
+        normalizeDashboardSkin: (s: unknown) => string;
+        getStoredDashboardSkin: () => string;
+      };
+      expect(api.normalizeDashboardSkin(stored), String(stored)).toBe(skin);
+      expect(api.getStoredDashboardSkin(), String(stored)).toBe(skin);
+      expect(env.store.get("agent-kit:dashboard-skin") ?? null, String(stored)).toBe(after);
+    }
   });
 
   it("preserves focus and scroll across SSE re-renders", () => {
@@ -2282,12 +2377,12 @@ describe("plugin-ux-validation: SSE + overview model wiring", () => {
     );
     // Base stack gap and card padding remain for widths below the breakpoint.
     expect(dashboardHtml).toMatch(/\.overview-stack\s*\{[^}]*gap:\s*12px/);
-    expect(dashboardHtml).toMatch(/:root,[\s\S]*?--mc-card-padding:\s*16px/);
+    expect(dashboardHtml).toMatch(/\n:root\s*\{[^}]*--mc-card-padding:\s*16px/);
   });
 
   it("keeps one-fold panel scroll compatible with skins, focus rings, and copy-only controls", () => {
     expect(dashboardHtml).toContain('html[data-dashboard-skin="legacy"]');
-    expect(dashboardHtml).toContain('html[data-dashboard-skin="cursor"]');
+    expect(dashboardHtml).toContain('html[data-dashboard-skin="bare-metal"]');
     expect(dashboardHtml).toContain("button:focus-visible");
     expect(dashboardHtml).toContain(".recent-plan-actions-btn:focus-visible");
     expect(dashboardHtml).toContain("@media (prefers-reduced-motion: reduce)");
@@ -2560,19 +2655,23 @@ function loadSpaceIconSvg() {
 
 describe("cockpit-validation: icons, assets, and accessible names", () => {
   it("requests the logo at the URL the static resolver serves", () => {
-    expect(dashboardHtml).toContain('href="/logo.svg"');
-    expect(dashboardHtml).toContain('src="/logo.svg"');
-    expect(dashboardHtml).toContain("/logo-cursor.svg");
-    expect(dashboardHtml).not.toContain("/dashboard/logo.svg");
+    // Static markup carries the default (Bare Metal) assets; Legacy swaps to /logo.svg.
+    expect(dashboardHtml).toContain('href="/logo-bare-metal.svg"');
+    expect(dashboardHtml).toContain('src="/logo-bare-metal.svg"');
+    expect(dashboardHtml).toContain("'/logo.svg'");
+    expect(dashboardHtml).not.toContain("logo-cursor.svg");
+    expect(dashboardHtml).not.toContain("/dashboard/logo");
     // Decorative next to the visible product name, so it carries no alt text.
     expect(dashboardHtml).toMatch(
-      /<img class="logo"[^>]*id="headerLogo"[^>]*src="\/logo\.svg"[^>]*alt=""[^>]*aria-hidden="true"|<img class="logo"[^>]*src="\/logo\.svg"[^>]*id="headerLogo"[^>]*alt=""[^>]*aria-hidden="true"/,
+      /<img class="logo"[^>]*id="headerLogo"[^>]*src="\/logo-bare-metal\.svg"[^>]*alt=""[^>]*aria-hidden="true"|<img class="logo"[^>]*src="\/logo-bare-metal\.svg"[^>]*id="headerLogo"[^>]*alt=""[^>]*aria-hidden="true"/,
     );
   });
 
   it("switches header and favicon assets by interface skin", () => {
-    expect(dashboardHtml).toContain("logo-cursor.svg");
-    expect(dashboardHtml).toMatch(/headerLogo[\s\S]*logo-cursor\.svg|logoSrc = next === 'cursor'/);
+    expect(dashboardHtml).toContain("logo-bare-metal.svg");
+    expect(dashboardHtml).toContain(
+      "const logoSrc = next === 'legacy' ? '/logo.svg' : '/logo-bare-metal.svg';",
+    );
     expect(dashboardHtml).toContain("getElementById('favicon')");
     expect(dashboardHtml).toContain("getElementById('headerLogo')");
   });
@@ -3910,7 +4009,7 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).toMatch(/\.health-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/);
     // Structure stays skin-neutral: no per-skin radius overrides on health cards.
     expect(dashboardHtml).not.toMatch(
-      /html\[data-dashboard-skin="(?:cursor|legacy)"\] \.health-card\s*\{/,
+      /html\[data-dashboard-skin="(?:bare-metal|legacy)"\] \.health-card\s*\{/,
     );
     expect(dashboardHtml).toMatch(
       /\.health-vital-card\s*\{[^}]*border-radius:\s*var\(--mc-radius\)/,

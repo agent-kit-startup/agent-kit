@@ -5,19 +5,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mission Control</title>
-<link rel="icon" type="image/svg+xml" id="favicon" href="/logo.svg">
+<link rel="icon" type="image/svg+xml" id="favicon" href="/logo-bare-metal.svg">
 <script>
-/* Restore dashboard skin before first paint (namespaced local preference). */
+/* Restore dashboard skin before first paint (namespaced local preference).
+   Default Bare Metal; a stored 'cursor' (the pre-rename id) is rewritten to
+   'bare-metal'. Keep in sync with normalizeDashboardSkin below. */
 (function () {
   var key = 'agent-kit:dashboard-skin';
-  var skin = 'legacy';
+  var skin = 'bare-metal';
   try {
     var stored = localStorage.getItem(key);
-    if (stored === 'cursor' || stored === 'legacy') skin = stored;
+    if (stored === 'cursor') {
+      localStorage.setItem(key, 'bare-metal');
+    } else if (stored === 'bare-metal' || stored === 'legacy') {
+      skin = stored;
+    }
   } catch (e) { /* private mode / blocked storage */ }
   document.documentElement.setAttribute('data-dashboard-skin', skin);
   var fav = document.getElementById('favicon');
-  if (fav) fav.setAttribute('href', skin === 'cursor' ? '/logo-cursor.svg' : '/logo.svg');
+  if (fav) fav.setAttribute('href', skin === 'legacy' ? '/logo.svg' : '/logo-bare-metal.svg');
 })();
 /* Restore Crew Monitor row density before first paint; auto-pick by viewport
    when the operator has no stored preference. Same namespaced-key + blocked-
@@ -38,18 +44,10 @@
 <style>
 /* ===== Reset & Base ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* Legacy skin (default): current Mission Control palette. */
-:root,
-html[data-dashboard-skin="legacy"] {
-  --bg-primary: #0b0e14;
-  --bg-secondary: #111620;
-  --bg-card: #161c2a;
-  --bg-card-hover: #1b2335;
-  --border: #1e2a3a;
-  --border-active: #2a3a5a;
-  --text-primary: #e2e8f0;
-  --text-secondary: #8899aa;
-  --text-muted: #7f93a8; /* same as the landing; >= 4.5:1 (WCAG AA) on every bg-* surface incl. hover; see docs/design-system.md */
+/* Shared tokens (both Interface Skins): semantic colors and structure.
+   A skin overrides only the 9 surface variables below; the token sets are
+   published in docs/contracts/mission-control-skins.json. */
+:root {
   --green: #22c55e;
   --green-bg: rgba(34,197,94,0.12);
   --yellow: #eab308;
@@ -112,8 +110,9 @@ html[data-dashboard-skin="legacy"] {
   /* Shared status / badge circles (#statusDot and .dot base). */
   --mc-status-dot-size: 7px;
 }
-/* Cursor skin: Cursor-like base chrome only; keep Agent Kit semantic highlights. */
-html[data-dashboard-skin="cursor"] {
+/* Bare Metal skin (default): neutral dark surfaces. */
+:root,
+html[data-dashboard-skin="bare-metal"] {
   --bg-primary: #141414;
   --bg-secondary: #181818;
   --bg-card: #1c1c1c;
@@ -123,6 +122,18 @@ html[data-dashboard-skin="cursor"] {
   --text-primary: #e4e4e4;
   --text-secondary: #a0a0a0;
   --text-muted: #8b8b8b; /* >= 4.5:1 (WCAG AA) on every bg-* surface incl. hover; see docs/design-system.md */
+}
+/* Legacy skin: the original blue-slate Mission Control surfaces. */
+html[data-dashboard-skin="legacy"] {
+  --bg-primary: #0b0e14;
+  --bg-secondary: #111620;
+  --bg-card: #161c2a;
+  --bg-card-hover: #1b2335;
+  --border: #1e2a3a;
+  --border-active: #2a3a5a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899aa;
+  --text-muted: #7f93a8; /* same as the landing; >= 4.5:1 (WCAG AA) on every bg-* surface incl. hover; see docs/design-system.md */
 }
 html, body {
   height: 100%;
@@ -3674,7 +3685,7 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
 <!-- Header: identity + one transport/freshness signal + refresh -->
 <div class="header">
   <button type="button" class="header-brand" id="headerBrand" onclick="return goHome()" aria-label="Home, Overview" title="Home, Overview">
-    <img class="logo" id="headerLogo" src="/logo.svg" width="28" height="28" alt="" aria-hidden="true"> Mission Control
+    <img class="logo" id="headerLogo" src="/logo-bare-metal.svg" width="28" height="28" alt="" aria-hidden="true"> Mission Control
     <span class="header-workspace" id="headerWorkspace" hidden></span>
   </button>
   <span class="header-version" id="version" hidden>v—</span>
@@ -3750,11 +3761,11 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
         <div class="nav-more-separator" role="separator"></div>
         <div class="nav-more-group" role="group" aria-labelledby="navSkinsLabel">
           <div class="nav-more-group-label" id="navSkinsLabel" data-icon="skins">Skins</div>
-          <button type="button" class="nav-more-item" role="menuitemradio" aria-checked="true" data-dashboard-skin-option="legacy" tabindex="0" onclick="return setDashboardSkin('legacy')">
-            Legacy
+          <button type="button" class="nav-more-item" role="menuitemradio" aria-checked="true" data-dashboard-skin-option="bare-metal" tabindex="0" onclick="return setDashboardSkin('bare-metal')">
+            Bare Metal
           </button>
-          <button type="button" class="nav-more-item" role="menuitemradio" aria-checked="false" data-dashboard-skin-option="cursor" tabindex="0" onclick="return setDashboardSkin('cursor')">
-            Cursor
+          <button type="button" class="nav-more-item" role="menuitemradio" aria-checked="false" data-dashboard-skin-option="legacy" tabindex="0" onclick="return setDashboardSkin('legacy')">
+            Legacy
           </button>
         </div>
       </div>
@@ -4091,17 +4102,29 @@ function goCockpitAnchor(anchorId) {
 
 // ===== Dashboard visual skins (More menu; local preference only) =====
 const DASHBOARD_SKIN_KEY = 'agent-kit:dashboard-skin';
-const DASHBOARD_SKINS = ['legacy', 'cursor'];
+const DASHBOARD_SKINS = ['bare-metal', 'legacy'];
+const DASHBOARD_SKIN_DEFAULT = 'bare-metal';
+/** Pre-rename ids still found in browser storage. */
+const DASHBOARD_SKIN_ALIASES = { cursor: 'bare-metal' };
 
 function normalizeDashboardSkin(skin) {
-  return DASHBOARD_SKINS.includes(skin) ? skin : 'legacy';
+  if (Object.prototype.hasOwnProperty.call(DASHBOARD_SKIN_ALIASES, skin)) {
+    return DASHBOARD_SKIN_ALIASES[skin];
+  }
+  return DASHBOARD_SKINS.includes(skin) ? skin : DASHBOARD_SKIN_DEFAULT;
 }
 
 function getStoredDashboardSkin() {
   try {
-    return normalizeDashboardSkin(localStorage.getItem(DASHBOARD_SKIN_KEY));
+    const stored = localStorage.getItem(DASHBOARD_SKIN_KEY);
+    const skin = normalizeDashboardSkin(stored);
+    // Rewrite an aliased value (e.g. 'cursor') so storage holds the current id.
+    if (stored !== null && stored !== skin && Object.prototype.hasOwnProperty.call(DASHBOARD_SKIN_ALIASES, stored)) {
+      localStorage.setItem(DASHBOARD_SKIN_KEY, skin);
+    }
+    return skin;
   } catch (e) {
-    return 'legacy';
+    return DASHBOARD_SKIN_DEFAULT;
   }
 }
 
@@ -4114,7 +4137,7 @@ function applyDashboardSkin(skin, opts) {
     el.setAttribute('aria-checked', selected ? 'true' : 'false');
     el.classList.toggle('active', selected);
   });
-  const logoSrc = next === 'cursor' ? '/logo-cursor.svg' : '/logo.svg';
+  const logoSrc = next === 'legacy' ? '/logo.svg' : '/logo-bare-metal.svg';
   const headerLogo = document.getElementById('headerLogo');
   if (headerLogo) headerLogo.setAttribute('src', logoSrc);
   const favicon = document.getElementById('favicon');

@@ -43,21 +43,24 @@ describe("dashboard panel static assets", () => {
     }
   });
 
-  it("ships distinct Legacy and Cursor interface logo assets", () => {
+  it("ships distinct Legacy and Bare Metal interface logo assets", () => {
     const legacy = join(dashboardDir, "logo.svg");
-    const cursor = join(dashboardDir, "logo-cursor.svg");
+    const bareMetal = join(dashboardDir, "logo-bare-metal.svg");
     expect(existsSync(legacy)).toBe(true);
-    expect(existsSync(cursor)).toBe(true);
+    expect(existsSync(bareMetal)).toBe(true);
+    // The pre-rename asset is gone (the skin id moved to bare-metal).
+    expect(existsSync(join(dashboardDir, "logo-cursor.svg"))).toBe(false);
     const legacyBody = readFileSync(legacy, "utf8");
-    const cursorBody = readFileSync(cursor, "utf8");
-    expect(legacyBody).not.toEqual(cursorBody);
-    // Cursor skin: stroke helmet mark sized for 16px chrome icons.
+    const bareMetalBody = readFileSync(bareMetal, "utf8");
+    expect(legacyBody).not.toEqual(bareMetalBody);
+    // Bare Metal skin: stroke helmet mark sized for 16px chrome icons, neutral comment.
     // Hardcoded stroke (not currentColor): #headerLogo is <img>, so currentColor paints black.
-    expect(cursorBody).toContain('viewBox="0 0 22.38 22.45"');
-    expect(cursorBody).toMatch(/helmet/i);
-    expect(cursorBody).toContain('stroke="#e4e4e4"');
-    expect(cursorBody).toContain("M9.61,22.1");
-    expect(cursorBody).not.toContain('stroke="currentColor"');
+    expect(bareMetalBody).toContain('viewBox="0 0 22.38 22.45"');
+    expect(bareMetalBody).toMatch(/helmet/i);
+    expect(bareMetalBody).toContain('stroke="#e4e4e4"');
+    expect(bareMetalBody).toContain("M9.61,22.1");
+    expect(bareMetalBody).not.toContain('stroke="currentColor"');
+    expect(bareMetalBody).not.toMatch(/cursor/i);
 
     const ctx = {
       dashboardDir,
@@ -66,8 +69,8 @@ describe("dashboard panel static assets", () => {
       realpathSync,
     };
     expect(resolveDashboardStatic("/logo.svg", ctx)).toBe(join(dashboardReal, "logo.svg"));
-    expect(resolveDashboardStatic("/logo-cursor.svg", ctx)).toBe(
-      join(dashboardReal, "logo-cursor.svg"),
+    expect(resolveDashboardStatic("/logo-bare-metal.svg", ctx)).toBe(
+      join(dashboardReal, "logo-bare-metal.svg"),
     );
   });
 });

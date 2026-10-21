@@ -483,17 +483,23 @@ export interface TurnResult {
   subtype: string | null;
   /** The result's `errors` strings (claude reports in-run failures there). */
   errors: string[];
+  /** Background tasks still running when the turn closed (last `background_tasks_changed`). */
+  backgroundTasks: number;
 }
 
 /**
  * Turn watcher over the tee'd NDJSON text: collects the turn's assistant
  * text blocks and fires `onResult` at every `result` event, then resets.
+ * It also tracks claude's `system` / `background_tasks_changed` list: a
+ * task still running (a backgrounded subagent or shell) starts another turn
+ * when it finishes, so a turn closed while one runs is not the run's end.
  * Lines that are not JSON are ignored; a partial trailing line is held
  * (up to the shared splitter cap).
  */
 export class TurnWatcher {
   private readonly lines = new LineSplitter();
   private assistantTexts: string[] = [];
+  private backgroundTasks = 0;
   private readonly decoder = new StringDecoder("utf8");
 
   constructor(private readonly onResult: (info: TurnResult) => void) {}
@@ -526,8 +532,13 @@ export class TurnWatcher {
       is_error?: unknown;
       subtype?: unknown;
       errors?: unknown;
+      tasks?: unknown;
       message?: { content?: unknown };
     };
+    if (ev.type === "system" && ev.subtype === "background_tasks_changed") {
+      this.backgroundTasks = Array.isArray(ev.tasks) ? ev.tasks.length : 0;
+      return;
+    }
     if (ev.type === "assistant") {
       const content = ev.message?.content;
       if (typeof content === "string") {
@@ -557,6 +568,7 @@ export class TurnWatcher {
         errors: Array.isArray(ev.errors)
           ? ev.errors.filter((e): e is string => typeof e === "string")
           : [],
+        backgroundTasks: this.backgroundTasks,
       });
     }
   }
