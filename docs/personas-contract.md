@@ -4,7 +4,7 @@
 
 Agent Personas provide execution mode-specific UX chrome for Agent Kit while preserving professional output hygiene. Personas affect chat tone and CLI banners only, never commits, HANDOFF, memory, or product documentation.
 
-**Interface Skin** is a separate concept: Mission Control visual styling (`legacy` / `cursor`) via `data-dashboard-skin`. Personas never set Interface Skin values.
+**Interface Skin** is a separate concept: Mission Control visual styling (`bare-metal`, the default, / `legacy`) via `data-dashboard-skin`. Personas never set Interface Skin values.
 
 ## Persona Pack Schema
 

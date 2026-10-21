@@ -391,7 +391,14 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
         ...(errors.length ? { errors } : {}),
       }),
     );
-    lastResult = { resultText: text, assistantTexts: text ? [text] : [], isError, subtype, errors };
+    lastResult = {
+      resultText: text,
+      assistantTexts: text ? [text] : [],
+      isError,
+      subtype,
+      errors,
+      backgroundTasks: 0,
+    };
   };
   const failed = (message: string, subtype = "error") =>
     finishTurn(message, true, subtype, [message]);

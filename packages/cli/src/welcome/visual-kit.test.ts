@@ -111,18 +111,19 @@ describe("visual-kit catalog", () => {
     expect(STATUS_INFO).toBe("#06b6d4");
 
     const html = readFileSync(path.resolve(repoRoot, "dashboard/dashboard.html"), "utf8");
-    const block = html.match(
-      /:root,\s*\nhtml\[data-dashboard-skin="legacy"\]\s*\{([\s\S]*?)\n\}/,
-    )?.[1];
-    expect(block).toBeTruthy();
-    const hex = (name: string): string | undefined =>
+    // Status colors are shared tokens on :root; text colors come from the Legacy surfaces.
+    const shared = html.match(/\n:root\s*\{([\s\S]*?)\n\}/)?.[1];
+    const legacy = html.match(/\nhtml\[data-dashboard-skin="legacy"\]\s*\{([\s\S]*?)\n\}/)?.[1];
+    expect(shared).toBeTruthy();
+    expect(legacy).toBeTruthy();
+    const hex = (block: string | undefined, name: string): string | undefined =>
       block?.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
-    expect(LABEL_MUTED).toBe(hex("text-secondary"));
-    expect(HELMET_OUTLINE).toBe(hex("text-primary"));
-    expect(STATUS_OK).toBe(hex("green"));
-    expect(STATUS_WARN).toBe(hex("yellow"));
-    expect(STATUS_ERR).toBe(hex("red"));
-    expect(STATUS_INFO).toBe(hex("cyan"));
+    expect(LABEL_MUTED).toBe(hex(legacy, "text-secondary"));
+    expect(HELMET_OUTLINE).toBe(hex(legacy, "text-primary"));
+    expect(STATUS_OK).toBe(hex(shared, "green"));
+    expect(STATUS_WARN).toBe(hex(shared, "yellow"));
+    expect(STATUS_ERR).toBe(hex(shared, "red"));
+    expect(STATUS_INFO).toBe(hex(shared, "cyan"));
   });
 
   it("exposes spinner frames and small marks without a full helmet reprint", () => {

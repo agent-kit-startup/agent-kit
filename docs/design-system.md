@@ -28,8 +28,8 @@ floor.
 
 | Skin (`data-dashboard-skin`) | `--text-muted` | bg-primary | bg-secondary | bg-card | bg-card-hover |
 |------------------------------|----------------|-----------:|-------------:|--------:|--------------:|
+| `bare-metal` (default) | `#8b8b8b` | 5.41 | 5.21 | 5.00 | 4.56 |
 | `legacy` | `#7f93a8` | 6.11 | 5.73 | 5.38 | 4.96 |
-| `cursor` | `#8b8b8b` | 5.41 | 5.21 | 5.00 | 4.56 |
 
 Semantic tints (`--yellow-bg` and the other `--*-bg` tokens, 12% over a bg-*
 surface) are not in the table: `--text-muted` drops below 4.5:1 on them, so text
@@ -39,8 +39,9 @@ The `legacy` value is the same `#7f93a8` the landing uses (chosen there for the
 marketing gradient), so the dashboard and the landing no longer diverge. The
 trade-off is that `legacy` muted and secondary (`#8899aa`) text are now close
 (1.08:1 between them); landing parity was preferred over a wider step. The
-`cursor` value stays a neutral gray with a clear step below `--text-secondary`
-(`#a0a0a0`, 1.30:1). Downstream hosts that copy these tokens must take the same
+`bare-metal` value stays a neutral gray with a clear step below `--text-secondary`
+(`#a0a0a0`, 1.30:1). Downstream hosts take these tokens from
+[`contracts/mission-control-skins.json`](contracts/mission-control-skins.json) and must keep the same
 values; redo the contrast math against every surface before moving either value.
 
 ## Update the remote DS

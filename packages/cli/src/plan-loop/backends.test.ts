@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
 import {
+  CLAUDE_BG_WAIT_CEILING_ENV,
   CLAUDE_ENV_PASSTHROUGH,
   CLAUDE_MAX_BUDGET_USD_ENV,
   CLAUDE_MAX_TURNS_ENV,
@@ -241,6 +242,17 @@ describe("mergeChildEnv / claudeRedactions", () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe(TOKEN);
     // cursor-agent keeps the plain merge (the CLI child-env rule is claude's).
     expect(mergeChildEnv().CLAUDECODE).toBe("1");
+  });
+
+  it("lifts the background-task wait ceiling for a claude child unless the operator set one", () => {
+    vi.stubEnv(CLAUDE_BG_WAIT_CEILING_ENV, "");
+    expect(claudeChildEnv()[CLAUDE_BG_WAIT_CEILING_ENV]).toBe("0");
+    expect(mergeChildEnv()[CLAUDE_BG_WAIT_CEILING_ENV]).toBe("");
+    vi.stubEnv(CLAUDE_BG_WAIT_CEILING_ENV, "1800000");
+    expect(claudeChildEnv()[CLAUDE_BG_WAIT_CEILING_ENV]).toBe("1800000");
+    expect(
+      claudeChildEnv({ [CLAUDE_BG_WAIT_CEILING_ENV]: "60000" })[CLAUDE_BG_WAIT_CEILING_ENV],
+    ).toBe("60000");
   });
 });
 
@@ -509,6 +521,7 @@ describe("claudeBackend.run", () => {
         isError: false,
         subtype: null,
         errors: [],
+        backgroundTasks: 0,
       },
     });
     expect(spawnFn).toHaveBeenCalledTimes(1);
@@ -624,6 +637,7 @@ describe("claudeBackend.run", () => {
       isError: false,
       subtype: "success",
       errors: [],
+      backgroundTasks: 0,
     });
   });
 

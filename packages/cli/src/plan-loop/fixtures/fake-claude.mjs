@@ -9,6 +9,10 @@
 //   fallback         turn 1 is a numbered list with the prose wording, no sentinel
 //   reserved         turn 1 ends at `HITL_GATE: git-prod | ...`
 //   nogate           turn 1 is a plain result (idles until stdin ends)
+//   background       turn 1 starts a background task and ends with no gate; when the
+//                    task finishes, turn 2 ends at `HITL_GATE: demo | Alpha | Beta`
+//                    (real claude: a finished background task opens a new turn, even
+//                    after stdin ended, and then exits)
 //   tick             turn 1 ends with `LOOP_TICK_RESULT: continue`
 //   ignore-stdin-end like `gate`, but never exits on stdin end (kill path)
 //   echo-env         turn 1 prints every vendor secret it inherited, raw and
@@ -100,6 +104,23 @@ function firstTurnBody() {
   }
 }
 
+const backgroundTasks = (tasks) =>
+  out({ type: "system", subtype: "background_tasks_changed", tasks, session_id: session });
+
+/** `background` turn 1: a backgrounded worker; its completion opens the gate turn. */
+function backgroundTurn() {
+  backgroundTasks([{ task_id: "fake-task-1", task_type: "local_agent" }]);
+  assistant("Worker still running. The gate comes when it reports.");
+  result("Worker still running. The gate comes when it reports.");
+  setTimeout(() => {
+    backgroundTasks([]);
+    turn += 1;
+    init();
+    assistant(GATE);
+    result(GATE);
+  }, 200);
+}
+
 const DRIVER_GATE =
   "Gate before this to-do.\n\nHITL_GATE: driver-demo | Proceed | Hold\n1. Proceed\n2. Hold\n";
 
@@ -139,6 +160,10 @@ function handleTurn(text) {
       session_id: session,
       num_turns: turn,
     });
+    return;
+  }
+  if (mode === "background" && turn === 1) {
+    backgroundTurn();
     return;
   }
   let body;

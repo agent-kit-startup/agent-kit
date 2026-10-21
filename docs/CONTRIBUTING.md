@@ -54,9 +54,13 @@ See [repository-boundaries.md](repository-boundaries.md): daily Git targets the 
 
 Add community skills under `registry/skills/community/<skill-id>/SKILL.md`. Core skills need maintainer review (`registry/skills/core/`).
 
-### Skins
+### Agent Personas
 
 Add community Agent Personas under `registry/personas/community/<persona-id>/persona.json`. See [creating-personas.md](creating-personas.md) for format and acceptance rules.
+
+### Skins
+
+Mission Control **Interface Skins** are not registry packs: the two skins, **Bare Metal** (`bare-metal`, the default) and **Legacy** (`legacy`), live in `dashboard/dashboard.html`. Shared tokens sit on `:root`; a skin overrides only the 9 surface variables (`--bg-primary`, `--bg-secondary`, `--bg-card`, `--bg-card-hover`, `--border`, `--border-active`, `--text-primary`, `--text-secondary`, `--text-muted`). A change to a skin token must also update [`contracts/mission-control-skins.json`](contracts/mission-control-skins.json) (a test keeps the two equal) and keep `--text-muted` at 4.5:1 or more on every surface ([design-system.md](design-system.md)).
 
 ### New skill vs improving an existing one
 

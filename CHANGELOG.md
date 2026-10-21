@@ -10,6 +10,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-10-21
+
+### Fixed
+
+- Headless runs (`run-plan`, `run-plan-all`, `run` with the `claude` backend): a turn that ends with no gate while a background task is still running (for example the `/run-plan-all` re-synthesis PO worker) no longer closes the agent's input. The gate that the next turn opens now waits for the operator's answer instead of ending the run with `stopped: unanswered gate (child exited)`, exit 4.
+- Headless `claude` runs no longer lose a background worker after 10 minutes. `claude -p` stops background tasks still running 10 minutes after the last turn (`Background tasks still running 10m after the last turn ...; stopping them`), which ended a `/run-plan-all` queue in the middle of a plan worker. The kit now starts the `claude` child with `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` (no ceiling) unless that variable is already set.
+
+### Changed
+
+- `/git-prod` and the git prod routine (`autogit/gitupdate.md` step 9.5): before pushing the first `v*` tag, run the project's release preflight when it defines one; a red preflight stops the release before the tag instead of leaving tag CI to fail after it.
+- npm publish checklist and repository boundaries: a `v*` tag run without `NPM_TOKEN` now fails the publish job instead of passing green with no upload; the checklist records that npm trusted publishing (OIDC) does not run on self-hosted runners and that a private source repository gets no provenance.
+- Mission Control opens in the **Bare Metal** skin by default (the neutral dark skin formerly called Cursor), with a neutral logo and favicon. **Legacy** stays available under More > Skins. A browser that had picked the old Cursor skin lands on Bare Metal and keeps it; a browser on Legacy stays on Legacy.
+- New `docs/contracts/mission-control-skins.json`: the token sets of the Bare Metal and Legacy skins (shared tokens plus each skin's 9 surface colors, default skin, storage key), versioned, so another app can match Mission Control's look without copying the dashboard. A test keeps it equal to `dashboard/dashboard.html`.
+- Docs name the two Mission Control skins, **Bare Metal** (default) and **Legacy**, across the contributing guide, persona and skin docs, configuration reference and design system, and link the skin token contract. The contributing guide's Skins section now covers Interface Skins instead of repeating the Agent Persona text.
+- Repository boundaries: the public sync can run on a GitHub App installation token instead of a fine-grained PAT, with the setup order (App permissions, install, ruleset bypass, variable and key, then delete the PAT after one green sync); the PAT row now lists the `Administration: write` permission the sync already needed.
+
 ## [6.4.0] - 2026-10-20
 
 ### Added
