@@ -1780,6 +1780,40 @@ export function planQueueRole(plan, runQueueView) {
   return "none";
 }
 
+/**
+ * In /run-plan-all mode, resolve the queue cursor plan as active when HANDOFF
+ * `Plan:` still names a terminal (or missing) plan, e.g. a /hotfix mini plan the
+ * queue resumed past without handing `Plan:` back. Narrowest condition only:
+ * the cursor resolves, its plan exists with open to-dos, is not parked, and has
+ * no terminal queue outcome. Every other case returns the HANDOFF unchanged
+ * (false negative over guessing).
+ * @param {object[]} plans
+ * @param {object|null} handoff
+ * @returns {object|null} the same handoff, or a copy with `plan`/`planPath` swapped
+ */
+export function resolveQueueActiveHandoff(plans, handoff) {
+  if (!handoffPlanKey(handoff)) return handoff;
+  const view = buildRunQueueView(handoff);
+  if (!view || view.cursor === null) return handoff;
+  const cursorKey = view.queue[view.cursor];
+  if (!cursorKey || cursorKey === handoffPlanKey(handoff)) return handoff;
+  if (TERMINAL_QUEUE_OUTCOMES.has(view.outcomes[cursorKey])) return handoff;
+
+  const cursorPlan = (plans || []).find((p) => planFileKey(p) === cursorKey);
+  if (!cursorPlan || todoStats(cursorPlan).open === 0) return handoff;
+  if (isParkedPlan(cursorPlan, handoff)) return handoff;
+
+  const named = (plans || []).find((p) => isExactActivePlan(p, handoff));
+  if (named && todoStats(named).open > 0) return handoff;
+
+  return {
+    ...handoff,
+    plan: cursorKey,
+    planPath: cursorPlan.path || `.cursor/plans/${cursorKey}`,
+    planFromQueueCursor: true,
+  };
+}
+
 function planFileKey(plan) {
   if (!plan) return "";
   return String(plan.file || plan.path || plan.id || "")
@@ -1805,6 +1839,14 @@ function isActivePlan(plan, handoff) {
     active.includes(key) ||
     key.includes(active.replace(/\.plan\.md$/, ""))
   );
+}
+
+/** Exact basename match with HANDOFF `Plan:` (no substring fallback). */
+function isExactActivePlan(plan, handoff) {
+  const active = handoffPlanKey(handoff);
+  const key = planFileKey(plan);
+  if (!active || !key) return false;
+  return key === active || key === `${active}.plan.md`;
 }
 
 function planListedIn(plan, list) {
@@ -1881,17 +1923,21 @@ function modeImpliesExecuting(mode) {
  * Active plan: terminal todos (open === 0) are always completed, even when Mode
  * still says run-plan before Final HANDOFF writes STOPPED/exhausted. Open work
  * never classifies as completed (pending/in_progress hold the mission live).
+ * The plan HANDOFF `Plan:` names exactly wins over a Parked/Backlog row: a plan
+ * cannot be active and parked/queued at once, so that row is stale (left behind
+ * when a queue or hotfix activated the plan without removing it).
  * @returns {'executing'|'awaiting_user'|'parked'|'backlog'|'incomplete'|'completed'}
  */
 export function classifyPlan(plan, handoff) {
   const stats = todoStats(plan);
+  const exactActive = isExactActivePlan(plan, handoff);
 
-  if (isParkedPlan(plan, handoff)) {
+  if (!exactActive && isParkedPlan(plan, handoff)) {
     if (stats.open === 0) return "completed";
     return "parked";
   }
 
-  if (isBacklogPlan(plan, handoff)) {
+  if (!exactActive && isBacklogPlan(plan, handoff)) {
     if (stats.open === 0) return "completed";
     return "backlog";
   }
@@ -3838,6 +3884,7 @@ export function buildMissionControlView({
   gateExitTickets = [],
   nowMs = Date.now(),
 } = {}) {
+  handoff = resolveQueueActiveHandoff(plans, handoff);
   const nowBase = buildCurrentExecution(plans, handoff);
   const activeForTiming = (plans || []).find((p) => isActivePlan(p, handoff)) || null;
   const { ledger: nextTimingLedger, timing } = observeMissionTiming(

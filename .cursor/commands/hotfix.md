@@ -78,6 +78,8 @@ Update `.cursor/HANDOFF.md`:
 - `- **Mode:**` → `hotfix` (while running continuous ticks, agents may mirror `run-plan (<strategy>)` in Instruction; keep `hotfix` as the Mode root so Mission Control can recognize the path)
 - Phase / next to-dos from the mini plan
 - Preserve `- **Backlog plans:**` / `- **Parked plans:**` / queue fields unless parking the prior active plan
+- When parking, say in the park row that it is for this hotfix only and name the plan to hand back to (the prior active plan, or the `/run-plan-all` queue cursor plan)
+- If the hotfix plan was itself listed under `- **Backlog plans:**`, remove that row: a plan cannot be active and queued at once
 
 ### 5. Run (same tick contract as `/run-plan`)
 
@@ -97,6 +99,14 @@ Overrides vs full `/run-plan`:
 ### 6. Exhausted
 
 Final HANDOFF (`Mode: hotfix — STOPPED: plan exhausted` or equivalent). Suggest `/git-prod` only if staging is ahead of `main` (separate HITL).
+
+**Hand back.** If step 4 parked a plan for this hotfix, or the HANDOFF has a `/run-plan-all` queue whose cursor plan still has open to-dos:
+
+- `- **Plan:**` → that plan (the hotfix plan moves to a "Previous" note in the same row)
+- Remove its row from `- **Parked plans:**` and `- **Backlog plans:**`
+- `- **Mode:**` → STOPPED with the next owed step (for example `run-plan-all — STOPPED: awaiting operator merge of PR #N`), never a live run mode with no runner
+
+Leaving `Plan:` on the exhausted hotfix plan makes Mission Control show the resumed queue as the completed hotfix.
 
 ## Typical flow
 

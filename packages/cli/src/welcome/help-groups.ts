@@ -55,6 +55,7 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
       "diff",
       "contribute",
       "engine-info",
+      "commands",
     ],
   },
 ];

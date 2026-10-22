@@ -10,6 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.7.0] - 2026-10-22
+
+### Added
+
+- New `agent-kit commands` lists the workspace's slash commands with their descriptions; `agent-kit commands --json` prints a versioned catalog (`catalogVersion` 1.0.0, schema in `docs/contracts/commands-catalog.schema.json`) that IDE hosts such as Colony read for a command palette instead of keeping their own list. Each row says whether the command ships with the kit, is maintainer-only, or was added by the project, and whether the kit can run it headless. That flag is a hint for display only: a host still runs a command only if its own allowlist permits it.
+
+### Fixed
+
+- Mission Control no longer shows a running `/run-plan-all` queue as finished or queued. The plan named in the HANDOFF `Plan:` field now wins over a leftover row for it under Backlog or Parked plans. When `Plan:` still names a finished plan (for example a `/hotfix` mini plan) and the queue cursor plan has open to-dos, the queue cursor plan is shown as the current mission. `/hotfix` now hands `Plan:` back to the parked or queued plan when it finishes.
+
 ## [6.6.0] - 2026-10-22
 
 ### Added
