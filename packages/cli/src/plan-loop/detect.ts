@@ -10,11 +10,13 @@ export type WhichFn = (bin: string) => Promise<string | null>;
  * by default, so `auto` never picks it and spends the operator's credits.
  * `cursor-acp` is explicit-only too: the opt-in ACP relay for Cursor, while
  * `cursor-agent` (`-p`) stays the default Cursor backend.
+ * `openrouter` is explicit-only for the same reason as codex: it bills an
+ * OpenRouter account through Ori, so picking it must be deliberate.
  */
 export const DETECT_ORDER: readonly BackendId[] = ["cursor-agent", "claude"];
 
 /** Backends selectable by name only (never by `auto`). */
-export const EXPLICIT_ONLY_BACKENDS: readonly BackendId[] = ["codex", "cursor-acp"];
+export const EXPLICIT_ONLY_BACKENDS: readonly BackendId[] = ["codex", "cursor-acp", "openrouter"];
 
 export const INSTALL_HINTS: Record<BackendId, string> = {
   "cursor-agent":
@@ -25,10 +27,27 @@ export const INSTALL_HINTS: Record<BackendId, string> = {
     "Install the Cursor Agent CLI and ensure `cursor-agent` is on PATH (https://cursor.com/docs/cli/acp); sign in with `cursor-agent login`.",
   codex:
     "Install the Codex CLI and ensure `codex` is on PATH (https://developers.openai.com/codex/cli).",
+  openrouter:
+    "Install Ori and ensure `ori` is on PATH, then sign in with `ori login` (OpenRouter credentials). The kit never falls back to a first-party `claude` here: that would bill Anthropic instead of OpenRouter.",
+};
+
+/** The binary each backend resolves on PATH (one backend per binary, except the Cursor pair). */
+export const BACKEND_BIN: Record<BackendId, string> = {
+  "cursor-agent": "cursor-agent",
+  claude: "claude",
+  codex: "codex",
+  "cursor-acp": "cursor-agent",
+  openrouter: "ori",
 };
 
 export function isBackendId(id: string): id is BackendId {
-  return id === "cursor-agent" || id === "claude" || id === "codex" || id === "cursor-acp";
+  return (
+    id === "cursor-agent" ||
+    id === "claude" ||
+    id === "codex" ||
+    id === "cursor-acp" ||
+    id === "openrouter"
+  );
 }
 
 export function isRequestedBackend(id: string): id is RequestedBackend {
@@ -79,9 +98,9 @@ export async function detectAgentBackend(
       ].join(" "),
     };
   }
-  const bin = await whichFn(id);
+  const bin = await whichFn(BACKEND_BIN[id]);
   if (!bin) {
-    return { ok: false, message: `${id} not found on PATH. ${INSTALL_HINTS[id]}` };
+    return { ok: false, message: `${BACKEND_BIN[id]} not found on PATH. ${INSTALL_HINTS[id]}` };
   }
   return { ok: true, id, bin };
 }

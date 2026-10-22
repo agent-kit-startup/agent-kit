@@ -26,7 +26,7 @@ import { LineSplitter } from "./line-splitter.js";
 import { createStreamRenderer, type StreamSink } from "./stream-render.js";
 import { VENDOR_CLI_PINS, vendorVersionStatus } from "./vendor-cli-pins.js";
 
-export type BackendId = "cursor-agent" | "claude" | "codex" | "cursor-acp";
+export type BackendId = "cursor-agent" | "claude" | "codex" | "cursor-acp" | "openrouter";
 
 /** Test seam: `claude --version` reader (default: execFileSync). Null = unknown. */
 export type VersionFn = (bin: string) => string | null;
@@ -424,6 +424,18 @@ export const VENDOR_SECRET_ENV = [
 ] as const;
 
 /**
+ * OpenRouter credentials a child may inherit through Ori (`ori login`, or the
+ * operator's own environment). The kit never reads, stores or resolves these:
+ * Ori owns the OpenRouter credential and hands it to the Claude Code child, so
+ * the kit only elides the values from the console echo, the tick log, driver
+ * events and every error string, exactly like the vendor secrets.
+ */
+export const OPENROUTER_SECRET_ENV = [
+  "OPENROUTER_API_KEY",
+  "ORI_HARNESS_CREDENTIAL_TOKEN",
+] as const;
+
+/**
  * Forge tokens a child may inherit (`gh` / `glab` auth, CI tokens). The kit
  * uses them only through the forge CLIs; a tick, a dispatch or a review can
  * still print them, so every backend tee and error string elides them like
@@ -484,7 +496,12 @@ export function claudeRedactions(env: NodeJS.ProcessEnv): RedactionEntry[] {
     seen.add(value);
     entries.push({ label, value });
   };
-  for (const key of [...CLAUDE_ENV_PASSTHROUGH, ...VENDOR_SECRET_ENV, ...FORGE_SECRET_ENV]) {
+  for (const key of [
+    ...CLAUDE_ENV_PASSTHROUGH,
+    ...VENDOR_SECRET_ENV,
+    ...OPENROUTER_SECRET_ENV,
+    ...FORGE_SECRET_ENV,
+  ]) {
     const value = env[key];
     if (!value) continue;
     add(key, value, false);
@@ -1160,6 +1177,93 @@ export const claudeBackend: AgentBackend = {
 };
 
 /**
+ * OpenRouter tick backend: Claude Code launched through Ori (`ori claude`),
+ * OpenRouter's harness launcher. ADR 2026-09-19 Amend (2026-10-21).
+ *
+ * Why a separate backend instead of pointing `claude` at Ori: `claude` must
+ * keep meaning the first-party binary. Ori is a different vendor with a
+ * different bill, so it is explicit-only (never `auto`) and it never falls
+ * back to plain `claude` — a fallback would spend Anthropic credit while the
+ * operator believes they are on OpenRouter.
+ *
+ * Everything after `--` goes to the real Claude Code untouched, so the argv
+ * is the shared headless argv (`claudeHeadlessArgs`) and the whole transport
+ * — stream-json stdin relay, HITL gates, redaction, renderer — is the claude
+ * one. Only the program and the model flag differ:
+ * - `--model` is an OpenRouter model id (`deepseek/deepseek-v4.1-flash`) and
+ *   is Ori's own flag, so it goes BEFORE `--`; claude's `--model` must not
+ *   also be passed or the id would be rejected downstream.
+ * - The `claude --version` floor is not applied: `ori --version` prints JSON,
+ *   so `checkClaudeVersion` would only ever warn. Ori is responsible for the
+ *   Claude Code it launches.
+ */
+export const openrouterBackend: AgentBackend = {
+  id: "openrouter",
+  async resolve() {
+    return whichBinary("ori");
+  },
+  async run(opts) {
+    const log = opts.log ?? ((line: string) => console.log(line));
+    const env = claudeChildEnv(opts.env);
+    const redact = claudeRedactions(env);
+
+    const adapter = await missingClaudeAdapter(opts.workspace, opts.prompt);
+    if (adapter) {
+      throw new Error(
+        `openrouter backend: ${adapter} is missing in the workspace, so the tick's leading slash would be sent as literal text. Generate the Claude Code adapters with \`agent-kit install --claude\` and retry.`,
+      );
+    }
+
+    const { caps, invalid } = claudeRunCaps(env);
+    for (const problem of invalid)
+      log(`openrouter tick: ignoring invalid ${problem}; running uncapped.`);
+    const capText = [
+      caps.maxTurns !== undefined ? `max-turns=${caps.maxTurns}` : null,
+      caps.maxBudgetUsd !== undefined ? `max-budget-usd=${caps.maxBudgetUsd}` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    // Presence only, never values (visual-kit ADR point 4). OPENROUTER_API_KEY
+    // is listed because it is the credential this backend actually rides on.
+    const presence = [...CLAUDE_ENV_PASSTHROUGH, ...OPENROUTER_SECRET_ENV]
+      .map((key) => `${key}=${env[key] ? "set" : "unset"}`)
+      .join(" ");
+    log(
+      `openrouter tick: ori claude -p (OpenRouter credentials, bypass permissions, stream-json, stdin relay${capText ? `, ${capText}` : ""}). env: ${presence}`,
+    );
+    const args = openrouterArgs({ model: opts.model, ...caps });
+    try {
+      return await spawnLogged("ori", args, opts.logPath, {
+        cwd: opts.workspace,
+        env,
+        spawnFn: opts.spawnFn,
+        redact,
+        hitl: resolveHitlRunOptions(opts.hitl, {
+          kind: "stdin-stream-json",
+          firstPrompt: opts.prompt,
+        }),
+        render: opts.render,
+        onSpawn: opts.onSpawn,
+        backendId: "openrouter",
+      });
+    } catch (err) {
+      // No `cause`: the raw error may carry the secret (see spawnLogged).
+      throw new Error(`openrouter backend failed to start: ${redactSecrets(String(err), redact)}`);
+    }
+  },
+};
+
+/**
+ * `ori claude` argv: Ori's own flags, then `--`, then the claude headless argv.
+ * Ori's first unrecognized argument starts passthrough, so the explicit `--`
+ * keeps a future Ori flag from being swallowed by claude (or the reverse).
+ */
+export function openrouterArgs(opts: { model?: string } & ClaudeRunCaps = {}): string[] {
+  const { model, ...caps } = opts;
+  return ["claude", ...(model ? ["--model", model] : []), "--", ...claudeHeadlessArgs({ ...caps })];
+}
+
+/**
  * Backend registry. Built on first use: codex.ts imports this module's
  * spawn helpers, so a top-level map would read `codexBackend` before the
  * cycle has initialized it when codex.ts is the first module loaded.
@@ -1170,6 +1274,7 @@ function backends(): Record<BackendId, AgentBackend> {
     claude: claudeBackend,
     codex: codexBackend,
     "cursor-acp": cursorAcpBackend,
+    openrouter: openrouterBackend,
   };
 }
 
