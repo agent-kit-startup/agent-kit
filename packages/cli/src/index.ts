@@ -51,6 +51,7 @@ const main = defineCommand({
     sessions: () => import("./commands/sessions.js").then((m) => m.sessionsCommand),
     validate: () => import("./commands/validate.js").then((m) => m.validateCommand),
     "engine-info": () => import("./commands/engine-info.js").then((m) => m.engineInfoCommand),
+    commands: () => import("./commands/commands.js").then((m) => m.commandsCommand),
   },
   async run({ rawArgs }) {
     // citty also invokes parent `run` after a subcommand; skip when one was selected.

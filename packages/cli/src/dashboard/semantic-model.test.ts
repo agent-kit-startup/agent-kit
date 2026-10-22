@@ -75,6 +75,7 @@ import {
   recordCadenceBatchComplete,
   recordCadenceTickClose,
   resolveDeliveryAttribution,
+  resolveQueueActiveHandoff,
   SUBAGENT_TRANSCRIPT_FILE_RE,
   withMissionTiming,
 } from "../../../../dashboard/lib/semantic-model.mjs";
@@ -463,6 +464,73 @@ describe("run-plan-all queue view (semantic layer)", () => {
     expect(buildRunQueueView({ mode: "run-plan-all", runQueue: [] })).toBeNull();
   });
 
+  describe("resolveQueueActiveHandoff", () => {
+    // 2026-10-22: a /hotfix left Plan: on its exhausted mini plan; the queue resumed
+    // cursor 1 and Mission Control showed the live run as the completed hotfix.
+    const staleHotfix = { ...queueHandoff, plan: "hotfix-x.plan.md" };
+    const plans = [
+      queuePlan("hotfix-x.plan.md", ["completed", "completed"]),
+      queuePlan("a.plan.md", ["completed"]),
+      queuePlan("b.plan.md", ["completed", "in_progress", "pending"]),
+      queuePlan("c.plan.md", ["pending"]),
+    ];
+
+    it("swaps a terminal Plan: for the queue cursor plan with open work", () => {
+      const resolved = resolveQueueActiveHandoff(plans, staleHotfix);
+      expect(resolved).toMatchObject({
+        plan: "b.plan.md",
+        planPath: ".cursor/plans/b.plan.md",
+        planFromQueueCursor: true,
+      });
+      // Pure: the parsed HANDOFF object is not mutated.
+      expect(staleHotfix.plan).toBe("hotfix-x.plan.md");
+      const view = buildMissionControlView({ plans, handoff: staleHotfix, nowMs: 0 });
+      expect(view.now.planFile).toBe("b.plan.md");
+      expect(view.now.status).toBe("executing");
+    });
+
+    it("also swaps when the Plan: file is missing (archived)", () => {
+      const missing = { ...queueHandoff, plan: "archived-hotfix.plan.md" };
+      expect(resolveQueueActiveHandoff(plans, missing).plan).toBe("b.plan.md");
+    });
+
+    it("keeps Plan: in every other case (false negative over guessing)", () => {
+      // Not run-plan-all mode.
+      const notQueue = { ...staleHotfix, mode: "hotfix — STOPPED: plan exhausted" };
+      expect(resolveQueueActiveHandoff(plans, notQueue)).toBe(notQueue);
+      // Plan: still has open work (a hotfix running inside the queue).
+      const liveHotfix = [
+        ...plans.filter((p) => p.file !== "hotfix-x.plan.md"),
+        queuePlan("hotfix-x.plan.md", ["completed", "in_progress"]),
+      ];
+      expect(resolveQueueActiveHandoff(liveHotfix, staleHotfix)).toBe(staleHotfix);
+      // Cursor plan parked (hotfix hard stop 4).
+      const parked = { ...staleHotfix, parkedPlans: ["b.plan.md"] };
+      expect(resolveQueueActiveHandoff(plans, parked)).toBe(parked);
+      // Cursor plan has a terminal queue outcome or no open work.
+      const outcome = {
+        ...staleHotfix,
+        queueOutcomes: { ...staleHotfix.queueOutcomes, "b.plan.md": "completed" },
+      };
+      expect(resolveQueueActiveHandoff(plans, outcome)).toBe(outcome);
+      const doneCursor = [
+        ...plans.filter((p) => p.file !== "b.plan.md"),
+        queuePlan("b.plan.md", ["completed"]),
+      ];
+      expect(resolveQueueActiveHandoff(doneCursor, staleHotfix)).toBe(staleHotfix);
+      // No Plan: at all, or no resolvable cursor.
+      const noPlan = { ...staleHotfix, plan: undefined };
+      expect(resolveQueueActiveHandoff(plans, noPlan)).toBe(noPlan);
+      const noCursor = {
+        ...staleHotfix,
+        queueCursor: null,
+        queueCursorPlan: null,
+      };
+      expect(resolveQueueActiveHandoff(plans, noCursor)).toBe(noCursor);
+      expect(resolveQueueActiveHandoff(plans, null)).toBeNull();
+    });
+  });
+
   it("resolves cursor and nextUpPlan, skipping terminal outcomes", () => {
     const view = buildRunQueueView(queueHandoff);
     expect(view).toMatchObject({
@@ -691,6 +759,28 @@ describe("classifyPlan", () => {
         backlogPlans: [],
       }),
     ).toBe("backlog");
+  });
+
+  it("classifies the active plan by its to-dos even when a stale Backlog/Parked row lists it", () => {
+    // 2026-10-22: a run-plan-all queue activated the cursor plan without removing its
+    // Backlog row; Mission Control showed the live run as backlog.
+    const staleBacklog = {
+      plan: "refresh-icon-button.plan.md",
+      mode: "run-plan (headless)",
+      parkedPlans: [],
+      backlogPlans: ["refresh-icon-button.plan.md"],
+    };
+    expect(classifyPlan(backlogOpenPlan, staleBacklog)).toBe("executing");
+    const staleParked = {
+      plan: "parked-open-work.plan.md",
+      mode: "run-plan (headless)",
+      parkedPlans: ["parked-open-work.plan.md"],
+      backlogPlans: [],
+    };
+    expect(classifyPlan(parkedOpenPlan, staleParked)).toBe("executing");
+    // Only an exact Plan: match overrides the list; other listed plans keep their row.
+    expect(classifyPlan(parkedOpenPlan, executingHandoff)).toBe("parked");
+    expect(classifyPlan(backlogOpenPlan, executingHandoff)).toBe("backlog");
   });
 
   it("classifies active plan without in_progress as awaiting_user when mode waits", () => {
