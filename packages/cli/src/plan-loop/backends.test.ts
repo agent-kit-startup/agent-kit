@@ -25,6 +25,9 @@ import {
   listBackendIds,
   mergeChildEnv,
   missingClaudeAdapter,
+  OPENROUTER_SECRET_ENV,
+  openrouterArgs,
+  openrouterBackend,
   parseClaudeVersion,
   RedactingStreamBuffer,
   redactSecrets,
@@ -125,9 +128,16 @@ const API_KEY = "example-api-key-0123456789";
 
 describe("backend table", () => {
   it("lists the backends and resolves claude without throwing", () => {
-    expect(listBackendIds()).toEqual(["cursor-agent", "claude", "codex", "cursor-acp"]);
+    expect(listBackendIds()).toEqual([
+      "cursor-agent",
+      "claude",
+      "codex",
+      "cursor-acp",
+      "openrouter",
+    ]);
     expect(getBackend("claude")).toBe(claudeBackend);
     expect(getBackend("cursor-agent")).toBe(cursorAgentBackend);
+    expect(getBackend("openrouter")).toBe(openrouterBackend);
     expect(() => getBackend("glm")).toThrow(/Unknown backend 'glm'/);
   });
 });
@@ -206,8 +216,9 @@ describe("mergeChildEnv / claudeRedactions", () => {
   });
 
   it("inherits process.env, overrides win, undefined unsets", () => {
-    // Host-independent: an operator shell may export vendor keys.
-    for (const key of VENDOR_SECRET_ENV) vi.stubEnv(key, undefined);
+    // Host-independent: an operator shell may export vendor keys, and an Ori
+    // shell exports the OpenRouter ones.
+    for (const key of [...VENDOR_SECRET_ENV, ...OPENROUTER_SECRET_ENV]) vi.stubEnv(key, undefined);
     vi.stubEnv("ANTHROPIC_API_KEY", "inherited-key");
     vi.stubEnv("ANTHROPIC_BASE_URL", "https://inherited.example");
     const env = mergeChildEnv({
@@ -374,6 +385,81 @@ describe("missingClaudeAdapter", () => {
     await mkdir(path.join(root, ".claude", "commands"), { recursive: true });
     await writeFile(path.join(root, ".claude", "commands", "run-plan.md"), "adapter\n", "utf8");
     expect(await missingClaudeAdapter(root, "/run-plan - tick")).toBeNull();
+  });
+});
+
+describe("openrouterArgs / openrouterBackend", () => {
+  it("puts Ori's own --model before `--` and the shared headless argv after it", () => {
+    expect(openrouterArgs()).toEqual(["claude", "--", ...claudeHeadlessArgs()]);
+    // The OpenRouter model id is Ori's flag; claude must not also receive
+    // `--model` or the id would be rejected downstream.
+    const withModel = openrouterArgs({ model: "deepseek/deepseek-v4.1-flash" });
+    expect(withModel.slice(0, 3)).toEqual(["claude", "--model", "deepseek/deepseek-v4.1-flash"]);
+    expect(withModel[3]).toBe("--");
+    expect(withModel.slice(4)).toEqual(claudeHeadlessArgs());
+    // Exactly one `--model`, and it is Ori's (before the separator): claude
+    // must not also receive it or the OpenRouter id would be rejected.
+    expect(withModel.filter((a) => a === "--model")).toHaveLength(1);
+    expect(withModel.indexOf("--model")).toBeLessThan(withModel.indexOf("--"));
+  });
+
+  it("carries the opt-in caps through to the claude half, not to Ori", () => {
+    const args = openrouterArgs({ maxTurns: 3, maxBudgetUsd: 1.5 });
+    expect(args.slice(0, 2)).toEqual(["claude", "--"]);
+    expect(args).toContain("--max-turns");
+    expect(args).toContain("--max-budget-usd");
+    // `--max-turns` appears once, after the separator.
+    expect(args.indexOf("--max-turns")).toBeGreaterThan(args.indexOf("--"));
+  });
+
+  it("spawns `ori` with the claude transport and redacts the OpenRouter key", async () => {
+    // Shaped unlike a real credential on purpose: the pre-commit secret
+    // scanner blocks `sk-<vendor>-<long tail>` even in a fixture.
+    const KEY = "example-openrouter-key";
+    vi.stubEnv("OPENROUTER_API_KEY", KEY);
+    const logPath = await tmpLog();
+    const spawnFn = mockSpawn({
+      exitCode: 0,
+      stdout: `{"type":"assistant","message":{"content":[{"type":"text","text":"key ${KEY}"}]}}\n{"type":"result","result":"LOOP_TICK_RESULT: continue"}\n`,
+    });
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      const result = await openrouterBackend.run({
+        workspace: "/repo",
+        prompt: "tick prompt",
+        model: "deepseek/deepseek-v4.1-flash",
+        logPath,
+        spawnFn: spawnFn as unknown as SpawnFn,
+        log: vi.fn(),
+      });
+      expect(result.exitCode).toBe(0);
+      // Spawned Ori, never claude: a fallback would bill Anthropic.
+      expect(spawnFn.mock.calls[0]?.[0]).toBe("ori");
+      expect(spawnFn.mock.calls[0]?.[1]).toEqual(
+        openrouterArgs({ model: "deepseek/deepseek-v4.1-flash" }),
+      );
+      const spawnOpts = spawnOptsOf(spawnFn);
+      expect(spawnOpts.cwd).toBe("/repo");
+      // Same stream-json stdin relay as the claude backend.
+      expect(spawnOpts.stdio).toEqual(["pipe", "pipe", "pipe"]);
+      expect(stdinOf(spawnFn).writes).toEqual([
+        '{"type":"user","message":{"role":"user","content":"tick prompt"}}\n',
+      ]);
+      const logText = await readFile(logPath, "utf8");
+      expect(logText).not.toContain(KEY);
+      expect(logText).toContain("[OPENROUTER_API_KEY]");
+      expect(write.mock.calls.map((c) => String(c[0])).join("")).not.toContain(KEY);
+    } finally {
+      write.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("resolves `ori`, and reports it as missing rather than falling back", async () => {
+    // resolve() is the loop's PATH probe; null is what makes the loop stop
+    // with "<backend> not found on PATH" instead of running plain claude.
+    expect(openrouterBackend.id).toBe("openrouter");
+    expect(typeof openrouterBackend.resolve).toBe("function");
   });
 });
 

@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.6.0] - 2026-10-22
+
+### Added
+
+- New `--backend openrouter` runs the plan loop through **Ori** (`ori claude`), OpenRouter's harness launcher, so a run can use OpenRouter models and billing instead of a first-party Anthropic account. Ori owns the credential (`ori login`); the kit passes it through and never stores it. Like `codex` and `cursor-acp`, the backend is **explicit-only**: `--backend auto` never picks it, and if `ori` is missing the run stops instead of falling back to plain `claude` — a silent fallback would spend Anthropic credit while the operator believes they are on OpenRouter. `--model` takes an OpenRouter model id (e.g. `deepseek/deepseek-v4.1-flash`).
+
 ## [6.5.1] - 2026-10-21
 
 ### Changed

@@ -76,6 +76,45 @@ describe("detectAgentBackend", () => {
       "claude",
       "codex",
       "cursor-acp",
+      "openrouter",
     ]);
+  });
+
+  it("openrouter is explicit-only: auto never picks it, and it resolves `ori` not `claude`", async () => {
+    const seen: string[] = [];
+    const auto = await detectAgentBackend("auto", async (bin) => {
+      seen.push(bin);
+      return bin === "ori" ? "/usr/local/bin/ori" : null;
+    });
+    expect(auto.ok).toBe(false);
+    expect(seen).not.toContain("ori");
+    // `ori` on PATH must not make `auto` resolve to openrouter: the id is
+    // explicit-only because it bills an OpenRouter account.
+    expect(
+      await detectAgentBackend("openrouter", async (bin) =>
+        bin === "ori" ? "/usr/local/bin/ori" : "/usr/bin/claude",
+      ),
+    ).toEqual({ ok: true, id: "openrouter", bin: "/usr/local/bin/ori" });
+  });
+
+  it("openrouter without ori fails with the Ori install hint and never falls back to claude", async () => {
+    // A first-party `claude` IS on PATH: the backend must still refuse rather
+    // than run it, which would bill Anthropic instead of OpenRouter.
+    const result = await detectAgentBackend("openrouter", async (bin) =>
+      bin === "claude" ? "/usr/bin/claude" : null,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("ori not found on PATH");
+    expect(result.message).toContain("ori login");
+    expect(result.message).toContain("instead of OpenRouter");
+  });
+
+  it("cursor-acp resolves cursor-agent, not an id-named binary", async () => {
+    // BACKEND_BIN guard: a backend id is not always the binary name.
+    const result = await detectAgentBackend("cursor-acp", async (bin) =>
+      bin === "cursor-agent" ? "/opt/cursor-agent" : null,
+    );
+    expect(result).toEqual({ ok: true, id: "cursor-acp", bin: "/opt/cursor-agent" });
   });
 });

@@ -20,6 +20,7 @@ import {
   claudeRunCaps,
   cursorAgentHeadlessArgs,
   cursorAgentReviewArgs,
+  openrouterArgs,
   redactSecrets,
   resolveHitlRunOptions,
   spawnLogged,
@@ -203,6 +204,40 @@ export async function runHeadlessDispatch(opts: {
       render: opts.render,
       onSpawn: opts.onSpawn,
     });
+  }
+  if (opts.backendId === "openrouter") {
+    // Same spawn as the tick loop (openrouterBackend): `ori claude -- <headless
+    // argv>`. The kit never falls back to a first-party `claude` here, so a
+    // dispatch cannot silently bill Anthropic instead of OpenRouter.
+    const log = opts.log ?? ((line: string) => console.log(line));
+    const env = claudeChildEnv();
+    const redact = claudeRedactions(env);
+    const { caps, invalid } = claudeRunCaps(env);
+    for (const problem of invalid)
+      log(`openrouter dispatch: ignoring invalid ${problem}; running uncapped.`);
+    try {
+      return await spawnLogged(
+        "ori",
+        openrouterArgs({ model: opts.model, ...caps }),
+        opts.logPath,
+        {
+          cwd: opts.workspace,
+          env,
+          redact,
+          spawnFn: opts.spawnFn,
+          hitl: resolveHitlRunOptions(opts.hitl, {
+            kind: "stdin-stream-json",
+            firstPrompt: opts.prompt,
+          }),
+          render: opts.render,
+          onSpawn: opts.onSpawn,
+          backendId: "openrouter",
+        },
+      );
+    } catch (err) {
+      // No `cause`: the raw error may carry the secret (see spawnLogged).
+      throw new Error(`openrouter dispatch failed to start: ${redactSecrets(String(err), redact)}`);
+    }
   }
   if (opts.backendId === "claude") {
     // Same env contract as claudeBackend.run: the child inherits process.env
