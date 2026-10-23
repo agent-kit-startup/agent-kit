@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.8.0] - 2026-10-23
+
+### Added
+
+- `agent-kit run-plan-all --events ndjson`: the queue runner gets the driver mode `agent-kit run-plan` already has, so a desktop app such as Colony can run the queue and answer its gates without a terminal. stdout carries only NDJSON events (`run_start` with `command: "run-plan-all"`, `agent_event` / `agent_text`, `hitl_gate`, `log`, and `run_end` with the session's gate replies and stop), and answers arrive as JSON lines on stdin, including a gate the agent opens after a background task finishes. EOF, `{"type":"stop"}`, a line that is not JSON or a reply for another gate stop the run with exit 4; there is never a default answer. Driver protocol 1.2.0, additive: see `docs/driver-events-protocol.md` ("Queue runner").
+- Queue runner driver mode: a new `queue_state` event (`cursor`, `total`, `current`, `status`) reports the HANDOFF Run queue, Queue cursor and Queue status fields at run start, whenever the agent changes them, and once more before `run_end`, so an app can follow the queue (including `held`) without parsing HANDOFF. It is read-only: the CLI never advances the cursor. `run_start.protocol` and `agent-kit engine-info` now announce driver protocol 1.2.0.
+
 ## [6.7.2] - 2026-10-22
 
 ### Changed

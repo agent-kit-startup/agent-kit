@@ -1,6 +1,6 @@
-# Driver events protocol (`agent-kit run-plan --events ndjson`)
+# Driver events protocol (`agent-kit run-plan --events ndjson`, `agent-kit run-plan-all --events ndjson`)
 
-**Version:** 1.1.0 (events carry `"v": 1`; `run_start.protocol` carries the full version). A new event type or field is a minor bump; a breaking change bumps `v`. Source: `packages/cli/src/plan-loop/driver-events.ts`; contract tests: `packages/cli/src/plan-loop/driver-events.test.ts`; decision: `.cursor/memory/decisions/2026-10-08_cli-driver-mode-ndjson-events.md`.
+**Version:** 1.2.0 (events carry `"v": 1`; `run_start.protocol` carries the full version). A new event type or field is a minor bump; a breaking change bumps `v`. Source: `packages/cli/src/plan-loop/driver-events.ts`; contract tests: `packages/cli/src/plan-loop/driver-events.test.ts`; decision: `.cursor/memory/decisions/2026-10-08_cli-driver-mode-ndjson-events.md`.
 
 Driver mode lets an app, a script or a CI job drive the headless plan runner over pipes, with no terminal. It is opt-in: without `--events ndjson` the CLI behaves as before.
 
@@ -21,7 +21,7 @@ Every event has `v` (number, `1`), `ts` (ISO 8601) and `type`.
 
 | `type` | Fields | When |
 |--------|--------|------|
-| `run_start` | `protocol` (`"1.1.0"`), `backend`, `plan` (basename), `pending`, `maxTicks`, `hitl` (`"driver"` or `"off"` under `--no-hitl`) | Once, after the active plan is resolved |
+| `run_start` | `protocol` (`"1.2.0"`), `command` (1.2.0: `"run-plan"`), `backend`, `plan` (basename), `pending`, `maxTicks`, `hitl` (`"driver"` or `"off"` under `--no-hitl`) | Once, after the active plan is resolved |
 | `tick_start` | `tick`, `maxTicks`, `pending`, `log` (tick log path, relative to the project), `prompt` (`TICK_PROMPT`, verbatim), `backend` (1.1.0) | Before each agent starts |
 | `agent_event` | `tick`, `event` (one stream-json object from the agent, after secret redaction) | For every JSON line the agent prints |
 | `agent_text` | `tick`, `text` | For every non-JSON line the agent prints (stderr) |
@@ -38,6 +38,7 @@ When a tick stops on a vendor usage limit (a claude `rate_limit_event` that is n
 
 ## Changelog
 
+- **1.2.0** (additive): `agent-kit run-plan-all --events ndjson` (see [Queue runner](#queue-runner-run-plan-all)); `run_start.command`; for `run-plan-all` only: `run_start.plan`, `pending` and `maxTicks` are `null`, `run_start.queue`, the `queue_state` event, `run_end.replies` and `run_end.stop`.
 - **1.1.0** (additive): `tick_start.backend`, `tick_end.backend`, `tick_end.limit`; `run_end.reason` `usage-limit: <backend>`.
 - **1.0.0**: first release.
 
@@ -87,6 +88,27 @@ for await (const line of createInterface({ input: run.stdout })) {
 }
 ```
 
+## Queue runner (`run-plan-all`)
+
+From protocol **1.2.0** the queue runner speaks the same protocol (an engine that announces an older `run_start.protocol` or `engine-info` `driverProtocol` has no `--events` flag on `run-plan-all`):
+
+```bash
+agent-kit run-plan-all --backend claude --events ndjson
+```
+
+`run-plan-all` is one headless agent session running the L0 `/run-plan-all` command, not a tick loop, so the event list is shorter. Answers on stdin, the stops and the exit codes are the same as for `run-plan` (exit `4` for EOF at a gate, `{"type":"stop"}`, a line that is not JSON or a reply for another `askId`).
+
+| `type` | Fields (queue runner) | When |
+|--------|-----------------------|------|
+| `run_start` | `protocol`, `command` (`"run-plan-all"`), `backend`, `plan` (`null`), `pending` (`null`), `maxTicks` (`null`), `hitl`, `queue` (same fields as `queue_state`) | Once, before the agent starts |
+| `queue_state` | `cursor` (0-based index into the Run queue, or `null`), `total` (plans in the Run queue), `current` (plan basename named by the cursor, or `null`), `status` (first word of the HANDOFF `Queue status` field, for example `running`, `held`, `stopped`, `exhausted`; or `null`) | Right after `run_start`, then whenever those HANDOFF fields change, and once more before `run_end` |
+| `agent_event`, `agent_text` | as for `run-plan`, with `tick` always `1` | For every line the agent prints |
+| `hitl_gate` | as for `run-plan`, with `tick` always `1` | The agent ended a turn at a gate, including a gate opened after a background task finished |
+| `log` | as for `run-plan` | Status lines |
+| `run_end` | `exitCode`, `ticks` (`1`, or `0` when no agent started), `pending` (`null`), `reason`, `planExhausted` (`false`), `replies` and `stop` (the shapes of `tick_end.replies` / `tick_end.stop`) | Last event of the run |
+
+There is no `tick_start` or `tick_end`. `queue_state` is a read-only projection of the HANDOFF `Run queue`, `Queue cursor` and `Queue status` fields: the CLI never advances the cursor, the agent session does, by editing HANDOFF as the `/run-plan-all` contract says. An empty or missing queue (before the queue is confirmed) is `{"cursor":null,"total":0,"current":null,"status":null}`.
+
 ## Scope
 
-`agent-kit run-plan` only. Backends: `claude` (stdin relay), `openrouter` (opt-in: Claude Code through Ori on OpenRouter credentials — `ori claude -- <headless argv>`, so the relay is the `claude` one; explicit-only, never selected by `auto`), `codex` (relay by resuming the codex session per answer; `agent_event` carries a claude-style translation of codex's JSONL, and the raw JSONL is in the tick log; codex does not echo the reply, so the stamp is in `tick_end.replies`), `cursor-acp` (opt-in: Cursor's `agent acp` mode; the reply is the next `session/prompt`, and a `cursor/ask_question` is offered as gate `cursor-ask-question`), `cursor-agent` (`-p`, no input channel: a gate ends the tick with `stop.cause` `no relay`). Never `/git-prod` from the headless runner.
+`agent-kit run-plan` and, from 1.2.0, `agent-kit run-plan-all` (other `agent-kit run <slash>` dispatches have no driver mode). Backends: `claude` (stdin relay), `openrouter` (opt-in: Claude Code through Ori on OpenRouter credentials — `ori claude -- <headless argv>`, so the relay is the `claude` one; explicit-only, never selected by `auto`), `codex` (relay by resuming the codex session per answer; `agent_event` carries a claude-style translation of codex's JSONL, and the raw JSONL is in the tick log; codex does not echo the reply, so the stamp is in `tick_end.replies`), `cursor-acp` (opt-in: Cursor's `agent acp` mode; the reply is the next `session/prompt`, and a `cursor/ask_question` is offered as gate `cursor-ask-question`), `cursor-agent` (`-p`, no input channel: a gate ends the tick with `stop.cause` `no relay`). Never `/git-prod` from the headless runner.

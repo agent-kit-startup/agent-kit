@@ -25,6 +25,10 @@
 //                    to-do already completed first ends at
 //                    `HITL_GATE: driver-demo | Proceed | Hold` and completes
 //                    only after the reply (driver-mode end-to-end test)
+//   queue            plays a `run-plan-all` session on the HANDOFF at FAKE_CLAUDE_HANDOFF:
+//                    turn 1 moves `Queue cursor` from 0 to 1 and ends at
+//                    `HITL_GATE: queue-confirm | Run as proposed | Cancel`; turn 2 (the
+//                    reply) sets `Queue status: held` and ends (queue_state test)
 // Every turn after the scripted ones answers `received: <text>`.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -121,6 +125,30 @@ function backgroundTurn() {
   }, 200);
 }
 
+const QUEUE_GATE =
+  "Queue ready.\n\nHITL_GATE: queue-confirm | Run as proposed | Cancel\n1. Run as proposed\n2. Cancel\n";
+
+/** `queue` mode: edit the HANDOFF queue fields the way the run-plan-all agent does. */
+function queueBody(text) {
+  const handoffPath = process.env.FAKE_CLAUDE_HANDOFF ?? "";
+  const handoff = readFileSync(handoffPath, "utf8");
+  if (turn === 1) {
+    writeFileSync(
+      handoffPath,
+      handoff.replace(/^- \*\*Queue cursor:\*\*.*$/m, "- **Queue cursor:** 1 (current: b.plan.md)"),
+    );
+    return QUEUE_GATE;
+  }
+  writeFileSync(
+    handoffPath,
+    handoff.replace(
+      /^- \*\*Queue status:\*\*.*$/m,
+      "- **Queue status:** held (out-of-queue run owns the Plan field)",
+    ),
+  );
+  return `received: ${text}`;
+}
+
 const DRIVER_GATE =
   "Gate before this to-do.\n\nHITL_GATE: driver-demo | Proceed | Hold\n1. Proceed\n2. Hold\n";
 
@@ -168,6 +196,7 @@ function handleTurn(text) {
   }
   let body;
   if (mode === "driver-plan") body = driverPlanBody(text);
+  else if (mode === "queue") body = queueBody(text);
   else if (turn === 1) body = firstTurnBody();
   else if (mode === "two-gates" && turn === 2) body = SECOND;
   else body = `received: ${text}`;
