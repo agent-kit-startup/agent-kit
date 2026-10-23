@@ -41,6 +41,17 @@ The panel then hands the frozen record to `perform()` instead of writing the cli
 
 **Saved chats.** `chats` (1.7.0) is the workspace's saved agent sessions, the same object `agent-kit sessions --json` prints: `{withheld, vendors[]}` with one envelope per vendor `{vendor, status, projectDir, sessions, total}`. Claude Code is read from `~/.claude/projects/<slug>/<uuid>.jsonl`, where `<slug>` is the workspace path with every character that is not an ASCII letter or digit replaced by `-`; subagent transcripts are not sessions. Each session is `{id, title, titleSource, modified, sizeBytes}`: `titleSource` is `custom` (the name the operator set), `ai` (the generated title), `first-prompt` (the first typed prompt, cut to 80 characters) or `none`; `modified` is unix milliseconds. Sessions are newest first and capped at 200, `total` counts them all. `status` is `ok`, `none` (no saved session for this folder) or `unsupported` (Codex and Cursor for now). Chat titles are private: in broadcast mode the snapshot carries `{withheld: true, vendors: []}`. The Chats card copies `cd <workspace> && claude --resume <id>`; a web page cannot open a terminal.
 
+## Commands catalog
+
+`agent-kit commands --json --cwd <workspace>` prints the workspace's slash commands for a host that wants a command palette or a browsable command list. Its shape is versioned by `catalogVersion` (currently **1.0.0**) and published as `docs/contracts/commands-catalog.schema.json`: `{catalogVersion, kitVersion, commands[]}`, one row `{name, description, layer, headless}` per `.cursor/commands/<name>.md` that has a description, sorted by name. An added optional field is a minor bump, a removed or retyped field a major bump. A host reads the catalog from the installed kit and keeps no list of its own.
+
+- `name` is the slash without the `/`, matching `^[a-z0-9][a-z0-9-]{0,63}$`; files whose name fails the pattern are left out.
+- `description` is the file's frontmatter line. It is repo text: render it as text, never through `innerHTML`.
+- `layer` is `kit` (the kit ships it), `factory` (kit-maintainer only; never installed in a consumer workspace, so a consumer catalog has no such rows) or `project` (a command the workspace added itself).
+- `headless` means the kit can dispatch the slash with `agent-kit run`. It is a hint for display, not permission: the host decides what runs from its own allowlist, and the catalog can never widen it.
+
+**Run or copy.** A row the host's allowlist accepts may run through the host's own action path; every other row is a copy record for the agent chat input, as in the [action seam](#action-seam). `/git-prod` and `/kit-prod` are never runnable from a host. An engine that predates `agent-kit commands` exits non-zero on the unknown subcommand, and a host that sees that, output that is not JSON, or a `catalogVersion` major it does not support should ask the user to update the engine rather than fall back to a list of its own.
+
 ## Content security policy readiness
 
 Measured with `node scripts/dashboard-csp.mjs` (`--json` for the full report) on 2026-10-19:

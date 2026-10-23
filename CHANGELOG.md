@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.7.2] - 2026-10-22
+
+### Changed
+
+- Docs: `agent-kit commands` is now in the getting-started subcommand table and the consumer-configuration CLI table, and `docs/mission-control-embedding.md` has a "Commands catalog" section for IDE hosts: the catalog's fields, why `headless` is a hint and never permission to run, the run-or-copy rule, and what a host should show when the engine predates the catalog.
+
 ## [6.7.1] - 2026-10-22
 
 ### Changed
