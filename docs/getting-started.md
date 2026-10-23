@@ -141,6 +141,7 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `run-plan-all` | Headless `/run-plan-all` queue from the L0 file. `per-plan-release` ships inside that contract. `agent-kit run git-prod` stays refused |
 | `countdown` | One-shot launcher for a cron or systemd timer: one headless job with `--no-hitl --land-on-gate`, refused while a gate exit is pending ([detail](consumer-configuration.md#agent-kit-countdown-detail)) |
 | `ground-control` | Morning triage of gate exits: `status`, `accept <stamp>` once the branch is merged, `discard <stamp>` ([detail](consumer-configuration.md#agent-kit-ground-control-detail)) |
+| `commands` | List the workspace's slash commands with their descriptions, whether they ship with the kit, are maintainer-only or were added by the project, and whether the kit can run them headless; `--json` prints the versioned catalog IDE hosts read ([contract](mission-control-embedding.md#commands-catalog)) |
 | `mission-control` | ASCII Mission Control (mission, flight log, checklist, crew monitor); live TTY quits with `q` or Ctrl-C; `--once` prints one frame |
 | `scan` | Just scan the project, don't install |
 
