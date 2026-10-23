@@ -37,7 +37,7 @@ import type { StreamSink } from "./stream-render.js";
 /** Protocol major carried by every event as `v`. Bumped only on a breaking change. */
 export const DRIVER_PROTOCOL_MAJOR = 1;
 /** Full protocol version announced in `run_start` (SemVer; minor = additive fields/events). */
-export const DRIVER_PROTOCOL_VERSION = "1.1.0";
+export const DRIVER_PROTOCOL_VERSION = "1.2.0";
 /** The only `--events` value accepted today. */
 export const DRIVER_EVENTS_FORMATS = ["ndjson"] as const;
 export type DriverEventsFormat = (typeof DRIVER_EVENTS_FORMATS)[number];
@@ -54,17 +54,49 @@ export interface DriverTickSentinel {
   line: string | null;
 }
 
+/** CLI command a driver run belongs to (`run_start.command`, 1.2.0). */
+export type DriverCommand = "run-plan" | "run-plan-all";
+
+/** Gate replies and the stop record as `tick_end` (and, for `run-plan-all`, `run_end`) carry them. */
+export type DriverReplies = Pick<HitlReplyStamp, "askId" | "reply" | "label" | "line" | "at">[];
+export type DriverStop = Pick<HitlStop, "askId" | "cause" | "message" | "exitCode"> | null;
+
+/**
+ * `queue_state` fields (1.2.0): read-only projection of the HANDOFF Run queue
+ * / Queue cursor / Queue status fields (plan-state.ts `readRunQueueState`).
+ * The CLI never advances the cursor; `status` is the word the file says
+ * (`running`, `held`, `stopped`, ...).
+ */
+export interface DriverQueueState {
+  /** 0-based index into the Run queue, or null when the cursor names no queued plan. */
+  cursor: number | null;
+  /** Plans in the Run queue (0 = no queue). */
+  total: number;
+  /** Plan basename named by the cursor, or null. */
+  current: string | null;
+  /** First word of the Queue status field, or null. */
+  status: string | null;
+}
+
 /** Outbound events (stdout). Every event also carries `v` and `ts`. */
 export type DriverEvent =
   | {
       type: "run_start";
       protocol: string;
+      /** 1.2.0: `run-plan` (tick loop) or `run-plan-all` (one queue session). */
+      command: DriverCommand;
       backend: string;
-      plan: string;
-      pending: number;
-      maxTicks: number;
+      /** Active plan basename; null for `run-plan-all` (the queue names its plans). */
+      plan: string | null;
+      /** Pending to-dos of the plan; null for `run-plan-all`. */
+      pending: number | null;
+      /** Tick budget; null for `run-plan-all` (one session, no ticks). */
+      maxTicks: number | null;
       hitl: "driver" | "off";
+      /** `run-plan-all` only (1.2.0): the queue at run start (same fields as `queue_state`). */
+      queue?: DriverQueueState;
     }
+  | ({ type: "queue_state" } & DriverQueueState)
   | {
       type: "tick_start";
       tick: number;
@@ -96,8 +128,8 @@ export type DriverEvent =
       pendingBefore: number;
       pendingAfter: number | null;
       result: DriverTickSentinel | null;
-      replies: Pick<HitlReplyStamp, "askId" | "reply" | "label" | "line" | "at">[];
-      stop: Pick<HitlStop, "askId" | "cause" | "message" | "exitCode"> | null;
+      replies: DriverReplies;
+      stop: DriverStop;
     }
   | { type: "log"; level: "info" | "warn" | "error"; message: string }
   | {
@@ -107,6 +139,10 @@ export type DriverEvent =
       pending: number | null;
       reason: string;
       planExhausted: boolean;
+      /** `run-plan-all` only (1.2.0): the session's gate replies (run-plan has them on `tick_end`). */
+      replies?: DriverReplies;
+      /** `run-plan-all` only (1.2.0): the gate stop that ended the session, or null. */
+      stop?: DriverStop;
     };
 
 export type DriverEventType = DriverEvent["type"];
@@ -114,6 +150,7 @@ export type DriverEventType = DriverEvent["type"];
 /** All outbound event types, in the order a run can emit them (contract test pin). */
 export const DRIVER_EVENT_TYPES: readonly DriverEventType[] = [
   "run_start",
+  "queue_state",
   "tick_start",
   "agent_event",
   "agent_text",
@@ -148,6 +185,23 @@ export function createDriverEmitter(
       }
     },
   };
+}
+
+/** Map a relay record onto the event fields (`tick_end`, `run_end`). */
+export function driverReplies(replies: readonly HitlReplyStamp[] | undefined): DriverReplies {
+  return (replies ?? []).map(({ askId, reply, label, line, at }) => ({
+    askId,
+    reply,
+    label,
+    line,
+    at,
+  }));
+}
+
+export function driverStop(stop: HitlStop | undefined): DriverStop {
+  return stop
+    ? { askId: stop.askId, cause: stop.cause, message: stop.message, exitCode: stop.exitCode }
+    : null;
 }
 
 /** Inbound messages (stdin). */

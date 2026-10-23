@@ -115,9 +115,10 @@ function scriptedClient(answer: (gate: Ev) => string | null) {
 describe("driver protocol (contract pins)", () => {
   it("pins the protocol version and the event type set", () => {
     expect(DRIVER_PROTOCOL_MAJOR).toBe(1);
-    expect(DRIVER_PROTOCOL_VERSION).toBe("1.1.0");
+    expect(DRIVER_PROTOCOL_VERSION).toBe("1.2.0");
     expect([...DRIVER_EVENT_TYPES]).toEqual([
       "run_start",
+      "queue_state",
       "tick_start",
       "agent_event",
       "agent_text",
@@ -334,7 +335,8 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
 
     expect(events[0]).toMatchObject({
       type: "run_start",
-      protocol: "1.1.0",
+      protocol: "1.2.0",
+      command: "run-plan",
       backend: "claude",
       plan: "driver-fixture.plan.md",
       pending: 3,

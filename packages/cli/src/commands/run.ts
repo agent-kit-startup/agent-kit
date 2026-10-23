@@ -16,18 +16,16 @@ import {
   runHeadlessDispatch,
   unknownSlashMessage,
 } from "../plan-loop/dispatch.js";
-import {
-  classifyGateExit,
-  LAND_ON_GATE_DESCRIPTION,
-  landGateExit,
-} from "../plan-loop/gate-exit.js";
+import { landDispatchOutcome, runDispatchDriver } from "../plan-loop/dispatch-driver.js";
+import { DRIVER_EVENTS_FORMATS } from "../plan-loop/driver-events.js";
+import { LAND_ON_GATE_DESCRIPTION } from "../plan-loop/gate-exit.js";
 import {
   formatHitlSummary,
   HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
 } from "../plan-loop/hitl-relay.js";
 import { REVIEW_PACK_SLASH, runReviewJob } from "../plan-loop/review-job.js";
-import { runPlanLoop } from "../plan-loop/run-loop.js";
+import { type DriverRunOptions, runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 import { negatedFlag } from "./negated-flag.js";
 
@@ -49,8 +47,16 @@ export interface ExecuteRunInput {
   maxPackBytes?: string;
   /** `--include-reviewed` (review-pack only): review branches unchanged since the last review too. */
   includeReviewed?: boolean;
+  /**
+   * `--events ndjson` (run-plan-all only): driver mode, NDJSON events on
+   * stdout and JSON answers on stdin (plan-loop/dispatch-driver.ts).
+   */
+  events?: DriverRunOptions;
   whichFn?: WhichFn;
 }
+
+/** The only slash whose dispatch has a driver mode (driver protocol 1.2.0). */
+export const DRIVER_DISPATCH_SLASH = "run-plan-all";
 
 export interface ExecuteRunResult {
   exitCode: number;
@@ -93,6 +99,28 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   }
   if (input.includeReviewed && slash !== REVIEW_PACK_SLASH) {
     return { exitCode: 1, error: `--include-reviewed only applies to ${REVIEW_PACK_SLASH}` };
+  }
+  if (input.events) {
+    if (slash !== DRIVER_DISPATCH_SLASH) {
+      return {
+        exitCode: 1,
+        error: `--events only applies to ${DRIVER_DISPATCH_SLASH} (and agent-kit run-plan)`,
+      };
+    }
+    // Driver mode owns stdout from here: every outcome, setup errors
+    // included, is an event (no `error` / `stdout` text for the caller).
+    const exitCode = await runDispatchDriver({
+      root,
+      slash: DRIVER_DISPATCH_SLASH,
+      backend: input.backend,
+      model: input.model,
+      dryRun: input.dryRun,
+      noHitl: input.noHitl === true,
+      landOnGate: input.landOnGate === true,
+      events: input.events,
+      whichFn: input.whichFn,
+    });
+    return { exitCode };
   }
 
   const detected = await detectAgentBackend(input.backend, input.whichFn);
@@ -199,41 +227,16 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
         });
     for (const line of formatHitlSummary(result.hitl)) console.log(line);
     const exitCode = hitlExitCode(result.exitCode, result.hitl);
-    const trigger = input.landOnGate
-      ? classifyGateExit({ stop: result.hitl?.stop, failed: exitCode !== 0 })
-      : null;
-    if (trigger) {
-      const stop = result.hitl?.stop;
-      const summary =
-        result.lastResult?.resultText.trim() ||
-        result.lastResult?.assistantTexts.at(-1)?.trim() ||
-        undefined;
-      try {
-        await landGateExit({
-          root,
-          outcome: {
-            trigger,
-            exitCode,
-            reason: stop?.message ?? `${detected.id} exited with code ${exitCode}`,
-            command: `run ${slash}`,
-            backend: detected.id,
-            logPath,
-            ...(stop ? { askId: stop.askId } : {}),
-            ...(summary ? { summary } : {}),
-            ...(result.lastResult
-              ? {
-                  gateText: [
-                    result.lastResult.resultText,
-                    ...result.lastResult.assistantTexts,
-                  ].join("\n"),
-                }
-              : {}),
-          },
-          log: (line) => console.log(line),
-        });
-      } catch (err) {
-        console.log(`gate-exit: landing failed: ${String(err)}`);
-      }
+    if (input.landOnGate) {
+      await landDispatchOutcome({
+        root,
+        slash,
+        backendId: detected.id,
+        logPath,
+        exitCode,
+        result,
+        log: (line) => console.log(line),
+      });
     }
     return { exitCode };
   } catch (err) {
@@ -322,6 +325,8 @@ export async function runSlashCli(
     "land-on-gate"?: boolean;
     "max-pack-bytes"?: string;
     "include-reviewed"?: boolean;
+    /** run-plan-all only: `ndjson` turns driver mode on. */
+    events?: string;
   },
 ): Promise<void> {
   const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
@@ -333,6 +338,12 @@ export async function runSlashCli(
   }
   if (!Number.isFinite(sleepSeconds) || sleepSeconds < 0) {
     logger.error("--sleep must be a non-negative number");
+    process.exitCode = 1;
+    return;
+  }
+  const events = String(args.events ?? "");
+  if (events && !(DRIVER_EVENTS_FORMATS as readonly string[]).includes(events)) {
+    logger.error(`--events must be one of: ${DRIVER_EVENTS_FORMATS.join(", ")}`);
     process.exitCode = 1;
     return;
   }
@@ -350,6 +361,7 @@ export async function runSlashCli(
     landOnGate: Boolean(args["land-on-gate"]),
     ...(args["max-pack-bytes"] ? { maxPackBytes: String(args["max-pack-bytes"]) } : {}),
     ...(args["include-reviewed"] ? { includeReviewed: true } : {}),
+    ...(events ? { events: {} } : {}),
   });
   if (result.stdout) {
     console.log(result.stdout);
@@ -387,7 +399,15 @@ export const runPlanAllCommand = defineCommand({
     description:
       "Headless /run-plan-all queue from the L0 file. Numbered-list HITL answered from the terminal (claude backend). Never git-prod.",
   },
-  args: runDispatchArgs,
+  args: {
+    ...runDispatchArgs,
+    events: {
+      type: "string" as const,
+      description:
+        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; driver protocol 1.2.0, see docs/driver-events-protocol.md)",
+      default: "",
+    },
+  },
   async run({ args }) {
     await runSlashCli("run-plan-all", args);
   },

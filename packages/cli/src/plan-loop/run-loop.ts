@@ -15,6 +15,8 @@ import {
   type DriverEmitter,
   type DriverEvent,
   type DriverTickSentinel,
+  driverReplies,
+  driverStop,
 } from "./driver-events.js";
 import {
   armExternalPlanReview,
@@ -292,6 +294,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     emit({
       type: "run_start",
       protocol: DRIVER_PROTOCOL_VERSION,
+      command: "run-plan",
       backend: opts.backend.id,
       plan: path.basename(planPath),
       pending: pendingAtStart,
@@ -391,21 +394,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
           pendingBefore: before,
           pendingAfter,
           result: driverSentinel(sentinel),
-          replies: replies.map(({ askId, reply, label, line, at }) => ({
-            askId,
-            reply,
-            label,
-            line,
-            at,
-          })),
-          stop: hitlStop
-            ? {
-                askId: hitlStop.askId,
-                cause: hitlStop.cause,
-                message: hitlStop.message,
-                exitCode: hitlStop.exitCode,
-              }
-            : null,
+          replies: driverReplies(replies),
+          stop: driverStop(hitlStop),
         });
       try {
         const runOpts: Parameters<AgentBackend["run"]>[0] = {
