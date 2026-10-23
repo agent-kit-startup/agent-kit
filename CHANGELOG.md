@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.7.1] - 2026-10-22
+
+### Changed
+
+- The `/run-plan` tick contract now tells the agent not to hand-poll background tasks (`sleep` / `until` loops, `pgrep -f`, `gh pr checks` loops) and to wait for the completion notification instead. It names the trap behind a stalled headless tick: `pgrep -f <pattern>` matches the waiting shell itself, so the loop never exits until the tool timeout.
+
 ## [6.7.0] - 2026-10-22
 
 ### Added

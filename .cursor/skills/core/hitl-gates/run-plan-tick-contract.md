@@ -188,6 +188,7 @@ The main window is a **thin orchestrator**: it reads state, dispatches, reviews,
 - **Do not** co-pack Task dispatch with `/git-staging`, AwaitShell waits on staging/MR, or other parallel heavy tool work in the same turn.
 - Finish the worker return (or end-of-turn Task notification) **before** starting staging. Staging is step 5 of Close the tick, after the summary is reviewed.
 - **Do not** fan out parallel heavy Tasks from the same tick (see Model guidance). One Task per to-do; next tick only after close.
+- **Do not** hand-poll a background task or process (`sleep` / `until` loops, `pgrep -f`, `gh pr checks` loops when `gh pr checks --watch` exists). Wait for the task's completion notification, or run the command in the foreground with an explicit timeout. Trap: `pgrep -f <pattern>` matches the waiting shell itself, because the pattern is in its own command line, so `until ! pgrep -f ...` never exits and holds the tick until the tool timeout.
 
 Live residual: Auto quota burns faster when Task and staging Await share one turn. ADR: `decisions/2026-07-27_auto-run-no-regression-invariants.md`.
 
