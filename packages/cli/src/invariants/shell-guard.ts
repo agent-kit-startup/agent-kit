@@ -348,6 +348,31 @@ export function parsePrMergeHead(head: string): PrMergeTarget | null {
   return { forge, selector, repo };
 }
 
+/** A `gh api` / `glab api` invocation anywhere in the text, including inside `bash -c '…'`, a loop body or `xargs`. */
+const FORGE_API_CALL_RE = /(?:^|[\s'"(;|&`$])(?:[\w./-]+\/)?(?:gh|glab)\s+api(?:\s|$)/;
+/**
+ * Forge API calls that merge: the REST PR merge endpoint (`pulls/<n>/merge`, any selector
+ * form, `$n` and `{pull_number}` included), the branch merge endpoint (`repos/…/merges`),
+ * GitLab's `merge_requests/<iid>/merge`, and the GraphQL merge / auto-merge / merge-queue
+ * mutations. Matched on the whole command, so a quote or a split cannot hide the path.
+ */
+const FORGE_API_MERGE_RE =
+  /\bpulls\/[^/\s'"]+\/merge\b|\/merges\b|\bmerge_requests\/[^/\s'"]+\/merge\b|\b(?:mergePullRequest|enablePullRequestAutoMerge|enqueuePullRequest|mergeBranch|mergeRequestAccept|mergeRequestSetAutoMerge)\b/;
+
+/**
+ * True when the command calls a forge API merge (`gh api` / `glab api`), which
+ * `parsePrMergeHead` cannot see: no base is resolved for it, so the rule denies it
+ * whatever the base (fail-closed). `ALLOW_MAIN_PUSH=1` on the api segment, or in the
+ * environment, lets it through like the main push. Not inspected: a GraphQL query read from
+ * a file (`-F query=@q.graphql`, `--input`), which names no endpoint on the command line.
+ */
+export function forgeApiMergeCall(command: string): boolean {
+  if (!FORGE_API_MERGE_RE.test(command)) return false;
+  return shellSegments(command).some(
+    (segment) => FORGE_API_CALL_RE.test(segment) && !segmentHasAllowMainPushEnv(segment),
+  );
+}
+
 export function prMergeKey(target: PrMergeTarget): string {
   return `${target.forge}\u0000${target.repo ?? ""}\u0000${target.selector ?? ""}`;
 }
@@ -508,10 +533,14 @@ export const SHELL_DENY_RULES: Array<{
   {
     // Claude settings allow `gh pr merge` / `glab mr merge` so the /git-staging merge
     // skips the auto-mode classifier; this rule keeps that allowance to non-protected bases.
+    // A forge API merge (`gh api … pulls/<n>/merge`, a GraphQL merge mutation) has no base
+    // to resolve and no /git-staging use: it is denied outright, so neither the API nor
+    // Colony's host path (typed yes for main) can be bypassed that way.
     id: "pr-merge-protected-base",
     description:
-      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too",
+      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too, and so is any gh api / glab api merge call (REST merge endpoint or GraphQL merge mutation)",
     test: (cmd, opts) => {
+      if (forgeApiMergeCall(cmd)) return true;
       const bases = opts?.prMergeBases;
       if (!bases) return false;
       return shellSegments(cmd).some((segment) => {

@@ -2737,6 +2737,7 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       memory: "Memory",
       terminals: "Terminals",
       chats: "Chats",
+      colony: "Colony",
       processes: "Processes",
       config: "Config",
     };
@@ -2791,6 +2792,7 @@ describe("cockpit-validation: icons, assets, and accessible names", () => {
       "memory",
       "terminals",
       "chats",
+      "colony",
       "processes",
       "config",
     ];

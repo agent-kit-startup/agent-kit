@@ -37,6 +37,7 @@ export const SNAPSHOT_REPO_SOURCE_RELS = Object.freeze([
   ".cursor/context/field-report-dismissals.json",
   ".cursor/context/mission-timing.json",
   ".cursor/context/flight-log.json",
+  ".cursor/context/test-results.json",
   ".cursor/context/field-report-cadence.json",
   ".cursor/skills",
   "package.json",

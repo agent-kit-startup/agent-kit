@@ -14,6 +14,9 @@
 .cursor/context/mission-timing.json
 # Local Flight Log past-Gaps history (observation only)
 .cursor/context/flight-log.json
+# Local outcome ledger and test-result collector (game layer; observation only)
+.cursor/context/outcome-ledger.json
+.cursor/context/test-results.json
 # Local pending gate exit marker (headless run --land-on-gate; launcher-read)
 .cursor/context/gate-exit.json
 # Local review job ledger (branch -> last reviewed tip; countdown --job review)

@@ -35,6 +35,22 @@ and published as `docs/contracts/mission-control-snapshot.schema.json`. The Flig
 operator tickets (gate exits awaiting triage) read-only from `gateExit`
 (`lib/gate-exit-tickets.mjs`, the no-fetch mirror of `agent-kit ground-control status`).
 
+## Colony section
+
+**Colony** (`#colony`, in the More menu) is a single-player game panel over the snapshot's
+`outcomeLedger` field (1.9.0, `lib/outcome-ledger.mjs`; ADR
+`2026-10-23_colony-game-canon-outcome-ledger-art-policy.md`). A 61-tile hex map (SVG, no image
+needed) turns from fog and grey ground to green as verified outcomes accrue: the ledger alone
+greens up to 60% of it, finished buildings green the rest. Logic, Compute and Rare are the
+ledger totals minus what the player spent. Building queues a structure for a real-time
+duration; the player's state (spent resources, queue, buildings) lives only in this browser's
+`localStorage` (`agent-kit-colony-state-v1`), and timers are `startedAt` + duration evaluated
+when the panel renders: no timer, no extra polling, no server write. A streak of at least 3
+to-dos closed in a row, the last within 2 hours (`outcomeLedger.flow`), runs builds 25% faster.
+Art: at most 4 images, 400 KB together, in `art/` (re-encoded from the Colony app's curated
+set); a host that cannot serve them gets the panel without images. An older engine without
+`outcomeLedger` shows an update hint.
+
 ## Git e CI/CD section
 
 The former Git and DevOps tabs are one section, **Git e CI/CD** (`#git`; `#devops` and

@@ -37,6 +37,7 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/lib/gate-exit-tickets.mjs",
   "package/dashboard/lib/guards.mjs",
   "package/dashboard/lib/open-browser.mjs",
+  "package/dashboard/lib/outcome-ledger.mjs",
   "package/dashboard/lib/identity-probe.mjs",
   "package/dashboard/lib/pipeline-cache.mjs",
   "package/dashboard/lib/processes.mjs",

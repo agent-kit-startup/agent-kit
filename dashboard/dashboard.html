@@ -945,6 +945,42 @@ body.mc-fullscreen .top-tabs-row {
 }
 .terminal-item:hover { background: var(--bg-card-hover); }
 
+/* ===== Colony (game panel over outcomeLedger) ===== */
+.colony-layout { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr); gap: var(--mc-space-xl); align-items: start; }
+.colony-map-wrap { border: 1px solid var(--border); border-radius: var(--mc-radius); padding: var(--mc-space-lg); background: var(--bg-card); }
+.colony-map { display: block; width: 100%; max-width: 420px; margin: 0 auto; height: auto; }
+.colony-tile { stroke: var(--bg-primary); stroke-width: 1.5; }
+.colony-tile[data-tile="fog"] { fill: var(--bg-secondary); }
+.colony-tile[data-tile="barren"] { fill: #4b5563; }
+.colony-tile[data-tile="green"] { fill: #3f7d5a; }
+.colony-glyph { font: 600 11px var(--mc-font-mono); fill: #f5e6c8; pointer-events: none; }
+.colony-side { display: flex; flex-direction: column; gap: var(--mc-space-lg); }
+.colony-resources { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--mc-space-md); }
+.colony-resource { border: 1px solid var(--border); border-radius: var(--mc-radius); padding: var(--mc-card-padding-dense); background: var(--bg-card); display: flex; flex-direction: column; gap: 2px; }
+.colony-resource-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.colony-resource-value { font: 600 20px var(--mc-font-mono); color: var(--text-primary); }
+.colony-resource-meta { font-size: 11px; color: var(--text-muted); }
+.colony-panel { border: 1px solid var(--border); border-radius: var(--mc-radius); padding: var(--mc-card-padding-dense); background: var(--bg-card); }
+.colony-panel-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: var(--mc-space-sm); }
+.colony-panel-meta { font-weight: 400; color: var(--text-muted); font-family: var(--mc-font-mono); }
+.colony-queue, .colony-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.colony-queue-item, .colony-log-item { display: flex; gap: var(--mc-space-md); font-size: 12px; color: var(--text-secondary); min-width: 0; }
+.colony-queue-name { flex: 1; color: var(--text-primary); }
+.colony-queue-time, .colony-log-kind { color: var(--text-muted); font-family: var(--mc-font-mono); white-space: nowrap; }
+.colony-log-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colony-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--mc-space-lg); margin-top: var(--mc-space-xl); }
+.colony-card { border: 1px solid var(--border); border-radius: var(--mc-radius); background: var(--bg-card); overflow: hidden; display: flex; flex-direction: column; }
+.colony-card:hover { border-color: var(--border-active); }
+.colony-card-art { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg-secondary); }
+.colony-card-body { padding: var(--mc-card-padding-dense); display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.colony-card-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.colony-card-blurb { font-size: 12px; color: var(--text-secondary); margin: 0; flex: 1; }
+.colony-card-meta { font-size: 11px; color: var(--text-muted); font-family: var(--mc-font-mono); }
+.colony-build-btn { align-self: flex-start; }
+.colony-build-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+.colony-note { font-size: 12px; color: var(--text-muted); margin: var(--mc-space-md) 0 0; }
+@media (max-width: 860px) { .colony-layout { grid-template-columns: 1fr; } }
+
 /* ===== Chats (saved agent sessions) ===== */
 .chat-list { display: flex; flex-direction: column; gap: 4px; }
 .chat-item {
@@ -1336,8 +1372,8 @@ body.mc-fullscreen .top-tabs-row {
   border-radius: var(--mc-radius);
   background: var(--bg-card);
 }
-.ship-row.is-red { box-shadow: inset 2px 0 0 var(--red); }
-.ship-row.is-yellow { box-shadow: inset 2px 0 0 var(--yellow); }
+.ship-row.is-red { border-color: var(--red); }
+.ship-row.is-yellow { border-color: var(--yellow); }
 .ship-row-label {
   font-weight: 600;
   color: var(--text-primary);
@@ -3879,6 +3915,9 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
           Chats
           <span class="top-tab-badge" id="navChatsBadge">0</span>
         </a>
+        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="colony" tabindex="0" onclick="return showSection('colony')" aria-label="Colony section">
+          Colony
+        </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="processes" tabindex="0" onclick="return showSection('processes')" aria-label="Processes section">
           Processes
           <span class="top-tab-badge" id="navProcessesBadge">0</span>
@@ -4069,6 +4108,7 @@ const SECTION_IDS = [
   'memory',
   'terminals',
   'chats',
+  'colony',
   'processes',
   'config',
 ];
@@ -6791,6 +6831,351 @@ function renderChatsSection(d) {
   `;
 }
 
+// ===== Colony (game panel over the snapshot `outcomeLedger`, 1.9.0) =====
+// ADR 2026-10-23 colony-game-canon-outcome-ledger-art-policy points 1, 4, 6, 8.
+// Earned totals come only from the ledger; what the player spends, queues and
+// builds lives in this browser (localStorage), like the skin preference. No
+// server write, no route, no timer: build timers are startedAt + duration,
+// evaluated when the panel renders (each snapshot refresh).
+
+const COLONY_STATE_KEY = 'agent-kit-colony-state-v1';
+const COLONY_MAP_RADIUS = 4;
+const COLONY_MAX_ACTIVE_BUILDS = 3;
+const COLONY_FLOW_STREAK = 3;
+const COLONY_FLOW_WINDOW_MS = 2 * 60 * 60 * 1000;
+const COLONY_OVERCLOCK_FACTOR = 0.75;
+const COLONY_STRUCTURES = Object.freeze([
+  { id: 'uplink', name: 'IDE-Core Uplink', glyph: 'U', cost: { logic: 0, compute: 3, rare: 0 }, minutes: 60, greens: 2, unique: true, art: '/art/uplink-tower-road.webp', blurb: 'Central command: links the colony to the work you ship. One per map.' },
+  { id: 'nursery', name: 'Sapling Nursery', glyph: 'N', cost: { logic: 2, compute: 0, rare: 0 }, minutes: 45, greens: 3, unique: false, art: '/art/seed-tree-crane.webp', blurb: 'First green ground around the landing site.' },
+  { id: 'tundra', name: 'Tundra Reforestation Node', glyph: 'T', cost: { logic: 5, compute: 2, rare: 0 }, minutes: 180, greens: 5, unique: false, art: '/art/rover-frozen-flats.webp', blurb: 'Turns frozen flats green.' },
+  { id: 'transit', name: 'Levitating Transit Hub', glyph: 'H', cost: { logic: 4, compute: 4, rare: 0 }, minutes: 360, greens: 4, unique: false, art: null, blurb: 'Connects settlements across the map.' },
+  { id: 'purifier', name: 'Atmospheric Purifier', glyph: 'P', cost: { logic: 10, compute: 6, rare: 1 }, minutes: 720, greens: 8, unique: false, art: '/art/atmospheric-purifier.webp', blurb: 'Vents clean mist and raises the atmosphere meter.' },
+]);
+
+/** Axial hex coordinates in spiral order from the landing site (center). */
+function colonyHexTiles(radius) {
+  const tiles = [{ q: 0, r: 0 }];
+  const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+  for (let k = 1; k <= radius; k += 1) {
+    let q = -k;
+    let r = k;
+    for (let side = 0; side < 6; side += 1) {
+      for (let step = 0; step < k; step += 1) {
+        tiles.push({ q, r });
+        q += dirs[side][0];
+        r += dirs[side][1];
+      }
+    }
+  }
+  return tiles;
+}
+
+/** Normalized player state from storage (malformed input -> empty colony). */
+function parseColonyState(raw) {
+  const empty = { v: 1, seq: 0, queue: [], built: [], spent: { logic: 0, compute: 0, rare: 0 } };
+  if (!raw || typeof raw !== 'object' || raw.v !== 1) return empty;
+  const ids = new Set(COLONY_STRUCTURES.map((s) => s.id));
+  const num = (n) => (Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0);
+  const queue = (Array.isArray(raw.queue) ? raw.queue : [])
+    .filter((b) => b && ids.has(b.structure) && Number.isFinite(b.startedAt) && Number.isFinite(b.durationMs) && b.durationMs > 0)
+    .slice(0, COLONY_MAX_ACTIVE_BUILDS)
+    .map((b) => ({ id: num(b.id), structure: b.structure, startedAt: b.startedAt, durationMs: b.durationMs }));
+  const built = (Array.isArray(raw.built) ? raw.built : [])
+    .filter((b) => b && ids.has(b.structure) && Number.isFinite(b.completedAt))
+    .slice(0, 500)
+    .map((b) => ({ structure: b.structure, completedAt: b.completedAt }));
+  const spent = raw.spent && typeof raw.spent === 'object' ? raw.spent : {};
+  return {
+    v: 1,
+    seq: num(raw.seq),
+    queue,
+    built,
+    spent: { logic: num(spent.logic), compute: num(spent.compute), rare: num(spent.rare) },
+  };
+}
+
+function loadColonyState() {
+  try {
+    const raw = localStorage.getItem(COLONY_STATE_KEY);
+    return parseColonyState(raw ? JSON.parse(raw) : null);
+  } catch (e) {
+    return parseColonyState(null);
+  }
+}
+
+function saveColonyState(state) {
+  try {
+    localStorage.setItem(COLONY_STATE_KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Earned totals from the snapshot field (zeros when absent). */
+function colonyEarned(ledger) {
+  const t = ledger && ledger.totals && typeof ledger.totals === 'object' ? ledger.totals : {};
+  const n = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+  return { logic: n(t.logic), compute: n(t.compute), rare: n(t.rare) };
+}
+
+/** Spendable = earned - spent, never below zero. */
+function colonyWallet(earned, state) {
+  return {
+    logic: Math.max(0, earned.logic - state.spent.logic),
+    compute: Math.max(0, earned.compute - state.spent.compute),
+    rare: Math.max(0, earned.rare - state.spent.rare),
+  };
+}
+
+/**
+ * Flow overclock (ADR point 6): an unbroken streak of closed to-dos, the last
+ * one recent. Tuning: COLONY_FLOW_STREAK closes, within COLONY_FLOW_WINDOW_MS.
+ */
+function colonyOverclockActive(flow, nowMs) {
+  if (!flow || !Number.isFinite(flow.streak) || flow.streak < COLONY_FLOW_STREAK) return false;
+  const last = Date.parse(flow.lastClosedAt || '');
+  return Number.isFinite(last) && nowMs - last >= 0 && nowMs - last <= COLONY_FLOW_WINDOW_MS;
+}
+
+function colonyBuildEndsAt(build, overclock) {
+  return build.startedAt + build.durationMs * (overclock ? COLONY_OVERCLOCK_FACTOR : 1);
+}
+
+/**
+ * Lazy settle: queued builds whose time has come move to `built`. Returns the
+ * next state and whether it changed (the caller persists only on change, so a
+ * finished build never flips back when the overclock ends).
+ */
+function settleColonyState(state, nowMs, overclock) {
+  const done = [];
+  const queue = [];
+  for (const b of state.queue) {
+    const endsAt = colonyBuildEndsAt(b, overclock);
+    if (nowMs >= endsAt) done.push({ structure: b.structure, completedAt: Math.round(endsAt) });
+    else queue.push(b);
+  }
+  if (done.length === 0) return { state, changed: false };
+  return { state: { ...state, queue, built: [...state.built, ...done] }, changed: true };
+}
+
+/** Why a structure cannot be queued now, or null when it can. */
+function colonyBuildBlocker(structure, state, wallet) {
+  if (!structure) return 'Unknown structure';
+  if (structure.unique && (state.built.some((b) => b.structure === structure.id) || state.queue.some((b) => b.structure === structure.id))) {
+    return 'Already on the map';
+  }
+  if (state.queue.length >= COLONY_MAX_ACTIVE_BUILDS) return 'Build queue full';
+  const c = structure.cost;
+  if (wallet.logic < c.logic || wallet.compute < c.compute || wallet.rare < c.rare) return 'Not enough resources';
+  return null;
+}
+
+/** Queue a build: spend its cost and start its timer. Returns the next state or null. */
+function queueColonyBuild(state, structureId, earned, nowMs) {
+  const structure = COLONY_STRUCTURES.find((s) => s.id === structureId);
+  if (colonyBuildBlocker(structure, state, colonyWallet(earned, state))) return null;
+  const seq = state.seq + 1;
+  return {
+    ...state,
+    seq,
+    queue: [...state.queue, { id: seq, structure: structure.id, startedAt: nowMs, durationMs: structure.minutes * 60 * 1000 }],
+    spent: {
+      logic: state.spent.logic + structure.cost.logic,
+      compute: state.spent.compute + structure.cost.compute,
+      rare: state.spent.rare + structure.cost.rare,
+    },
+  };
+}
+
+/**
+ * Green tiles: earned outcomes clear ground slowly (square root, so a long
+ * history does not paint the map at once) and on their own reach at most
+ * 60% of the map; finished buildings green the rest. Pure function of the
+ * ledger totals and the built list.
+ */
+function colonyGreenTiles(earned, state, tileCount) {
+  const points = earned.logic + earned.compute / 4;
+  const fromLedger = Math.floor(Math.sqrt(points) * 2) + earned.rare;
+  let green = Math.min(Math.floor(tileCount * 0.6), fromLedger);
+  for (const b of state.built) {
+    const s = COLONY_STRUCTURES.find((x) => x.id === b.structure);
+    if (s) green += s.greens;
+  }
+  return Math.max(0, Math.min(tileCount, green));
+}
+
+function formatColonyDuration(ms) {
+  const minutes = Math.max(1, Math.ceil(ms / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+function formatColonyCost(cost) {
+  const parts = [];
+  if (cost.logic) parts.push(`${cost.logic} Logic`);
+  if (cost.compute) parts.push(`${cost.compute} Compute`);
+  if (cost.rare) parts.push(`${cost.rare} Rare`);
+  return parts.join(' · ') || 'Free';
+}
+
+/** Hex map SVG. Static geometry and constant glyphs only (no snapshot text). */
+function renderColonyMapSvg(green, state) {
+  const tiles = colonyHexTiles(COLONY_MAP_RADIUS);
+  const size = 14;
+  const fogFrom = Math.min(tiles.length, green + 12);
+  const placed = [];
+  const uplink = state.built.find((b) => b.structure === 'uplink');
+  if (uplink) placed[0] = 'U';
+  let slot = 1;
+  for (const b of state.built) {
+    if (b.structure === 'uplink') continue;
+    const s = COLONY_STRUCTURES.find((x) => x.id === b.structure);
+    if (s && slot < tiles.length) placed[slot++] = s.glyph;
+  }
+  const corner = (cx, cy, i) => {
+    const a = (Math.PI / 180) * (60 * i - 30);
+    return `${(cx + size * Math.cos(a)).toFixed(1)},${(cy + size * Math.sin(a)).toFixed(1)}`;
+  };
+  const cells = tiles.map((t, i) => {
+    const cx = size * Math.sqrt(3) * (t.q + t.r / 2);
+    const cy = size * 1.5 * t.r;
+    const tileState = i < green ? 'green' : i < fogFrom ? 'barren' : 'fog';
+    const points = [0, 1, 2, 3, 4, 5].map((k) => corner(cx, cy, k)).join(' ');
+    const glyph = placed[i]
+      ? `<text class="colony-glyph" x="${cx.toFixed(1)}" y="${(cy + 4).toFixed(1)}" text-anchor="middle">${placed[i]}</text>`
+      : '';
+    return `<polygon class="colony-tile" data-tile="${tileState}" points="${points}"/>${glyph}`;
+  }).join('');
+  const span = size * Math.sqrt(3) * (COLONY_MAP_RADIUS + 0.6);
+  const vb = `${(-span).toFixed(1)} ${(-span).toFixed(1)} ${(span * 2).toFixed(1)} ${(span * 2).toFixed(1)}`;
+  return `<svg class="colony-map" viewBox="${vb}" role="img" aria-label="Colony map: ${green} of ${tiles.length} tiles green">${cells}</svg>`;
+}
+
+/** Colony section body. Ledger labels are repo text: escapeHtml / escapeAttr only. */
+function renderColonySection(d, state, nowMs) {
+  const ledger = d && d.outcomeLedger && typeof d.outcomeLedger === 'object' ? d.outcomeLedger : null;
+  const tileCount = colonyHexTiles(COLONY_MAP_RADIUS).length;
+  const earned = colonyEarned(ledger);
+  const wallet = colonyWallet(earned, state);
+  const overclock = colonyOverclockActive(ledger && ledger.flow, nowMs);
+  const green = colonyGreenTiles(earned, state, tileCount);
+  const title = (subtitle, body) => `
+    <div class="content-section" id="section-colony">
+      <div class="section-title">
+        Colony
+        <span class="section-subtitle">${escapeHtml(subtitle)}</span>
+      </div>
+      ${body}
+    </div>
+  `;
+  if (!ledger) {
+    return title('no ledger', renderEmptyStateCta({
+      iconKind: 'colony',
+      headline: 'No outcome ledger in this snapshot',
+      support: 'The Colony grows from the outcome ledger (Mission Control snapshot 1.9.0 or later). Update the kit engine to play.',
+    }));
+  }
+  const res = (label, key) => `
+    <div class="colony-resource">
+      <span class="colony-resource-label">${label}</span>
+      <span class="colony-resource-value">${wallet[key]}</span>
+      <span class="colony-resource-meta">${earned[key]} earned · ${state.spent[key]} spent</span>
+    </div>`;
+  const flow = ledger.flow;
+  const flowText = overclock
+    ? `Flow overclock on: streak of ${flow.streak} closed to-dos, builds run 25% faster`
+    : flow && Number.isFinite(flow.streak)
+      ? `Flow streak ${flow.streak} (overclock at ${COLONY_FLOW_STREAK} closes in a row, the last within 2 h)`
+      : 'Flow: no closed to-do in a mission yet';
+  const queueRows = state.queue.map((b) => {
+    const s = COLONY_STRUCTURES.find((x) => x.id === b.structure);
+    const endsAt = colonyBuildEndsAt(b, overclock);
+    const left = formatColonyDuration(endsAt - nowMs);
+    const at = new Date(endsAt);
+    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    return `<li class="colony-queue-item"><span class="colony-queue-name">${escapeHtml(s ? s.name : b.structure)}</span><span class="colony-queue-time" title="${escapeAttr(at.toISOString())}">${escapeHtml(`${left} left · ready at ${clock}`)}</span></li>`;
+  }).join('');
+  const queueBlock = `
+    <div class="colony-panel">
+      <div class="colony-panel-title">Build queue <span class="colony-panel-meta">${state.queue.length}/${COLONY_MAX_ACTIVE_BUILDS}</span></div>
+      ${queueRows ? `<ul class="colony-queue">${queueRows}</ul>` : '<p class="colony-note">Nothing under construction. Timers are read when this panel refreshes; nothing runs in the background.</p>'}
+    </div>`;
+  const cards = COLONY_STRUCTURES.map((s) => {
+    const blocker = colonyBuildBlocker(s, state, wallet);
+    const count = state.built.filter((b) => b.structure === s.id).length;
+    const art = s.art
+      ? `<img class="colony-card-art" src="${escapeAttr(s.art)}" alt="" loading="lazy" decoding="async">`
+      : '<div class="colony-card-art colony-card-art-none" aria-hidden="true"></div>';
+    return `
+      <div class="colony-card">
+        ${art}
+        <div class="colony-card-body">
+          <div class="colony-card-name">${escapeHtml(s.name)}${count ? ` <span class="colony-panel-meta">×${count}</span>` : ''}</div>
+          <p class="colony-card-blurb">${escapeHtml(s.blurb)}</p>
+          <div class="colony-card-meta">${escapeHtml(`${formatColonyCost(s.cost)} · ${formatColonyDuration(s.minutes * 60000)}`)}</div>
+          <button type="button" class="process-copy-btn colony-build-btn" data-colony-build="${escapeAttr(s.id)}"${blocker ? ` disabled title="${escapeAttr(blocker)}"` : ` title="${escapeAttr(`Spend ${formatColonyCost(s.cost)} and start building`)}"`} aria-label="${escapeAttr(`Build ${s.name}`)}">${blocker ? escapeHtml(blocker) : 'Build'}</button>
+        </div>
+      </div>`;
+  }).join('');
+  const recent = (Array.isArray(ledger.recent) ? ledger.recent : []).slice(0, 6).map((e) => {
+    const kindLabel = { todo: 'To-do done', test: 'Tests passed', ci: 'CI passed', releaseCut: 'Release cut', plan: 'Plan closed', review: 'Clean review', releasePublished: 'Release published' }[e && e.kind] || 'Outcome';
+    return `<li class="colony-log-item"><span class="colony-log-kind">${escapeHtml(kindLabel)}</span><span class="colony-log-label" title="${escapeAttr(String(e.label || ''))}">${escapeHtml(String(e.label || ''))}</span></li>`;
+  }).join('');
+  const skipped = ledger.available === false
+    ? '<p class="colony-note">The ledger was not read on this refresh (snapshot budget); totals come back on the next one.</p>'
+    : '';
+  const emptyNote = ledger.available !== false && ledger.entries === 0
+    ? '<p class="colony-note">Nothing earned yet. Close a to-do, pass the tests (agent-kit outcome-ledger test) or ship a green CI run and the ground starts to turn.</p>'
+    : '';
+  const body = `
+    <div class="colony-layout">
+      <div class="colony-map-wrap">
+        ${renderColonyMapSvg(green, state)}
+        <p class="colony-note">${escapeHtml(flowText)}</p>
+        ${emptyNote}${skipped}
+      </div>
+      <div class="colony-side">
+        <div class="colony-resources">${res('Logic', 'logic')}${res('Compute', 'compute')}${res('Rare', 'rare')}</div>
+        ${queueBlock}
+        <div class="colony-panel">
+          <div class="colony-panel-title">Ship log</div>
+          ${recent ? `<ul class="colony-log">${recent}</ul>` : '<p class="colony-note">No outcomes yet.</p>'}
+        </div>
+      </div>
+    </div>
+    <div class="colony-cards">${cards}</div>
+    <p class="colony-note">Resources come only from verified outcomes in the ledger, never from lines of code, commits or time. What you build is kept in this browser.</p>`;
+  return title(`${green} of ${tileCount} tiles green`, body);
+}
+
+/** Settle finished builds before render (persist only on change). */
+function colonyStateForRender(d, nowMs) {
+  const loaded = loadColonyState();
+  const flow = d && d.outcomeLedger ? d.outcomeLedger.flow : null;
+  const { state, changed } = settleColonyState(loaded, nowMs, colonyOverclockActive(flow, nowMs));
+  if (changed) saveColonyState(state);
+  return state;
+}
+
+function wireColonyButtons() {
+  document.querySelectorAll('.colony-build-btn[data-colony-build]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled || !data) return;
+      const now = Date.now();
+      const next = queueColonyBuild(colonyStateForRender(data, now), btn.dataset.colonyBuild, colonyEarned(data.outcomeLedger), now);
+      if (next && saveColonyState(next)) render();
+    });
+  });
+  // The panel works with no image at all: hide art a host cannot serve.
+  document.querySelectorAll('img.colony-card-art').forEach((img) => {
+    img.addEventListener('error', () => { img.hidden = true; }, { once: true });
+  });
+}
+
 function wireChatResumeButtons() {
   document.querySelectorAll('.chat-resume-btn[data-chat-resume]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -7586,7 +7971,7 @@ function nowMetaIconSvg(kind, opts) {
  * features >= 1 unit. Detail that cannot meet the floor is drawn filled
  * (fill="currentColor" stroke="none"), never as a sub-stroke stroked shape.
  * Static path markup only; never concatenate untrusted text into the SVG.
- * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'devops'|'memory'|'terminals'|'chats'|'processes'|'config'} kind
+ * @param {'current-mission'|'monitor'|'field-report'|'checklist'|'more-sections'|'overview'|'plans'|'activity'|'agents'|'skills'|'skins'|'commands'|'health'|'git'|'devops'|'memory'|'terminals'|'chats'|'colony'|'processes'|'config'} kind
  * @param {{ decorative?: boolean }} [opts] decorative true (default): aria-hidden next to a visible label.
  *   decorative false: role=img + aria-label + title for icon-only controls (e.g. more-sections).
  */
@@ -7612,6 +7997,7 @@ function spaceIconSvg(kind, opts) {
     memory: 'Memory',
     terminals: 'Terminals',
     chats: 'Chats',
+    colony: 'Colony',
     processes: 'Processes',
     config: 'Config',
   };
@@ -7695,6 +8081,10 @@ function spaceIconSvg(kind, opts) {
     // Speech bubble (chats) — Feather message-square on the 16 grid
     chats:
       '<path d="M14 10a1.5 1.5 0 01-1.5 1.5H5L2 14.5v-11A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5z"/>',
+    // Hexagon with a sprout (colony)
+    colony:
+      '<path d="M8 1.75l5.5 3.125v6.25L8 14.25l-5.5-3.125v-6.25z"/>' +
+      '<path d="M8 11V7.5M8 8.5c0-1.25 1-2 2.25-2M8 9.25c0-1-.85-1.75-2-1.75"/>',
     // Layers (processes)
     processes:
       '<path d="M8 2.5l6 3-6 3-6-3 6-3z"/>' +
@@ -9213,6 +9603,10 @@ function renderUnsafe() {
   // ===== Chats =====
   parts.push(renderChatsSection(d));
 
+  // ===== Colony =====
+  const colonyNow = Date.now();
+  parts.push(renderColonySection(d, colonyStateForRender(d, colonyNow), colonyNow));
+
   // ===== Processes =====
   const processes = d.processes || [];
   // Detached audit-session visibility (phase3): host-wide agent-kit-audit-* PTYs.
@@ -9376,6 +9770,7 @@ function renderUnsafe() {
 
   wireTerminalExpandButtons();
   wireChatResumeButtons();
+  wireColonyButtons();
 
   updateTransportChrome();
 

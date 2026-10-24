@@ -232,6 +232,8 @@ export const KIT_OWNED_IGNORE_PATTERNS = [
   ".cursor/context/readiness.json",
   ".cursor/context/flight-log.json",
   ".cursor/context/mission-timing.json",
+  ".cursor/context/outcome-ledger.json",
+  ".cursor/context/test-results.json",
   ".cursor/context/gate-exit.json",
   ".cursor/context/review-ledger.json",
   ".cursor/context/plan-index.json",

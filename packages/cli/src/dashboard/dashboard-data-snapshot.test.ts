@@ -4,7 +4,7 @@
 // the script end-to-end so a regression in the git-status trim or the
 // kitManaged registry/fallback resolution actually fails the suite.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -412,6 +412,72 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     const snap = JSON.parse(raw);
     expect(snap.chats).toEqual({ withheld: true, vendors: [] });
     expect(schemaErrors(schema, snap)).toEqual([]);
+  });
+
+  it("folds the outcome ledger from plans, tags and test results, idempotently (1.9.0)", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-outcome-"));
+    initGitRepo(repo);
+    writeFileSync(join(repo, "README.md"), "x\n");
+    execFileSync("git", ["add", "README.md"], { cwd: repo });
+    execFileSync("git", ["commit", "-q", "-m", "init"], { cwd: repo });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
+    const ledgerPath = join(repo, ".cursor", "context", "outcome-ledger.json");
+
+    // Fresh install: a valid empty field and no ledger file left behind.
+    const fresh = runDashboardData(repo);
+    expect(schemaErrors(schema, fresh)).toEqual([]);
+    const freshLedger = fresh.outcomeLedger as { entries: number; totals: Record<string, number> };
+    expect(freshLedger.entries).toBe(0);
+    expect(freshLedger.totals).toEqual({ logic: 0, compute: 0, rare: 0 });
+    expect(existsSync(ledgerPath)).toBe(false);
+
+    execFileSync("git", ["tag", "v1.0.0"], { cwd: repo });
+
+    mkdirSync(join(repo, ".cursor", "plans"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "plans", "demo.plan.md"),
+      '---\nname: "Demo"\ntodos:\n  - id: one\n    content: "First"\n    status: completed\n  - id: two\n    content: "Second"\n    status: completed\n---\n\n# Demo\n',
+    );
+    mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "context", "test-results.json"),
+      JSON.stringify({
+        version: 1,
+        runs: [
+          { at: "2026-10-24T10:00:00.000Z", ok: false, exitCode: 1, head, commands: ["t"] },
+          { at: "2026-10-24T10:05:00.000Z", ok: true, exitCode: 0, head, commands: ["t"] },
+          { at: "2026-10-24T10:06:00.000Z", ok: true, exitCode: 0, head, commands: ["t"] },
+        ],
+      }),
+    );
+
+    const snap = runDashboardData(repo);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    const ledger = snap.outcomeLedger as {
+      available: boolean;
+      totals: Record<string, number>;
+      byKind: Record<string, number>;
+      tests: { configured: boolean; lastRun: { ok: boolean } | null };
+    };
+    expect(ledger.available).toBe(true);
+    expect(ledger.byKind).toMatchObject({ todo: 2, test: 1, releaseCut: 1, plan: 1 });
+    expect(ledger.totals).toEqual({ logic: 3, compute: 1, rare: 1 });
+    expect(ledger.tests).toEqual({
+      configured: false,
+      lastRun: { at: "2026-10-24T10:06:00.000Z", ok: true, head },
+    });
+    const first = readFileSync(ledgerPath, "utf8");
+
+    // Re-open a to-do: nothing is taken back and nothing new is earned.
+    writeFileSync(
+      join(repo, ".cursor", "plans", "demo.plan.md"),
+      '---\nname: "Demo"\ntodos:\n  - id: one\n    content: "First"\n    status: pending\n  - id: two\n    content: "Second"\n    status: completed\n---\n',
+    );
+    const again = runDashboardData(repo);
+    expect((again.outcomeLedger as { totals: Record<string, number> }).totals).toEqual(
+      ledger.totals,
+    );
+    expect(readFileSync(ledgerPath, "utf8")).toBe(first);
   });
 
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {

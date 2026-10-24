@@ -49,6 +49,8 @@ const main = defineCommand({
     guard: () => import("./commands/guard.js").then((m) => m.guardCommand),
     monitors: () => import("./commands/monitors.js").then((m) => m.monitorsCommand),
     sessions: () => import("./commands/sessions.js").then((m) => m.sessionsCommand),
+    "outcome-ledger": () =>
+      import("./commands/outcome-ledger.js").then((m) => m.outcomeLedgerCommand),
     validate: () => import("./commands/validate.js").then((m) => m.validateCommand),
     "engine-info": () => import("./commands/engine-info.js").then((m) => m.engineInfoCommand),
     commands: () => import("./commands/commands.js").then((m) => m.commandsCommand),

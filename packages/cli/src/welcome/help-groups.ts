@@ -39,7 +39,14 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
   {
     id: "dashboard",
     title: "DASHBOARD",
-    commands: ["dashboard", "dashboard-broadcast", "mission-control", "monitors", "sessions"],
+    commands: [
+      "dashboard",
+      "dashboard-broadcast",
+      "mission-control",
+      "monitors",
+      "sessions",
+      "outcome-ledger",
+    ],
   },
   {
     id: "integrity",
