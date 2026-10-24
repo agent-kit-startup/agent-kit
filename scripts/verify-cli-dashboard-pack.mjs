@@ -42,6 +42,7 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/lib/processes.mjs",
   "package/dashboard/lib/run-logs.mjs",
   "package/dashboard/lib/semantic-model.mjs",
+  "package/dashboard/lib/ship-lane.mjs",
   "package/dashboard/lib/terminal-snapshot.mjs",
   "package/dashboard/lib/triage-heading.mjs",
   "package/dashboard/lib/live-refresh.mjs",

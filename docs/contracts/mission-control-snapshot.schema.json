@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
-  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets and the chats envelopes and sessions are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.7.0",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, and the shipLane envelope and rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.8.0",
   "type": "object",
   "required": [
     "_schema",
@@ -23,12 +23,13 @@
     "skills",
     "health",
     "missionControl",
-    "devops"
+    "devops",
+    "shipLane"
   ],
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.7.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.8.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
@@ -146,7 +147,59 @@
     "skills": { "type": "array" },
     "health": { "type": "object", "required": ["status", "checks"] },
     "missionControl": { "type": ["object", "null"] },
-    "devops": { "type": "object", "required": ["pipeline", "deploy"] }
+    "devops": { "type": "object", "required": ["pipeline", "deploy"] },
+    "shipLane": {
+      "type": "object",
+      "required": ["lane", "repo", "publicRepo", "local", "remote", "note", "rows"],
+      "properties": {
+        "lane": { "enum": ["factory", "consumer", null] },
+        "repo": { "type": ["string", "null"] },
+        "publicRepo": { "type": ["string", "null"] },
+        "local": {
+          "type": "object",
+          "required": [
+            "latestTag",
+            "version",
+            "mainRef",
+            "stagingAheadOfMain",
+            "mainInStaging",
+            "tagOnMain"
+          ]
+        },
+        "remote": {
+          "type": "object",
+          "required": ["available"],
+          "properties": { "available": { "type": "boolean" } }
+        },
+        "note": { "type": ["string", "null"] },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "state", "detail", "next"],
+            "properties": {
+              "id": {
+                "enum": [
+                  "release-close",
+                  "staging-main",
+                  "tag",
+                  "tag-ci",
+                  "staging-sync",
+                  "npm",
+                  "public-sync",
+                  "public-release",
+                  "origin-release"
+                ]
+              },
+              "label": { "type": "string" },
+              "state": { "enum": ["green", "red", "pending", "unknown"] },
+              "detail": { "type": ["string", "null"] },
+              "next": { "type": ["object", "null"] }
+            }
+          }
+        }
+      }
+    }
   },
   "additionalProperties": true
 }

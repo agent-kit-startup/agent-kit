@@ -10,6 +10,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-10-24
+
+### Added
+
+- Mission Control snapshot 1.8.0: a read-only `shipLane` field for the Git e CI/CD section. It lists the release ship lane as rows (release close, staging to main, tag, tag CI jobs, staging sync, npm, and in the factory checkout the public sync PR and public Release Latest), each green, red, pending or unknown with a copy-only next command, plus the open PRs with their base, stacking, mergeable state and failing checks (including `signature-scan`). The forge half is one `gh api graphql` call and one npm registry read, run alongside `gh run list` inside the existing snapshot budget and reused for two minutes; without `gh`, auth or network the rows read unknown and the snapshot still renders. Contract: `docs/mission-control-embedding.md` ("Ship lane").
+
+### Changed
+
+- Mission Control: the Git and DevOps tabs are now one section, **Git e CI/CD**, laid out as a bento grid: Ship lane, Promotion flow, Open pull requests, CI/CD pipeline, Deploy activity, Branch graph and Changed files. The Ship lane tile lists the release rows (release close, staging to main, tag, tag CI, staging sync, npm, public sync, public Release Latest) with one copy-only next command each, and needs an engine whose snapshot carries `shipLane` (1.8.0); older engines show an empty state. `#devops` and `#git-cicd` still open the section. The new copy buttons use one delegated listener instead of inline handlers.
+
+### Fixed
+
+- Mission Control Flight Log: HANDOFF text in the cards no longer shows raw `**` and backticks. `**bold**` and `` `code` `` now render as bold and code, after HTML escaping, and screen readers get the plain text.
+- `agent-kit run-plan-all --events ndjson` no longer reports a phantom empty queue (`queue_state` with `total: 0`) when the agent rewrites HANDOFF while the driver is reading it. A blank HANDOFF is skipped and a queue change is reported only once two consecutive reads agree, so drivers such as Colony no longer see the queue flicker to empty mid-run.
+
 ## [6.8.0] - 2026-10-23
 
 ### Added

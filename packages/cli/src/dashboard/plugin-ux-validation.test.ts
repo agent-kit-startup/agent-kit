@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1179,6 +1180,8 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     const sources = [
       /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
       /function escapeAttr\(value\) \{[\s\S]*?\n\}/,
+      /function inlineMarkdownHtml\(value\) \{[\s\S]*?\n\}/,
+      /function stripInlineMarkdown\(value\) \{[\s\S]*?\n\}/,
       /function flightLogKindClassName\(kind\) \{[\s\S]*?\n\}/,
       /function renderFlightLogTicketCard\(ticket, idx\) \{[\s\S]*?\n\}/,
       /function flightLogTicketEntries\(fl\) \{[\s\S]*?\n\}/,
@@ -1229,6 +1232,41 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
       /function flightLogFingerprint\(d\)[\s\S]*?flightLogTicketEntries\(fl\)/,
     );
     expect(dashboardHtml).toContain("Pending operator tickets (Ground Control)");
+  });
+
+  it("renders HANDOFF inline markdown in Flight Log cards after escaping (no raw **)", () => {
+    const sources = [
+      /function escapeHtml\(value\) \{[\s\S]*?\n\}/,
+      /function inlineMarkdownHtml\(value\) \{[\s\S]*?\n\}/,
+      /function stripInlineMarkdown\(value\) \{[\s\S]*?\n\}/,
+    ].map((re) => {
+      const match = dashboardHtml.match(re);
+      expect(match, `dashboard.html must define ${re.source}`).not.toBeNull();
+      return match?.[0];
+    });
+    const { inlineMarkdownHtml, stripInlineMarkdown } = loadDashboardExtract(
+      `${sources.join("\n")}\nreturn { inlineMarkdownHtml, stripInlineMarkdown };`,
+    ) as {
+      inlineMarkdownHtml: (v: unknown) => string;
+      stripInlineMarkdown: (v: unknown) => string;
+    };
+    expect(inlineMarkdownHtml("**OWED (operator):** run `shred -u key`")).toBe(
+      "<strong>OWED (operator):</strong> run <code>shred -u key</code>",
+    );
+    // Input markup stays escaped, also inside the marks.
+    expect(inlineMarkdownHtml("**<img src=x onerror=alert(1)>** `<b>`")).toBe(
+      "<strong>&lt;img src=x onerror=alert(1)&gt;</strong> <code>&lt;b&gt;</code>",
+    );
+    // Code wins over bold inside it; a lone ** is left as text.
+    expect(inlineMarkdownHtml("`a **b** c` and 2 ** 3")).toBe("<code>a **b** c</code> and 2 ** 3");
+    expect(stripInlineMarkdown("**Gaps:** see `x`")).toBe("Gaps: see x");
+    // Every prose card body goes through the renderer, never raw escapeHtml(text).
+    expect(dashboardHtml).not.toContain(
+      '<div class="flight-log-card-text">${escapeHtml(text)}</div>',
+    );
+    expect(
+      dashboardHtml.match(/flight-log-card-text">\$\{inlineMarkdownHtml\(text\)\}/g),
+    ).toHaveLength(3);
   });
 
   it("pins Flight Log OK-normalize regex parity and CSS kind rules", () => {
@@ -2859,8 +2897,11 @@ describe("plugin-ux-validation: hardening regressions", () => {
     expect(dashboardHtml).toContain("function escapeAttr(value)");
     expect(dashboardHtml).toContain("function escapeJsString(value)");
     expect(dashboardHtml).toMatch(/escapeHtml\(ev\.label\)/);
-    // Flight Log cards escape Gaps text and source path.
-    expect(dashboardHtml).toMatch(/escapeHtml\(text\)/);
+    // Flight Log cards escape Gaps text (inlineMarkdownHtml escapes before adding marks) and source path.
+    expect(dashboardHtml).toMatch(/inlineMarkdownHtml\(text\)/);
+    expect(dashboardHtml).toMatch(
+      /function inlineMarkdownHtml\(value\) \{\s*return escapeHtml\(value\)\.replace\(/,
+    );
     expect(dashboardHtml).toMatch(/escapeHtml\(sourcePath\)/);
   });
 
@@ -4237,5 +4278,160 @@ describe("plugin-ux-validation: processes tab narration", () => {
     expect(dataSource).toContain(
       "description: describeProcess({ label, command: cmd, cpu, etime })",
     );
+  });
+});
+
+describe("plugin-ux-validation: Git e CI/CD bento section (ship lane, ADR 2026-10-23)", () => {
+  const gitBlock =
+    dashboardHtml.match(/\/\/ ===== Git =====[\s\S]*?(?=\n {2}\/\/ ===== Memory =====)/)?.[0] ?? "";
+  const fn = (name: string) =>
+    dashboardHtml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
+  const frozen = (name: string) =>
+    dashboardHtml.match(new RegExp(`const ${name} = Object\\.freeze\\([\\s\\S]*?\\);`))?.[0] ?? "";
+
+  it("merges Git and DevOps into one More-menu item; old ids stay deep links", () => {
+    const moreMenuBlock =
+      dashboardHtml.match(/id="navMoreMenu"[\s\S]*?id="navSkinsLabel"/)?.[0] ?? "";
+    expect(moreMenuBlock).toContain('aria-label="Git e CI/CD section"');
+    expect(moreMenuBlock).not.toContain('data-section="devops"');
+    expect(moreMenuBlock).not.toContain('id="navDevopsDot"');
+    expect(dashboardHtml).toContain(
+      "const SECTION_ALIASES = Object.freeze({ devops: 'git', 'git-cicd': 'git' });",
+    );
+    expect(fn("sectionFromHash")).toContain("canonicalSectionId(");
+    expect(fn("showSection")).toContain("activeSectionId = canonicalSectionId(id) || 'overview';");
+    expect(dashboardHtml).not.toContain('id="section-devops"');
+  });
+
+  it("lays the section out as a bento grid led by the Ship lane tile", () => {
+    expect(gitBlock).toContain('<div class="bento" aria-label="Git e CI/CD">');
+    for (const call of [
+      "${renderShipLaneCard(d.shipLane)}",
+      "${renderShipLanePrsCard(d.shipLane)}",
+      "${renderDevopsPipelineCard(d.devops)}",
+      "${renderDevopsDeployCard(d.devops)}",
+      "${renderGitVisualTree(d.git)}",
+    ]) {
+      expect(gitBlock).toContain(call);
+    }
+    expect(gitBlock.indexOf("bento-ship")).toBeLessThan(gitBlock.indexOf("bento-flow"));
+    expect(dashboardHtml).toMatch(
+      /\.bento\s*\{[^}]*grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/,
+    );
+    expect(dashboardHtml).toMatch(/\.bento-tile\[hidden\]\s*\{\s*display: none;/);
+  });
+
+  it("ship lane copy buttons carry data only and go through one delegated listener", () => {
+    for (const name of ["shipLaneCopyButton", "renderShipLaneCard", "renderShipLanePrsCard"]) {
+      expect(fn(name), name).not.toMatch(/\son[a-z]+=/);
+      expect(fn(name), name).not.toContain("innerHTML");
+    }
+    expect(fn("shipLaneCopyButton")).toContain('data-ship-copy="${escapeAttr(next.text)}"');
+    expect(dashboardHtml).toMatch(
+      /closest\('\[data-ship-copy\]'\)[\s\S]{0,400}copyForPaste\(text, text, /,
+    );
+    // Forge text is never interpolated raw.
+    expect(fn("renderShipLanePrsCard")).not.toMatch(/\$\{pr\.(title|head|base)/);
+    expect(fn("renderShipLaneCard")).not.toMatch(/\$\{r\.(label|detail|id)/);
+  });
+
+  it("quotes file paths in copied diff commands so nothing expands on paste (p4)", () => {
+    const { shellQuotePath } = loadDashboardExtract(
+      `${fn("shellQuotePath")}\nreturn { shellQuotePath };`,
+    ) as { shellQuotePath: (p: string) => string };
+    expect(shellQuotePath("a b.txt")).toBe("'a b.txt'");
+    expect(shellQuotePath("$(id).txt")).toBe("'$(id).txt'");
+    expect(shellQuotePath("it's.md")).toBe("'it'\\''s.md'");
+    for (const p of ["$(id).txt", "`id`.md", 'x"$(id)".md']) {
+      expect(
+        execFileSync("sh", ["-c", `printf %s ${shellQuotePath(p)}`], { encoding: "utf8" }),
+      ).toBe(p);
+    }
+  });
+
+  it("escapes hostile forge text and maps row states onto the dot tones", () => {
+    const body = [
+      fn("escapeHtml"),
+      fn("escapeAttr"),
+      frozen("SHIP_LANE_TONES"),
+      frozen("SHIP_LANE_STATE_LABELS"),
+      fn("shipLaneTone"),
+      fn("shipLaneDestination"),
+      fn("shipLaneCopyButton"),
+      fn("renderShipLaneCard"),
+      fn("shipPrTone"),
+      fn("renderShipLanePrsCard"),
+      fn("gitCicdNavTone"),
+      "function renderEmptyStateCta(o) { return `EMPTY:${o.headline}`; }",
+      "function copyActionTitle(s, d) { return `Copy ${s}. Paste into the ${d}.`; }",
+      "function fmtDate(v) { return String(v); }",
+      "return { renderShipLaneCard, renderShipLanePrsCard, gitCicdNavTone };",
+    ].join("\n");
+    const { renderShipLaneCard, renderShipLanePrsCard, gitCicdNavTone } = loadDashboardExtract(
+      body,
+    ) as {
+      renderShipLaneCard: (s: unknown) => string;
+      renderShipLanePrsCard: (s: unknown) => string;
+      gitCicdNavTone: (d: unknown) => string;
+    };
+    const hostile = '<img src=x onerror="alert(1)">';
+    const shipLane = {
+      note: null,
+      remote: {
+        available: true,
+        fetchedAt: "2026-10-23T12:00:00Z",
+        prsTotal: 1,
+        prs: [
+          {
+            number: 7,
+            title: hostile,
+            head: `feat/${hostile}`,
+            base: "staging",
+            mergeable: "mergeable",
+            mergeState: "clean",
+            stackedOn: null,
+            draft: false,
+            checks: { failing: [], pending: 0, signatureScan: "success" },
+          },
+        ],
+      },
+      rows: [
+        {
+          id: "tag-ci",
+          label: "Tag CI",
+          state: "red",
+          detail: hostile,
+          next: { text: "gh run rerun 9 --failed", destination: "terminal" },
+        },
+        { id: "tag", label: "Tag", state: "green", detail: "v1 on origin/main", next: null },
+        {
+          id: "npm",
+          label: "npm",
+          state: "pending",
+          detail: "x",
+          next: { text: "/kit-prod", destination: "agent chat input" },
+        },
+      ],
+    };
+    const card = renderShipLaneCard(shipLane);
+    const prs = renderShipLanePrsCard(shipLane);
+    for (const html of [card, prs]) {
+      expect(html).not.toContain("<img");
+      expect(html).toContain("&lt;img");
+    }
+    expect(card).toContain('class="ship-row is-red"');
+    expect(card).toContain('class="ship-row is-yellow"');
+    expect(card).toContain('data-ship-copy="gh run rerun 9 --failed" data-ship-dest="terminal"');
+    expect(card).toContain('data-ship-copy="/kit-prod" data-ship-dest="chatInput"');
+    expect(card).toContain("1 done · 1 blocked · 1 pending");
+    expect(prs).toContain('data-ship-copy="gh pr checks 7"');
+    expect(renderShipLaneCard(undefined)).toBe("EMPTY:No ship lane signal");
+    expect(
+      renderShipLanePrsCard({ remote: { available: false }, note: "skipped: gh not installed" }),
+    ).toBe("EMPTY:No pull request signal");
+    expect(gitCicdNavTone({ git: { branch: "main" }, shipLane })).toBe("red");
+    expect(gitCicdNavTone({ git: { branch: "main", dirty: true } })).toBe("yellow");
+    expect(gitCicdNavTone({ git: { branch: "main" } })).toBe("green");
+    expect(gitCicdNavTone({})).toBe("gray");
   });
 });

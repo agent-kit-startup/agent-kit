@@ -4,7 +4,7 @@
 // Scans .cursor/plans, HANDOFF, memory, config, git status, terminals, processes
 // Outputs JSON to stdout (consumed by dashboard.html)
 
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { collectChats } from "./lib/chat-sessions.mjs";
@@ -48,6 +48,22 @@ import {
   serializeFlightLogLedger,
   serializeMissionTimingLedger,
 } from "./lib/semantic-model.mjs";
+import {
+  buildShipLaneRows,
+  classifyGhFailure,
+  FACTORY_PUBLIC_REPO,
+  isFactorySlug,
+  parseForgeRemote,
+  readCachedShipLaneRemote,
+  SHIP_LANE_CACHE_ENV,
+  SHIP_LANE_GH_TIMEOUT_MS,
+  SHIP_LANE_NPM_TIMEOUT_MS,
+  safeNpmName,
+  safeTagName,
+  shipLaneGhArgs,
+  shipLaneReasonNote,
+  trimShipLaneGraphql,
+} from "./lib/ship-lane.mjs";
 import { buildTerminalSnapshotFields, MAX_TERMINAL_BYTES } from "./lib/terminal-snapshot.mjs";
 
 const KIT_ROOT = resolve(import.meta.dirname, "..");
@@ -135,7 +151,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.7.0",
+    version: "1.8.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -158,6 +174,8 @@ const SNAPSHOT = {
         "Pending operator tickets (read-only, never fetches): {marker: absent|ok|invalid, base, tickets[] (stamp, headline, askId, labels, trigger, openedAt, url, branch, branchState unmerged|merged|none, inMarker), skipped[] (latest launcher skip records), truncated} from .cursor/context/gate-exit.json and gate-exit/<stamp> branches; same contract as agent-kit ground-control status (1.6.0)",
       chats:
         "Saved agent chats of this workspace: {withheld, vendors[]} with one envelope per vendor {vendor: claude|codex|cursor, status: ok|unsupported|none, projectDir, sessions[] ({id, title, titleSource: custom|ai|first-prompt|none, modified unix ms, sizeBytes}, newest first, capped at 200), total}; same contract as agent-kit sessions --json. withheld is true (vendors empty) in broadcast mode: chat titles never leave the machine (1.7.0)",
+      shipLane:
+        "Release ship lane for the Git e CI/CD section (read-only, copy-only next commands): {lane: factory|consumer|null, repo, publicRepo, local {latestTag, version, mainRef, stagingAheadOfMain, mainInStaging, tagOnMain}, remote ({available, reason?, fetchedAt?, repo, tag, prs[] (number, capped title, base, head, draft, mergeable, mergeState, stackedOn, checks {state, total, failing[], pending, signatureScan}), prsTotal, originRelease, tagCi {workflow, runId, jobs[]}, public {release, syncPrs[]}, npm {name, version}}; one gh api graphql call + one npm registry read, run alongside gh run list and reused from serve.mjs for up to 120s; reason budget|gh-missing|gh-auth|timeout|call-failed|no-remote|provider-unsupported), rows[] ({id, label, state: green|red|pending|unknown, detail, next {text, destination}|null}) mirroring the /kit-prod Done rows} (1.8.0)",
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
@@ -166,7 +184,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.7.0",
+  dashboardDataVersion: "1.8.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -734,6 +752,181 @@ function collectDeploySignal() {
   }
 
   return { tags, changelog };
+}
+
+// 6c. Ship lane (Git e CI/CD section; ADR 2026-10-23
+// git-cicd-tab-read-in-mc-act-in-colony). Local half: cheap git reads, every
+// snapshot. Forge half: one `gh api graphql` call plus one npm registry read,
+// started asynchronously right before collectPipelineRuns() so the two network
+// waits overlap instead of adding up. That is why SNAPSHOT_BUDGET_MS did not
+// grow with this collector: its reserve is checked against the same budget
+// before gh run list starts, and the await at the end waits at most
+// max(remaining gh graphql time, 0) after gh run list returns.
+function readPackageManifest(rel) {
+  try {
+    const pkg = JSON.parse(readFileSync(join(ROOT, rel), "utf-8"));
+    return pkg && typeof pkg === "object" ? pkg : null;
+  } catch {
+    return null;
+  }
+}
+
+function collectShipLaneLocal() {
+  const gitOpts = {
+    cwd: ROOT,
+    encoding: "utf-8",
+    timeout: 5000,
+    stdio: ["ignore", "pipe", "ignore"],
+  };
+  const gitText = (args) => {
+    try {
+      return execFileSync("git", args, gitOpts).trim();
+    } catch {
+      return null;
+    }
+  };
+  /** true / false from an exit code (0 / 1); null when git itself failed. */
+  const isAncestor = (a, b) => {
+    try {
+      execFileSync("git", ["merge-base", "--is-ancestor", a, b], gitOpts);
+      return true;
+    } catch (err) {
+      return err?.status === 1 ? false : null;
+    }
+  };
+  const refExists = (ref) => gitText(["rev-parse", "--verify", "--quiet", ref]) != null;
+  const originUrl = gitText(["remote", "get-url", "origin"]);
+  const forge = parseForgeRemote(originUrl);
+  const lane = forge ? (isFactorySlug(forge.slug) ? "factory" : "consumer") : null;
+  let publicRepo = null;
+  if (lane === "factory") {
+    publicRepo =
+      parseForgeRemote(gitText(["remote", "get-url", "public"]))?.slug ?? FACTORY_PUBLIC_REPO;
+  }
+  const rawTag =
+    gitText([
+      "for-each-ref",
+      "--sort=-creatordate",
+      "--format=%(refname:short)",
+      "--count=1",
+      "refs/tags/v*",
+    ]) || null;
+  // Tag names reach copyable shell commands and the gh argv: drop unsafe ones.
+  const latestTag = safeTagName(rawTag);
+  const mainRef = refExists("origin/main")
+    ? "origin/main"
+    : refExists("origin/master")
+      ? "origin/master"
+      : null;
+  const hasStaging = refExists("origin/staging");
+  let stagingAheadOfMain = null;
+  if (mainRef && hasStaging) {
+    const n = Number.parseInt(
+      gitText(["rev-list", "--count", `${mainRef}..origin/staging`]) ?? "",
+      10,
+    );
+    stagingAheadOfMain = Number.isFinite(n) ? n : null;
+  }
+  const manifest = readPackageManifest(
+    lane === "factory" ? "packages/cli/package.json" : "package.json",
+  );
+  const version = typeof manifest?.version === "string" ? manifest.version : null;
+  const npmName =
+    manifest && manifest.private !== true && !manifest.publishConfig?.registry
+      ? safeNpmName(manifest.name)
+      : null;
+  return {
+    forge,
+    lane,
+    publicRepo,
+    npmName,
+    local: {
+      latestTag,
+      unsafeTag: rawTag != null && latestTag == null,
+      version,
+      mainRef,
+      stagingAheadOfMain,
+      mainInStaging: mainRef && hasStaging ? isAncestor(mainRef, "origin/staging") : null,
+      tagOnMain: latestTag && mainRef ? isAncestor(latestTag, mainRef) : null,
+    },
+  };
+}
+
+/** execFile as a promise that never rejects: { err, stdout, stderr }. */
+function execFileSettled(bin, args, timeout) {
+  return new Promise((resolveExec) => {
+    execFile(
+      bin,
+      args,
+      { cwd: ROOT, encoding: "utf-8", timeout, maxBuffer: 2 * 1024 * 1024 },
+      (err, stdout, stderr) =>
+        resolveExec({ err, stdout: String(stdout || ""), stderr: String(stderr || "") }),
+    );
+  });
+}
+
+/** Registry read in a child node (fetch + abort timeout); no npm CLI spawn. */
+const NPM_LATEST_SCRIPT =
+  'const n=process.argv[1];fetch("https://registry.npmjs.org/"+n.replace("/","%2f")+"/latest",{signal:AbortSignal.timeout(Number(process.argv[2]))}).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>process.stdout.write(String(j.version||""))).catch(()=>process.exit(1))';
+
+/** @returns {Promise<object>} the forge half of SNAPSHOT.shipLane (remote). */
+function startShipLaneRemote(ship) {
+  const { forge, local, publicRepo, npmName } = ship;
+  if (!forge) return Promise.resolve({ available: false, reason: "no-remote", repo: null });
+  if (forge.provider !== "github") {
+    return Promise.resolve({ available: false, reason: "provider-unsupported", repo: forge.slug });
+  }
+  const cached = readCachedShipLaneRemote(process.env[SHIP_LANE_CACHE_ENV], Date.now(), {
+    repo: forge.slug,
+    tag: local.latestTag,
+  });
+  if (cached) return Promise.resolve(cached);
+  if (!withinSnapshotBudget(SHIP_LANE_GH_TIMEOUT_MS + 400)) {
+    return Promise.resolve({ available: false, reason: "budget", repo: forge.slug });
+  }
+  const fetchedAt = new Date().toISOString();
+  const gh = execFileSettled(
+    "gh",
+    shipLaneGhArgs({ owner: forge.owner, name: forge.name, tag: local.latestTag, publicRepo }),
+    SHIP_LANE_GH_TIMEOUT_MS,
+  );
+  const npm = npmName
+    ? execFileSettled(
+        process.execPath,
+        ["-e", NPM_LATEST_SCRIPT, npmName, String(SHIP_LANE_NPM_TIMEOUT_MS)],
+        SHIP_LANE_NPM_TIMEOUT_MS + 1000,
+      )
+    : Promise.resolve(null);
+  return Promise.all([gh, npm]).then(([ghRes, npmRes]) => {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(ghRes.stdout);
+    } catch {
+      parsed = null;
+    }
+    // gh exits non-zero when GraphQL returns errors next to partial data (an
+    // unreadable public repo): keep the data when the origin half is there.
+    const remote = trimShipLaneGraphql(parsed, {
+      repo: forge.slug,
+      tag: local.latestTag,
+      publicRepo,
+      fetchedAt,
+    });
+    if (!remote) {
+      return {
+        available: false,
+        reason: classifyGhFailure(ghRes.err, ghRes.stderr),
+        fetchedAt,
+        repo: forge.slug,
+        tag: local.latestTag,
+      };
+    }
+    if (npmName) {
+      const v = npmRes && !npmRes.err ? npmRes.stdout.trim() : "";
+      remote.npm = { name: npmName, version: /^\d+\.\d+\.\d+[\w.+-]*$/.test(v) ? v : null };
+    }
+    return remote;
+  });
 }
 
 // SNAPSHOT.devops is assigned near the end of the snapshot build (after the
@@ -1415,9 +1608,50 @@ SNAPSHOT._gitRecentLog = undefined;
 // a network call (gh run list) unlike every other collector in this file, so
 // it must not run ahead of and eat into the shared SNAPSHOT_BUDGET_MS budget
 // that the local-only collectors also need.
+// The ship lane's forge half starts first and runs while gh run list blocks.
+let shipLaneLocal = null;
+let shipLaneRemote;
+try {
+  shipLaneLocal = collectShipLaneLocal();
+  shipLaneRemote = startShipLaneRemote(shipLaneLocal);
+} catch {
+  shipLaneRemote = Promise.resolve({ available: false, reason: "call-failed", repo: null });
+}
 SNAPSHOT.devops = {
   pipeline: collectPipelineRuns(),
   deploy: collectDeploySignal(),
 };
+{
+  const remote = await shipLaneRemote;
+  const local = shipLaneLocal?.local ?? {
+    latestTag: null,
+    version: null,
+    mainRef: null,
+    stagingAheadOfMain: null,
+    mainInStaging: null,
+    tagOnMain: null,
+  };
+  let rows = [];
+  try {
+    rows = buildShipLaneRows({
+      lane: shipLaneLocal?.lane ?? "consumer",
+      repo: shipLaneLocal?.forge?.slug ?? null,
+      publicRepo: shipLaneLocal?.publicRepo ?? null,
+      local,
+      remote,
+    });
+  } catch {
+    rows = [];
+  }
+  SNAPSHOT.shipLane = {
+    lane: shipLaneLocal?.lane ?? null,
+    repo: shipLaneLocal?.forge?.slug ?? null,
+    publicRepo: shipLaneLocal?.publicRepo ?? null,
+    local,
+    remote,
+    note: remote.available ? null : shipLaneReasonNote(remote.reason),
+    rows,
+  };
+}
 
 process.stdout.write(JSON.stringify(SNAPSHOT, null, 2));
