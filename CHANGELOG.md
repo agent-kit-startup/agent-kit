@@ -10,6 +10,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.10.0] - 2026-10-24
+
+### Added
+
+- Mission Control snapshot 1.9.0: a read-only `outcomeLedger` field, the verified-outcome ledger a game panel (Colony first) renders. Each refresh folds what the kit already records into `.cursor/context/outcome-ledger.json` (gitignored): completed to-dos and passing test runs earn Logic, passing CI runs (not scheduled ones) and `v*` tags earn Compute, and a plan closed with every to-do completed and no open review gaps, a clean plan-termination review and a published release are rare finds. Entries are keyed by identity (plan and to-do, run id, tag, review head, test `HEAD`), so replaying history adds nothing and nothing earned is taken back. Lines of code, commits, tokens and time are never rewarded. The field also carries a flow streak from the mission timers. The `gh run list` rows now include the run id. Contract: `docs/mission-control-embedding.md`.
+- Mission Control: a **Colony** section (More menu, `#colony`), a single-player game over the outcome ledger. A hex map turns from grey to green as outcomes accrue, and you spend Logic, Compute and Rare on buildings (Sapling Nursery, Atmospheric Purifier, IDE-Core Uplink and more) that finish after a real-time build. What you build stays in the browser (`localStorage`). Timers are evaluated when the panel refreshes, so nothing runs in the background. A streak of closed to-dos makes builds 25% faster. Ships four small images; the panel also works without them.
+- `agent-kit outcome-ledger` prints the ledger totals (`--json` for the summary), and `agent-kit outcome-ledger test` runs the repository profile's `stack.testCommands` and records whether they passed in `.cursor/context/test-results.json`. It never guesses a test command: with none in `.cursor/agent-kit.config.json` it records nothing. `agent-kit install` adds both files to `.gitignore`.
+- Engine artifact: each release now also publishes `engine.json` (the engine manifest, the same file as inside the tarball) beside `agent-kit-engine-<version>.tar.gz`, and lists it in `SHA256SUMS`. An IDE host such as Colony can read a release's driver protocol before downloading the tarball, to pick the newest engine inside the range it supports.
+
+### Changed
+
+- README and `install.md` now show the Claude Code plugin install line, `/plugin install agent-kit --marketplace agent-kit-startup/agent-kit` (Claude Code 2.1.275+, with the two-step form for older versions). The plugin carries the core skills only; `agent-kit install` still writes the slash commands and project files.
+- The public repository is now also an [Agent Plugins 1.0](https://agent-plugins.org/specification) package: a root `plugin.json` and a `skills/` folder with the core skills, so GitHub Copilot (VS Code, Copilot CLI, the Copilot app), Codex and Antigravity can install Mission Kit's skills from the same tree. The Claude Code, Cursor and Codex plugin manifests are unchanged. The package has no hooks, so the HITL guard hooks still come from `agent-kit install` or the Cursor and Claude plugins.
+- Engine artifact signature: once the engine signing key is configured, each release also publishes `SHA256SUMS.minisig`, a minisign signature of `SHA256SUMS` (verify with `minisign -Vm SHA256SUMS -P <public key>`). Colony checks it before it installs an engine.
+
+### Fixed
+
+- `agent-kit guard shell` (the Cursor and Claude Code shell guard) now also denies a forge API merge, `gh api` or `glab api` against a pull request or merge request merge endpoint, the branch merge endpoint, or a GraphQL merge or auto-merge mutation, whatever the base branch. Before, only `gh pr merge` / `glab mr merge` into `main`, `master` or `prod` were checked, so the API was a way around the rule. `ALLOW_MAIN_PUSH=1` still lets an authorized `/git-prod` through.
+- Mission Control Git e CI/CD: a red or yellow Ship lane row is now marked by its border color instead of a colored bar on its left edge, in line with the no-left-bar rule for Mission Control lists.
+
 ## [6.9.0] - 2026-10-24
 
 ### Added

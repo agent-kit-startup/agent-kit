@@ -11,7 +11,11 @@
  *                      `dependencies` external), so `node dist/index.js` runs with nothing
  *                      installed,
  *       engine.json    the manifest printed by `agent-kit engine-info --json`.
- *   SHA256SUMS                         `<sha256>  agent-kit-engine-<version>.tar.gz`
+ *   engine.json                        the same manifest beside the tarball, so a host can
+ *                                      read a release's contracts (driverProtocol) before
+ *                                      downloading the tarball; the copy inside stays the
+ *                                      one a host checks after the download.
+ *   SHA256SUMS                         `<sha256>  <file>` for the tarball and engine.json
  *
  * The tarball is written by this script (ustar + pax, sorted entries, fixed owner, mtime
  * from SOURCE_DATE_EPOCH or the HEAD commit), so two builds of one commit are identical.
@@ -21,8 +25,8 @@
  * Run after `pnpm build` (from the monorepo root):
  *   node scripts/build-engine-artifact.mjs [--out <dir>] [--no-verify]
  *
- * Node built-ins only. Signing is not done here: the signing key is operator-owned and the
- * tag workflow carries a placeholder step for it.
+ * Node built-ins only. Signing is not done here: the tag workflow signs SHA256SUMS with
+ * scripts/sign-engine-artifact.mjs when the operator-owned ENGINE_SIGNING_KEY exists.
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -328,7 +332,9 @@ export function main(argv = process.argv.slice(2)) {
     const name = artifactName(manifest.version);
     const tarball = join(args.out, name);
     writeFileSync(tarball, gz);
-    const sums = `${sha256(gz)}  ${name}\n`;
+    const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+    writeFileSync(join(args.out, "engine.json"), manifestText);
+    const sums = `${sha256(gz)}  ${name}\n${sha256(Buffer.from(manifestText))}  engine.json\n`;
     writeFileSync(join(args.out, "SHA256SUMS"), sums);
     if (args.verify) verifyArtifact(tarball, manifest);
     const deps = [...closure].map(([n, d]) => `${n}@${d.version}`).join(", ");

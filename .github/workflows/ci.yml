@@ -333,7 +333,7 @@ jobs:
           PUBLIC_LANDING_LATEST_DELAY_MS: "15000"
 
   # ── Engine artifact on the public GitHub Release (tag only) ──
-  # agent-kit-engine-<version>.tar.gz + SHA256SUMS (scripts/build-engine-artifact.mjs),
+  # agent-kit-engine-<version>.tar.gz + engine.json + SHA256SUMS (scripts/build-engine-artifact.mjs),
   # attached to the public Release that sync-public creates for this tag; an IDE host installs
   # the engine from there (ADR 2026-10-19_colony-managed-engine-distribution). Does not
   # touch npm: publish-npm is unchanged and independent of this job.
@@ -341,7 +341,8 @@ jobs:
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # Public repo credential (same App or PUBLIC_REPO_TOKEN as sync-public): fail loud when neither is set.
-  # Secret ENGINE_SIGNING_KEY: signing placeholder, skipped while the key does not exist.
+  # Secret ENGINE_SIGNING_KEY (passwordless minisign key): SHA256SUMS.minisig; skipped while
+  # the key does not exist.
   publish-engine:
     needs: [build, sync-public]
     if: >-
@@ -367,20 +368,21 @@ jobs:
       - name: Build engine artifact
         run: node scripts/build-engine-artifact.mjs --out dist/engine
 
-      # PLACEHOLDER: the signing key and publishing identity are operator-owned and do not
-      # exist yet (ADR 2026-10-19_colony-managed-engine-distribution, Consequence 4). Until
-      # then the artifact ships with SHA256SUMS only. Setting the secret without replacing
-      # this step fails the job, so a key is never silently ignored.
-      - name: Sign engine artifact (placeholder)
+      # The signing key is operator-owned (ADR 2026-10-19_colony-managed-engine-distribution,
+      # Consequence 4). Without it the artifact ships with SHA256SUMS only, as before. With it,
+      # scripts/sign-engine-artifact.mjs writes SHA256SUMS.minisig (minisign, prehashed
+      # Ed25519; Colony engine.rs verifies it) and fails the job on any key or signature
+      # problem. vars.ENGINE_SIGNING_PUBKEY (the RW... line), when set, must be this key.
+      - name: Sign engine artifact
         run: |
           if [ -z "$ENGINE_SIGNING_KEY" ]; then
             echo "ENGINE_SIGNING_KEY not configured: engine artifact ships unsigned (SHA256SUMS only)."
             exit 0
           fi
-          echo "::error::ENGINE_SIGNING_KEY is set but engine signing is not implemented yet; replace this placeholder step."
-          exit 1
+          node scripts/sign-engine-artifact.mjs --file dist/engine/SHA256SUMS --comment "agent-kit-engine ${GITHUB_REF_NAME#v} file:SHA256SUMS"
         env:
           ENGINE_SIGNING_KEY: ${{ secrets.ENGINE_SIGNING_KEY }}
+          ENGINE_SIGNING_PUBKEY: ${{ vars.ENGINE_SIGNING_PUBKEY }}
 
       # Same App token as sync-public (inert until configured; PAT fallback).
       - name: Mint public repo App token (when configured)
@@ -411,8 +413,10 @@ jobs:
             echo "::error::Public Release $tag not found on $slug (sync-public creates it); the engine artifact was not uploaded."
             exit 1
           fi
-          gh release upload "$tag" "$tarball" dist/engine/SHA256SUMS --repo "$slug" --clobber
-          echo "Uploaded $tarball and SHA256SUMS to $slug Release $tag."
+          files=("$tarball" dist/engine/engine.json dist/engine/SHA256SUMS)
+          if [ -f dist/engine/SHA256SUMS.minisig ]; then files+=(dist/engine/SHA256SUMS.minisig); fi
+          gh release upload "$tag" "${files[@]}" --repo "$slug" --clobber
+          echo "Uploaded ${files[*]} to $slug Release $tag."
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PUBLIC_REPO_TOKEN }}
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}

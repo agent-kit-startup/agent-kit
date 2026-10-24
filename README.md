@@ -34,6 +34,14 @@ npx @dadado/agent-kit-cli@latest setup-global
 
 or keep prefixing commands with `npx @dadado/agent-kit-cli@latest`.
 
+Claude Code plugin (core skills only; the slash commands and project files still come from the install above):
+
+```text
+/plugin install agent-kit --marketplace agent-kit-startup/agent-kit
+```
+
+On Claude Code before 2.1.275: `/plugin marketplace add agent-kit-startup/agent-kit`, then `/plugin install agent-kit@agent-kit`.
+
 ## Pick your surface
 
 - **Cursor.** The first-class surface. Slash commands land in `.cursor/commands/`: `/start-project`, `/continue-plan`, `/run-plan`, `/git-staging`, `/git-prod`, `/dashboard` and more. Confirmations use Cursor's Ask questions.

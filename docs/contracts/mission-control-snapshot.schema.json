@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
-  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, and the shipLane envelope and rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.8.0",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, the shipLane envelope and rows, and the outcomeLedger summary are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.9.0",
   "type": "object",
   "required": [
     "_schema",
@@ -24,12 +24,13 @@
     "health",
     "missionControl",
     "devops",
-    "shipLane"
+    "shipLane",
+    "outcomeLedger"
   ],
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.8.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.9.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
@@ -148,6 +149,86 @@
     "health": { "type": "object", "required": ["status", "checks"] },
     "missionControl": { "type": ["object", "null"] },
     "devops": { "type": "object", "required": ["pipeline", "deploy"] },
+    "outcomeLedger": {
+      "type": "object",
+      "description": "Verified-outcome ledger (1.9.0): read-only summary of .cursor/context/outcome-ledger.json, folded on every snapshot and idempotent by event key. Player state is not here: it stays in the renderer.",
+      "required": [
+        "available",
+        "reason",
+        "version",
+        "path",
+        "entries",
+        "totals",
+        "byKind",
+        "recent",
+        "flow",
+        "tests"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "reason": { "enum": ["budget", "unreadable", null] },
+        "version": { "const": 1 },
+        "path": { "type": "string" },
+        "entries": { "type": "number", "minimum": 0 },
+        "totals": {
+          "type": "object",
+          "required": ["logic", "compute", "rare"],
+          "properties": {
+            "logic": { "type": "number", "minimum": 0 },
+            "compute": { "type": "number", "minimum": 0 },
+            "rare": { "type": "number", "minimum": 0 }
+          }
+        },
+        "byKind": {
+          "type": "object",
+          "required": ["todo", "test", "ci", "releaseCut", "plan", "review", "releasePublished"],
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "recent": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": ["key", "kind", "resource", "at", "label"],
+            "properties": {
+              "key": { "type": "string" },
+              "kind": {
+                "enum": ["todo", "test", "ci", "releaseCut", "plan", "review", "releasePublished"]
+              },
+              "resource": { "enum": ["logic", "compute", "rare"] },
+              "at": { "type": ["string", "null"] },
+              "label": { "type": "string" }
+            }
+          }
+        },
+        "flow": {
+          "type": ["object", "null"],
+          "required": ["plan", "streak", "lastClosedAt", "brokenAt"],
+          "properties": {
+            "plan": { "type": "string" },
+            "streak": { "type": "number", "minimum": 0 },
+            "lastClosedAt": { "type": ["string", "null"] },
+            "brokenAt": { "type": ["string", "null"] }
+          }
+        },
+        "tests": {
+          "type": "object",
+          "required": ["configured", "lastRun"],
+          "properties": {
+            "configured": { "type": "boolean" },
+            "lastRun": {
+              "type": ["object", "null"],
+              "required": ["at", "ok", "head"],
+              "properties": {
+                "at": { "type": "string" },
+                "ok": { "type": "boolean" },
+                "head": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    },
     "shipLane": {
       "type": "object",
       "required": ["lane", "repo", "publicRepo", "local", "remote", "note", "rows"],

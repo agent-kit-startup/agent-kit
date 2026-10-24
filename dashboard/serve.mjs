@@ -69,6 +69,7 @@ const MIME = {
   ".mjs": "application/javascript; charset=utf-8",
   ".css": "text/css",
   ".png": "image/png",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
 };

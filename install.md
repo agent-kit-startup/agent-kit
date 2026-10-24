@@ -24,6 +24,14 @@ Use `@latest` so npx does not reuse a stale cached CLI. Pin a version when you n
 
 **Starting from an empty folder:** an empty directory hits that guard. Three sanctioned paths, all printed by the refusal: `git init` here and re-run (recommended), re-run with `--force-root`, or answer **yes** to the interactive `Proceed anyway?` prompt. Installing without Git is supported - `/agent-kit-onboard` owns the Git pillar afterwards (`Keep repository without Git` / `Initialize local Git`). The CLI never runs `git init` for you. Details: [docs/getting-started.md](docs/getting-started.md#starting-from-an-empty-folder).
 
+Claude Code plugin (optional, core skills only; it does not replace the install above, which writes the slash commands, `CLAUDE.md` and `.cursor/agent-kit.json`):
+
+```text
+/plugin install agent-kit --marketplace agent-kit-startup/agent-kit
+```
+
+On Claude Code before 2.1.275: `/plugin marketplace add agent-kit-startup/agent-kit`, then `/plugin install agent-kit@agent-kit`.
+
 Optional L1 packs (separate command):
 
 ```bash

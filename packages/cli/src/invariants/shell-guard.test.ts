@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   evaluateShellCommand,
+  forgeApiMergeCall,
   parsePrMergeHead,
   prMergeKey,
   prMergeTargets,
@@ -474,6 +475,40 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
   it("lets the authorized /git-prod env through, like the main push", () => {
     const cmd = "ALLOW_MAIN_PUSH=1 gh pr merge 12 --merge";
     expect(evaluateShellCommand(cmd, bases("main", cmd)).permission).toBe("allow");
+  });
+
+  it("denies a gh api / glab api merge whatever the base, also from pure callers", () => {
+    for (const cmd of [
+      "gh api -X PUT repos/acme/app/pulls/12/merge",
+      "gh api --method PUT /repos/acme/app/pulls/12/merge -f merge_method=merge",
+      "gh api repos/{owner}/{repo}/pulls/$n/merge -X PUT",
+      "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+      "gh api graphql -f query='mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+      "gh api repos/acme/app/merges -f base=main -f head=staging",
+      "glab api -X PUT projects/1/merge_requests/5/merge",
+      "bash -c 'gh api -X PUT repos/a/b/pulls/1/merge'",
+      "for n in 1 2; do gh api -X PUT repos/a/b/pulls/$n/merge; done",
+      "echo 7 | xargs -I{} gh api -X PUT repos/a/b/pulls/{}/merge",
+      "/usr/bin/gh api -X PUT repos/a/b/pulls/1/merge",
+    ]) {
+      const r = evaluateShellCommand(cmd);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe("pr-merge-protected-base");
+      expect(forgeApiMergeCall(cmd), cmd).toBe(true);
+    }
+  });
+
+  it("allows forge API reads and the authorized env on an api merge", () => {
+    for (const cmd of [
+      "gh api repos/acme/app/pulls/12",
+      "gh api repos/acme/app/pulls/12/files",
+      "gh api graphql -f query='{ viewer { login } }'",
+      "gh pr view 12 --json mergeable",
+      "git log --grep mergePullRequest",
+      "ALLOW_MAIN_PUSH=1 gh api -X PUT repos/a/b/pulls/1/merge",
+    ]) {
+      expect(evaluateShellCommand(cmd).permission, cmd).toBe("allow");
+    }
   });
 
   it("does not run without resolved bases (pure callers)", () => {

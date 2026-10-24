@@ -18,6 +18,19 @@ import {
   truncateStr,
 } from "./lib/guards.mjs";
 import { projectSlugFromRoot } from "./lib/live-refresh.mjs";
+import {
+  deriveFlowSignal,
+  emptyOutcomeLedgerSummary,
+  extractOutcomeEvents,
+  foldOutcomeLedger,
+  fullReviewHeadSha,
+  parsePlanTodos,
+  persistOutcomeLedger,
+  readOutcomeLedgerFile,
+  readTestResults,
+  summarizeOutcomeLedger,
+  testCollectorStatus,
+} from "./lib/outcome-ledger.mjs";
 import { PIPELINE_CACHE_ENV, readCachedPipeline } from "./lib/pipeline-cache.mjs";
 import { selectWorkspaceProcesses } from "./lib/processes.mjs";
 import { collectRunLogs } from "./lib/run-logs.mjs";
@@ -151,7 +164,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.8.0",
+    version: "1.9.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -176,6 +189,8 @@ const SNAPSHOT = {
         "Saved agent chats of this workspace: {withheld, vendors[]} with one envelope per vendor {vendor: claude|codex|cursor, status: ok|unsupported|none, projectDir, sessions[] ({id, title, titleSource: custom|ai|first-prompt|none, modified unix ms, sizeBytes}, newest first, capped at 200), total}; same contract as agent-kit sessions --json. withheld is true (vendors empty) in broadcast mode: chat titles never leave the machine (1.7.0)",
       shipLane:
         "Release ship lane for the Git e CI/CD section (read-only, copy-only next commands): {lane: factory|consumer|null, repo, publicRepo, local {latestTag, version, mainRef, stagingAheadOfMain, mainInStaging, tagOnMain}, remote ({available, reason?, fetchedAt?, repo, tag, prs[] (number, capped title, base, head, draft, mergeable, mergeState, stackedOn, checks {state, total, failing[], pending, signatureScan}), prsTotal, originRelease, tagCi {workflow, runId, jobs[]}, public {release, syncPrs[]}, npm {name, version}}; one gh api graphql call + one npm registry read, run alongside gh run list and reused from serve.mjs for up to 120s; reason budget|gh-missing|gh-auth|timeout|call-failed|no-remote|provider-unsupported), rows[] ({id, label, state: green|red|pending|unknown, detail, next {text, destination}|null}) mirroring the /kit-prod Done rows} (1.8.0)",
+      outcomeLedger:
+        "Verified-outcome ledger (read-only, product-neutral; ADR 2026-10-23 colony-game-canon-outcome-ledger-art-policy): {available, reason (budget|unreadable)|null, version, path (.cursor/context/outcome-ledger.json), entries, totals {logic, compute, rare}, byKind {todo, test, ci, releaseCut, plan, review, releasePublished}, recent[] ({key, kind, resource, at, label}, newest 20), flow {plan, streak, lastClosedAt, brokenAt}|null (from mission-timing.json; a failed, gated or stopped tick breaks it), tests {configured, lastRun {at, ok, head}|null}}. Folded on every snapshot, idempotent by event key, entries never removed; never rewards lines of code, commits, diff size, tokens or time (1.9.0)",
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
@@ -184,7 +199,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.8.0",
+  dashboardDataVersion: "1.9.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -198,6 +213,7 @@ const SNAPSHOT = {
   runLogs: [],
   gateExit: { marker: "absent", base: "staging", tickets: [], skipped: [], truncated: false },
   chats: { withheld: false, vendors: [] },
+  outcomeLedger: emptyOutcomeLedgerSummary(),
   processes: [],
   skills: [],
   health: { status: "ok", checks: [] },
@@ -636,10 +652,10 @@ function collectPipelineRuns() {
   const fetchedAt = new Date().toISOString();
   try {
     // Trimmed to the fields renderDevopsPipelineCard() / navDevopsDot actually
-    // read (workflow, status, conclusion, branch, event, createdAt). databaseId
-    // and url are dropped: the pipeline card is display-only with no
-    // paste-destination for a run URL (ADR 2026-07-25 copy-only convention),
-    // so requesting them only adds payload cost without a consumer.
+    // read (workflow, status, conclusion, branch, event, createdAt) plus
+    // databaseId, the outcome ledger's identity for a passing run (1.9.0). url
+    // stays dropped: the pipeline card is display-only with no
+    // paste-destination for a run URL (ADR 2026-07-25 copy-only convention).
     const out = execFileSync(
       "gh",
       [
@@ -648,7 +664,7 @@ function collectPipelineRuns() {
         "--limit",
         String(MAX_PIPELINE_RUNS),
         "--json",
-        "workflowName,status,conclusion,headBranch,event,createdAt",
+        "databaseId,workflowName,status,conclusion,headBranch,event,createdAt",
       ],
       { cwd: ROOT, encoding: "utf-8", timeout: GH_RUN_LIST_TIMEOUT_MS },
     );
@@ -657,6 +673,8 @@ function collectPipelineRuns() {
       return { available: false, runs: [], reason: "call-failed", fetchedAt };
     }
     const runs = rows.slice(0, MAX_PIPELINE_RUNS).map((r) => ({
+      // Run id: the outcome ledger's key for a passing CI run (never a link).
+      id: Number.isSafeInteger(r.databaseId) ? r.databaseId : null,
       workflow: truncateStr(String(r.workflowName || ""), MAX_PIPELINE_NAME_CHARS),
       status: String(r.status || ""),
       conclusion: r.conclusion ? String(r.conclusion) : null,
@@ -1285,10 +1303,17 @@ function collectAgentPrompts() {
  * lives in `isReportTriaged`. A missing or unreadable `.cursor/memory/`
  * directory yields an empty list, never an error state.
  */
+/** Review outcomes for the outcome ledger (filled by collectExternalReports). */
+const reviewOutcomes = [];
+/** False when the report scan was skipped or failed (no plan rewards then). */
+let reviewOutcomesCollected = false;
 function collectExternalReports() {
   if (!withinSnapshotBudget(600)) return [];
   const memoryDir = join(ROOT, ".cursor", "memory");
-  if (!existsSync(memoryDir)) return [];
+  if (!existsSync(memoryDir)) {
+    reviewOutcomesCollected = true; // no reports at all: nothing open
+    return [];
+  }
 
   const reports = [];
   try {
@@ -1324,10 +1349,18 @@ function collectExternalReports() {
       });
       if (!report) continue;
       reports.push(report);
+      reviewOutcomes.push({
+        file: report.file,
+        reviewedPlanFile: report.reviewedPlanFile,
+        hasOpenReviewGaps: report.hasOpenReviewGaps,
+        fullReviewHead: fullReviewHeadSha(content),
+        modifiedAt: report.modifiedAt,
+      });
     }
   } catch {
     return [];
   }
+  reviewOutcomesCollected = true;
   return reports;
 }
 
@@ -1565,6 +1598,7 @@ function readPreviousInventory() {
   }
 }
 
+let finalTimingLedger = null;
 {
   const missionControl = buildMissionControlView({
     plans: SNAPSHOT.plans,
@@ -1590,6 +1624,7 @@ function readPreviousInventory() {
     gateExitTickets: SNAPSHOT.gateExit?.tickets || [],
   });
   persistMissionTimingLedger(missionControl.timingLedger);
+  finalTimingLedger = missionControl.timingLedger;
   persistFlightLogLedger(missionControl.flightLogLedger);
   // Do not expose the writable ledger blobs on the public snapshot wire.
   const {
@@ -1652,6 +1687,113 @@ SNAPSHOT.devops = {
     note: remote.available ? null : shipLaneReasonNote(remote.reason),
     rows,
   };
+}
+
+// 7. Outcome ledger (ADR 2026-10-23 colony-game-canon-outcome-ledger-art-policy).
+// Last, after shipLane: it folds what the collectors above already read (plans,
+// mission timing, run logs, review reports, CI rows, the Release Latest) plus
+// local v* tags, archived plans, test-results.json and the optional factory
+// history ledger. No network call of its own; write-on-change only.
+const MAX_ARCHIVED_PLAN_READS = 200;
+const MAX_LEDGER_TAGS = 500;
+function collectLedgerTags() {
+  try {
+    // Newest first, so the cap drops the oldest tags, never a new release.
+    const out = execFileSync(
+      "git",
+      [
+        "for-each-ref",
+        "--sort=-creatordate",
+        "--format=%(refname:short)|%(creatordate:iso-strict)",
+        `--count=${MAX_LEDGER_TAGS}`,
+        "refs/tags/v*",
+      ],
+      { cwd: ROOT, encoding: "utf-8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] },
+    );
+    return out
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [name, date] = line.split("|");
+        return { name: (name || "").trim(), date: (date || "").trim() || null };
+      });
+  } catch {
+    return [];
+  }
+}
+function collectArchivedPlanTodos() {
+  const rows = [];
+  for (const file of archivedPlanFiles.slice(0, MAX_ARCHIVED_PLAN_READS)) {
+    try {
+      const path = join(plansArchiveDir, file);
+      if (statSync(path).size > 512 * 1024) continue;
+      rows.push({ file, todos: parsePlanTodos(readFileSync(path, "utf-8")) });
+    } catch {
+      // unreadable archived plan: skipped
+    }
+  }
+  return rows;
+}
+/** Factory-only evidence (optional): parsed only when its size+mtime changed. */
+function readHistoryLedger(prevStamp) {
+  const path = join(ROOT, "docs", "evidence", "history-ledger.json");
+  try {
+    if (!existsSync(path)) return { stamp: null, data: null };
+    const st = statSync(path);
+    const stamp = `${st.size}-${Math.trunc(st.mtimeMs)}`;
+    if (stamp === prevStamp || st.size > 32 * 1024 * 1024) return { stamp, data: null };
+    return { stamp, data: JSON.parse(readFileSync(path, "utf-8")) };
+  } catch {
+    return { stamp: null, data: null };
+  }
+}
+const ledgerPlans = () => SNAPSHOT.plans.map((p) => ({ file: p.file, todos: p.todos.items }));
+if (!withinSnapshotBudget(400)) {
+  // No fold this time: show what is already earned rather than zeros.
+  try {
+    const persisted = readOutcomeLedgerFile(ROOT);
+    SNAPSHOT.outcomeLedger = {
+      ...summarizeOutcomeLedger(persisted.ledger, {
+        tests: testCollectorStatus(ROOT, readTestResults(ROOT)),
+      }),
+      available: false,
+      reason: "budget",
+    };
+  } catch {
+    SNAPSHOT.outcomeLedger = emptyOutcomeLedgerSummary("budget");
+  }
+} else {
+  try {
+    const testResults = readTestResults(ROOT);
+    const { ledger: prevLedger, foldable } = readOutcomeLedgerFile(ROOT);
+    if (!foldable) throw new Error("outcome ledger unreadable or another version: left as is");
+    const history = readHistoryLedger(prevLedger.sources.historyLedger ?? null);
+    const allPlans = [...ledgerPlans(), ...collectArchivedPlanTodos()];
+    const events = extractOutcomeEvents({
+      plans: allPlans,
+      timing: finalTimingLedger,
+      reviews: reviewOutcomes,
+      reviewsCollected: reviewOutcomesCollected,
+      tags: collectLedgerTags(),
+      ciRuns: SNAPSHOT.devops?.pipeline?.runs || [],
+      originRelease: SNAPSHOT.shipLane?.remote?.originRelease ?? null,
+      testResults,
+      historyLedger: history.data,
+      historyRepo: SNAPSHOT.shipLane?.repo ?? null,
+    });
+    const { ledger } = foldOutcomeLedger(
+      prevLedger,
+      events,
+      history.data ? { historyLedger: history.stamp } : {},
+    );
+    persistOutcomeLedger(ROOT, ledger);
+    SNAPSHOT.outcomeLedger = summarizeOutcomeLedger(ledger, {
+      flow: deriveFlowSignal(finalTimingLedger, SNAPSHOT.runLogs, allPlans),
+      tests: testCollectorStatus(ROOT, testResults),
+    });
+  } catch {
+    SNAPSHOT.outcomeLedger = emptyOutcomeLedgerSummary("unreadable");
+  }
 }
 
 process.stdout.write(JSON.stringify(SNAPSHOT, null, 2));
