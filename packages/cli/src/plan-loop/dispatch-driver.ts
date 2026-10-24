@@ -58,15 +58,18 @@ export function projectQueueState(handoff: string): DriverQueueState {
   return { cursor, total: queue.length, current, status };
 }
 
+/** Raw HANDOFF text, or `null` when the file is missing or unreadable. */
+export async function readHandoffText(root: string): Promise<string | null> {
+  try {
+    return await readFile(path.join(root, HANDOFF_REL), "utf8");
+  } catch {
+    return null;
+  }
+}
+
 /** Reads HANDOFF; a missing or unreadable file is "no queue". */
 export async function readQueueState(root: string): Promise<DriverQueueState> {
-  let handoff = "";
-  try {
-    handoff = await readFile(path.join(root, HANDOFF_REL), "utf8");
-  } catch {
-    // no HANDOFF yet: no queue
-  }
-  return projectQueueState(handoff);
+  return projectQueueState((await readHandoffText(root)) ?? "");
 }
 
 /**
@@ -74,22 +77,52 @@ export async function readQueueState(root: string): Promise<DriverQueueState> {
  * changes (polled: the agent edits HANDOFF in place or by rename, which
  * `fs.watch` does not report reliably). `flush()` re-reads once more so the
  * agent's last HANDOFF write before exit is not lost to the poll timing.
+ *
+ * Torn reads: an agent that rewrites HANDOFF in place truncates it first, so
+ * a poll can land on an empty or half-written file. An existing but blank
+ * HANDOFF is skipped (a missing file is still "no queue"), and a polled
+ * change is emitted only once two consecutive polls agree on it, so a
+ * partial write never reaches the driver. A state that lives for less than
+ * one poll is coalesced away. `flush()` runs after the session exited (no
+ * writer left), so its read is emitted without the confirmation poll.
  */
 export function createQueueStateWatcher(opts: {
   root: string;
   emitter: DriverEmitter;
   initial: DriverQueueState;
   pollMs?: number;
+  /** Test seam: raw HANDOFF reader (`null` = missing); default {@link readHandoffText}. */
+  read?: () => Promise<string | null>;
 }): { flush(): Promise<void>; stop(): void } {
+  const read = opts.read ?? (() => readHandoffText(opts.root));
   let last = JSON.stringify(opts.initial);
+  let pending: string | null = null;
   let busy: Promise<void> | null = null;
   let stopped = false;
-  const check = async () => {
-    const next = await readQueueState(opts.root);
-    const key = JSON.stringify(next);
-    if (key === last || stopped) return;
+  const emit = (next: DriverQueueState, key: string) => {
     last = key;
+    pending = null;
     opts.emitter.emit({ type: "queue_state", ...next });
+  };
+  /** Projection of one read, or `null` for a blank (mid-rewrite) HANDOFF. */
+  const sample = async (): Promise<{ next: DriverQueueState; key: string } | null> => {
+    const text = await read();
+    if (text !== null && text.trim() === "") return null;
+    const next = projectQueueState(text ?? "");
+    return { next, key: JSON.stringify(next) };
+  };
+  const check = async () => {
+    const got = await sample();
+    if (!got || stopped) return;
+    if (got.key === last) {
+      pending = null;
+      return;
+    }
+    if (got.key !== pending) {
+      pending = got.key;
+      return;
+    }
+    emit(got.next, got.key);
   };
   const tick = () => {
     if (busy) return busy;
@@ -106,7 +139,9 @@ export function createQueueStateWatcher(opts: {
   return {
     flush: async () => {
       if (busy) await busy;
-      await tick();
+      const got = await sample();
+      if (!got || stopped || got.key === last) return;
+      emit(got.next, got.key);
     },
     stop: () => {
       stopped = true;

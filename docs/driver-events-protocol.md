@@ -107,7 +107,7 @@ agent-kit run-plan-all --backend claude --events ndjson
 | `log` | as for `run-plan` | Status lines |
 | `run_end` | `exitCode`, `ticks` (`1`, or `0` when no agent started), `pending` (`null`), `reason`, `planExhausted` (`false`), `replies` and `stop` (the shapes of `tick_end.replies` / `tick_end.stop`) | Last event of the run |
 
-There is no `tick_start` or `tick_end`. `queue_state` is a read-only projection of the HANDOFF `Run queue`, `Queue cursor` and `Queue status` fields: the CLI never advances the cursor, the agent session does, by editing HANDOFF as the `/run-plan-all` contract says. An empty or missing queue (before the queue is confirmed) is `{"cursor":null,"total":0,"current":null,"status":null}`.
+There is no `tick_start` or `tick_end`. `queue_state` is a read-only projection of the HANDOFF `Run queue`, `Queue cursor` and `Queue status` fields: the CLI never advances the cursor, the agent session does, by editing HANDOFF as the `/run-plan-all` contract says. An empty or missing queue (before the queue is confirmed) is `{"cursor":null,"total":0,"current":null,"status":null}`. The CLI polls HANDOFF about once a second and reports a change only when two consecutive polls agree, and it skips a HANDOFF that exists but is blank, so a file caught mid-rewrite (empty or half-written) never shows up as a queue change; the last read before `run_end` needs no confirmation because the session has already exited.
 
 ## Scope
 

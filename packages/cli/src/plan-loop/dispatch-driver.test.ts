@@ -7,8 +7,13 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeRun } from "../commands/run.js";
 import { resetClaudeVersionCache } from "./backends.js";
-import { DISPATCH_DRIVER_TICK, projectQueueState, runDispatchDriver } from "./dispatch-driver.js";
-import { DRIVER_EVENT_TYPES, DRIVER_PROTOCOL_VERSION } from "./driver-events.js";
+import {
+  createQueueStateWatcher,
+  DISPATCH_DRIVER_TICK,
+  projectQueueState,
+  runDispatchDriver,
+} from "./dispatch-driver.js";
+import { DRIVER_EVENT_TYPES, DRIVER_PROTOCOL_VERSION, type DriverEvent } from "./driver-events.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "./hitl-relay.js";
 
 type SpawnFn = typeof spawn;
@@ -282,6 +287,92 @@ describe("queue_state (run-plan-all driver mode)", () => {
         QUEUE_HANDOFF.replace("running 2026-10-23 (resume)", "held (out-of-queue)"),
       ),
     ).toMatchObject({ status: "held" });
+  });
+
+  it("ignores torn HANDOFF reads (blank or half-written) and still flushes the final state", async () => {
+    vi.useFakeTimers();
+    try {
+      const moved = QUEUE_HANDOFF.replace(
+        /^- \*\*Queue cursor:\*\*.*$/m,
+        "- **Queue cursor:** 1 (current: b.plan.md)",
+      );
+      const held = moved.replace("running 2026-10-23 (resume)", "held (out-of-queue)");
+      // Half-written rewrite: the Run queue line landed, the cursor and status lines did not.
+      const partial = moved.slice(0, moved.indexOf("- **Queue cursor:**"));
+      expect(projectQueueState(partial)).toMatchObject({ cursor: null, total: 3 });
+      let text: string | null = QUEUE_HANDOFF;
+      const events: DriverEvent[] = [];
+      const watcher = createQueueStateWatcher({
+        root: "/unused",
+        emitter: { emit: (e) => events.push(e) },
+        initial: projectQueueState(QUEUE_HANDOFF),
+        pollMs: 10,
+        read: async () => text,
+      });
+      const poll = async (next: string | null) => {
+        text = next;
+        await vi.advanceTimersByTimeAsync(10);
+      };
+      // Each torn read sits between two valid ones; none may surface as a queue change.
+      await poll("");
+      await poll(QUEUE_HANDOFF);
+      await poll(partial);
+      await poll(QUEUE_HANDOFF);
+      await poll("");
+      await poll("");
+      await poll(partial);
+      await poll("");
+      await poll(moved); // first sighting of the real change: not yet confirmed
+      await poll(""); // truncate mid-rewrite of the same content
+      await poll(moved); // confirmed
+      await poll(moved);
+      // The last write before the session ends is emitted by flush without a confirmation poll.
+      text = held;
+      await watcher.flush();
+      watcher.stop();
+      await poll("");
+      await poll(null);
+      await poll(null);
+      expect(events).toEqual([
+        { type: "queue_state", cursor: 0, total: 3, current: "a.plan.md", status: "running" },
+        { type: "queue_state", cursor: 1, total: 3, current: "b.plan.md", status: "running" },
+        { type: "queue_state", cursor: 1, total: 3, current: "b.plan.md", status: "held" },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a missing HANDOFF as no queue once two polls agree; flush skips a blank file", async () => {
+    vi.useFakeTimers();
+    try {
+      let text: string | null = QUEUE_HANDOFF;
+      const events: DriverEvent[] = [];
+      const watcher = createQueueStateWatcher({
+        root: "/unused",
+        emitter: { emit: (e) => events.push(e) },
+        initial: projectQueueState(QUEUE_HANDOFF),
+        pollMs: 10,
+        read: async () => text,
+      });
+      text = null;
+      await vi.advanceTimersByTimeAsync(10);
+      expect(events).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(events.at(-1)).toEqual({
+        type: "queue_state",
+        cursor: null,
+        total: 0,
+        current: null,
+        status: null,
+      });
+      text = "";
+      await watcher.flush();
+      watcher.stop();
+      expect(events).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("emits the queue at start and on each HANDOFF change, including held; never writes HANDOFF", async () => {

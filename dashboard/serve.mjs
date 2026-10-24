@@ -39,6 +39,7 @@ import {
 } from "./lib/live-refresh.mjs";
 import { PIPELINE_CACHE_ENV, pipelineCacheJsonFromSnapshot } from "./lib/pipeline-cache.mjs";
 import { buildInventoryBaseline } from "./lib/semantic-model.mjs";
+import { SHIP_LANE_CACHE_ENV, shipLaneCacheJsonFromSnapshot } from "./lib/ship-lane.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Kit tree that owns `dashboard/` static assets and serve.mjs. */
@@ -78,6 +79,8 @@ const dataScript = join(__dirname, "dashboard-data.mjs");
 let previousInventoryJson = null;
 /** Last attempted devops.pipeline (with fetchedAt); the data script reuses it while fresh. */
 let previousPipelineJson = null;
+/** Last attempted shipLane.remote (with fetchedAt); reused for up to 120s (lib/ship-lane.mjs). */
+let previousShipLaneJson = null;
 
 /**
  * @param {string} payload
@@ -108,6 +111,19 @@ function pipelineCacheJsonFromPayload(payload) {
   try {
     const data = JSON.parse(payload);
     return data && !data.error ? pipelineCacheJsonFromSnapshot(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param {string} payload
+ * @returns {string|null}
+ */
+function shipLaneCacheJsonFromPayload(payload) {
+  try {
+    const data = JSON.parse(payload);
+    return data && !data.error ? shipLaneCacheJsonFromSnapshot(data) : null;
   } catch {
     return null;
   }
@@ -286,6 +302,7 @@ function runDataScript() {
       // Empty string = cold start (dashboard-data treats falsy as no previous).
       AGENT_KIT_PREV_INVENTORY: previousInventoryJson || "",
       [PIPELINE_CACHE_ENV]: previousPipelineJson || "",
+      [SHIP_LANE_CACHE_ENV]: previousShipLaneJson || "",
     };
     execFile(
       process.execPath,
@@ -310,6 +327,8 @@ function runDataScript() {
         if (baseline) previousInventoryJson = baseline;
         const pipelineCache = pipelineCacheJsonFromPayload(stdout);
         if (pipelineCache) previousPipelineJson = pipelineCache;
+        const shipLaneCache = shipLaneCacheJsonFromPayload(stdout);
+        if (shipLaneCache) previousShipLaneJson = shipLaneCache;
         // Chat titles are private: a broadcast (LAN, token-gated) server never serves them, even
         // if the child missed the bind env. Every route (/api/data, SSE connect, push) reads this.
         resolve(authResolved.broadcast ? withholdChatsFromPayload(stdout) : stdout);

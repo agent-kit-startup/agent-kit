@@ -1271,6 +1271,131 @@ body.mc-fullscreen .top-tabs-row {
   word-break: break-all;
 }
 
+/* ===== Git e CI/CD bento ===== */
+/* One section for the former Git and DevOps tabs (ADR 2026-10-23
+ * git-cicd-tab-read-in-mc-act-in-colony point 1): tiles on a 6-column grid
+ * built from the skin tokens; the Ship lane tile leads and spans two rows. */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: var(--mc-space-xl);
+}
+.bento-tile { min-width: 0; }
+.bento-tile[hidden] { display: none; }
+.bento-ship { grid-column: span 3; grid-row: span 2; }
+.bento-flow,
+.bento-prs,
+.bento-pipeline,
+.bento-deploy { grid-column: span 3; }
+.bento-graph {
+  grid-column: span 6;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  column-gap: var(--mc-space-xl);
+  align-items: start;
+}
+.bento-pane { min-width: 0; }
+.bento-pane:empty { display: none; }
+.bento-files { grid-column: span 6; }
+@media (min-width: 1600px) {
+  .bento-ship,
+  .bento-flow,
+  .bento-prs,
+  .bento-pipeline,
+  .bento-deploy { grid-column: span 2; }
+}
+@media (max-width: 1100px) {
+  .bento-graph { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .bento { grid-template-columns: minmax(0, 1fr); }
+  .bento-tile { grid-column: auto; grid-row: auto; }
+}
+.ship-lane-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+.ship-lane,
+.ship-prs {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ship-row,
+.ship-pr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius);
+  background: var(--bg-card);
+}
+.ship-row.is-red { box-shadow: inset 2px 0 0 var(--red); }
+.ship-row.is-yellow { box-shadow: inset 2px 0 0 var(--yellow); }
+.ship-row-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 128px;
+}
+.ship-row-state {
+  font-size: var(--mc-chrome-meta-size);
+  padding: 1px 8px;
+  border-radius: var(--mc-radius-pill);
+  color: var(--text-muted);
+  background: var(--bg-card-hover);
+}
+.ship-row.is-green .ship-row-state { color: var(--green); background: var(--green-bg); }
+.ship-row.is-yellow .ship-row-state { color: var(--yellow); background: var(--yellow-bg); }
+.ship-row.is-red .ship-row-state { color: var(--red); background: var(--red-bg); }
+.ship-row-detail {
+  color: var(--text-secondary);
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ship-row-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  min-width: 0;
+}
+.ship-row-next:empty { display: none; }
+.ship-row-cmd {
+  font-family: var(--mc-font-mono);
+  font-size: var(--mc-chrome-meta-size);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--mc-radius-sm);
+  padding: 1px 6px;
+  overflow-wrap: anywhere;
+}
+.ship-pr-num {
+  font-family: var(--mc-font-mono);
+  color: var(--text-secondary);
+}
+.ship-pr-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ship-pr .ship-copy { order: 2; }
+.ship-pr-meta {
+  order: 3;
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 /* ===== Memory ===== */
 .memory-list {
   display: flex;
@@ -3604,6 +3729,13 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
   word-break: break-word;
   white-space: pre-wrap;
 }
+.flight-log-card-text code {
+  font-family: var(--mc-font-mono);
+  font-size: 0.92em;
+}
+.flight-log-card-text strong {
+  font-weight: 600;
+}
 .flight-log-card-past .flight-log-card-text {
   color: var(--text-secondary);
   display: -webkit-box;
@@ -3732,13 +3864,9 @@ html[data-monitor-density="comfortable"] .live-activity-feed .monitor-row .monit
           Health
           <span class="dot dot-green" id="navHealthDot" aria-hidden="true"></span>
         </a>
-        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="git" tabindex="0" onclick="return showSection('git')" aria-label="Git section">
-          Git
+        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="git" tabindex="0" onclick="return showSection('git')" aria-label="Git e CI/CD section">
+          Git e CI/CD
           <span class="dot dot-gray" id="navGitDot" aria-hidden="true"></span>
-        </a>
-        <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="devops" tabindex="0" onclick="return showSection('devops')" aria-label="DevOps section">
-          DevOps
-          <span class="dot dot-gray" id="navDevopsDot" aria-hidden="true"></span>
         </a>
         <a class="top-tab nav-more-item" role="menuitem" href="#" data-section="memory" tabindex="0" onclick="return showSection('memory')" aria-label="Memory section">
           Memory
@@ -3898,6 +4026,25 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
+/**
+ * HANDOFF prose keeps its inline markdown (`**bold**`, `` `code` ``). Escape first, then turn
+ * only those two marks into <strong> / <code>, so no raw `**` reaches the card and no input
+ * markup survives. Never call on already-escaped text.
+ * @param {unknown} value
+ */
+function inlineMarkdownHtml(value) {
+  return escapeHtml(value).replace(/`([^`\n]+)`|\*\*([^*\n]+?)\*\*/g, (_m, code, bold) =>
+    code !== undefined ? `<code>${code}</code>` : `<strong>${bold}</strong>`,
+  );
+}
+
+/** Same text without the inline marks (aria-label, title). @param {unknown} value */
+function stripInlineMarkdown(value) {
+  return String(value ?? '').replace(/`([^`\n]+)`|\*\*([^*\n]+?)\*\*/g, (_m, code, bold) =>
+    code !== undefined ? code : bold,
+  );
+}
+
 function escapeJsString(value) {
   return String(value ?? '')
     .replace(/\\/g, '\\\\')
@@ -3919,7 +4066,6 @@ const SECTION_IDS = [
   'commands',
   'health',
   'git',
-  'devops',
   'memory',
   'terminals',
   'chats',
@@ -3927,10 +4073,23 @@ const SECTION_IDS = [
   'config',
 ];
 
+/**
+ * Retired or alternate section ids that still deep-link. Git and DevOps merged
+ * into one Git e CI/CD section (id `git`; ADR 2026-10-23
+ * git-cicd-tab-read-in-mc-act-in-colony point 1), so `#devops` and
+ * `#git-cicd` land there too.
+ */
+const SECTION_ALIASES = Object.freeze({ devops: 'git', 'git-cicd': 'git' });
+
+/** Canonical section id for a raw id or alias (unknown ids stay as given). */
+function canonicalSectionId(raw) {
+  return Object.prototype.hasOwnProperty.call(SECTION_ALIASES, raw) ? SECTION_ALIASES[raw] : raw;
+}
+
 /** Read the active section from the URL hash (`#health` -> `health`). */
 function sectionFromHash() {
   try {
-    const raw = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
+    const raw = canonicalSectionId((location.hash || '').replace(/^#\/?/, '').split('/')[0]);
     return SECTION_IDS.includes(raw) ? raw : 'overview';
   } catch {
     return 'overview';
@@ -4030,7 +4189,7 @@ function updateHeaderHomeChrome() {
 }
 
 function showSection(id) {
-  activeSectionId = id || 'overview';
+  activeSectionId = canonicalSectionId(id) || 'overview';
   const menuWasOpen = isNavMoreOpen();
   closeNavMore({ restoreFocus: menuWasOpen });
 
@@ -5374,8 +5533,13 @@ function renderNowModeHint(modeLabel) {
 }
 
 // ===== Git file helpers (Phase 2) =====
+/**
+ * POSIX single quotes: nothing inside expands. Double quotes (the previous
+ * form) still ran `$(...)` and backticks from a crafted tracked file name when
+ * the copied diff command was pasted (security pass p4, 2026-10-23).
+ */
 function shellQuotePath(path) {
-  return `"${String(path ?? '').replace(/"/g, '\\"')}"`;
+  return `'${String(path ?? '').replace(/'/g, "'\\''")}'`;
 }
 
 function gitFileStatusLabel(f) {
@@ -5756,6 +5920,176 @@ function renderGitHygieneHint(git) {
     </div>
   `;
 }
+
+// ===== Git e CI/CD: ship lane (snapshot 1.8.0 `shipLane`) =====
+// ADR 2026-10-23 git-cicd-tab-read-in-mc-act-in-colony: read-only rows that
+// mirror the /kit-prod Done rows, each with one copy-only next command. Forge
+// text (PR titles, branch and check names) is untrusted: every value goes
+// through escapeHtml / escapeAttr, and the copy buttons carry their command in
+// data-* attributes read by one delegated listener, so this section adds no
+// inline event handler and no innerHTML sink (CSP readiness, p4).
+
+/** Ship lane row state -> existing dot tone. */
+const SHIP_LANE_TONES = Object.freeze({ green: 'green', red: 'red', pending: 'yellow', unknown: 'gray' });
+const SHIP_LANE_STATE_LABELS = Object.freeze({
+  green: 'Done',
+  red: 'Blocked',
+  pending: 'Pending',
+  unknown: 'Unknown',
+});
+
+function shipLaneTone(state) {
+  return Object.prototype.hasOwnProperty.call(SHIP_LANE_TONES, state) ? SHIP_LANE_TONES[state] : 'gray';
+}
+
+/** The snapshot names destinations in words; the copy seam takes PASTE_DESTINATIONS keys. */
+function shipLaneDestination(destination) {
+  return destination === 'terminal' ? 'terminal' : 'chatInput';
+}
+
+/** Copy button for one next command (delegated listener below; no inline handler). */
+function shipLaneCopyButton(next) {
+  if (!next || typeof next.text !== 'string' || !next.text) return '';
+  const dest = shipLaneDestination(next.destination);
+  return `<button type="button" class="git-action-btn ship-copy" data-ship-copy="${escapeAttr(next.text)}" data-ship-dest="${dest}" title="${escapeAttr(copyActionTitle(next.text, dest))}">Copy</button>`;
+}
+
+/** Ship lane card: one row per /kit-prod Done row (or the /git-prod subset in a consumer repo). */
+function renderShipLaneCard(shipLane) {
+  if (!shipLane || !Array.isArray(shipLane.rows)) {
+    return renderEmptyStateCta({
+      headline: 'No ship lane signal',
+      support: 'This snapshot has no shipLane field (Mission Control snapshot 1.8.0 or later). Update the kit engine to see the release rows here.',
+      compact: true,
+      className: 'ship-lane-empty',
+    });
+  }
+  const rows = shipLane.rows;
+  if (!rows.length) {
+    return renderEmptyStateCta({
+      headline: 'No ship lane rows',
+      support: shipLane.note || 'No origin remote or release data for this repository.',
+      compact: true,
+      className: 'ship-lane-empty',
+    });
+  }
+  const counts = { green: 0, red: 0, pending: 0, unknown: 0 };
+  for (const r of rows) {
+    if (Object.prototype.hasOwnProperty.call(counts, r.state)) counts[r.state] += 1;
+  }
+  const summary = [
+    counts.green ? `${counts.green} done` : '',
+    counts.red ? `${counts.red} blocked` : '',
+    counts.pending ? `${counts.pending} pending` : '',
+    counts.unknown ? `${counts.unknown} unknown` : '',
+  ].filter(Boolean).join(' · ');
+  const fetched = shipLane.remote?.fetchedAt ? ` · forge read ${fmtDate(shipLane.remote.fetchedAt)}` : '';
+  const items = rows
+    .map((r) => {
+      const tone = shipLaneTone(r.state);
+      const next = r.next && typeof r.next.text === 'string' && r.next.text
+        ? `<code class="ship-row-cmd">${escapeHtml(r.next.text)}</code>${shipLaneCopyButton(r.next)}`
+        : '';
+      return `
+        <li class="ship-row is-${tone}">
+          <span class="dot dot-${tone}" aria-hidden="true"></span>
+          <span class="ship-row-label">${escapeHtml(r.label || r.id || '')}</span>
+          <span class="ship-row-state">${escapeHtml(SHIP_LANE_STATE_LABELS[r.state] || 'Unknown')}</span>
+          <span class="ship-row-detail">${escapeHtml(r.detail || '')}</span>
+          <span class="ship-row-next">${next}</span>
+        </li>
+      `;
+    })
+    .join('');
+  const note = shipLane.note ? `<div class="devops-note">${escapeHtml(shipLane.note)}</div>` : '';
+  return `
+    <div class="ship-lane-summary">${escapeHtml(summary)}${escapeHtml(fetched)}</div>
+    ${note}
+    <ol class="ship-lane" aria-label="Ship lane rows">${items}</ol>
+  `;
+}
+
+/** Tone of one open PR: failing checks or conflicts red, running or behind yellow, clean green. */
+function shipPrTone(pr) {
+  const checks = pr?.checks || {};
+  if ((checks.failing || []).length || pr?.mergeable === 'conflicting') return 'red';
+  if (checks.pending > 0 || ['behind', 'blocked', 'unstable', 'draft'].includes(pr?.mergeState)) return 'yellow';
+  if (pr?.mergeState === 'clean') return 'green';
+  return 'gray';
+}
+
+/** Open PRs card (base, head, stacking, mergeable state, failing checks, signature-scan). */
+function renderShipLanePrsCard(shipLane) {
+  const remote = shipLane?.remote || null;
+  if (!remote?.available) {
+    return renderEmptyStateCta({
+      headline: 'No pull request signal',
+      support: shipLane?.note || 'Open pull requests are read with gh when the snapshot carries shipLane (1.8.0).',
+      compact: true,
+      className: 'ship-prs-empty',
+    });
+  }
+  const prs = Array.isArray(remote.prs) ? remote.prs : [];
+  if (!prs.length) {
+    return renderEmptyStateCta({
+      headline: 'No open pull requests',
+      support: 'Nothing is waiting for review or merge on the forge.',
+      compact: true,
+      className: 'ship-prs-empty',
+    });
+  }
+  const items = prs
+    .map((pr) => {
+      const tone = shipPrTone(pr);
+      const n = Number(pr.number) || 0;
+      const checks = pr.checks || {};
+      const meta = [
+        String(pr.head || '?') + ' → ' + String(pr.base || '?'),
+        pr.stackedOn ? `stacked on #${Number(pr.stackedOn) || 0}` : '',
+        pr.mergeable === 'conflicting' ? 'conflicts' : (pr.mergeState || ''),
+        (checks.failing || []).length ? `failing: ${checks.failing.join(', ')}` : '',
+        checks.pending ? `${checks.pending} running` : '',
+        checks.signatureScan && checks.signatureScan !== 'missing' ? `signature-scan ${checks.signatureScan}` : '',
+        pr.draft ? 'draft' : '',
+      ].filter(Boolean).join(' · ');
+      return `
+        <li class="ship-pr">
+          <span class="dot dot-${tone}" aria-hidden="true"></span>
+          <span class="ship-pr-num">#${n}</span>
+          <span class="ship-pr-title">${escapeHtml(pr.title || '')}</span>
+          <span class="ship-pr-meta">${escapeHtml(meta)}</span>
+          ${shipLaneCopyButton({ text: `gh pr checks ${n}`, destination: 'terminal' })}
+        </li>
+      `;
+    })
+    .join('');
+  const total = Number(remote.prsTotal) || prs.length;
+  const more = total > prs.length ? `<div class="devops-note">${escapeHtml(`${total - prs.length} more open, not shown`)}</div>` : '';
+  return `<ul class="ship-prs" aria-label="Unmerged pull requests">${items}</ul>${more}`;
+}
+
+/** Nav dot for the merged Git e CI/CD section (see the render call site). */
+function gitCicdNavTone(d) {
+  const latestRun = (d?.devops?.pipeline?.runs || [])[0] || null;
+  const runFailed = !!latestRun && latestRun.status === 'completed'
+    && ['failure', 'cancelled', 'timed_out'].includes(latestRun.conclusion);
+  const shipRed = (d?.shipLane?.rows || []).some((r) => r && r.state === 'red');
+  if (runFailed || shipRed) return 'red';
+  const runOpen = !!latestRun && (latestRun.status !== 'completed' || latestRun.conclusion !== 'success');
+  if (d?.git?.dirty || runOpen) return 'yellow';
+  return d?.git?.branch ? 'green' : 'gray';
+}
+
+/** One delegated listener for every ship lane copy button (data-only; goes through the copy seam). */
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  const btn = target && typeof target.closest === 'function' ? target.closest('[data-ship-copy]') : null;
+  if (!btn) return;
+  event.preventDefault();
+  const text = btn.getAttribute('data-ship-copy') || '';
+  if (!text) return;
+  copyForPaste(text, text, btn.getAttribute('data-ship-dest') === 'terminal' ? 'terminal' : 'chatInput');
+});
 
 // ===== Action seam (contract: docs/mission-control-embedding.md) =====
 /**
@@ -7514,11 +7848,11 @@ function renderFlightLogCard(entry, idx) {
     variant === 'current'
       ? `flight-log-card flight-log-card-current ${kindClass}`
       : `flight-log-card flight-log-card-past ${kindClass}`;
-  const aria = `${label}: ${text}`;
+  const aria = `${label}: ${stripInlineMarkdown(text)}`;
   return `
     <div class="${cardClass}" role="listitem" tabindex="0" data-focus-key="flight-log-${variant}-${idx}" data-flight-log-kind="${escapeAttr(kind)}" aria-label="${escapeAttr(aria)}">
       <span class="flight-log-card-label">${escapeHtml(label)}</span>
-      <div class="flight-log-card-text">${escapeHtml(text)}</div>
+      <div class="flight-log-card-text">${inlineMarkdownHtml(text)}</div>
       <div class="flight-log-card-meta">${metaBits.join(' · ')}</div>
       <div class="flight-log-card-actions">
         <button type="button" class="status-bar-btn" data-focus-key="flight-log-action-${variant}-${idx}" onclick="${copyActionHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">${escapeHtml(actionLabel)}</button>
@@ -7557,11 +7891,11 @@ function renderFlightLogWarningCard(warning, idx) {
       ? action.command
       : `${kind === 'api_limit' ? 'Resume after this quota pause:' : 'Act on this heads-up:'}\n${text}\n${sourcePath}`;
   const copyActionHandler = copyForPasteHandler(actionCommand, actionSubject, 'chatInput');
-  const aria = `${title}: ${text}`;
+  const aria = `${title}: ${stripInlineMarkdown(text)}`;
   return `
     <div class="flight-log-card flight-log-card-warning" role="listitem" tabindex="0" data-focus-key="flight-log-warning-${idx}" data-warning-kind="${escapeAttr(kind)}" aria-label="${escapeAttr(aria)}">
       <span class="flight-log-card-label">${escapeHtml(title)}</span>
-      <div class="flight-log-card-text">${escapeHtml(text)}</div>
+      <div class="flight-log-card-text">${inlineMarkdownHtml(text)}</div>
       <div class="flight-log-card-meta">${escapeHtml(sourcePath)}</div>
       <div class="flight-log-card-actions">
         <button type="button" class="status-bar-btn" data-focus-key="flight-log-warning-action-${idx}" onclick="${copyActionHandler}" style="font-size:11px;padding:3px 10px" title="${escapeAttr(copyActionTitle(actionSubject, 'chatInput'))}">${escapeHtml(actionLabel)}</button>
@@ -7644,12 +7978,12 @@ function renderFlightLogTicketCard(ticket, idx) {
   );
   if (typeof ticket?.url === 'string' && /^https?:\/\//.test(ticket.url)) metaBits.push(escapeHtml(ticket.url));
   const triage = typeof ticket?.triage === 'string' && ticket.triage.trim() ? ticket.triage.trim() : '';
-  const aria = `${title} ${stamp}: ${text}`;
+  const aria = `${title} ${stamp}: ${stripInlineMarkdown(text)}`;
   const kindClass = flightLogKindClassName('prompt');
   return `
     <div class="flight-log-card flight-log-card-current flight-log-card-ticket ${kindClass}" role="listitem" tabindex="0" data-focus-key="flight-log-ticket-${idx}" data-flight-log-kind="prompt" data-ticket-stamp="${escapeAttr(stamp)}" aria-label="${escapeAttr(aria)}">
       <span class="flight-log-card-label">${escapeHtml(title)} · ${escapeHtml(stamp)}</span>
-      <div class="flight-log-card-text">${escapeHtml(text)}</div>
+      <div class="flight-log-card-text">${inlineMarkdownHtml(text)}</div>
       <div class="flight-log-card-meta">${metaBits.join(' · ')}</div>
       ${triage ? `<div class="flight-log-card-code">${escapeHtml(triage)}</div>` : ''}
     </div>
@@ -8320,31 +8654,12 @@ function renderUnsafe() {
   const healthDot = document.getElementById('navHealthDot');
   healthDot.className = `dot dot-${health.status === 'ok' ? 'green' : health.status === 'warning' ? 'yellow' : 'red'}`;
 
-  // Git nav dot
+  // Git e CI/CD nav dot (Git and DevOps merged): red when the latest pipeline
+  // run failed/cancelled/timed out or a ship lane row is red; yellow when the
+  // tree is dirty or the latest run is in progress / non-success; green on a
+  // clean branch; gray without a Git signal.
   const gitDot = document.getElementById('navGitDot');
-  if (d.git?.dirty) {
-    gitDot.className = 'dot dot-yellow';
-  } else if (d.git?.branch) {
-    gitDot.className = 'dot dot-green';
-  }
-
-  // DevOps nav dot: state of the most recent pipeline run only (gray = no
-  // signal / gh unavailable, green = latest run succeeded, yellow = latest
-  // run in progress or non-success conclusion other than a hard failure,
-  // red = latest run failed/cancelled/timed out).
-  const devopsDot = document.getElementById('navDevopsDot');
-  const latestRun = (d.devops?.pipeline?.runs || [])[0] || null;
-  if (!latestRun) {
-    devopsDot.className = 'dot dot-gray';
-  } else if (latestRun.status !== 'completed') {
-    devopsDot.className = 'dot dot-yellow';
-  } else if (latestRun.conclusion === 'success') {
-    devopsDot.className = 'dot dot-green';
-  } else if (['failure', 'cancelled', 'timed_out'].includes(latestRun.conclusion)) {
-    devopsDot.className = 'dot dot-red';
-  } else {
-    devopsDot.className = 'dot dot-yellow';
-  }
+  if (gitDot) gitDot.className = `dot dot-${gitCicdNavTone(d)}`;
 
   // Terminals / processes nav items carry count badges only (no decorative dots).
 
@@ -8714,11 +9029,20 @@ function renderUnsafe() {
   `);
 
   // ===== Git =====
+  // Git e CI/CD (ADR 2026-10-23 git-cicd-tab-read-in-mc-act-in-colony): the
+  // former Git and DevOps tabs on one bento grid, led by the Ship lane card.
+  // Read-only and copy-only; `#devops` and `#git-cicd` alias here
+  // (SECTION_ALIASES). DevOps stays distinct from Processes (local ps only):
+  // CI/CD runs + an honestly-scoped deploy-activity proxy, no fabricated
+  // service-health widgets for infra this dashboard does not poll.
+  const devopsPipelineRuns = d.devops?.pipeline?.runs || [];
+  const devopsRunCount = devopsPipelineRuns.length;
+  const gitBranchHidden = d.git?.branch ? '' : ' hidden';
   parts.push(`
     <div class="content-section" id="section-git">
       <div class="section-title">
-        Git
-        <span class="section-subtitle">${escapeHtml(d.git?.branch || '\u2014')}${d.git?.branch ? (d.git?.dirty ? ` · ${d.git.dirtyCount} changed` : ' · clean') : ''}</span>
+        Git e CI/CD
+        <span class="section-subtitle">${escapeHtml(d.git?.branch || '\u2014')}${d.git?.branch ? (d.git?.dirty ? ` · ${d.git.dirtyCount} changed` : ' · clean') : ''} · ${devopsRunCount} pipeline run${devopsRunCount !== 1 ? 's' : ''}</span>
       </div>
       ${!d.git?.branch
         ? renderEmptyStateCta({
@@ -8726,39 +9050,39 @@ function renderUnsafe() {
             support: 'No Git data available.',
           })
         : ''}
-      <div class="card" style="${d.git?.branch ? '' : 'display:none'}">
-        ${renderGitHygieneHint(d.git)}
-        ${renderGitFlowCard(d.git)}
-        <div class="git-info">
-          <div class="git-row">
-            <span class="git-label">Last commit</span>
-            <span class="git-value">${escapeHtml(d.git?.lastCommit || '\u2014')}</span>
+      <div class="bento" aria-label="Git e CI/CD">
+        <section class="card bento-tile bento-ship" aria-label="Ship lane">
+          <div class="git-graph-title">Ship lane</div>
+          ${renderShipLaneCard(d.shipLane)}
+        </section>
+        <section class="card bento-tile bento-flow" aria-label="Promotion flow"${gitBranchHidden}>
+          ${renderGitHygieneHint(d.git)}
+          <div class="git-graph-title">Promotion flow</div>
+          ${renderGitFlowCard(d.git)}
+          <div class="git-info">
+            <div class="git-row">
+              <span class="git-label">Last commit</span>
+              <span class="git-value">${escapeHtml(d.git?.lastCommit || '\u2014')}</span>
+            </div>
           </div>
-        </div>
-        ${renderGitGraphCard(d.git)}
-        ${renderGitVisualTree(d.git)}
-        ${d.git?.dirty ? renderGitFileList(d.git) : ''}
-      </div>
-    </div>
-  `);
-
-  // ===== DevOps =====
-  // Distinct scope from Processes (local-process-only): CI/CD pipeline status
-  // + a best-effort, honestly-scoped deploy-activity proxy. No fabricated
-  // "service health" widgets for infra this dashboard does not actually poll.
-  const devopsPipelineRuns = d.devops?.pipeline?.runs || [];
-  const devopsRunCount = devopsPipelineRuns.length;
-  parts.push(`
-    <div class="content-section" id="section-devops">
-      <div class="section-title">
-        DevOps
-        <span class="section-subtitle">${devopsRunCount} pipeline run${devopsRunCount !== 1 ? 's' : ''}</span>
-      </div>
-      <div class="card">
-        <div class="git-graph-title">CI/CD pipeline</div>
-        ${renderDevopsPipelineCard(d.devops)}
-        <div class="git-graph-title">Deploy activity</div>
-        ${renderDevopsDeployCard(d.devops)}
+        </section>
+        <section class="card bento-tile bento-prs" aria-label="Unmerged pull requests">
+          <div class="git-graph-title">Open pull requests</div>
+          ${renderShipLanePrsCard(d.shipLane)}
+        </section>
+        <section class="card bento-tile bento-pipeline" aria-label="CI/CD pipeline">
+          <div class="git-graph-title">CI/CD pipeline</div>
+          ${renderDevopsPipelineCard(d.devops)}
+        </section>
+        <section class="card bento-tile bento-deploy" aria-label="Deploy activity">
+          <div class="git-graph-title">Deploy activity</div>
+          ${renderDevopsDeployCard(d.devops)}
+        </section>
+        <section class="card bento-tile bento-graph" aria-label="Branch graph"${gitBranchHidden}>
+          <div class="bento-pane">${renderGitGraphCard(d.git)}</div>
+          <div class="bento-pane">${renderGitVisualTree(d.git)}</div>
+        </section>
+        ${d.git?.dirty ? `<section class="card bento-tile bento-files" aria-label="Changed files">${renderGitFileList(d.git)}</section>` : ''}
       </div>
     </div>
   `);
