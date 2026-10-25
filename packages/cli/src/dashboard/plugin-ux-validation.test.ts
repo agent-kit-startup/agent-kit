@@ -1174,6 +1174,20 @@ describe("plugin-ux-validation: narrow shell + a11y chrome", () => {
     expect(flightLogHasWarningEntries(textlessWarning.missionControl.flightLog)).toBe(false);
     expect(isFlightLogQuiet(textlessWarning)).toBe(true);
     expect(resolveFlightLogCurrent(textlessWarning)).toBeNull();
+
+    // 6) Plan: none + Gaps through the real snapshot builder: the web panel and the
+    // terminal Flight Log read the same residual (flightLog.current), never All clear.
+    const idleMc = buildMissionControlView({
+      plans: [],
+      handoff: parseHandoffMarkdown(
+        "- **Plan:** none\n- **Mode:** manual\n- **Gaps:** guard fail-open; signing key on disk\n",
+      ),
+      nowMs: Date.parse("2026-10-24T18:56:00.000Z"),
+    });
+    expect(idleMc.flightLog.current).toBe("guard fail-open; signing key on disk");
+    const idleSnapshot = { missionControl: idleMc };
+    expect(isFlightLogQuiet(idleSnapshot)).toBe(false);
+    expect(resolveFlightLogCurrent(idleSnapshot)).toBe(idleMc.flightLog.current);
   });
 
   it("renders pending operator tickets read-only with prompt chrome, above every Flight Log branch", () => {

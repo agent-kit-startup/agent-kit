@@ -31,7 +31,8 @@ export interface ShellGuardOptions {
   /**
    * Base branch of each PR/MR a `gh pr merge` / `glab mr merge` segment names, keyed by
    * `prMergeKey`, resolved by the caller (`gh pr view` / `glab mr view`); `null` = could not
-   * resolve. When absent, the `pr-merge-protected-base` rule does not run (pure callers).
+   * resolve. When absent, the base check of `pr-merge-protected-base` does not run (pure
+   * callers); its API-merge and unresolved-merge checks still do.
    */
   prMergeBases?: Record<string, string | null> | null;
 }
@@ -373,6 +374,34 @@ export function forgeApiMergeCall(command: string): boolean {
   );
 }
 
+/**
+ * A `gh pr merge` / `glab mr merge` invocation anywhere in a segment's text: at the head,
+ * behind `do` / `then` / `else` / `!`, inside `bash -c '…'` / `sh -c '…'`, after `xargs`.
+ */
+const PR_MERGE_CALL_RE =
+  /(?:^|[\s'"(;|&`$!{])(?:[\w./-]+\/)?(?:gh\s+pr|glab\s+mr)\s+merge(?![\w-])/;
+
+/**
+ * True when a segment runs a PR/MR merge the guard cannot resolve to a literal target:
+ * the segment text names `gh pr merge` / `glab mr merge`, but its canonical head does not
+ * parse as one (`for … do gh pr merge $n`, `then gh pr merge 1`, `! gh pr merge 1`,
+ * `xargs -n1 gh pr merge`, `bash -c 'gh pr merge 1'`). No base can be resolved for such a
+ * merge, so the rule denies it whatever the base, also for pure callers (fail-closed). Per
+ * segment, so a literal merge elsewhere in the command does not hide one in a loop.
+ * `ALLOW_MAIN_PUSH=1` on the segment, or in the environment, lets it through. Accepted
+ * false positive: text that only mentions the invocation (`grep 'gh pr merge' f`). Out of
+ * reach: a script file that runs the merge names none on the command line.
+ */
+export function unresolvedPrMergeCall(command: string): boolean {
+  if (!PR_MERGE_CALL_RE.test(command)) return false;
+  return shellSegments(command).some(
+    (segment) =>
+      PR_MERGE_CALL_RE.test(segment) &&
+      !segmentHasAllowMainPushEnv(segment) &&
+      parsePrMergeHead(canonicalGitHead(segment)) === null,
+  );
+}
+
 export function prMergeKey(target: PrMergeTarget): string {
   return `${target.forge}\u0000${target.repo ?? ""}\u0000${target.selector ?? ""}`;
 }
@@ -535,12 +564,15 @@ export const SHELL_DENY_RULES: Array<{
     // skips the auto-mode classifier; this rule keeps that allowance to non-protected bases.
     // A forge API merge (`gh api … pulls/<n>/merge`, a GraphQL merge mutation) has no base
     // to resolve and no /git-staging use: it is denied outright, so neither the API nor
-    // Colony's host path (typed yes for main) can be bypassed that way.
+    // Colony's host path (typed yes for main) can be bypassed that way. A merge behind a head
+    // the parser does not read (loop body, `then`, `!`, `xargs`, `bash -c`) has no target
+    // either: denied outright too, so an unrecognized head cannot skip the base check.
     id: "pr-merge-protected-base",
     description:
-      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too, and so is any gh api / glab api merge call (REST merge endpoint or GraphQL merge mutation)",
+      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too, and so is any gh api / glab api merge call (REST merge endpoint or GraphQL merge mutation) and any gh pr merge / glab mr merge the guard cannot resolve to a literal target (inside a loop, if, xargs, bash -c or sh -c, or after !: run a literal `gh pr merge <n>` at the head of its own segment; text that only mentions the command is denied too)",
     test: (cmd, opts) => {
       if (forgeApiMergeCall(cmd)) return true;
+      if (unresolvedPrMergeCall(cmd)) return true;
       const bases = opts?.prMergeBases;
       if (!bases) return false;
       return shellSegments(cmd).some((segment) => {

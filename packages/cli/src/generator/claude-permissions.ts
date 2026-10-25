@@ -73,7 +73,9 @@ export const INTERACTIVE_DENY_RULES: readonly string[] = [...SHARED_DENY_RULES];
  * the auto-mode classifier, so the kit routine, not the classifier, decides the
  * staging merge; auto mode already allows the push and the PR creation. The
  * PreToolUse guard still denies a merge whose base is main/master/prod or cannot be
- * resolved (shell-guard.ts `pr-merge-protected-base`), and /git-prod never merges
+ * resolved, and a merge it cannot read at a segment head (loop body, `then`, `xargs`,
+ * `bash -c`), so the rows only cover a literal merge into an unprotected base
+ * (shell-guard.ts `pr-merge-protected-base`), and /git-prod never merges
  * into main from the agent. Headless ticks need no row (`--dangerously-skip-permissions`).
  * ADR 2026-08-13_claude-cli-kit-load-bootstrap.md, Amend (2026-10-19).
  */

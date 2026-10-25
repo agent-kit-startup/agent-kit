@@ -53,3 +53,17 @@ export function buildFlightLogTickets(
   tickets: Record<string, unknown>[] | null | undefined,
   opts?: { cap?: number },
 ): FlightLogTicket[];
+
+/** Mission Control snapshot slice (`missionControl`); typed loosely for the TUI tests. */
+export type MissionControlView = {
+  now: Record<string, unknown> & { status: string; gaps: string | null };
+  flightLog: Record<string, unknown> & { current: string | null };
+  [key: string]: unknown;
+};
+
+export function buildMissionControlView(input: {
+  plans?: unknown[];
+  handoff?: HandoffMarkdown | null;
+  nowMs?: number;
+  [key: string]: unknown;
+}): MissionControlView;

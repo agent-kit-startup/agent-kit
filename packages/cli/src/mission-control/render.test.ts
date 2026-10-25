@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildMissionControlView,
+  parseHandoffMarkdown,
+} from "../../../../dashboard/lib/semantic-model.mjs";
+import {
   HELMET_FILL,
   LABEL_MUTED,
   STATUS_OK,
   shouldUseWelcomeColor,
 } from "../welcome/visual-kit.js";
 import { renderMcTui, shouldLiveRefresh } from "./render.js";
-import type { McTuiView } from "./view.js";
+import { buildMcTuiView, type McTuiView } from "./view.js";
 
 function rgbSeq(hex: string): string {
   const r = Number.parseInt(hex.slice(1, 3), 16);
@@ -115,6 +119,20 @@ describe("renderMcTui", () => {
     vi.stubEnv("AGENT_KIT_REDUCED_MOTION", "1");
     const colored = renderMcTui(view, { color: true, stdoutIsTTY: true, columns: 72 });
     expect(stripAnsi(colored)).toBe(plain);
+  });
+
+  it("prints the Gaps residual instead of All clear when Plan is none", () => {
+    const missionControl = buildMissionControlView({
+      plans: [],
+      handoff: parseHandoffMarkdown(
+        "- **Plan:** none\n- **Mode:** manual\n- **Gaps:** guard fail-open; signing key on disk\n",
+      ),
+      nowMs: Date.parse("2026-10-24T18:56:00.000Z"),
+    });
+    const plain = renderMcTui(buildMcTuiView({ missionControl }), { color: false, columns: 100 });
+    expect(plain).toContain("status  idle");
+    expect(plain).toContain("guard fail-open; signing key on disk");
+    expect(plain).not.toContain("All clear");
   });
 
   it("disables live refresh for --once, non-TTY, and CI", () => {
