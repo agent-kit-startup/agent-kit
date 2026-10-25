@@ -869,6 +869,18 @@ describe("buildCurrentExecution", () => {
     const idle = buildCurrentExecution(samplePlans, null);
     expect(idle.status).toBe("idle");
     expect(idle.previousTodo).toBeNull();
+    expect(idle.gaps).toBeNull();
+  });
+
+  it("keeps HANDOFF Gaps on the idle view when Plan is none", () => {
+    const handoff = parseHandoffMarkdown(
+      "- **Plan:** none\n- **Mode:** manual\n- **Gaps:** guard fail-open; signing key on disk\n",
+    );
+    expect(handoff?.plan).toBeUndefined();
+    const idle = buildCurrentExecution(samplePlans, handoff);
+    expect(idle.status).toBe("idle");
+    expect(idle.planFile).toBeNull();
+    expect(idle.gaps).toBe("guard fail-open; signing key on disk");
   });
 
   /**
@@ -2798,6 +2810,35 @@ describe("Flight Log Gaps history ledger", () => {
     expect(view.flightLogLedger.flightKey).toBe("plan:mission-control-plugin-ux.plan.md");
     expect(view.now.gaps).toBe("blocked on review");
     expect(view.flightLog.warnings).toEqual([]);
+  });
+
+  it("buildMissionControlView keeps Gaps as the NOW residual with Plan: none, past still reset", () => {
+    const view = buildMissionControlView({
+      plans: samplePlans,
+      handoff: parseHandoffMarkdown(
+        "- **Plan:** none\n- **Mode:** manual\n- **Gaps:** guard fail-open; signing key on disk\n",
+      ),
+      flightLogLedger: {
+        version: 1,
+        lastCurrent: "residual of the finished plan",
+        past: [
+          {
+            text: "older residual",
+            at: "2026-10-24T10:00:00.000Z",
+            sourcePath: ".cursor/HANDOFF.md",
+          },
+        ],
+        flightKey: "plan:mission-control-plugin-ux.plan.md",
+      },
+      nowMs: Date.parse("2026-10-24T18:56:00.000Z"),
+    });
+    expect(view.now.status).toBe("idle");
+    expect(view.now.gaps).toBe("guard fail-open; signing key on disk");
+    expect(view.flightLog.current).toBe("guard fail-open; signing key on disk");
+    expect(view.flightLog.currentAction?.label).toBe("Copy fix prompt");
+    // The `Plan: none` flight boundary still resets Earlier.
+    expect(view.flightLog.past).toEqual([]);
+    expect(view.flightLogLedger.flightKey).toBe("plan:none");
   });
 
   it("buildMissionControlView wipes ledger when plan basename changes", () => {

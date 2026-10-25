@@ -161,7 +161,7 @@ export const guardCommand = defineCommand({
       meta: {
         name: "shell",
         description:
-          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod + gh pr merge / glab mr merge into main/master/prod or an unresolved base + any gh api / glab api merge call + direct git push/gh pr create|merge against the public repo). Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
+          "Evaluate a shell command against the git-workflow / protected-branch deny-list (git checkout|restore|reset --hard|clean -fd + pushes to main/master/prod + gh pr merge / glab mr merge into main/master/prod or an unresolved base + any gh pr merge / glab mr merge not at the head of its own segment (loop body, if, !, xargs, bash -c / sh -c) + any gh api / glab api merge call + direct git push/gh pr create|merge against the public repo). A script file that runs a merge is out of reach. Not a general destructive-command guard: rm -rf, chmod, dd are allowed.",
       },
       args: {
         json: {

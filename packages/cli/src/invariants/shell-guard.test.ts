@@ -6,6 +6,7 @@ import {
   prMergeKey,
   prMergeTargets,
   SHELL_DENY_RULES,
+  unresolvedPrMergeCall,
 } from "./shell-guard.js";
 
 describe("evaluateShellCommand", () => {
@@ -511,7 +512,106 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
     }
   });
 
-  it("does not run without resolved bases (pure callers)", () => {
+  it("skips the base check without resolved bases (pure callers)", () => {
     expect(evaluateShellCommand("gh pr merge 12").permission).toBe("allow");
+  });
+
+  // Error memo 2026-10-24_guard-pr-merge-unrecognized-head-fail-open: a loop merged three PRs
+  // into main because the head was not `gh pr merge`, so no target was parsed and the rule
+  // allowed. A merge the guard cannot resolve to a literal target now fails closed.
+  const UNRESOLVED_MERGES = [
+    "for n in 31 32 33 34; do gh pr merge $n -R acme/app --merge; done",
+    "for n in 1 2; do gh pr merge 1; done",
+    "if true; then gh pr merge 1; fi",
+    "if false; then :; else gh pr merge 1; fi",
+    "! gh pr merge 1",
+    "echo 1 | xargs -n1 gh pr merge",
+    "xargs -n1 gh pr merge < prs.txt",
+    "bash -c 'gh pr merge 1'",
+    'sh -c "gh pr merge 1 --squash"',
+    'while read n; do gh pr merge "$n"; done < prs.txt',
+    "for n in 1 2; do glab mr merge $n; done",
+    "if true; then glab mr merge 1; fi",
+    "! glab mr merge 1",
+    "echo 1 | xargs -n1 glab mr merge",
+    "bash -c 'glab mr merge 1'",
+    "sh -c 'glab mr merge 1'",
+  ];
+
+  it("denies a merge it cannot resolve to a literal target, whatever the base", () => {
+    for (const cmd of UNRESOLVED_MERGES) {
+      expect(unresolvedPrMergeCall(cmd), cmd).toBe(true);
+      for (const opts of [undefined, { prMergeBases: {} }]) {
+        const r = evaluateShellCommand(cmd, opts);
+        expect(r.permission, cmd).toBe("deny");
+        expect(r.rule, cmd).toBe("pr-merge-protected-base");
+        expect(r.agent_message, cmd).toMatch(/literal `gh pr merge <n>` at the head/);
+      }
+    }
+  });
+
+  it("denies a loop merge even when a literal merge in the same command resolves to staging", () => {
+    const cmd = "gh pr merge 12 --merge && for n in 1 2; do gh pr merge $n; done";
+    expect(evaluateShellCommand(cmd, bases("staging", cmd)).rule).toBe("pr-merge-protected-base");
+  });
+
+  it("keeps a literal merge at a recognized head on the base check", () => {
+    for (const cmd of [
+      "gh pr merge 12 --squash",
+      "{ gh pr merge 12; }",
+      "(gh pr merge 12)",
+      "time gh pr merge 12",
+      "env FOO=1 gh pr merge 12",
+      "cd /tmp/wt && gh pr merge 12 --merge",
+      "glab mr merge 12",
+    ]) {
+      expect(unresolvedPrMergeCall(cmd), cmd).toBe(false);
+      expect(evaluateShellCommand(cmd, bases("staging", cmd)).permission, cmd).toBe("allow");
+      expect(evaluateShellCommand(cmd, bases("main", cmd)).rule, cmd).toBe(
+        "pr-merge-protected-base",
+      );
+    }
+  });
+
+  it("keeps denying selector shapes that do not resolve", () => {
+    // A loop body on its own line starts its segment with `gh pr merge $n`: a recognized head
+    // whose selector `$n` cannot resolve, so the base check denies it.
+    for (const cmd of [
+      'gh pr merge "$PR"',
+      "gh pr merge $(gh pr list -q .[0].number)",
+      "for n in 1 2; do\n  gh pr merge $n --merge\ndone",
+    ]) {
+      expect(evaluateShellCommand(cmd, bases(null, cmd)).rule, cmd).toBe("pr-merge-protected-base");
+    }
+  });
+
+  it("lets ALLOW_MAIN_PUSH=1 through an unresolved merge, inline or in the env", () => {
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 bash -c 'gh pr merge 1'").permission).toBe(
+      "allow",
+    );
+    process.env.ALLOW_MAIN_PUSH = "1";
+    expect(evaluateShellCommand("for n in 1 2; do gh pr merge $n; done").permission).toBe("allow");
+  });
+
+  it("denies text that only mentions the command (accepted false positive)", () => {
+    for (const cmd of [
+      "grep -rn 'gh pr merge' docs/",
+      'git commit -m "docs: explain gh pr merge"',
+      "echo glab mr merge",
+    ]) {
+      expect(evaluateShellCommand(cmd).rule, cmd).toBe("pr-merge-protected-base");
+    }
+  });
+
+  it("allows commands that only look like a merge", () => {
+    for (const cmd of [
+      "gh pr view 12 --json mergeable",
+      "echo gh pr mergeable",
+      "gh pr list --search merged",
+      "git merge origin/staging",
+      "glab mr view 5",
+    ]) {
+      expect(evaluateShellCommand(cmd).permission, cmd).toBe("allow");
+    }
   });
 });

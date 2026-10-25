@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.10.1] - 2026-10-24
+
+### Fixed
+
+- Shell guard: `pr-merge-protected-base` now fails closed on a `gh pr merge` / `glab mr merge` it cannot resolve to a literal target. A merge inside a `for` / `while` loop body, after `then`, `else` or `!`, behind `xargs`, or inside `bash -c` / `sh -c` used to produce no target and was allowed, so it could merge into `main`; it is now denied whatever the base, with a message asking for a literal `gh pr merge <n>` at the head of its own segment. A literal merge into an unprotected base (the `/git-staging` path) still works, and `ALLOW_MAIN_PUSH=1` keeps the `/git-prod` escape. Text that only mentions the command (`grep 'gh pr merge'`) is denied too; a script file that runs a merge stays out of reach of the guard.
+- Mission Control: with `Plan: none`, the terminal Flight Log no longer prints `All clear` over open HANDOFF Gaps. The Gaps stay the NOW residual, as in the web dashboard, and the `Plan: none` flight boundary still resets Earlier.
+
 ## [6.10.0] - 2026-10-24
 
 ### Added

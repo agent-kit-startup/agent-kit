@@ -29,8 +29,8 @@ describe("guard shell help text matches SHELL_DENY_RULES", () => {
     expect(description).toMatch(/protected-branch/i);
   });
 
-  // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11 and
-  // 2026-10-19: the guard is git-scoped by default, with two named, deliberate
+  // ADR 2026-07-29_cli-invariants-thin-hook-adapters, amended 2026-09-11,
+  // 2026-10-19 and 2026-10-24: the guard is git-scoped by default, with two named, deliberate
   // exceptions (`public-repo-direct-write`, which also denies `gh pr
   // create|merge`, and `pr-merge-protected-base`, the base check behind the
   // Claude merge allow rows). A new rule must be either `git-`-prefixed or
@@ -110,6 +110,31 @@ describe("evaluateGuardShell git helper gating", () => {
     const result = await evaluateGuardShell("gh pr merge 12", "/tmp/repo", {
       ...deps,
       resolvePrBase: async () => null,
+    });
+    expect(result.rule).toBe("pr-merge-protected-base");
+  });
+
+  it("denies a merge behind a head it cannot parse, with no base to resolve", async () => {
+    const { calls, deps } = spyDeps();
+    for (const cmd of [
+      "for n in 31 32; do gh pr merge $n -R acme/app --merge; done",
+      "if true; then gh pr merge 12; fi",
+      "echo 12 | xargs -n1 gh pr merge",
+      "bash -c 'gh pr merge 12'",
+      "! glab mr merge 12",
+    ]) {
+      const result = await evaluateGuardShell(cmd, "/tmp/repo", deps);
+      expect(result.permission, cmd).toBe("deny");
+      expect(result.rule, cmd).toBe("pr-merge-protected-base");
+    }
+    expect(calls.some((c) => c.startsWith("base:"))).toBe(false);
+  });
+
+  it("denies a selector the forge cannot read, such as a quoted variable", async () => {
+    const { deps } = spyDeps();
+    const result = await evaluateGuardShell('gh pr merge "$PR"', "/tmp/repo", {
+      ...deps,
+      resolvePrBase: async (target) => (/^\d+$/.test(target.selector ?? "") ? "staging" : null),
     });
     expect(result.rule).toBe("pr-merge-protected-base");
   });

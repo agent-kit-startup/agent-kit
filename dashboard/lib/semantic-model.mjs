@@ -2044,6 +2044,9 @@ export function buildCurrentExecution(plans, handoff) {
       planFile: null,
       planPath: null,
       mode: null,
+      // Gaps outlive the plan: with `Plan: none` they still feed the Flight Log NOW
+      // residual, so the cockpit never reads All clear over open Gaps.
+      gaps: handoff?.gaps || null,
       progress: { completed: 0, total: 0 },
       previousTodo: null,
       currentTodo: null,

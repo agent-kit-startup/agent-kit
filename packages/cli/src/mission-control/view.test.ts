@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  buildMissionControlView,
+  parseHandoffMarkdown,
+} from "../../../../dashboard/lib/semantic-model.mjs";
 import { buildMcTuiView } from "./view.js";
 
 const snapshot = {
@@ -62,5 +66,19 @@ describe("buildMcTuiView", () => {
     expect(view.mission.status).toBe("idle");
     expect(view.checklist).toEqual([]);
     expect(view.crewMonitor).toEqual([]);
+  });
+
+  it("keeps open Gaps on the flight log NOW line when HANDOFF says Plan: none", () => {
+    const missionControl = buildMissionControlView({
+      plans: [],
+      handoff: parseHandoffMarkdown(
+        "- **Plan:** none\n- **Mode:** manual\n- **Gaps:** guard fail-open; signing key on disk\n",
+      ),
+      nowMs: Date.parse("2026-10-24T18:56:00.000Z"),
+    });
+    const view = buildMcTuiView({ missionControl });
+    expect(view.mission.status).toBe("idle");
+    expect(view.mission.gaps).toBe("guard fail-open; signing key on disk");
+    expect(view.flightLog.now).toBe("guard fail-open; signing key on disk");
   });
 });
