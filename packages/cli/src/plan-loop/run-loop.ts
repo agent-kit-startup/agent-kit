@@ -15,6 +15,7 @@ import {
   type DriverEmitter,
   type DriverEvent,
   type DriverTickSentinel,
+  type DriverUsage,
   driverReplies,
   driverStop,
 } from "./driver-events.js";
@@ -38,6 +39,7 @@ import {
   resolveTickSentinel,
   type TickSentinel,
 } from "./sentinel.js";
+import { sumUsage } from "./token-usage.js";
 import { detectUsageLimit, type UsageLimitHit } from "./usage-limit.js";
 
 export const TICK_PROMPT =
@@ -169,6 +171,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
   let tick = 0;
   /** Ticks that actually started an agent (`tick` also counts the attempt that hit a stop). */
   let ticksRun = 0;
+  // Driver protocol 1.3.0: the run's usage is the sum of the ticks' (each tick is its own session).
+  let runUsage: DriverUsage | null = null;
   const driver: DriverRun | null = opts.events
     ? (() => {
         const emitter = createDriverEmitter(opts.events.write, opts.events.now);
@@ -239,7 +243,15 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     pending: number | null,
     planExhausted = false,
   ): number => {
-    emit({ type: "run_end", exitCode, ticks: ticksRun, pending, reason, planExhausted });
+    emit({
+      type: "run_end",
+      exitCode,
+      ticks: ticksRun,
+      pending,
+      reason,
+      planExhausted,
+      usage: runUsage,
+    });
     driver?.reader.close();
     return exitCode;
   };
@@ -275,6 +287,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         pending: null,
         reason: "interrupted (SIGINT)",
         planExhausted: false,
+        usage: runUsage,
       });
     } else {
       console.log("");
@@ -384,7 +397,9 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       let lastResult: TurnResult | undefined;
       let replies: HitlReplyStamp[] = [];
       let limit: UsageLimitHit | null = null;
-      const endTick = (pendingAfter: number | null, sentinel: TickSentinel | null) =>
+      let tickUsage: DriverUsage | null = null;
+      const endTick = (pendingAfter: number | null, sentinel: TickSentinel | null) => {
+        runUsage = sumUsage(runUsage, tickUsage);
         emit({
           type: "tick_end",
           tick,
@@ -396,7 +411,9 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
           result: driverSentinel(sentinel),
           replies: driverReplies(replies),
           stop: driverStop(hitlStop),
+          usage: tickUsage,
         });
+      };
       try {
         const runOpts: Parameters<AgentBackend["run"]>[0] = {
           workspace: opts.root,
@@ -418,6 +435,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
             })
           : await runTickWithSpinner(`tick ${tick}`, backend, runOpts, opts.plain === true);
         agentExit = result.exitCode;
+        tickUsage = result.usage?.total() ?? null;
         for (const line of formatHitlSummary(result.hitl)) say(line);
         hitlStop = result.hitl?.stop;
         replies = result.hitl?.replies ?? [];

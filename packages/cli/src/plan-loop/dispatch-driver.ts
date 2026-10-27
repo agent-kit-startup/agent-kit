@@ -1,6 +1,6 @@
 /**
  * Driver mode for a dispatched L0 session (`agent-kit run-plan-all --events
- * ndjson`, driver protocol 1.2.0). The queue runner is one headless agent
+ * ndjson`, driver protocol 1.3.0). The queue runner is one headless agent
  * session running the L0 command, not a tick loop: the events are
  * `run_start`, `agent_event` / `agent_text`, `hitl_gate`, `log` and
  * `run_end` (no `tick_start` / `tick_end`; `tick` is always 1). Answers,
@@ -167,6 +167,8 @@ export interface DispatchDriverOptions {
   versionFn?: VersionFn;
   /** Test seam: HANDOFF poll interval for `queue_state` (default {@link QUEUE_STATE_POLL_MS}). */
   queuePollMs?: number;
+  /** `--note`: operator resolution text appended to the prompt (no event carries it). */
+  note?: string;
 }
 
 /**
@@ -258,6 +260,7 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
       planExhausted: false,
       replies: driverReplies(result?.hitl?.replies),
       stop: driverStop(result?.hitl?.stop),
+      usage: result?.usage?.total() ?? null,
     });
     reader.close();
     return exitCode;
@@ -273,7 +276,7 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
     say(file.message, "error");
     return finish(1, file.message);
   }
-  const prompt = buildDispatchPrompt(file.body);
+  const prompt = buildDispatchPrompt(file.body, opts.note);
 
   const initialQueue = await readQueueState(root);
   emitter.emit({
@@ -314,6 +317,7 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
       pending: null,
       reason: "interrupted (SIGINT)",
       planExhausted: false,
+      usage: null,
     });
     process.exit(130);
   };

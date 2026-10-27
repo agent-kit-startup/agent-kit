@@ -19,6 +19,10 @@ Private (core + feats) ──promote mature artifact──► Public registry (P
                               └── agent-kit contribute → PR to Public
 ```
 
+## Release publishing
+
+`sync-public`, `sync-landing` and `publish-engine` run on the **private** repo on `v*` tags. `publish-npm` runs on the **public** repo (ADR `2026-10-26_npm-publish-from-public-repo-oidc-provenance`, Accepted). It runs on the public `v*` tag that `sync-public` creates, on a GitHub-hosted runner, with npm trusted publishing (OIDC) and provenance and no npm token. A public `v*` tag ruleset gates it. `sync-public` and `sync-landing` need the private tree and `landing/` is factory-only, so they stay private together with `publish-engine`. Details: [repository-boundaries.md](repository-boundaries.md#flow-git-staging--git-prod--public).
+
 ## Phases
 
 ### Phase A - legacy (mirror) ⚠️ DEPRECATED

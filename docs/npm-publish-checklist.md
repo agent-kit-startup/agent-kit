@@ -31,23 +31,24 @@ Human-in-the-loop gate before the first npm publish or any publish that changes 
 
 Do not tag or publish if any of these diverge.
 
-## CI secret (`NPM_TOKEN`)
+## Trusted publishing (OIDC) and provenance
 
-- [ ] On the **private** GitHub repository (`agent-kit-dev`), configure Actions secret **`NPM_TOKEN`**: an npm automation or granular publish token with permission to publish `@dadado/agent-kit-cli` (public access).
-- [ ] Token is stored only in GitHub Secrets, not in the repo, chat, or CI logs.
+The `publish-npm` job in `.github/workflows/ci.yml` runs only on the **public** repository (`agent-kit-startup/agent-kit`), on the `v*` tag that public sync creates, on a GitHub-hosted runner (`ubuntu-latest`). It publishes with npm trusted publishing (OIDC, npm CLI 11.5.1 or later) and `--provenance`, so it needs no npm token and the published version carries `dist.attestations`. npm rejects self-hosted runners and generates no provenance from a private repository (npm docs, "Trusted publishing for npm packages"). ADR: `2026-10-26_npm-publish-from-public-repo-oidc-provenance`.
 
-### Behavior when the token is missing
+- [ ] On npmjs, `@dadado/agent-kit-cli` has a Trusted Publisher: organization `agent-kit-startup`, repository `agent-kit`, workflow `ci.yml`, no environment.
+- [ ] `packages/cli/package.json` `repository.url` names the public repository (npm checks it against the provenance).
+- [ ] The public repository has a tag ruleset on `refs/tags/v*` (only the operator and the sync credential create release tags): the OIDC trust binds only the repository and the workflow file.
 
-The `publish-npm` job in `.github/workflows/ci.yml` runs on **`v*` tags** only. If `NPM_TOKEN` is unset, the Publish step fails the job with `NPM_TOKEN is not configured` (exit 1, no upload). A missing token is a red tag run, never a green job that skipped the upload. An expired token fails at upload time (npm answers E404 on PUT), so check token lifetimes before the tag with the project's release preflight.
+The job fails when the tag is not `v` plus the `packages/cli/package.json` version, and it skips with a notice when that version is already on npm (versions are immutable; a re-run stays green).
 
-### Trusted publishing (OIDC) and provenance
+### Cutover fallback (`NPM_TOKEN`, one tag)
 
-npm trusted publishing removes the long-lived token, but it does not run on self-hosted GitHub runners, and npm generates no provenance when the source repository is private (npm docs, "Trusted publishing for npm packages"). It also needs npm CLI 11.5.1 or later. Until the publish job runs on a GitHub-hosted runner with a Trusted Publisher registered on npmjs, the token above stays the publish path, and `--provenance` produces no attestation.
+`NPM_TOKEN` stays on the **private** repository for the first tag after the cutover. If the public `publish-npm` job fails on that tag, dispatch the private workflow with `npm_fallback_version=X.Y.Z` (job `publish-npm-token-fallback`): it checks out `vX.Y.Z` and publishes it with the token, and fails with `NPM_TOKEN is not configured` when the secret is unset. Once one tag shows `dist.attestations`, the fallback input is removed and the operator deletes `NPM_TOKEN`. Never set `NPM_TOKEN` on the public repository.
 
 ## Tag strategy and CI
 
 - [ ] Tags use the form **`vMAJOR.MINOR.PATCH`** (e.g. `v4.8.9` or `v5.2.1`). PATCH is required when a post-tag or consumer fix must republish.
-- [ ] **Existing tags on `origin`:** list them with `git tag --sort=-v:refname | head` at the moment you run this checklist. Do not trust a newest-tag literal written into this file. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `publish-npm` after `build` succeeds.
+- [ ] **Existing tags on `origin`:** list them with `git tag --sort=-v:refname | head` at the moment you run this checklist. Do not trust a newest-tag literal written into this file. Pushing a **new** `v*` tag (or re-running CI for a tag) triggers `sync-public`, whose public Release tag then triggers the public `publish-npm` after the public `build` succeeds.
 - [ ] **Hold vs next patch:** after a published tag, **hold** (four manifests stay on that SemVer, no new tag) when the existing tarball can stay. Cut the **next patch** and a new annotated tag when npm, Path C install, or the public Release must carry the fix. Never force-move a pushed `v*`. Same rule as `autogit/gitupdate.md` SemVer.
 - [ ] Tag the commit on `main` that matches the release version; do not tag staging-only commits unless that is an explicit exception documented in the release notes.
 - [ ] **Integrated with `/git-prod`**: Annotated tags are created automatically when absent during `/git-prod` workflow (step 9.5 in `autogit/gitupdate.md`). Manual tag creation via `git push origin vX.Y.Z` or GitHub Releases UI is fallback only.
@@ -76,7 +77,7 @@ Checklist for the approver:
 - [ ] I confirm version alignment (root, CLI, CHANGELOG).
 - [ ] I confirm `npm view @dadado/agent-kit-cli` state (404 for first publish, or expected version for upgrade).
 - [ ] I have reviewed dry-run output for this version.
-- [ ] I confirm `NPM_TOKEN` is configured if CI should publish on tag push.
+- [ ] I confirm the npm Trusted Publisher for `agent-kit-startup/agent-kit` (`ci.yml`) is registered if CI should publish on tag push (`NPM_TOKEN` only for the cutover fallback).
 - [ ] **Yes, proceed** with tag push (and thus CI publish) **or** with a one-off manual publish (only if deliberately chosen over CI).
 
 If the answer is not an explicit **yes**, stop. No tag push, no token change for publish, no manual publish.
@@ -90,7 +91,7 @@ These rows are **post-publish** only. Do not mark them Met from pre-tag mechanis
 - [x] Blank-folder dogfood: `npx @dadado/agent-kit-cli@5.0 install` (or `@5.0.0`) plus five assertions (`--version`, manifest pin, `hooks.json`, dashboard invoke, no nested `agent-kit/` folder). Verified 2026-08-12 against npm `latest` 5.0.0 (see monitor D2 Closed-by).
 - [ ] Public GitHub Release Latest and public storefront label resolve to 5.0 (after tag + sync-public), not pre-tag mechanism-only checks.
 - [x] Scoped Path C smoke (blank folder): `npx @dadado/agent-kit-cli@5.0.0 dashboard --no-open` served from `_npx/.../@dadado/agent-kit-cli/dashboard/` with HTTP 200 on loopback (2026-08-12 D2 dogfood).
-- [ ] GitHub Actions `publish-npm` job for the tag shows publish success (not skip), when using CI.
+- [ ] Public GitHub Actions `publish-npm` job for the tag shows publish success (not the already-published notice), and `npm view @dadado/agent-kit-cli@X.Y.Z dist.attestations` is not empty.
 
 ## Cross-lens go/no-go (before tagging)
 
@@ -123,12 +124,12 @@ Walk this list **before** asking for `/git-prod`. Checking a box here is not per
 2. **Four-manifest pin.** Root `package.json`, `packages/cli/package.json`, `.cursor/agent-kit.json`, and `.cursor-plugin/plugin.json` still match the last tagged SemVer until close-release. Close-release bumps all four to the new SemVer in the same commit as the CHANGELOG dated section (ADR `2026-07-28_git-prod-version-manifest-parity.md`).
 3. **Public excerpt.** `node scripts/public-changelog.mjs --version Unreleased` then `--version X.Y.Z` and `--blurb` after the dated section exists. Empty public excerpt is allowed only if the operator accepts a factory-only release (no landing notes). Blurb stays under 1000 characters. Never pass `CHANGELOG.md` as `--notes-file`.
 4. **Tag immutability.** `git tag -l vX.Y.Z` must be empty before the first push. Never force-move a published `v*`. Retry is a new patch tag or local-only recreate before first push.
-5. **Path C / npm / public Release (factory `/kit-prod` §5).** After tag: private tag CI `build` + `publish-npm` + `sync-public` + `sync-landing` green; `npm view @dadado/agent-kit-cli version` matches; public sync PR **merged**; public `main` sync commit; public GitHub Release Latest on that same tag. Done means those four agree. A red or unmerged public row is a STOP: it does not authorize the next patch under the same confirm. CI-green alone is not public-current.
+5. **Path C / npm / public Release (factory `/kit-prod` §5).** After tag: private tag CI `build` + `sync-public` + `sync-landing` green, public tag CI `build` + `publish-npm` green; `npm view @dadado/agent-kit-cli version` matches; public sync PR **merged**; public `main` sync commit; public GitHub Release Latest on that same tag. Done means those four agree. A red or unmerged public row is a STOP: it does not authorize the next patch under the same confirm. CI-green alone is not public-current.
 6. **Derived stamps.** `.cursor/project-context.md` is indicative. Regenerate after close-release; do not treat a stale observed version as a promote blocker.
 
 ## Related docs
 
 - Boundaries and secrets table: [repository-boundaries.md](repository-boundaries.md)
 - Public mirror launch (separate from npm): [public-launch.md](public-launch.md)
-- CI workflow: `.github/workflows/ci.yml` (`publish-npm` job)
+- CI workflow: `.github/workflows/ci.yml` (`publish-npm` job on the public repo; `publish-npm-token-fallback` on the private repo)
 - `/git-prod` routine: `autogit/gitupdate.md` (Prompt: git prod, §2 pre-tag gate, §12); factory release steps + post-prod verification: `.cursor/commands/kit-prod.md` §5

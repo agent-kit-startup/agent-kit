@@ -35,6 +35,7 @@ import {
   spawnLogged,
   VENDOR_SECRET_ENV,
 } from "./backends.js";
+import { UsageTally } from "./token-usage.js";
 
 type SpawnFn = typeof spawn;
 
@@ -601,6 +602,7 @@ describe("claudeBackend.run", () => {
     expect(result).toEqual({
       exitCode: 0,
       hitl: { replies: [], fallbackDetections: 0 },
+      usage: expect.any(UsageTally),
       lastResult: {
         resultText: "LOOP_TICK_RESULT: continue",
         assistantTexts: ["bearer [ANTHROPIC_AUTH_TOKEN] at [ANTHROPIC_BASE_URL]"],
@@ -608,6 +610,8 @@ describe("claudeBackend.run", () => {
         subtype: null,
         errors: [],
         backgroundTasks: 0,
+        usage: null,
+        sessionId: null,
       },
     });
     expect(spawnFn).toHaveBeenCalledTimes(1);
@@ -724,6 +728,8 @@ describe("claudeBackend.run", () => {
       subtype: "success",
       errors: [],
       backgroundTasks: 0,
+      usage: null,
+      sessionId: null,
     });
   });
 

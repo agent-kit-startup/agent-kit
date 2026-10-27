@@ -32,6 +32,7 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
       "run",
       "run-plan",
       "run-plan-all",
+      "queue",
       "countdown",
       "ground-control",
     ],

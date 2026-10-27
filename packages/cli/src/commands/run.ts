@@ -13,6 +13,7 @@ import {
   normalizeSlashName,
   promoteBlockedMessage,
   readCommandFile,
+  resolveOperatorNote,
   runHeadlessDispatch,
   unknownSlashMessage,
 } from "../plan-loop/dispatch.js";
@@ -52,10 +53,15 @@ export interface ExecuteRunInput {
    * stdout and JSON answers on stdin (plan-loop/dispatch-driver.ts).
    */
   events?: DriverRunOptions;
+  /**
+   * `--note` (run-plan-all only): operator resolution text, already resolved
+   * from `@file`, appended after the L0 body. Never a gate answer.
+   */
+  note?: string;
   whichFn?: WhichFn;
 }
 
-/** The only slash whose dispatch has a driver mode (driver protocol 1.2.0). */
+/** The only slash whose dispatch has a driver mode (driver protocol 1.3.0). */
 export const DRIVER_DISPATCH_SLASH = "run-plan-all";
 
 export interface ExecuteRunResult {
@@ -100,6 +106,9 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   if (input.includeReviewed && slash !== REVIEW_PACK_SLASH) {
     return { exitCode: 1, error: `--include-reviewed only applies to ${REVIEW_PACK_SLASH}` };
   }
+  if (input.note !== undefined && slash !== DRIVER_DISPATCH_SLASH) {
+    return { exitCode: 1, error: `--note only applies to ${DRIVER_DISPATCH_SLASH}` };
+  }
   if (input.events) {
     if (slash !== DRIVER_DISPATCH_SLASH) {
       return {
@@ -118,6 +127,7 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       noHitl: input.noHitl === true,
       landOnGate: input.landOnGate === true,
       events: input.events,
+      ...(input.note !== undefined ? { note: input.note } : {}),
       whichFn: input.whichFn,
     });
     return { exitCode };
@@ -181,7 +191,7 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   if (!file.ok) {
     return { exitCode: 1, error: file.message };
   }
-  const prompt = buildDispatchPrompt(file.body);
+  const prompt = buildDispatchPrompt(file.body, input.note);
 
   if (input.dryRun) {
     const stdout = [
@@ -327,6 +337,8 @@ export async function runSlashCli(
     "include-reviewed"?: boolean;
     /** run-plan-all only: `ndjson` turns driver mode on. */
     events?: string;
+    /** run-plan-all only: operator resolution note, inline or `@file`. */
+    note?: string;
   },
 ): Promise<void> {
   const maxTicks = Number.parseInt(String(args["max-ticks"]), 10);
@@ -348,6 +360,17 @@ export async function runSlashCli(
     return;
   }
 
+  let note: string | undefined;
+  if (args.note) {
+    const resolved = await resolveOperatorNote(String(args.note), path.resolve(String(args.cwd)));
+    if (!resolved.ok) {
+      logger.error(resolved.message);
+      process.exitCode = 1;
+      return;
+    }
+    note = resolved.note;
+  }
+
   const result = await executeRun({
     slash,
     cwd: String(args.cwd),
@@ -362,6 +385,7 @@ export async function runSlashCli(
     ...(args["max-pack-bytes"] ? { maxPackBytes: String(args["max-pack-bytes"]) } : {}),
     ...(args["include-reviewed"] ? { includeReviewed: true } : {}),
     ...(events ? { events: {} } : {}),
+    ...(note !== undefined ? { note } : {}),
   });
   if (result.stdout) {
     console.log(result.stdout);
@@ -404,7 +428,13 @@ export const runPlanAllCommand = defineCommand({
     events: {
       type: "string" as const,
       description:
-        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; driver protocol 1.2.0, see docs/driver-events-protocol.md)",
+        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; driver protocol 1.3.0, see docs/driver-events-protocol.md)",
+      default: "",
+    },
+    note: {
+      type: "string" as const,
+      description:
+        "Operator resolution note appended to the session prompt: text or @file (e.g. the output of `agent-kit queue gates --prompt`). Context only, never a gate answer: a HITL_GATE:/HITL_REPLY: line is rejected",
       default: "",
     },
   },

@@ -9,8 +9,9 @@ const ciYmlPath = resolve(repoRoot, ".github/workflows/ci.yml");
 /**
  * Mechanical pin: Path C remirrors ci.yml every release. If the private-origin
  * allowlist condition is dropped or flipped back to a public denylist, public
- * (or fork) tag CI can re-run sync-public / publish-npm without secrets.
- * ADR: 2026-07-29_public-mirror-skip-sync-publish-ci (allowlist amend).
+ * (or fork) tag CI can re-run sync-public / the npm token fallback without secrets.
+ * ADR: 2026-07-29_public-mirror-skip-sync-publish-ci (allowlist amend); publish-npm is
+ * public-origin only per 2026-10-26_npm-publish-from-public-repo-oidc-provenance.
  *
  * When ci.yml is absent from a checkout, tests skip (no collection-time throw).
  */
@@ -21,23 +22,55 @@ describe("ci.yml private-origin allowlist pin", () => {
   // Tolerant denylist pin (\s* around !=; single or double quotes), same technique as allowlist count.
   const denylistRe = /github\.repository\s*!=\s*['"]agent-kit-startup\/agent-kit['"]/;
 
+  /** Body of one top-level job: from `  <name>:` to the next top-level job key. */
+  const jobBlock = (name: string): string => {
+    const start = body.indexOf(`\n  ${name}:\n`);
+    if (start < 0) return "";
+    const rest = body.slice(start + 1);
+    const next = rest.slice(1).search(/\n {2}[a-z][a-z0-9-]*:\n/);
+    return next < 0 ? rest : rest.slice(0, next + 2);
+  };
+
   it.skipIf(!ciPresent)(
-    "keeps the allowlist condition on sync-public and publish-npm job ifs",
+    "keeps the allowlist condition on sync-public and the npm token fallback job ifs",
     () => {
-      expect(body).toContain("sync-public:");
-      expect(body).toContain("publish-npm:");
-      const syncIdx = body.indexOf("sync-public:");
-      const publishIdx = body.indexOf("publish-npm:");
-      expect(syncIdx).toBeGreaterThan(-1);
-      expect(publishIdx).toBeGreaterThan(syncIdx);
-      const syncBlock = body.slice(syncIdx, publishIdx);
-      const publishBlock = body.slice(publishIdx);
+      const syncBlock = jobBlock("sync-public");
+      const fallbackBlock = jobBlock("publish-npm-token-fallback");
       expect(syncBlock).toContain(allowlist);
-      expect(publishBlock).toContain(allowlist);
+      expect(fallbackBlock).toContain(allowlist);
+      expect(fallbackBlock).toContain("workflow_dispatch");
+      expect(fallbackBlock).toContain("secrets.NPM_TOKEN");
+      expect(fallbackBlock).not.toContain("refs/tags/v')");
       expect(syncBlock).not.toMatch(denylistRe);
-      expect(publishBlock).not.toMatch(denylistRe);
+      expect(fallbackBlock).not.toMatch(denylistRe);
     },
   );
+
+  it.skipIf(!ciPresent)(
+    "runs publish-npm only on the public origin, with OIDC on a hosted runner and no secret",
+    () => {
+      // ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance: npm trusted
+      // publishing (provenance) works only from the public repo on a GitHub-hosted
+      // runner; a secret or vars.CI_RUNNER here would undo both.
+      const publicOrigin = /github\.repository\s*==\s*'agent-kit-startup\/agent-kit'/g;
+      expect(body.match(publicOrigin)?.length).toBe(1);
+      const publishBlock = jobBlock("publish-npm");
+      expect(publishBlock).toMatch(publicOrigin);
+      expect(publishBlock).toContain("startsWith(github.ref, 'refs/tags/v')");
+      expect(publishBlock).toMatch(/^ {4}runs-on: ubuntu-latest$/m);
+      expect(publishBlock).toContain("id-token: write");
+      expect(publishBlock).toContain("npm publish --provenance --access public");
+      expect(publishBlock).toContain("npm install -g npm@^11.5.1");
+      expect(publishBlock).toContain('npm view "@dadado/agent-kit-cli@$version" version');
+      expect(publishBlock).not.toContain("secrets.");
+      expect(publishBlock).not.toContain("CI_RUNNER");
+      expect(publishBlock).not.toContain(allowlist);
+    },
+  );
+
+  it.skipIf(!ciPresent)("never reaches secrets through pull_request_target or workflow_run", () => {
+    expect(body).not.toMatch(/pull_request_target|workflow_run/);
+  });
 
   it.skipIf(!ciPresent)(
     "keeps private-only build steps on the same allowlist (exactly eight sites, no denylist)",
@@ -48,11 +81,13 @@ describe("ci.yml private-origin allowlist pin", () => {
       expect(body).toContain("Registry catalog parity");
       expect(body).toContain("sync-landing:");
       expect(body).toContain("publish-engine:");
-      // Exactly eight allowlist sites today: 4 build steps + sync-public + publish-npm +
-      // sync-landing + publish-engine.
+      expect(body).toContain("publish-npm-token-fallback:");
+      // Exactly eight allowlist sites today: 4 build steps + sync-public +
+      // publish-npm-token-fallback + sync-landing + publish-engine (publish-npm itself is
+      // public-origin only since ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance).
       // Maintenance: changing this count requires matching comments at every counted site in
-      // .github/workflows/ci.yml (build private-only steps, sync-public, publish-npm,
-      // sync-landing, publish-engine).
+      // .github/workflows/ci.yml (build private-only steps, sync-public,
+      // publish-npm-token-fallback, sync-landing, publish-engine).
       const matches = body.match(/github\.repository\s*==\s*'agent-kit-startup\/agent-kit-dev'/g);
       expect(matches?.length).toBe(8);
       expect(body).not.toMatch(denylistRe);

@@ -10,6 +10,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.11.0] - 2026-10-27
+
+### Added
+
+- `agent-kit queue gates` prints the operator gates the last `/run-plan-all` queue deferred, read from HANDOFF with no agent and no model call: the plan, the gate and the Asks it names (`--json` for apps). `--prompt` prints the relaunch command and resolution prompt.
+- `agent-kit run-plan-all --note <text|@file>` adds an operator note (for example the `queue gates --prompt` output) to the session prompt after the command text, so a queue can be relaunched with what the operator already did. A note is context, never an answer: a note that contains a `HITL_GATE:` or `HITL_REPLY:` line is refused, and every gate still waits for the operator. Driver clients see no new event or field for the note.
+- Driver mode reports token usage (driver protocol 1.3.0): `tick_end` and `run_end` gain `usage` (`inputTokens`, `cachedInputTokens`, `outputTokens`, `totalTokens`) for `agent-kit run-plan --events ndjson` and `agent-kit run-plan-all --events ndjson`, so an app can show a per-run token total and budget. The numbers are the backend's own (claude: every model of the session, subagents included; codex: the thread total); a backend that reports none (cursor-agent, cursor-acp) gives `null`. See `docs/driver-events-protocol.md` "Token usage".
+
+### Changed
+
+- `/run-plan-all`: a queue that ends with plans deferred on an operator gate no longer just lists the gates. After the final HANDOFF it asks once (`queue-end-gates`: `Resolve gates now` / `Print resolution prompt` / `Later`). `Resolve gates now` opens the Asks those gates name, waits for operator steps, then re-runs the plans whose gate opened in the same session, so the queue no longer has to be restarted from a new chat. `Print resolution prompt` prints the re-run command and one line per gate. Driver clients get it as one more `hitl_gate` before `run_end`.
+- npm releases of `@dadado/agent-kit-cli` are published from the public repository `agent-kit-startup/agent-kit` with npm trusted publishing, so each version carries a provenance attestation (`npm view @dadado/agent-kit-cli@<version> dist.attestations`). The package's `repository` field now names the public repository.
+
 ## [6.10.1] - 2026-10-24
 
 ### Fixed

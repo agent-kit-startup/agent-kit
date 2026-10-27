@@ -148,6 +148,7 @@ describe("renderGroupedRootHelp", () => {
       "run",
       "run-plan",
       "run-plan-all",
+      "queue",
       "countdown",
       "ground-control",
     ]);

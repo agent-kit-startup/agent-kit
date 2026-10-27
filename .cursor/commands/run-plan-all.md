@@ -9,7 +9,7 @@ description: Orchestrate multiple plans as an ordered queue, then ship one relea
 
 Orchestrate multiple eligible plans as an ordered queue. The main window is a **pure orchestrator**: PO synthesis, HITL confirm, then one Task per plan running the `/run-plan` tick. When Ship auth is `per-plan-release`, this window then ships one release per completed plan. Plan Tasks never `/git-prod`.
 
-HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../skills/core/hitl-gates/SKILL.md). PO synthesis, confirm queue, ship lane, and execute-queue detail: [run-plan-all-queue.md](../skills/core/hitl-gates/run-plan-all-queue.md) (each queued plan's own tick runs [run-plan-tick-contract.md](../skills/core/hitl-gates/run-plan-tick-contract.md)). Plans inventory is `.cursor/context/plan-index.json` + `.cursor/HANDOFF.md` only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`). Asks only at three points (ADR `2026-09-25_run-plan-all-three-hitl-points.md`): queue confirm, context checkpoint at plan boundaries, novel error or expired wait.
+HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../skills/core/hitl-gates/SKILL.md). PO synthesis, confirm queue, ship lane, and execute-queue detail: [run-plan-all-queue.md](../skills/core/hitl-gates/run-plan-all-queue.md) (each queued plan's own tick runs [run-plan-tick-contract.md](../skills/core/hitl-gates/run-plan-tick-contract.md)). Plans inventory is `.cursor/context/plan-index.json` + `.cursor/HANDOFF.md` only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`). Asks only at four points (ADR `2026-09-25_run-plan-all-three-hitl-points.md`, amended): queue confirm, context checkpoint, novel error or expired wait, queue end with deferred rows.
 
 ## Hard stops (kit failure if skipped)
 
@@ -28,6 +28,7 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 | Confirm queue | `Run as proposed` / `Run plans only` / `Edit order` / `Apply merges & drops only` / `Keep all plans as-is` / `Include Gate-B plans` / `Cancel` |
 | Context checkpoint | `Continue queue` / `Stop and prepare handoff` / `Change queue` |
 | Novel error / expired wait | `Retry recovery once` / `Hold and document` / `Stop the queue` |
+| Queue end with deferred rows (id `queue-end-gates`) | `Resolve gates now` / `Print resolution prompt` / `Later` |
 | Pending ticket (preflight, id `ticket`) | `Read the ticket` / `Accept` / `Discard` / `Later` |
 
 `Run as proposed`, `Edit order`, `Apply merges & drops only`, and `Keep all plans as-is` set Ship auth `per-plan-release`. `Run plans only` sets `plans-only`. Numbered-list fallback is **path 1** when Ask questions is missing.
@@ -38,4 +39,4 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 2. PO synthesis (Task explore; no `kind: resume`). Record per-plan ship expectations (intake runbook). On a stored queue, compare current Gate-A Backlog to `- **Confirmed backlog:**`. Resume when no new Backlog since confirm and queued files are valid. On new-since-confirm Backlog (or invalid queue item), Ask start-vs-resume.
 3. Queue confirm on a fresh synthesis. Apply only approved consolidations via `.cursor/scripts/run-plan-all-consolidate.sh`. Write `- **Ship auth:**`, `- **Ship runbook:**`, and `- **Confirmed backlog:**` on HANDOFF.
 4. Dispatch one `/run-plan` Task per queued plan. Worker skips chat exhaustion Ask and never `/git-prod`. Record outcomes. A plan blocked on an operator gate is deferred (`deferred-operator`, no ship) and the queue continues with the next plan. Run the ship lane (consult intake runbook; self-recover before Ask) before advancing the cursor. At each plan boundary, if the orchestrator self-estimates about 50% or more window use, Ask the context checkpoint (Claude Code has no preCompact).
-5. Mid-batch wait when `midBatchAudits` is on. Queue-end: Final HANDOFF, audits, `/plan-review-triage` path list. `plans-only` may then suggest `/git-prod` if staging is ahead of `main` (separate HITL). `per-plan-release` does not ship again at queue end.
+5. Mid-batch wait when `midBatchAudits` is on. Queue-end: Final HANDOFF, audits, `/plan-review-triage` path list. `plans-only` may then suggest `/git-prod` if staging is ahead of `main` (separate HITL). `per-plan-release` does not ship again at queue end. With `deferred-operator` rows, the last step is Ask `queue-end-gates` (`Resolve gates now` replays the gates' Asks and re-probes in-session).

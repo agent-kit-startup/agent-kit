@@ -184,6 +184,42 @@ describe("executeRun", () => {
     expect(result.stdout).not.toContain("alias agent-kit run-plan");
   });
 
+  it("--note: run-plan-all appends the operator note after the L0 body; other slashes refuse it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-run-all-note-"));
+    const dir = path.join(root, ".cursor", "commands");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, "run-plan-all.md"),
+      "---\nname: run-plan-all\n---\n\nQueue several plans.\n",
+      "utf8",
+    );
+    const base = {
+      cwd: root,
+      backend: "auto",
+      dryRun: true,
+      maxTicks: 10,
+      sleepSeconds: 5,
+      whichFn: whichCursor,
+    };
+    const result = await executeRun({
+      ...base,
+      slash: "run-plan-all",
+      note: "Re-probe: operator merged Colony #64.",
+    });
+    expect(result.exitCode).toBe(0);
+    const out = result.stdout ?? "";
+    expect(out.indexOf("## Operator resolution note")).toBeGreaterThan(
+      out.indexOf("Queue several plans."),
+    );
+    expect(out).toContain("Re-probe: operator merged Colony #64.");
+    expect(out).toContain("It is not an answer to any Ask");
+
+    const refused = await executeRun({ ...base, slash: "backlog-add", note: "x" });
+    expect(refused).toEqual({ exitCode: 1, error: "--note only applies to run-plan-all" });
+    expect(Object.keys(runPlanAllCommand.args ?? {})).toContain("note");
+    expect(Object.keys(runCommand.args ?? {})).not.toContain("note");
+  });
+
   it("aliases run-plan dry-run on whichever backend detect resolves, claude included", async () => {
     const ok = await executeRun({
       slash: "run-plan",

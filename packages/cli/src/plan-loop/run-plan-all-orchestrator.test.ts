@@ -12,12 +12,16 @@ import {
   decideContextCheckpointAsk,
   decideCursorAdvance,
   decideQueueDriftAsk,
+  decideQueueEndGatesAsk,
+  formatQueueEndResolutionPrompt,
   isForbiddenOrchestratorAction,
   isQueueConfirmGranted,
   isValidPlanWorkerSummary,
   NOVEL_FAILURE_ASK_LABELS,
   parsePlanWorkerSummary,
   QUEUE_DRIFT_ASK_LABELS,
+  QUEUE_END_GATES_ASK_LABELS,
+  readDeferredGatesFromHandoff,
   serializeRunPlanAllQueueFields,
 } from "./run-plan-all-orchestrator.js";
 
@@ -394,6 +398,104 @@ describe("context checkpoint Ask (plan boundaries)", () => {
     expect(hit.ask).toBe(true);
     expect(hit.reason).toBe("checkpoint");
     expect([...hit.labels]).toEqual([...CONTEXT_CHECKPOINT_ASK_LABELS]);
+  });
+});
+
+describe("queue-end gates Ask (deferred-operator rows)", () => {
+  it("pins Resolve gates now / Print resolution prompt / Later", () => {
+    expect([...QUEUE_END_GATES_ASK_LABELS]).toEqual([
+      "Resolve gates now",
+      "Print resolution prompt",
+      "Later",
+    ]);
+  });
+
+  it("does not Ask when the queue ends with no deferred row", () => {
+    const decision = decideQueueEndGatesAsk({});
+    expect(decision.ask).toBe(false);
+    expect(decision.reason).toBe("no_deferred");
+    expect(decision.gates).toEqual([]);
+  });
+
+  it("asks once with every gate and the Ask ids each gate names", () => {
+    const decision = decideQueueEndGatesAsk({
+      "kit-release.plan.md":
+        "Ask kit-public-release-adr-accept + p2 operator applies the refs/tags/v* ruleset",
+      "colony-shell.plan.md":
+        "Asks colony-shell-interactive-home + colony-plan-crud-delete (gates t1 t2 t4)",
+      "dogfood.plan.md": "operator dogfood of Colony main",
+    });
+    expect(decision.ask).toBe(true);
+    expect(decision.reason).toBe("deferred_gates");
+    expect([...decision.labels]).toEqual([...QUEUE_END_GATES_ASK_LABELS]);
+    expect(decision.gates.map((g) => [g.plan, g.asks])).toEqual([
+      ["kit-release.plan.md", ["kit-public-release-adr-accept"]],
+      ["colony-shell.plan.md", ["colony-shell-interactive-home", "colony-plan-crud-delete"]],
+      ["dogfood.plan.md", []],
+    ]);
+  });
+
+  it("prints the re-run command and one line per gate", () => {
+    const { gates } = decideQueueEndGatesAsk({
+      "a.plan.md": "Ask a-accept",
+      "b.plan.md": "operator merges Colony #60",
+    });
+    expect(formatQueueEndResolutionPrompt(gates, "openrouter")).toBe(
+      [
+        "agent-kit run-plan-all --backend openrouter",
+        "",
+        "Re-probe the deferred-operator rows first. Operator steps done since the last run:",
+        "- a.plan.md: Ask a-accept (open Asks: a-accept)",
+        "- b.plan.md: operator merges Colony #60",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+describe("readDeferredGatesFromHandoff (agent-kit queue gates)", () => {
+  // Shape of the 2026-10-26 fifth-pass rows: nested parentheses inside the gate.
+  const handoff = [
+    "# Handoff",
+    "- **Queue status:** exhausted (deferred: a.plan.md -> x)",
+    "- **Queue outcomes:**",
+    "  (fifth pass, confirmed 2026-10-26: queue-confirm operator reply 1 Run as proposed)",
+    "  done.plan.md: completed (to-dos: d0, d1)",
+    "  colony-shell.plan.md: deferred-operator (gate: operator merges Colony #64 t2 plan CRUD (gh pr merge 64 -R agent-kit-startup/colony --merge), runs the smoke in manual mode, t6 dogfood; agent-inferred, 2026-10-26) (worker blocked; 4/7 completed)",
+    "  kit-release.plan.md: deferred-operator (gate: Ask kit-public-release-adr-accept + operator applies the ruleset (p2 checklist step 1))",
+    "  dep.plan.md: deferred-operator (gate: kit-release.plan.md)",
+    "- **Ship auth:** per-plan-release",
+    "  stray.plan.md: deferred-operator (gate: not in Queue outcomes)",
+  ].join("\n");
+
+  it("returns basename -> gate for deferred rows only, with nested parentheses kept", () => {
+    expect(readDeferredGatesFromHandoff(handoff)).toEqual({
+      "colony-shell.plan.md":
+        "operator merges Colony #64 t2 plan CRUD (gh pr merge 64 -R agent-kit-startup/colony --merge), runs the smoke in manual mode, t6 dogfood; agent-inferred, 2026-10-26",
+      "kit-release.plan.md":
+        "Ask kit-public-release-adr-accept + operator applies the ruleset (p2 checklist step 1)",
+      "dep.plan.md": "kit-release.plan.md",
+    });
+  });
+
+  it("feeds decideQueueEndGatesAsk (the Ask ids a gate names)", () => {
+    const decision = decideQueueEndGatesAsk(readDeferredGatesFromHandoff(handoff));
+    expect(decision.ask).toBe(true);
+    expect(decision.gates.find((g) => g.plan === "kit-release.plan.md")?.asks).toEqual([
+      "kit-public-release-adr-accept",
+    ]);
+  });
+
+  it("is empty without the field, without deferred rows, or with an unclosed gate group", () => {
+    expect(readDeferredGatesFromHandoff("")).toEqual({});
+    expect(readDeferredGatesFromHandoff("- **Queue outcomes:**\n  a.plan.md: completed\n")).toEqual(
+      {},
+    );
+    expect(
+      readDeferredGatesFromHandoff(
+        "- **Queue outcomes:**\n  a.plan.md: deferred-operator (gate: merge #1 (truncated\n",
+      ),
+    ).toEqual({ "a.plan.md": "merge #1 (truncated" });
   });
 });
 

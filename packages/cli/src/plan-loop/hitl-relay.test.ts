@@ -28,6 +28,7 @@ import {
   TurnWatcher,
   userEventLine,
 } from "./hitl-relay.js";
+import { UsageTally } from "./token-usage.js";
 
 type SpawnFn = typeof spawn;
 
@@ -259,6 +260,8 @@ describe("TurnWatcher", () => {
         subtype: null,
         errors: [],
         backgroundTasks: 0,
+        usage: null,
+        sessionId: null,
       },
       {
         resultText: "r2",
@@ -267,6 +270,8 @@ describe("TurnWatcher", () => {
         subtype: null,
         errors: [],
         backgroundTasks: 0,
+        usage: null,
+        sessionId: null,
       },
     ]);
   });
@@ -506,7 +511,15 @@ describe("claude relay with the fake claude (stream-json stdin transport)", () =
       expect(result).toEqual({
         exitCode: 0,
         hitl: { replies: [], fallbackDetections: 0 },
+        usage: expect.any(UsageTally),
         lastResult: expect.objectContaining({ isError: false, subtype: "success", errors: [] }),
+      });
+      // fake claude's one turn: its modelUsage, as the session total.
+      expect(result.usage?.total()).toEqual({
+        inputTokens: 110,
+        cachedInputTokens: 100,
+        outputTokens: 2,
+        totalTokens: 112,
       });
       expect(log).toContain('"type":"result"');
     },
@@ -577,6 +590,7 @@ describe("cursor-agent has no relay", () => {
     expect(result).toEqual({
       exitCode: 0,
       hitl: { replies: [], fallbackDetections: 0 },
+      usage: expect.any(UsageTally),
       lastResult: {
         resultText: "Done.\n\nLOOP_TICK_RESULT: continue",
         assistantTexts: ["Done.\n\nLOOP_TICK_RESULT: continue"],
@@ -584,7 +598,11 @@ describe("cursor-agent has no relay", () => {
         subtype: "success",
         errors: [],
         backgroundTasks: 0,
+        usage: null,
+        sessionId: expect.any(String),
       },
     });
+    // cursor-agent's result carries no token counts: nothing to report.
+    expect(result.usage?.total()).toBe(null);
   });
 });

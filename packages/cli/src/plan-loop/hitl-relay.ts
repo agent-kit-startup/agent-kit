@@ -19,6 +19,7 @@
 import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
 import { LineSplitter } from "./line-splitter.js";
+import { type ResultUsage, readResultUsage } from "./token-usage.js";
 
 /** One line, column 0: `HITL_GATE: <kebab-id> | <label> | <label> ...`. */
 export const HITL_GATE_LINE_RE = /^HITL_GATE:\s*([a-z0-9-]+)\s*\|\s*(.+)$/;
@@ -485,6 +486,10 @@ export interface TurnResult {
   errors: string[];
   /** Background tasks still running when the turn closed (last `background_tasks_changed`). */
   backgroundTasks: number;
+  /** The result's token usage (token-usage.ts), or null when it carries none. */
+  usage?: ResultUsage | null;
+  /** The result's `session_id`, or null. */
+  sessionId?: string | null;
 }
 
 /**
@@ -533,6 +538,7 @@ export class TurnWatcher {
       subtype?: unknown;
       errors?: unknown;
       tasks?: unknown;
+      session_id?: unknown;
       message?: { content?: unknown };
     };
     if (ev.type === "system" && ev.subtype === "background_tasks_changed") {
@@ -569,6 +575,8 @@ export class TurnWatcher {
           ? ev.errors.filter((e): e is string => typeof e === "string")
           : [],
         backgroundTasks: this.backgroundTasks,
+        usage: readResultUsage(event as Record<string, unknown>),
+        sessionId: typeof ev.session_id === "string" ? ev.session_id : null,
       });
     }
   }
