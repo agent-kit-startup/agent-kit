@@ -24,6 +24,7 @@ import {
 } from "./hitl-relay.js";
 import { LineSplitter } from "./line-splitter.js";
 import { createStreamRenderer, type StreamSink } from "./stream-render.js";
+import { UsageTally } from "./token-usage.js";
 import { VENDOR_CLI_PINS, vendorVersionStatus } from "./vendor-cli-pins.js";
 
 export type BackendId = "cursor-agent" | "claude" | "codex" | "cursor-acp" | "openrouter";
@@ -112,6 +113,11 @@ export interface BackendRunResult {
    * the log file. Absent without a relay or when no result event arrived.
    */
   lastResult?: TurnResult;
+  /**
+   * Token usage from every `result` event the relay's turn watcher saw, per
+   * session (driver protocol 1.3.0 `usage`). Absent without a relay.
+   */
+  usage?: UsageTally;
 }
 
 export interface AgentBackend {
@@ -640,6 +646,7 @@ export function spawnLogged(
             resolve({
               exitCode: code ?? 1,
               hitl: relay.record,
+              usage: relay.usage,
               ...(lastResult ? { lastResult } : {}),
               ...(resumeWith ? { resumeWith } : {}),
             });
@@ -658,6 +665,8 @@ interface Relay {
   record: HitlRunRecord;
   /** The last `result` event seen, if any. */
   lastResult(): TurnResult | undefined;
+  /** Token usage of every `result` event seen. */
+  usage: UsageTally;
   /** `resume` transport: the stamp to deliver in a resumed child, if a gate got a reply. */
   resumeWith(): string | undefined;
   feed(text: string | Buffer): void;
@@ -741,10 +750,12 @@ function createRelay(
   };
 
   let lastResult: TurnResult | undefined;
+  const usage = new UsageTally();
   const watcher = new TurnWatcher((turn) => {
     // Recorded before the guard: a result can arrive in the redaction flush
     // after the relay has already seen the child close.
     lastResult = turn;
+    usage.note(turn.sessionId, turn.usage);
     const { resultText, assistantTexts } = turn;
     if (record.stop || closed) return;
     const gate = detectHitlGate(resultText, assistantTexts);
@@ -812,6 +823,7 @@ function createRelay(
     startError,
     record,
     lastResult: () => lastResult,
+    usage,
     resumeWith: () => resumeWith,
     feed: (text) => watcher.feed(text),
     finish: () => watcher.end(),

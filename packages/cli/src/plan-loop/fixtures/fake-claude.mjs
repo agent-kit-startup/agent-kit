@@ -30,6 +30,8 @@
 //                    `HITL_GATE: queue-confirm | Run as proposed | Cancel`; turn 2 (the
 //                    reply) sets `Queue status: held` and ends (queue_state test)
 // Every turn after the scripted ones answers `received: <text>`.
+// Every `result` carries `modelUsage` for one model: 10*turn input, 100*turn
+// cache read, 2*turn output (the session total so far, as claude reports it).
 import { readFileSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
@@ -59,6 +61,15 @@ const result = (text) =>
     num_turns: turn,
     duration_ms: 5,
     total_cost_usd: 0.001,
+    // Session running total, as real claude reports it: grows every turn.
+    modelUsage: {
+      "fake-model": {
+        inputTokens: 10 * turn,
+        outputTokens: 2 * turn,
+        cacheReadInputTokens: 100 * turn,
+        cacheCreationInputTokens: 0,
+      },
+    },
   });
 
 const GATE = "Pick one.\n\nHITL_GATE: demo | Alpha | Beta\n1. Alpha\n2. Beta\n";

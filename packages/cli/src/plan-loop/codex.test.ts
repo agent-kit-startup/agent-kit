@@ -326,7 +326,17 @@ describe("run-plan driver mode on codex (scripted no-TTY client)", () => {
     expect(tickEnds[1]?.replies).toEqual([
       expect.objectContaining({ line: "HITL_REPLY: driver-demo | operator reply 1 | Proceed" }),
     ]);
-    expect(events.at(-1)).toMatchObject({ type: "run_end", exitCode: 0, pending: 0 });
+    // 1.3.0: codex reports the thread total, so the resumed turn's report
+    // replaces the first one in tick 2 (25 + 9, not 10 + 5 + 25 + 9).
+    const first = { inputTokens: 10, cachedInputTokens: 0, outputTokens: 5, totalTokens: 15 };
+    const resumed = { inputTokens: 25, cachedInputTokens: 8, outputTokens: 9, totalTokens: 34 };
+    expect(tickEnds.map((e) => e.usage)).toEqual([first, resumed, first]);
+    expect(events.at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: 0,
+      pending: 0,
+      usage: { inputTokens: 45, cachedInputTokens: 8, outputTokens: 19, totalTokens: 64 },
+    });
     expect(await readFile(plan, "utf8")).not.toContain("status: pending");
   });
 });

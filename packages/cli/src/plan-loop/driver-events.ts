@@ -33,11 +33,14 @@ import {
   type RawAnswer,
 } from "./hitl-relay.js";
 import type { StreamSink } from "./stream-render.js";
+import type { DriverUsage } from "./token-usage.js";
+
+export type { DriverUsage } from "./token-usage.js";
 
 /** Protocol major carried by every event as `v`. Bumped only on a breaking change. */
 export const DRIVER_PROTOCOL_MAJOR = 1;
 /** Full protocol version announced in `run_start` (SemVer; minor = additive fields/events). */
-export const DRIVER_PROTOCOL_VERSION = "1.2.0";
+export const DRIVER_PROTOCOL_VERSION = "1.3.0";
 /** The only `--events` value accepted today. */
 export const DRIVER_EVENTS_FORMATS = ["ndjson"] as const;
 export type DriverEventsFormat = (typeof DRIVER_EVENTS_FORMATS)[number];
@@ -130,6 +133,8 @@ export type DriverEvent =
       result: DriverTickSentinel | null;
       replies: DriverReplies;
       stop: DriverStop;
+      /** 1.3.0: tokens the backend reported for this tick (token-usage.ts), or null when it reported none. */
+      usage: DriverUsage | null;
     }
   | { type: "log"; level: "info" | "warn" | "error"; message: string }
   | {
@@ -143,6 +148,8 @@ export type DriverEvent =
       replies?: DriverReplies;
       /** `run-plan-all` only (1.2.0): the gate stop that ended the session, or null. */
       stop?: DriverStop;
+      /** 1.3.0: tokens the backend reported for the whole run (sum of the ticks), or null when none. */
+      usage: DriverUsage | null;
     };
 
 export type DriverEventType = DriverEvent["type"];

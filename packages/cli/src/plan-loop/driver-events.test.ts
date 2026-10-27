@@ -115,7 +115,7 @@ function scriptedClient(answer: (gate: Ev) => string | null) {
 describe("driver protocol (contract pins)", () => {
   it("pins the protocol version and the event type set", () => {
     expect(DRIVER_PROTOCOL_MAJOR).toBe(1);
-    expect(DRIVER_PROTOCOL_VERSION).toBe("1.2.0");
+    expect(DRIVER_PROTOCOL_VERSION).toBe("1.3.0");
     expect([...DRIVER_EVENT_TYPES]).toEqual([
       "run_start",
       "queue_state",
@@ -335,7 +335,7 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
 
     expect(events[0]).toMatchObject({
       type: "run_start",
-      protocol: "1.2.0",
+      protocol: "1.3.0",
       command: "run-plan",
       backend: "claude",
       plan: "driver-fixture.plan.md",
@@ -387,12 +387,23 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
       }),
     ]);
 
+    // 1.3.0: each tick's usage is the backend's last running total for its
+    // session (tick 2 had two turns: the gate and the reply); run_end sums the ticks.
+    const usage = (n: number) => ({
+      inputTokens: 110 * n,
+      cachedInputTokens: 100 * n,
+      outputTokens: 2 * n,
+      totalTokens: 112 * n,
+    });
+    expect(tickEnds.map((e) => e.usage)).toEqual([usage(1), usage(2), usage(1)]);
+
     expect(events.at(-1)).toMatchObject({
       type: "run_end",
       exitCode: 0,
       ticks: 3,
       pending: 0,
       planExhausted: true,
+      usage: usage(4),
     });
     expect(await readFile(plan, "utf8")).not.toContain("status: pending");
     expect(stderr.join("")).toContain(`→ ${stamp}`);

@@ -287,7 +287,13 @@ describe("run-plan driver mode on cursor-acp (scripted no-TTY client)", () => {
       "cursor-acp",
       "cursor-acp",
     ]);
-    expect(events.at(-1)).toMatchObject({ type: "run_end", exitCode: 0, pending: 0 });
+    // 1.3.0: the ACP client reads no token counts, so usage is null, never invented.
+    expect(events.filter((e) => e.type === "tick_end").map((e) => e.usage)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(events.at(-1)).toMatchObject({ type: "run_end", exitCode: 0, pending: 0, usage: null });
     expect(await readFile(plan, "utf8")).not.toContain("status: pending");
   });
 });

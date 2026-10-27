@@ -43,6 +43,7 @@ import {
   whichBinary,
 } from "./backends.js";
 import { emptyHitlRecord, type HitlRunRecord, unansweredStop } from "./hitl-relay.js";
+import { UsageTally } from "./token-usage.js";
 import { vendorVersionStatus } from "./vendor-cli-pins.js";
 
 /** Opt-in: run codex on the operator's own ChatGPT sign-in instead of an API key. */
@@ -314,6 +315,8 @@ export const codexBackend: AgentBackend = {
     };
 
     const records: HitlRunRecord[] = [];
+    // One thread across the resumed children: its running total replaces the earlier one.
+    const usage = new UsageTally();
     let result: BackendRunResult;
     try {
       result = await spawnLogged(
@@ -323,6 +326,7 @@ export const codexBackend: AgentBackend = {
         { ...common, stdinText: prepared.prompt },
       );
       if (result.hitl) records.push(result.hitl);
+      if (result.usage) usage.merge(result.usage);
       for (let i = 0; result.resumeWith && i < CODEX_MAX_RESUMES; i += 1) {
         const reply = result.resumeWith;
         const thread: string | null = threadId;
@@ -342,6 +346,7 @@ export const codexBackend: AgentBackend = {
           { ...common, stdinText: reply, appendLog: true },
         );
         if (result.hitl) records.push(result.hitl);
+        if (result.usage) usage.merge(result.usage);
       }
     } catch (err) {
       // No `cause`: the raw error may carry the secret (see spawnLogged).
@@ -350,6 +355,7 @@ export const codexBackend: AgentBackend = {
     return {
       exitCode: result.exitCode,
       hitl: mergeRecords(records),
+      usage,
       ...(result.lastResult ? { lastResult: result.lastResult } : {}),
     };
   },

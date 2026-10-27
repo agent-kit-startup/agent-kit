@@ -10,6 +10,8 @@
 //   limit           the turn fails with a usage-limit error
 //   auth            reports whether CODEX_API_KEY reached it (never the value)
 //   driver-plan     one run-plan tick on FAKE_CODEX_PLAN (same rules as fake-claude)
+// `turn.completed.usage` is the thread total: 10/0/5 (input/cached/output) on the
+// first turn, 25/8/9 on a resumed one.
 // FAKE_CODEX_TRACE=<file> appends one JSON line per run: argv and stdin.
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -95,6 +97,9 @@ process.stdin.on("end", () => {
   out({ type: "item.completed", item: { id: "item_1", type: "agent_message", text: body(stdin) } });
   out({
     type: "turn.completed",
-    usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
+    // Thread running total, as codex reports it (seeded again on resume).
+    usage: resume
+      ? { input_tokens: 25, cached_input_tokens: 8, output_tokens: 9 }
+      : { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 },
   });
 });

@@ -79,7 +79,7 @@ const replyTo = (gate: Ev, reply: number | string = 1) =>
 async function runQueue(
   mode: string,
   client: ReturnType<typeof scriptedClient>,
-  extra: { dryRun?: boolean; noHitl?: boolean } = {},
+  extra: { dryRun?: boolean; noHitl?: boolean; note?: string } = {},
 ) {
   const root = await queueWorkspace();
   const stderr: string[] = [];
@@ -89,6 +89,7 @@ async function runQueue(
     backend: "claude",
     dryRun: extra.dryRun === true,
     noHitl: extra.noHitl === true,
+    ...(extra.note !== undefined ? { note: extra.note } : {}),
     events: { input: client.input, write: client.write, writeErr: (t) => stderr.push(t) },
     whichFn: whichClaude,
     spawnFn: fakeSpawn(mode),
@@ -156,6 +157,8 @@ describe("run-plan-all driver mode (fake claude, scripted client, no TTY)", () =
       planExhausted: false,
       replies: [expect.objectContaining({ askId: "demo", label: "Alpha", line: stamp })],
       stop: null,
+      // 1.3.0: the session's last running total (turn 2, after the reply).
+      usage: { inputTokens: 220, cachedInputTokens: 200, outputTokens: 4, totalTokens: 224 },
     });
     expect(stderr).toContain(`→ ${stamp}`);
   });
@@ -232,7 +235,32 @@ describe("run-plan-all driver mode (fake claude, scripted client, no TTY)", () =
       "run_end",
     ]);
     expect(JSON.stringify(events)).toContain("Run the queue.");
-    expect(events.at(-1)).toMatchObject({ exitCode: 0, ticks: 0, reason: "dry-run" });
+    expect(events.at(-1)).toMatchObject({ exitCode: 0, ticks: 0, reason: "dry-run", usage: null });
+  });
+
+  it("--note reaches the prompt after the L0 body; no event field carries it (protocol unchanged)", async () => {
+    const client = scriptedClient(() => null);
+    const { code } = await runQueue("gate", client, {
+      dryRun: true,
+      note: "Operator merged Colony #64.",
+    });
+
+    expect(code).toBe(0);
+    const events = client.events();
+    const prompt = events
+      .filter((e) => e.type === "log")
+      .map((e) => String(e.message))
+      .find((m) => m.includes("Run the queue."));
+    expect(prompt).toBeDefined();
+    const body = prompt as string;
+    expect(body.indexOf("## Operator resolution note")).toBeGreaterThan(
+      body.indexOf("Run the queue."),
+    );
+    expect(body).toContain("Operator merged Colony #64.");
+    const start = events[0] as Ev;
+    expect(start.type).toBe("run_start");
+    expect(JSON.stringify(start)).not.toContain("Colony #64");
+    expect(start.protocol).toBe(DRIVER_PROTOCOL_VERSION);
   });
 
   it("a setup failure is a log event plus run_end exit 1 (no run_start)", async () => {

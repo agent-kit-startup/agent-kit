@@ -5,6 +5,8 @@
  * and `.cursor/memory/decisions/2026-09-25_run-plan-all-three-hitl-points.md`.
  */
 
+import { extractFieldBlock } from "../plan-index/plan-index.js";
+
 export const PLAN_WORKER_OUTCOMES = ["completed", "blocked", "partial"] as const;
 export type PlanWorkerOutcome = (typeof PLAN_WORKER_OUTCOMES)[number];
 
@@ -27,6 +29,17 @@ export const CONTEXT_CHECKPOINT_ASK_LABELS = [
  * runbook; do not invent a fourth.
  */
 export { NOVEL_SHIP_FAILURE_ASK_LABELS as NOVEL_FAILURE_ASK_LABELS } from "./run-plan-all-intake-runbook.js";
+
+/**
+ * Queue-end Ask when the queue ends with `deferred-operator` rows. Fires once,
+ * after Final HANDOFF, so an unanswered gate loses nothing (ADR
+ * 2026-09-28_run-plan-all-defer-operator-gates, Amend 2026-10-26).
+ */
+export const QUEUE_END_GATES_ASK_LABELS = [
+  "Resolve gates now",
+  "Print resolution prompt",
+  "Later",
+] as const;
 
 /** Fraction of orchestrator window that triggers the context checkpoint Ask. */
 export const CONTEXT_CHECKPOINT_WINDOW_THRESHOLD = 0.5;
@@ -292,6 +305,116 @@ export function formatQueueEndStatus(deferred: Readonly<Record<string, string>>)
   const entries = Object.entries(deferred);
   if (entries.length === 0) return "exhausted";
   return `exhausted (deferred: ${entries.map(([plan, gate]) => `${plan} -> ${gate}`).join("; ")})`;
+}
+
+export type QueueEndGate = {
+  plan: string;
+  gate: string;
+  /** Ask ids the gate names (`Ask <kebab-id>`), in order; the orchestrator replays these. */
+  asks: string[];
+};
+
+export type QueueEndGatesDecision = {
+  ask: boolean;
+  reason: "no_deferred" | "deferred_gates";
+  labels: typeof QUEUE_END_GATES_ASK_LABELS;
+  gates: QueueEndGate[];
+};
+
+const ASK_ID = "`?[a-z0-9]+(?:-[a-z0-9]+)+`?";
+/** `Ask a`, `Asks a + b`, `Asks a, b and c`. */
+const NAMED_ASKS = new RegExp(
+  `\\bAsks?\\s+(${ASK_ID}(?:(?:\\s*[+,]\\s*|\\s+and\\s+)${ASK_ID})*)`,
+  "g",
+);
+
+function namedAsks(gate: string): string[] {
+  const ids = [...gate.matchAll(NAMED_ASKS)].flatMap(
+    (m) => (m[1] as string).match(/[a-z0-9]+(?:-[a-z0-9]+)+/g) ?? [],
+  );
+  return [...new Set(ids)];
+}
+
+/**
+ * Queue end with deferred rows: one Ask (`queue-end-gates`) after Final HANDOFF
+ * that hands the operator what unblocks each plan. Never performs or skips the
+ * operator step; `Resolve gates now` replays the named Asks and re-probes.
+ */
+export function decideQueueEndGatesAsk(
+  deferred: Readonly<Record<string, string>>,
+): QueueEndGatesDecision {
+  const labels = QUEUE_END_GATES_ASK_LABELS;
+  const gates = Object.entries(deferred).map(([plan, gate]) => ({
+    plan,
+    gate,
+    asks: namedAsks(gate),
+  }));
+  if (gates.length === 0) return { ask: false, reason: "no_deferred", labels, gates };
+  return { ask: true, reason: "deferred_gates", labels, gates };
+}
+
+/**
+ * `Print resolution prompt`: the command and a prompt a fresh session (or the
+ * driver chat) can paste. The next run re-probes these gates first.
+ */
+export function formatQueueEndResolutionPrompt(
+  gates: readonly QueueEndGate[],
+  backend = "claude",
+): string {
+  const lines = [
+    `agent-kit run-plan-all --backend ${backend}`,
+    "",
+    "Re-probe the deferred-operator rows first. Operator steps done since the last run:",
+    ...gates.map(
+      (g) => `- ${g.plan}: ${g.gate}${g.asks.length ? ` (open Asks: ${g.asks.join(", ")})` : ""}`,
+    ),
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+const OUTCOME_ROW_RE = /^`?([^\s`:]+\.plan\.md)`?:\s*(.*)$/;
+const DEFERRED_PREFIX = "deferred-operator";
+
+/** Text inside the parenthesis that opens at `open`, or the rest of `text` when it never closes. */
+function balancedParenBody(text: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) return text.slice(open + 1, i);
+    }
+  }
+  return text.slice(open + 1);
+}
+
+/**
+ * Deferred plans from the HANDOFF `Queue outcomes` rows the orchestrator
+ * wrote with {@link formatDeferredOperatorOutcome}: basename → gate text.
+ * The gate may hold nested parentheses (`(gh pr merge 64 ...)`), so the
+ * `(gate: ...)` group is matched by balance, not by the first `)`. Read-only:
+ * the input of `agent-kit queue gates` (ADR 2026-10-26 driver chat, point 3).
+ */
+export function readDeferredGatesFromHandoff(handoff: string): Record<string, string> {
+  const block = extractFieldBlock(handoff, "Queue outcomes");
+  const deferred: Record<string, string> = {};
+  if (!block) return deferred;
+  for (const line of block.split("\n")) {
+    const row = OUTCOME_ROW_RE.exec(line.trim());
+    if (!row) continue;
+    const plan = row[1] as string;
+    const outcome = (row[2] as string).trim();
+    if (!outcome.startsWith(DEFERRED_PREFIX)) continue;
+    const rest = outcome.slice(DEFERRED_PREFIX.length);
+    const open = rest.search(/\(\s*gate:/);
+    const gate =
+      open >= 0
+        ? balancedParenBody(rest, open).replace(/^\s*gate:\s*/, "")
+        : rest.replace(/^[\s:(-]+/, "").replace(/\)\s*$/, "");
+    deferred[plan] = gate.trim() || "operator gate";
+  }
+  return deferred;
 }
 
 function blockingDeferredPlan(

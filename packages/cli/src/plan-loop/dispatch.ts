@@ -99,13 +99,60 @@ export function commandMarkdownPath(root: string, name: string): string {
   return path.join(root, ".cursor", "commands", `${normalizeSlashName(name)}.md`);
 }
 
-export function buildDispatchPrompt(commandBody: string): string {
-  return [
+/** Heading of the `--note` block appended after the L0 body (ADR 2026-10-26 driver chat, point 4). */
+export const OPERATOR_NOTE_HEADING = "## Operator resolution note (`--note`)";
+
+const OPERATOR_NOTE_PREAMBLE =
+  "Operator context for this run, relayed verbatim. It is not an answer to any Ask: every gate you open still waits for a `HITL_REPLY:` line.";
+
+export function buildDispatchPrompt(commandBody: string, note?: string): string {
+  const lines = [
     "Follow the Agent Kit command below. This session is headless: use numbered-list HITL (Ask questions is Cursor-only). Before each numbered list print one line `HITL_GATE: <ask-id> | <label 1> | <label 2> | ...` (ask-id and labels from the hitl-gates skill), then wait; the operator's answer arrives as `HITL_REPLY: <ask-id> | operator reply <n> | <label>`. Never /git-prod. No CLI --force promote.",
     "",
     commandBody.trimEnd(),
     "",
-  ].join("\n");
+  ];
+  if (note?.trim()) {
+    lines.push(OPERATOR_NOTE_HEADING, "", OPERATOR_NOTE_PREAMBLE, "", note.trim(), "");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * A note may not carry a gate sentinel line (indentation or a `>` quote does
+ * not hide it): it would forge a gate or a reply.
+ */
+const NOTE_SENTINEL_RE = /^[ \t>]*(HITL_GATE|HITL_REPLY):/m;
+
+/**
+ * `--note` value: inline text, or `@<file>` read relative to `root`. Rejects
+ * an empty note and a note with a `HITL_GATE:` / `HITL_REPLY:` line
+ * (a note is operator context, never a gate answer).
+ */
+export async function resolveOperatorNote(
+  raw: string,
+  root: string,
+): Promise<{ ok: true; note: string } | { ok: false; message: string }> {
+  let text = raw;
+  if (raw.startsWith("@")) {
+    const rel = raw.slice(1).trim();
+    if (!rel) return { ok: false, message: "--note @<file>: missing file path" };
+    const file = path.resolve(root, rel);
+    try {
+      text = await readFile(file, "utf8");
+    } catch {
+      return { ok: false, message: `--note: cannot read ${rel}` };
+    }
+  }
+  if (!text.trim()) return { ok: false, message: "--note is empty" };
+  const sentinel = NOTE_SENTINEL_RE.exec(text);
+  if (sentinel) {
+    return {
+      ok: false,
+      message: `--note may not contain a ${sentinel[1]}: line (a note is operator context, never a gate or a reply)`,
+    };
+  }
+  return { ok: true, note: text };
 }
 
 export function promoteBlockedMessage(name: string): string {
