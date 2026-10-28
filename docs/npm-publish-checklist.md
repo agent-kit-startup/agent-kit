@@ -35,15 +35,13 @@ Do not tag or publish if any of these diverge.
 
 The `publish-npm` job in `.github/workflows/ci.yml` runs only on the **public** repository (`agent-kit-startup/agent-kit`), on the `v*` tag that public sync creates, on a GitHub-hosted runner (`ubuntu-latest`). It publishes with npm trusted publishing (OIDC, npm CLI 11.5.1 or later) and `--provenance`, so it needs no npm token and the published version carries `dist.attestations`. npm rejects self-hosted runners and generates no provenance from a private repository (npm docs, "Trusted publishing for npm packages"). ADR: `2026-10-26_npm-publish-from-public-repo-oidc-provenance`.
 
-- [ ] On npmjs, `@dadado/agent-kit-cli` has a Trusted Publisher: organization `agent-kit-startup`, repository `agent-kit`, workflow `ci.yml`, no environment.
+- [ ] On npmjs, `@dadado/agent-kit-cli` has a Trusted Publisher: organization `agent-kit-startup`, repository `agent-kit`, workflow `ci.yml`, no environment, with `Allow npm publish` checked (npm's default allows only `npm stage publish`; without it the publish fails with E404).
 - [ ] `packages/cli/package.json` `repository.url` names the public repository (npm checks it against the provenance).
 - [ ] The public repository has a tag ruleset on `refs/tags/v*` (only the operator and the sync credential create release tags): the OIDC trust binds only the repository and the workflow file.
 
 The job fails when the tag is not `v` plus the `packages/cli/package.json` version, and it skips with a notice when that version is already on npm (versions are immutable; a re-run stays green).
 
-### Cutover fallback (`NPM_TOKEN`, one tag)
-
-`NPM_TOKEN` stays on the **private** repository for the first tag after the cutover. If the public `publish-npm` job fails on that tag, dispatch the private workflow with `npm_fallback_version=X.Y.Z` (job `publish-npm-token-fallback`): it checks out `vX.Y.Z` and publishes it with the token, and fails with `NPM_TOKEN is not configured` when the secret is unset. Once one tag shows `dist.attestations`, the fallback input is removed and the operator deletes `NPM_TOKEN`. Never set `NPM_TOKEN` on the public repository.
+There is no token fallback. The one-tag `NPM_TOKEN` cutover job (`publish-npm-token-fallback`) was removed after v6.11.0 published from the public repository with provenance. If the public `publish-npm` job fails, fix the cause (for example the Trusted Publisher settings) and re-run the failed job on the same tag. Never set `NPM_TOKEN` on the public repository.
 
 ## Tag strategy and CI
 
@@ -70,14 +68,14 @@ Dry-run does not replace registry verification; it does not contact npm to confi
 
 ## Explicit human confirmation (required)
 
-**Do not** run `npm publish`, push a new `v*` tag, or add or rotate `NPM_TOKEN` for publish until a maintainer explicitly approves in a tracked channel (e.g. release thread, issue, or documented go/no-go).
+**Do not** run `npm publish`, push a new `v*` tag, or add an npm publish token until a maintainer explicitly approves in a tracked channel (e.g. release thread, issue, or documented go/no-go).
 
 Checklist for the approver:
 
 - [ ] I confirm version alignment (root, CLI, CHANGELOG).
 - [ ] I confirm `npm view @dadado/agent-kit-cli` state (404 for first publish, or expected version for upgrade).
 - [ ] I have reviewed dry-run output for this version.
-- [ ] I confirm the npm Trusted Publisher for `agent-kit-startup/agent-kit` (`ci.yml`) is registered if CI should publish on tag push (`NPM_TOKEN` only for the cutover fallback).
+- [ ] I confirm the npm Trusted Publisher for `agent-kit-startup/agent-kit` (`ci.yml`) is registered with `Allow npm publish` checked if CI should publish on tag push.
 - [ ] **Yes, proceed** with tag push (and thus CI publish) **or** with a one-off manual publish (only if deliberately chosen over CI).
 
 If the answer is not an explicit **yes**, stop. No tag push, no token change for publish, no manual publish.
@@ -131,5 +129,5 @@ Walk this list **before** asking for `/git-prod`. Checking a box here is not per
 
 - Boundaries and secrets table: [repository-boundaries.md](repository-boundaries.md)
 - Public mirror launch (separate from npm): [public-launch.md](public-launch.md)
-- CI workflow: `.github/workflows/ci.yml` (`publish-npm` job on the public repo; `publish-npm-token-fallback` on the private repo)
+- CI workflow: `.github/workflows/ci.yml` (`publish-npm` job, public repo only)
 - `/git-prod` routine: `autogit/gitupdate.md` (Prompt: git prod, §2 pre-tag gate, §12); factory release steps + post-prod verification: `.cursor/commands/kit-prod.md` §5

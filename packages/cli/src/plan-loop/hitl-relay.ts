@@ -14,12 +14,19 @@
  * Sentinel family (same as `LOOP_TICK_RESULT:` in sentinel.ts):
  *   HITL_GATE: <ask-id> | <label 1> | <label 2> | ... | <label n>
  *   HITL_REPLY: <ask-id> | operator reply <n> | <label>
+ *   HITL_REPLY: <ask-id> | policy pre-answer <n> | <label>
+ *
+ * The second reply shape exists only in driver mode (protocol 1.4.0): the
+ * driving app sent `{"type":"hitl_reply", ..., "source":"policy"}` because an
+ * operator setting pre-answers that gate. The relay accepts it only for a
+ * pair in `PREANSWERABLE_GATES` (ADR 2026-10-26 Amend 2026-10-28) and stamps
+ * it as a policy pre-answer, never as an operator reply.
  */
 
 import { createInterface } from "node:readline";
 import { StringDecoder } from "node:string_decoder";
 import { LineSplitter } from "./line-splitter.js";
-import { type ResultUsage, readResultUsage } from "./token-usage.js";
+import { type DriverUsage, type ResultUsage, readResultUsage } from "./token-usage.js";
 
 /** One line, column 0: `HITL_GATE: <kebab-id> | <label> | <label> ...`. */
 export const HITL_GATE_LINE_RE = /^HITL_GATE:\s*([a-z0-9-]+)\s*\|\s*(.+)$/;
@@ -32,6 +39,16 @@ export const HITL_REPLY_PREFIX = "HITL_REPLY:";
  * SoT also for `RUN_PROMOTE_BLOCKED` in dispatch.ts (same ask-id / slash names).
  */
 export const RESERVED_GATE_IDS = ["git-prod", "kit-prod"] as const;
+
+/**
+ * The only (ask-id, label) pairs a driving app may send as a policy
+ * pre-answer (`source: "policy"`). SoT: ADR
+ * `2026-10-26_driver-chat-side-agent-programmatic-resolver.md` Amend
+ * 2026-10-28. Any other pair is a protocol error; reserved gates stay reserved.
+ */
+export const PREANSWERABLE_GATES: Readonly<Record<string, readonly string[]>> = {
+  "context-checkpoint": ["Continue queue"],
+};
 
 /** Ask-id recorded for a gate detected from prose (pre-sentinel adapters). */
 export const FALLBACK_ASK_ID = "prose-fallback";
@@ -185,11 +202,35 @@ export function resolveOperatorAnswer(input: string, labels: readonly string[]):
   return { kind: "other", text };
 }
 
-/** The one-line stamp written to the child (and echoed by it into the log). */
-export function formatHitlReply(askId: string, answer: OperatorAnswer): string {
+/** Whether `label` is a policy pre-answer the ADR allows for `askId`. */
+export function isPreanswerable(askId: string, label: string): boolean {
+  if (isReservedGateId(askId)) return false;
+  return (
+    Object.hasOwn(PREANSWERABLE_GATES, askId) && (PREANSWERABLE_GATES[askId] ?? []).includes(label)
+  );
+}
+
+/** Who chose a reply: the operator (terminal or relayed by the app) or an operator setting. */
+export type ReplySource = "operator" | "policy";
+
+/** Middle segment of the stamp (`operator reply <n>` / `policy pre-answer <n>`). */
+function replyTag(answer: OperatorAnswer, source: ReplySource): string {
   if (answer.kind === "reply") {
-    return `${HITL_REPLY_PREFIX} ${askId} | operator reply ${answer.n} | ${answer.label}`;
+    return source === "policy" ? `policy pre-answer ${answer.n}` : `operator reply ${answer.n}`;
   }
+  return "operator reply other";
+}
+
+/** The one-line stamp written to the child (and echoed by it into the log). */
+export function formatHitlReply(
+  askId: string,
+  answer: OperatorAnswer,
+  source: ReplySource = "operator",
+): string {
+  if (answer.kind === "reply") {
+    return `${HITL_REPLY_PREFIX} ${askId} | ${replyTag(answer, source)} | ${answer.label}`;
+  }
+  if (source === "policy") throw new Error("a policy pre-answer is always a listed label");
   if (answer.kind === "other") {
     return `${HITL_REPLY_PREFIX} ${askId} | operator reply other | ${answer.text}`;
   }
@@ -202,7 +243,7 @@ export function formatHitlReply(askId: string, answer: OperatorAnswer): string {
  * driving app, or an inbound line that breaks the protocol (never a default).
  */
 export type RawAnswer =
-  | { kind: "line"; text: string }
+  | { kind: "line"; text: string; source?: ReplySource }
   | { kind: "eof" }
   | { kind: "sigint" }
   | { kind: "stop"; cause: "driver stop" | "protocol error"; detail?: string };
@@ -210,6 +251,11 @@ export type RawAnswer =
 export interface AnswerReadOptions {
   /** Fired when the child exits while the prompt is open; the reader must release stdin. */
   signal?: AbortSignal;
+  /**
+   * Tokens the backend reported for this session up to the gate (driver
+   * protocol 1.4.0 `hitl_gate.usage`), or null when it reported none.
+   */
+  usage?: DriverUsage | null;
 }
 
 export type AnswerReader = (gate: HitlGate, opts: AnswerReadOptions) => Promise<RawAnswer>;
@@ -283,7 +329,7 @@ export interface HitlStop {
 
 export interface HitlReplyStamp {
   askId: string;
-  /** `operator reply <n>` or `operator reply other`. */
+  /** `operator reply <n>`, `operator reply other`, or `policy pre-answer <n>` (driver 1.4.0). */
   reply: string;
   label: string;
   /** The exact text written to the child. */
@@ -402,6 +448,8 @@ export interface AskOperatorOptions {
   readAnswer: AnswerReader;
   write: (text: string) => void;
   signal?: AbortSignal;
+  /** Session usage at the gate, forwarded to the reader (`AnswerReadOptions.usage`). */
+  usage?: DriverUsage | null;
   onPromptStart?: () => void;
   onPromptEnd?: () => void;
 }
@@ -426,7 +474,7 @@ export async function askOperator(gate: HitlGate, opts: AskOperatorOptions): Pro
   let raw: RawAnswer;
   try {
     opts.write(formatGatePrompt(gate));
-    raw = await opts.readAnswer(gate, { signal: opts.signal });
+    raw = await opts.readAnswer(gate, { signal: opts.signal, usage: opts.usage ?? null });
   } finally {
     opts.onPromptEnd?.();
   }
@@ -437,12 +485,27 @@ export async function askOperator(gate: HitlGate, opts: AskOperatorOptions): Pro
   if (raw.kind === "sigint") return { kind: "stop", stop: operatorStop(gate.askId, "SIGINT") };
   if (raw.kind === "stop") return { kind: "stop", stop: driverStop(gate.askId, raw) };
 
+  const source: ReplySource = raw.source ?? "operator";
   const answer = resolveOperatorAnswer(raw.text, gate.labels);
+  if (
+    source === "policy" &&
+    (answer.kind !== "reply" || !isPreanswerable(gate.askId, answer.label))
+  ) {
+    // A policy pre-answer outside the ADR allowlist is never relayed, and
+    // never downgraded to an operator reply: the run stops with no default.
+    return {
+      kind: "stop",
+      stop: driverStop(gate.askId, {
+        cause: "protocol error",
+        detail: `policy pre-answer not allowed for ${gate.askId}`,
+      }),
+    };
+  }
   if (answer.kind === "stop") return { kind: "stop", stop: operatorStop(gate.askId, answer.cause) };
-  const line = formatHitlReply(gate.askId, answer);
+  const line = formatHitlReply(gate.askId, answer, source);
   const stamp: HitlReplyStamp = {
     askId: gate.askId,
-    reply: answer.kind === "reply" ? `operator reply ${answer.n}` : "operator reply other",
+    reply: replyTag(answer, source),
     label: answer.kind === "reply" ? answer.label : answer.text,
     line,
     at: new Date().toISOString(),

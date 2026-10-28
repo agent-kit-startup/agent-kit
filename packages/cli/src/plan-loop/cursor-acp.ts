@@ -245,7 +245,7 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
       }
       record.replies.push(outcome.stamp);
       hitl.write(`→ ${outcome.stamp.line}\n`);
-      const n = /operator reply (\d+)/.exec(outcome.stamp.reply)?.[1];
+      const n = /(?:operator reply|policy pre-answer) (\d+)/.exec(outcome.stamp.reply)?.[1];
       const option = n ? q.options[Number(n) - 1] : undefined;
       if (!option) {
         hitl.write(

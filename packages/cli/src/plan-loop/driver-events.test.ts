@@ -13,6 +13,7 @@ import {
   DRIVER_PROTOCOL_MAJOR,
   DRIVER_PROTOCOL_VERSION,
   DriverAgentSink,
+  driverReplies,
   formatDriverEvent,
   inboundToRawAnswer,
   parseDriverInbound,
@@ -20,8 +21,11 @@ import {
 import {
   askOperator,
   formatHitlGateLine,
+  formatHitlSummary,
   HITL_UNANSWERED_EXIT_CODE,
   type HitlGate,
+  isPreanswerable,
+  PREANSWERABLE_GATES,
 } from "./hitl-relay.js";
 import { runPlanLoop, TICK_PROMPT } from "./run-loop.js";
 
@@ -115,7 +119,7 @@ function scriptedClient(answer: (gate: Ev) => string | null) {
 describe("driver protocol (contract pins)", () => {
   it("pins the protocol version and the event type set", () => {
     expect(DRIVER_PROTOCOL_MAJOR).toBe(1);
-    expect(DRIVER_PROTOCOL_VERSION).toBe("1.3.0");
+    expect(DRIVER_PROTOCOL_VERSION).toBe("1.4.0");
     expect([...DRIVER_EVENT_TYPES]).toEqual([
       "run_start",
       "queue_state",
@@ -168,6 +172,8 @@ describe("driver protocol (contract pins)", () => {
       '{"type":"hitl_reply","askId":"demo","reply":"a\\nb"}',
       '{"type":"answer","askId":"demo","reply":1}',
       '{"v":2,"type":"hitl_reply","askId":"demo","reply":1}',
+      '{"type":"hitl_reply","askId":"demo","reply":1,"source":"app"}',
+      '{"type":"hitl_reply","askId":"demo","reply":1,"source":true}',
     ];
     for (const line of bad) expect(parseDriverInbound(line).ok, line).toBe(false);
   });
@@ -193,6 +199,31 @@ describe("driver protocol (contract pins)", () => {
         parseDriverInbound('{"type":"hitl_reply","askId":"demo","reply":2}'),
       ),
     ).toEqual({ kind: "line", text: "2" });
+  });
+
+  it("1.4.0: carries source policy on hitl_reply; operator or no source is the operator", () => {
+    expect(
+      parseDriverInbound(
+        '{"type":"hitl_reply","askId":"context-checkpoint","reply":"Continue queue","source":"policy"}',
+      ),
+    ).toEqual({
+      ok: true,
+      message: {
+        type: "hitl_reply",
+        askId: "context-checkpoint",
+        reply: "Continue queue",
+        source: "policy",
+      },
+    });
+    expect(
+      parseDriverInbound('{"type":"hitl_reply","askId":"demo","reply":1,"source":"operator"}'),
+    ).toEqual({ ok: true, message: { type: "hitl_reply", askId: "demo", reply: 1 } });
+    expect(
+      inboundToRawAnswer(
+        GATE,
+        parseDriverInbound('{"type":"hitl_reply","askId":"demo","reply":1,"source":"policy"}'),
+      ),
+    ).toEqual({ kind: "line", text: "1", source: "policy" });
   });
 
   it("keeps the HITL_GATE line canonical", () => {
@@ -226,7 +257,22 @@ describe("driver answer reader and askOperator", () => {
       labels: ["Alpha", "Beta"],
       detection: "sentinel",
       line: "HITL_GATE: demo | Alpha | Beta",
+      usage: null,
     });
+    // 1.4.0: the session usage the relay hands askOperator goes out on hitl_gate.
+    const usage = { inputTokens: 10, cachedInputTokens: null, outputTokens: 2, totalTokens: 12 };
+    const input2 = new PassThrough();
+    const reader2 = createDriverAnswerReader({ input: input2, emitter, tick: () => 8 });
+    input2.write('{"type":"hitl_reply","askId":"demo","reply":1}\n');
+    await askOperator(GATE, {
+      isTTY: false,
+      policy: "driver",
+      readAnswer: reader2.read,
+      write: () => {},
+      usage,
+    });
+    reader2.close();
+    expect(parseNdjson(emitted.join(""))[1]).toMatchObject({ type: "hitl_gate", tick: 8, usage });
   });
 
   it("free text is relayed as other; EOF, stop and protocol errors stop with exit 4", async () => {
@@ -269,6 +315,85 @@ describe("driver answer reader and askOperator", () => {
       "protocol error",
       "stopped: unanswered gate (driver protocol error: not JSON)",
     ]);
+  });
+
+  it("1.4.0: a policy pre-answer is stamped as one, and only for the ADR allowlist", async () => {
+    const checkpoint: HitlGate = {
+      askId: "context-checkpoint",
+      labels: ["Continue queue", "Stop and prepare handoff", "Change queue"],
+      detection: "sentinel",
+    };
+    const ask = async (gate: HitlGate, line: string) => {
+      const input = new PassThrough();
+      const reader = createDriverAnswerReader({
+        input,
+        emitter: createDriverEmitter(() => {}),
+        tick: () => 1,
+      });
+      input.write(`${line}\n`);
+      const outcome = await askOperator(gate, {
+        isTTY: false,
+        policy: "driver",
+        readAnswer: reader.read,
+        write: () => {},
+      });
+      reader.close();
+      return outcome;
+    };
+    for (const reply of ['"Continue queue"', "1"]) {
+      const ok = await ask(
+        checkpoint,
+        `{"type":"hitl_reply","askId":"context-checkpoint","reply":${reply},"source":"policy"}`,
+      );
+      expect(ok.kind).toBe("reply");
+      if (ok.kind !== "reply") return;
+      expect(ok.stamp.line).toBe(
+        "HITL_REPLY: context-checkpoint | policy pre-answer 1 | Continue queue",
+      );
+      expect(ok.stamp.reply).toBe("policy pre-answer 1");
+      expect(driverReplies([ok.stamp])[0]?.reply).toBe("policy pre-answer 1");
+      expect(formatHitlSummary({ replies: [ok.stamp], fallbackDetections: 0 })[0]).toContain(
+        "HITL context-checkpoint: policy pre-answer 1 (Continue queue)",
+      );
+    }
+    // The operator's own choice of the same label is still an operator reply.
+    const byOperator = await ask(
+      checkpoint,
+      '{"type":"hitl_reply","askId":"context-checkpoint","reply":1}',
+    );
+    expect(byOperator.kind === "reply" && byOperator.stamp.line).toBe(
+      "HITL_REPLY: context-checkpoint | operator reply 1 | Continue queue",
+    );
+    // Another label, free text, or another gate: protocol error, never relayed.
+    const refused = [
+      [
+        checkpoint,
+        '{"type":"hitl_reply","askId":"context-checkpoint","reply":2,"source":"policy"}',
+      ],
+      [
+        checkpoint,
+        '{"type":"hitl_reply","askId":"context-checkpoint","reply":"go on","source":"policy"}',
+      ],
+      [GATE, '{"type":"hitl_reply","askId":"demo","reply":1,"source":"policy"}'],
+    ] as const;
+    for (const [gate, line] of refused) {
+      const out = await ask(gate, line);
+      expect(out.kind === "stop" && [out.stop.cause, out.stop.message], line).toEqual([
+        "protocol error",
+        `stopped: unanswered gate (driver protocol error: policy pre-answer not allowed for ${gate.askId})`,
+      ]);
+    }
+    for (const askId of ["git-prod", "kit-prod"]) {
+      const out = await ask(
+        { askId, labels: ["Continue queue"], detection: "sentinel" },
+        `{"type":"hitl_reply","askId":"${askId}","reply":1,"source":"policy"}`,
+      );
+      expect(out.kind === "stop" && out.stop.cause).toBe("reserved");
+    }
+    for (const askId of ["queue-confirm", "risk", "ticket", "queue-end-gates"]) {
+      expect(isPreanswerable(askId, "Run as proposed")).toBe(false);
+    }
+    expect(PREANSWERABLE_GATES).toEqual({ "context-checkpoint": ["Continue queue"] });
   });
 
   it("the terminal policy still stops on a non-TTY stdin (driver mode is opt-in)", async () => {
@@ -335,7 +460,7 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
 
     expect(events[0]).toMatchObject({
       type: "run_start",
-      protocol: "1.3.0",
+      protocol: "1.4.0",
       command: "run-plan",
       backend: "claude",
       plan: "driver-fixture.plan.md",
@@ -396,6 +521,8 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
       totalTokens: 112 * n,
     });
     expect(tickEnds.map((e) => e.usage)).toEqual([usage(1), usage(2), usage(1)]);
+    // 1.4.0: the gate carries the session's total up to the turn that printed it.
+    expect(client.gates[0]?.usage).toEqual(usage(1));
 
     expect(events.at(-1)).toMatchObject({
       type: "run_end",

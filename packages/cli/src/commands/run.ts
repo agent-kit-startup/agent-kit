@@ -61,7 +61,7 @@ export interface ExecuteRunInput {
   whichFn?: WhichFn;
 }
 
-/** The only slash whose dispatch has a driver mode (driver protocol 1.3.0). */
+/** The only slash whose dispatch has a driver mode (driver protocol 1.4.0). */
 export const DRIVER_DISPATCH_SLASH = "run-plan-all";
 
 export interface ExecuteRunResult {
@@ -428,7 +428,7 @@ export const runPlanAllCommand = defineCommand({
     events: {
       type: "string" as const,
       description:
-        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; driver protocol 1.3.0, see docs/driver-events-protocol.md)",
+        "Driver mode for apps: `ndjson` writes only NDJSON events to stdout and reads HITL answers as JSON lines on stdin (no TTY needed; driver protocol 1.4.0, see docs/driver-events-protocol.md)",
       default: "",
     },
     note: {

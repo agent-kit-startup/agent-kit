@@ -775,6 +775,8 @@ function createRelay(
       readAnswer: hitl.readAnswer,
       write: hitl.write,
       signal: abort.signal,
+      // The gate's turn has already been noted above, so this is the session total so far.
+      usage: usage.total(),
       onPromptStart: hitl.onPromptStart,
       onPromptEnd: hitl.onPromptEnd,
     }).then(

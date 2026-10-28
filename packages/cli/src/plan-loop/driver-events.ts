@@ -40,7 +40,7 @@ export type { DriverUsage } from "./token-usage.js";
 /** Protocol major carried by every event as `v`. Bumped only on a breaking change. */
 export const DRIVER_PROTOCOL_MAJOR = 1;
 /** Full protocol version announced in `run_start` (SemVer; minor = additive fields/events). */
-export const DRIVER_PROTOCOL_VERSION = "1.3.0";
+export const DRIVER_PROTOCOL_VERSION = "1.4.0";
 /** The only `--events` value accepted today. */
 export const DRIVER_EVENTS_FORMATS = ["ndjson"] as const;
 export type DriverEventsFormat = (typeof DRIVER_EVENTS_FORMATS)[number];
@@ -119,6 +119,11 @@ export type DriverEvent =
       labels: string[];
       detection: HitlGate["detection"];
       line: string;
+      /**
+       * 1.4.0: tokens the backend reported for the tick's session up to this
+       * gate (same shape as `tick_end.usage`), or null when it reported none.
+       */
+      usage: DriverUsage | null;
     }
   | {
       type: "tick_end";
@@ -213,7 +218,7 @@ export function driverStop(stop: HitlStop | undefined): DriverStop {
 
 /** Inbound messages (stdin). */
 export type DriverInbound =
-  | { type: "hitl_reply"; askId: string; reply: number | string }
+  | { type: "hitl_reply"; askId: string; reply: number | string; source?: "policy" }
   | { type: "stop"; reason?: string };
 
 export type DriverInboundParse =
@@ -224,6 +229,9 @@ export type DriverInboundParse =
  * Parse one inbound line. `hitl_reply.reply` is a 1-based number, an exact
  * label, or free text (sent to the agent as `operator reply other`), the same
  * three shapes the terminal accepts. An empty string is not a reply.
+ * `source: "policy"` (1.4.0) marks a pre-answer from an operator setting;
+ * `"operator"` or no `source` is the operator's own choice. The relay checks
+ * a policy reply against `PREANSWERABLE_GATES` (hitl-relay.ts).
  */
 export function parseDriverInbound(line: string): DriverInboundParse {
   const text = line.trim();
@@ -243,6 +251,7 @@ export function parseDriverInbound(line: string): DriverInboundParse {
     askId?: unknown;
     reply?: unknown;
     reason?: unknown;
+    source?: unknown;
   };
   if (msg.v !== undefined && msg.v !== DRIVER_PROTOCOL_MAJOR) {
     return { ok: false, error: `unsupported protocol v${String(msg.v)}` };
@@ -258,14 +267,24 @@ export function parseDriverInbound(line: string): DriverInboundParse {
   if (typeof msg.askId !== "string" || !/^[a-z0-9-]+$/.test(msg.askId)) {
     return { ok: false, error: "hitl_reply.askId must be a kebab-case string" };
   }
+  if (msg.source !== undefined && msg.source !== "operator" && msg.source !== "policy") {
+    return { ok: false, error: 'hitl_reply.source must be "operator" or "policy"' };
+  }
+  const source = msg.source === "policy" ? { source: "policy" as const } : {};
   if (typeof msg.reply === "number") {
     if (!Number.isInteger(msg.reply) || msg.reply < 1) {
       return { ok: false, error: "hitl_reply.reply number must be a positive integer" };
     }
-    return { ok: true, message: { type: "hitl_reply", askId: msg.askId, reply: msg.reply } };
+    return {
+      ok: true,
+      message: { type: "hitl_reply", askId: msg.askId, reply: msg.reply, ...source },
+    };
   }
   if (typeof msg.reply === "string" && msg.reply.trim() && !/[\r\n]/.test(msg.reply)) {
-    return { ok: true, message: { type: "hitl_reply", askId: msg.askId, reply: msg.reply.trim() } };
+    return {
+      ok: true,
+      message: { type: "hitl_reply", askId: msg.askId, reply: msg.reply.trim(), ...source },
+    };
   }
   return { ok: false, error: "hitl_reply.reply must be a number or a one-line non-empty string" };
 }
@@ -287,7 +306,9 @@ export function inboundToRawAnswer(gate: HitlGate, parsed: DriverInboundParse): 
       detail: `reply for ${message.askId} while gate ${gate.askId} is open`,
     };
   }
-  return { kind: "line", text: String(message.reply) };
+  return message.source === "policy"
+    ? { kind: "line", text: String(message.reply), source: "policy" }
+    : { kind: "line", text: String(message.reply) };
 }
 
 export interface DriverAnswerReaderOptions {
@@ -377,6 +398,7 @@ export function createDriverAnswerReader(opts: DriverAnswerReaderOptions): Drive
         labels: [...gate.labels],
         detection: gate.detection,
         line: formatHitlGateLine(gate),
+        usage: readOpts.usage ?? null,
       });
       const line = await nextLine(readOpts.signal);
       if (line === null) return { kind: "eof" };
