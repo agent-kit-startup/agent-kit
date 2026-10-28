@@ -316,7 +316,7 @@ At each plan boundary (after ship lane Done/skip, before the next plan Task), if
 | `Stop and prepare handoff` | Persist queue + outcomes; tell the operator to open a new conversation and paste `/run-plan-all`. |
 | `Change queue` | Stop execution; return to PO / confirm path (do not scramble the frozen order silently). |
 
-Skipped or cancelled means **stop**. Do not Ask this mid-plan inside a Task. On resume after handoff, compare Backlog to Confirmed backlog (see [Start vs resume](#start-vs-resume-stored-queue)).
+Skipped or cancelled means **stop**. Do not Ask this mid-plan inside a Task. On resume after handoff, compare Backlog to Confirmed backlog (see [Start vs resume](#start-vs-resume-stored-queue)). **Policy pre-answer (driver mode only):** the reply may be `HITL_REPLY: context-checkpoint | policy pre-answer 1 | Continue queue` instead of an operator reply. That means the operator turned on the driving app's pre-answer setting (ADR `2026-10-26_driver-chat-side-agent-programmatic-resolver.md`, Amend 2026-10-28; the only pre-answerable gate). Act on it as `Continue queue`. Cite that line as a policy pre-answer in HANDOFF, never as an operator reply. No other Ask ever gets this stamp.
 
 ## HANDOFF Persistence
 

@@ -1,6 +1,6 @@
 /**
  * Driver mode for a dispatched L0 session (`agent-kit run-plan-all --events
- * ndjson`, driver protocol 1.3.0). The queue runner is one headless agent
+ * ndjson`, driver protocol 1.4.0). The queue runner is one headless agent
  * session running the L0 command, not a tick loop: the events are
  * `run_start`, `agent_event` / `agent_text`, `hitl_gate`, `log` and
  * `run_end` (no `tick_start` / `tick_end`; `tick` is always 1). Answers,

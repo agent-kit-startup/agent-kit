@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.12.0] - 2026-10-28
+
+### Added
+
+- Driver protocol 1.4.0: an app can pre-answer the `context-checkpoint` gate with `Continue queue` from an operator setting by sending `"source": "policy"` on the `hitl_reply`. The run records it as `policy pre-answer 1`, never as an operator reply, and refuses a policy reply for any other gate or label with a protocol-error stop. Every other gate still waits for the operator (`docs/driver-events-protocol.md`, "Policy pre-answers"). The `hitl_gate` event now carries `usage`, the tokens the session reported up to the gate, so an app can check a per-run token budget before it pre-answers.
+
 ## [6.11.0] - 2026-10-27
 
 ### Added

@@ -9,7 +9,7 @@ const ciYmlPath = resolve(repoRoot, ".github/workflows/ci.yml");
 /**
  * Mechanical pin: Path C remirrors ci.yml every release. If the private-origin
  * allowlist condition is dropped or flipped back to a public denylist, public
- * (or fork) tag CI can re-run sync-public / the npm token fallback without secrets.
+ * (or fork) tag CI can re-run sync-public / sync-landing / publish-engine without secrets.
  * ADR: 2026-07-29_public-mirror-skip-sync-publish-ci (allowlist amend); publish-npm is
  * public-origin only per 2026-10-26_npm-publish-from-public-repo-oidc-provenance.
  *
@@ -31,18 +31,20 @@ describe("ci.yml private-origin allowlist pin", () => {
     return next < 0 ? rest : rest.slice(0, next + 2);
   };
 
+  it.skipIf(!ciPresent)("keeps the allowlist condition on the sync-public job if", () => {
+    const syncBlock = jobBlock("sync-public");
+    expect(syncBlock).toContain(allowlist);
+    expect(syncBlock).not.toMatch(denylistRe);
+  });
+
   it.skipIf(!ciPresent)(
-    "keeps the allowlist condition on sync-public and the npm token fallback job ifs",
+    "has no npm token publish path (the cutover fallback was removed after v6.11.0)",
     () => {
-      const syncBlock = jobBlock("sync-public");
-      const fallbackBlock = jobBlock("publish-npm-token-fallback");
-      expect(syncBlock).toContain(allowlist);
-      expect(fallbackBlock).toContain(allowlist);
-      expect(fallbackBlock).toContain("workflow_dispatch");
-      expect(fallbackBlock).toContain("secrets.NPM_TOKEN");
-      expect(fallbackBlock).not.toContain("refs/tags/v')");
-      expect(syncBlock).not.toMatch(denylistRe);
-      expect(fallbackBlock).not.toMatch(denylistRe);
+      // Plan kit-public-release-pipeline p4: v6.11.0 published from the public repo with
+      // provenance, so the private NPM_TOKEN fallback job and its dispatch input are gone.
+      expect(jobBlock("publish-npm-token-fallback")).toBe("");
+      expect(body).not.toContain("npm_fallback_version");
+      expect(body).not.toContain("secrets.NPM_TOKEN");
     },
   );
 
@@ -73,7 +75,7 @@ describe("ci.yml private-origin allowlist pin", () => {
   });
 
   it.skipIf(!ciPresent)(
-    "keeps private-only build steps on the same allowlist (exactly eight sites, no denylist)",
+    "keeps private-only build steps on the same allowlist (exactly seven sites, no denylist)",
     () => {
       expect(body).toContain("Authority graph parity");
       expect(body).toContain("Public-deny-link guard");
@@ -81,15 +83,15 @@ describe("ci.yml private-origin allowlist pin", () => {
       expect(body).toContain("Registry catalog parity");
       expect(body).toContain("sync-landing:");
       expect(body).toContain("publish-engine:");
-      expect(body).toContain("publish-npm-token-fallback:");
-      // Exactly eight allowlist sites today: 4 build steps + sync-public +
-      // publish-npm-token-fallback + sync-landing + publish-engine (publish-npm itself is
-      // public-origin only since ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance).
+      // Exactly seven allowlist sites today: 4 build steps + sync-public + sync-landing +
+      // publish-engine (publish-npm itself is public-origin only since ADR
+      // 2026-10-26_npm-publish-from-public-repo-oidc-provenance; the private NPM_TOKEN
+      // fallback job was removed after v6.11.0 proved provenance).
       // Maintenance: changing this count requires matching comments at every counted site in
-      // .github/workflows/ci.yml (build private-only steps, sync-public,
-      // publish-npm-token-fallback, sync-landing, publish-engine).
+      // .github/workflows/ci.yml (build private-only steps, sync-public, sync-landing,
+      // publish-engine).
       const matches = body.match(/github\.repository\s*==\s*'agent-kit-startup\/agent-kit-dev'/g);
-      expect(matches?.length).toBe(8);
+      expect(matches?.length).toBe(7);
       expect(body).not.toMatch(denylistRe);
     },
   );

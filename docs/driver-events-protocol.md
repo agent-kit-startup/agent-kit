@@ -1,6 +1,6 @@
 # Driver events protocol (`agent-kit run-plan --events ndjson`, `agent-kit run-plan-all --events ndjson`)
 
-**Version:** 1.3.0 (events carry `"v": 1`; `run_start.protocol` carries the full version). A new event type or field is a minor bump; a breaking change bumps `v`. Source: `packages/cli/src/plan-loop/driver-events.ts`; contract tests: `packages/cli/src/plan-loop/driver-events.test.ts`; decision: `.cursor/memory/decisions/2026-10-08_cli-driver-mode-ndjson-events.md`.
+**Version:** 1.4.0 (events carry `"v": 1`; `run_start.protocol` carries the full version). A new event type or field is a minor bump; a breaking change bumps `v`. Source: `packages/cli/src/plan-loop/driver-events.ts`; contract tests: `packages/cli/src/plan-loop/driver-events.test.ts`; decision: `.cursor/memory/decisions/2026-10-08_cli-driver-mode-ndjson-events.md`.
 
 Driver mode lets an app, a script or a CI job drive the headless plan runner over pipes, with no terminal. It is opt-in: without `--events ndjson` the CLI behaves as before.
 
@@ -21,11 +21,11 @@ Every event has `v` (number, `1`), `ts` (ISO 8601) and `type`.
 
 | `type` | Fields | When |
 |--------|--------|------|
-| `run_start` | `protocol` (`"1.3.0"`), `command` (1.2.0: `"run-plan"`), `backend`, `plan` (basename), `pending`, `maxTicks`, `hitl` (`"driver"` or `"off"` under `--no-hitl`) | Once, after the active plan is resolved |
+| `run_start` | `protocol` (`"1.4.0"`), `command` (1.2.0: `"run-plan"`), `backend`, `plan` (basename), `pending`, `maxTicks`, `hitl` (`"driver"` or `"off"` under `--no-hitl`) | Once, after the active plan is resolved |
 | `tick_start` | `tick`, `maxTicks`, `pending`, `log` (tick log path, relative to the project), `prompt` (`TICK_PROMPT`, verbatim), `backend` (1.1.0) | Before each agent starts |
 | `agent_event` | `tick`, `event` (one stream-json object from the agent, after secret redaction) | For every JSON line the agent prints |
 | `agent_text` | `tick`, `text` | For every non-JSON line the agent prints (stderr) |
-| `hitl_gate` | `tick`, `askId`, `labels` (in list order), `detection` (`"sentinel"` or `"fallback"`), `line` (the `HITL_GATE:` line) | The agent ended a turn at a gate and waits for your answer |
+| `hitl_gate` | `tick`, `askId`, `labels` (in list order), `detection` (`"sentinel"` or `"fallback"`), `line` (the `HITL_GATE:` line), `usage` (1.4.0: the tokens the backend reported for this tick's session up to the gate, same shape as `tick_end.usage`, or `null`) | The agent ended a turn at a gate and waits for your answer |
 | `tick_end` | `tick`, `backend` (1.1.0), `limit` (1.1.0: `{source, detail}` when the backend stopped on a vendor usage limit, else `null`), `exitCode`, `pendingBefore`, `pendingAfter`, `result` (`{kind, reason?, line}` with the `LOOP_TICK_RESULT:` line, or `null`), `replies` (`[{askId, reply, label, line, at}]`), `stop` (`{askId, cause, message, exitCode}` or `null`), `usage` (1.3.0: see [Token usage](#token-usage)) | After each tick |
 | `log` | `level` (`info`, `warn`, `error`), `message` | Status lines the terminal runner would print |
 | `run_end` | `exitCode`, `ticks`, `pending`, `reason`, `planExhausted`, `usage` (1.3.0: the sum of the ticks' `usage`, or `null` when no tick reported any) | Last event of the run |
@@ -61,6 +61,7 @@ A stream whose `result` carries a claude-style `usage` (`input_tokens`, `output_
 
 ## Changelog
 
+- **1.4.0** (additive): optional `source` on the inbound `hitl_reply` (see [Policy pre-answers](#policy-pre-answers)); the stamp `policy pre-answer <n>` in `replies[].reply` and the `HITL_REPLY:` line; `hitl_gate.usage`.
 - **1.3.0** (additive): `tick_end.usage` and `run_end.usage` (see [Token usage](#token-usage)), on `run-plan` and `run-plan-all`.
 - **1.2.0** (additive): `agent-kit run-plan-all --events ndjson` (see [Queue runner](#queue-runner-run-plan-all)); `run_start.command`; for `run-plan-all` only: `run_start.plan`, `pending` and `maxTicks` are `null`, `run_start.queue`, the `queue_state` event, `run_end.replies` and `run_end.stop`.
 - **1.1.0** (additive): `tick_start.backend`, `tick_end.backend`, `tick_end.limit`; `run_end.reason` `usage-limit: <backend>`.
@@ -79,7 +80,26 @@ Send exactly one line after each `hitl_gate`:
 
 - `reply` is a 1-based number, an exact label, or free text. A number or label becomes `operator reply <n> | <label>`; anything else becomes `operator reply other | <text>`, the same as typing it in a terminal.
 - `askId` must be the open gate's id. An optional `"v": 1` is accepted.
-- The answer must be the operator's. Your app relays it; it never picks one on the operator's behalf.
+- The answer must be the operator's. Your app relays it; it never picks one on the operator's behalf. The one exception is a policy pre-answer the operator turned on (below), and the run records it as such.
+- An optional `"source"` (1.4.0) is `"operator"` (the default) or `"policy"`. Any other value is a protocol error.
+
+### Policy pre-answers
+
+From **1.4.0** an app may answer a gate from an operator setting instead of a live choice, only for the pairs that ADR `.cursor/memory/decisions/2026-10-26_driver-chat-side-agent-programmatic-resolver.md` (Amend 2026-10-28) allows. Today there is one pair, the SoT being `PREANSWERABLE_GATES` in `packages/cli/src/plan-loop/hitl-relay.ts`:
+
+| `askId` | Label |
+|---------|-------|
+| `context-checkpoint` | `Continue queue` |
+
+```json
+{"type":"hitl_reply","askId":"context-checkpoint","reply":"Continue queue","source":"policy"}
+```
+
+- The `hitl_gate` event still goes out first, so the operator sees the gate and can send `{"type":"stop"}` instead.
+- The agent receives `HITL_REPLY: context-checkpoint | policy pre-answer 1 | Continue queue`, and `replies[].reply` is `policy pre-answer 1`. It is never stamped as an operator reply.
+- `source: "policy"` with any other `askId`, any other label, or free text is a `protocol error` stop: nothing is relayed and the reply is not downgraded to an operator reply. `git-prod` / `kit-prod` stay `reserved`.
+- The kit enforces only the allowlist. Any other bound is the app's: Colony pre-answers only when the operator turned the setting on, a per-run token budget is set, and the run's usage so far (`hitl_gate.usage`, plus the `tick_end.usage` of earlier ticks for `run-plan`) is a number under that budget. A `null` usage or no budget sends the gate to the operator.
+- An engine older than 1.4.0 ignores `source` and would stamp the reply as `operator reply`. Send `source: "policy"` only when `run_start.protocol` is 1.4.0 or later; below that, ask the operator.
 
 ## Stops (no default answer, ever)
 
@@ -89,7 +109,7 @@ Each of these ends the run with exit `4` and records the cause in `tick_end.stop
 |-------|--------------|
 | stdin closed at a gate | `EOF` |
 | `{"type":"stop"}` | `driver stop` |
-| not JSON, unknown `type`, unsupported `v`, bad `reply`, or an `askId` that is not the open gate | `protocol error` |
+| not JSON, unknown `type`, unsupported `v`, bad `reply`, bad `source`, an `askId` that is not the open gate, or a policy pre-answer outside the allowlist (1.4.0) | `protocol error` |
 | `--no-hitl` (no `hitl_gate` is offered) | `--no-hitl` |
 | a `git-prod` / `kit-prod` gate (never relayed) | `reserved` |
 
