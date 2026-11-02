@@ -107,6 +107,7 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 | `backlog-edit.md` | core | ✅ backlog mutate (Ask confirm) |
 | `backlog-delete.md` | core | ✅ backlog → archive/ |
 | `backlog-cancel.md` | core | ✅ soft cancel in place |
+| `cancel-plan.md` | core | ✅ active plan cancel in place |
 | `continue-plan.md` | core | ✅ keep |
 | `run-plan-loop.md` | core | ✅ L0; no prod |
 | `run-plan-orchestrated.md` | core | ✅ L0; no prod |

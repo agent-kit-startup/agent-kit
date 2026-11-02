@@ -78,6 +78,7 @@ import {
   trimShipLaneGraphql,
 } from "./lib/ship-lane.mjs";
 import { buildTerminalSnapshotFields, MAX_TERMINAL_BYTES } from "./lib/terminal-snapshot.mjs";
+import { collectDecisionIndex, collectRules } from "./lib/workspace-docs.mjs";
 
 const KIT_ROOT = resolve(import.meta.dirname, "..");
 /** Snapshot root: consumer workspace when MISSION_CONTROL_REPO_ROOT is set, else kit tree. */
@@ -164,7 +165,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.9.0",
+    version: "1.10.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -175,7 +176,9 @@ const SNAPSHOT = {
       agents: "Agent definitions from .cursor/agents/*.md",
       commands: "Slash commands from .cursor/commands/*.md",
       memory:
-        "Memory records: error count, decision count, recent decisions, recent parsed errors, error-o-meter stats",
+        "Memory records: error count, decision count, recent decisions, recent parsed errors, error-o-meter stats, decisionIndex[] ({id, path, title, date, status: proposed|accepted|deprecated|superseded|unknown, statusText, tags[], amends[], modifiedAt}, newest file first, capped at 600; bodies never ship) (1.10.0)",
+      rules:
+        "Rules from .cursor/rules/*.mdc|*.md: {id, file, path, description, alwaysApply, globs[], kitManaged, modifiedAt}, sorted by id, capped at 200; bodies never ship (1.10.0)",
       git: "Git repository state: branch, dirty status, commit, ahead/behind, bounded files[], promotion flow vs staging/main, graph lines, staging hygiene",
       devops:
         "Best-effort DevOps signal: pipeline ({available, runs[], reason?} recent gh run list rows; reason is 'budget' when the shared snapshot budget ran out before gh was attempted, or 'call-failed' when gh was attempted and missing/unauthenticated/timed out/errored; reason is only present when available is false; fetchedAt is the ISO time gh was last attempted, reused from serve.mjs for up to 60s) and deploy ({tags[], changelog} v* git tags + latest CHANGELOG release entry as a 'what shipped recently' proxy, not a live infra poll)",
@@ -199,7 +202,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.9.0",
+  dashboardDataVersion: "1.10.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -207,6 +210,7 @@ const SNAPSHOT = {
   },
   agents: [],
   commands: [],
+  rules: [],
   memory: {},
   git: {},
   terminals: [],
@@ -321,6 +325,7 @@ if (existsSync(commandsDir)) {
 const kitCommandPaths = new Set();
 const kitSkillDirs = new Set();
 const kitAgentPaths = new Set();
+const kitRulePaths = new Set();
 const registryFile = join(ROOT, "registry", "registry.json");
 let registryHadCommands = false;
 if (existsSync(registryFile)) {
@@ -340,6 +345,9 @@ if (existsSync(registryFile)) {
       }
       if (entry?.kind === "agent" && typeof entry?.path === "string") {
         kitAgentPaths.add(entry.path);
+      }
+      if (entry?.kind === "rule" && typeof entry?.path === "string") {
+        kitRulePaths.add(entry.path);
       }
     }
     registryHadCommands = kitCommandPaths.size > 0;
@@ -389,6 +397,8 @@ if (!registryHadCommands) {
       kitCommandPaths.add(path);
     } else if (path.startsWith(".cursor/agents/")) {
       kitAgentPaths.add(path);
+    } else if (path.startsWith(".cursor/rules/")) {
+      kitRulePaths.add(path);
     } else if (path.startsWith(".cursor/skills/") && path.endsWith("/SKILL.md")) {
       kitSkillDirs.add(path.slice(0, -"/SKILL.md".length));
     }
@@ -400,6 +410,9 @@ for (const c of SNAPSHOT.commands) {
 for (const a of SNAPSHOT.agents) {
   a.kitManaged = kitAgentPaths.has(a.path);
 }
+
+// 4c. Rules: frontmatter summary only (a host opens the file by its path).
+SNAPSHOT.rules = collectRules(ROOT, { kitPaths: kitRulePaths });
 
 // 5. Memory
 const memoryErrorsDir = join(ROOT, ".cursor", "memory", "errors");
@@ -521,6 +534,9 @@ if (existsSync(memoryDecisionsDir)) {
       id: f.replace(/\.md$/, ""),
       path: `.cursor/memory/decisions/${f}`,
     }));
+  // Decision index (1.10.0): title, date, Status and tags of every record, for a host's
+  // Decisions/ADR browser; the host opens the file by its path.
+  SNAPSHOT.memory.decisionIndex = collectDecisionIndex(ROOT);
 }
 
 // 6. Git

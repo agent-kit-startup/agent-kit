@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  canonicalGitHead,
   evaluateShellCommand,
   forgeApiMergeCall,
   parsePrMergeHead,
@@ -277,6 +278,52 @@ describe("evaluateShellCommand", () => {
     }
   });
 
+  // Hotfix 2026-10-24 (dogfood cursor_guard_pr_merge_fail_open): every rule read only the
+  // segment head, so a push behind a reserved word or inside `bash -c` was allowed.
+  it("reads the head behind shell reserved words and inside sh -c / bash -c", () => {
+    expect(canonicalGitHead("do git push origin main")).toBe("git push origin main");
+    expect(canonicalGitHead("! git push origin main")).toBe("git push origin main");
+    expect(canonicalGitHead("bash -c 'git push origin main'")).toBe("git push origin main");
+    expect(canonicalGitHead('bash -lc "FOO=1 git -C . push origin main"')).toBe(
+      "git push origin main",
+    );
+    expect(canonicalGitHead("bash script.sh")).toBe("bash script.sh");
+    expect(canonicalGitHead("xargs gh pr merge -R o/r")).toBe("xargs gh pr merge -R o/r");
+    const opts = { currentBranch: "feat/x" };
+    for (const [cmd, rule] of [
+      ["for b in x; do git push origin main; done", "git-push-main"],
+      ["if true; then git push origin main; fi", "git-push-main"],
+      ["if false; then :; else git push origin main; fi", "git-push-main"],
+      ["if false; then :; elif git push origin main; then :; fi", "git-push-main"],
+      ["if git push origin main; then echo ok; fi", "git-push-main"],
+      ["while true; do git push origin main; done", "git-push-main"],
+      ["until false; do git push origin main; done", "git-push-main"],
+      ["! git push origin main", "git-push-main"],
+      ['bash -c "git push origin main"', "git-push-main"],
+      ["bash -c 'git push origin main'", "git-push-main"],
+      ["sh -c 'git push --force origin main'", "git-push-main"],
+      ["zsh -c 'git push origin HEAD:main'", "git-push-main"],
+      ["/bin/dash -ec 'git push origin main'", "git-push-main"],
+      ["bash -o pipefail -c 'git push origin main'", "git-push-main"],
+      ["for f in x; do git reset --hard; done", "git-reset-hard"],
+      ["sh -c 'git clean -fd'", "git-clean-fd"],
+    ] as const) {
+      const r = evaluateShellCommand(cmd, opts);
+      expect(r.permission, cmd).toBe("deny");
+      expect(r.rule, cmd).toBe(rule);
+    }
+    for (const cmd of [
+      'bash -c "echo git push origin main"',
+      "bash -c 'git push origin feat/x'",
+      "for b in x; do git push origin staging; done",
+      "if true; then git push origin feat/x; fi",
+      "bash script.sh",
+      "sh -c 'echo done'",
+    ]) {
+      expect(evaluateShellCommand(cmd, opts).permission, cmd).toBe("allow");
+    }
+  });
+
   it("allowlists main-push flags, tokenizes git clean, and treats @ as HEAD", () => {
     for (const cmd of [
       "ALLOW_MAIN_PUSH=1 git push origin main --mirror",
@@ -518,24 +565,13 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
 
   // Error memo 2026-10-24_guard-pr-merge-unrecognized-head-fail-open: a loop merged three PRs
   // into main because the head was not `gh pr merge`, so no target was parsed and the rule
-  // allowed. A merge the guard cannot resolve to a literal target now fails closed.
+  // allowed. The head is now read behind reserved words and inside `sh -c`, so those merges
+  // reach the base check; a merge behind any other head (`xargs`) still fails closed.
   const UNRESOLVED_MERGES = [
-    "for n in 31 32 33 34; do gh pr merge $n -R acme/app --merge; done",
-    "for n in 1 2; do gh pr merge 1; done",
-    "if true; then gh pr merge 1; fi",
-    "if false; then :; else gh pr merge 1; fi",
-    "! gh pr merge 1",
     "echo 1 | xargs -n1 gh pr merge",
+    "echo 5 | xargs gh pr merge -R o/r",
     "xargs -n1 gh pr merge < prs.txt",
-    "bash -c 'gh pr merge 1'",
-    'sh -c "gh pr merge 1 --squash"',
-    'while read n; do gh pr merge "$n"; done < prs.txt',
-    "for n in 1 2; do glab mr merge $n; done",
-    "if true; then glab mr merge 1; fi",
-    "! glab mr merge 1",
     "echo 1 | xargs -n1 glab mr merge",
-    "bash -c 'glab mr merge 1'",
-    "sh -c 'glab mr merge 1'",
   ];
 
   it("denies a merge it cannot resolve to a literal target, whatever the base", () => {
@@ -546,6 +582,46 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
         expect(r.permission, cmd).toBe("deny");
         expect(r.rule, cmd).toBe("pr-merge-protected-base");
         expect(r.agent_message, cmd).toMatch(/literal `gh pr merge <n>` at the head/);
+      }
+    }
+  });
+
+  it("puts a merge behind a reserved word or inside sh -c on the base check", () => {
+    for (const cmd of [
+      "for n in 1 2; do gh pr merge 1 --squash; done",
+      "if x; then gh pr merge 5; fi",
+      "if false; then :; else gh pr merge 1; fi",
+      "! gh pr merge 1",
+      "bash -c 'gh pr merge 5 -R o/r'",
+      'sh -c "gh pr merge 1 --squash"',
+      "if true; then glab mr merge 1; fi",
+      "! glab mr merge 1",
+      "sh -c 'glab mr merge 1'",
+    ]) {
+      expect(unresolvedPrMergeCall(cmd), cmd).toBe(false);
+      expect(
+        prMergeTargets(cmd).map((t) => t.selector),
+        cmd,
+      ).toEqual([cmd.match(/merge (\d+)/)?.[1]]);
+      expect(evaluateShellCommand(cmd, bases("staging", cmd)).permission, cmd).toBe("allow");
+      for (const base of ["main", null]) {
+        expect(evaluateShellCommand(cmd, bases(base, cmd)).rule, cmd).toBe(
+          "pr-merge-protected-base",
+        );
+      }
+    }
+  });
+
+  it("denies a loop merge whose selector does not resolve (the 2026-10-24 incident)", () => {
+    for (const cmd of [
+      "for n in 31 32 33 34; do gh pr merge $n -R acme/app --merge; done",
+      "for n in 1; do gh pr merge $n -R o/r --merge; done",
+      'while read n; do gh pr merge "$n"; done < prs.txt',
+      "for n in 1 2; do glab mr merge $n; done",
+    ]) {
+      expect(unresolvedPrMergeCall(cmd), cmd).toBe(true);
+      for (const opts of [undefined, { prMergeBases: {} }]) {
+        expect(evaluateShellCommand(cmd, opts).rule, cmd).toBe("pr-merge-protected-base");
       }
     }
   });
@@ -573,20 +649,24 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
     }
   });
 
-  it("keeps denying selector shapes that do not resolve", () => {
-    // A loop body on its own line starts its segment with `gh pr merge $n`: a recognized head
-    // whose selector `$n` cannot resolve, so the base check denies it.
+  it("denies a selector or repo that is not literal without resolving a base", () => {
+    // `$n`, `"$PR"`, `$(…)`: the forge would see the text, not the value the shell expands.
     for (const cmd of [
       'gh pr merge "$PR"',
       "gh pr merge $(gh pr list -q .[0].number)",
+      "gh pr merge 5 -R $REPO",
       "for n in 1 2; do\n  gh pr merge $n --merge\ndone",
     ]) {
-      expect(evaluateShellCommand(cmd, bases(null, cmd)).rule, cmd).toBe("pr-merge-protected-base");
+      expect(unresolvedPrMergeCall(cmd), cmd).toBe(true);
+      expect(prMergeTargets(cmd), cmd).toEqual([]);
+      for (const opts of [undefined, { prMergeBases: {} }]) {
+        expect(evaluateShellCommand(cmd, opts).rule, cmd).toBe("pr-merge-protected-base");
+      }
     }
   });
 
   it("lets ALLOW_MAIN_PUSH=1 through an unresolved merge, inline or in the env", () => {
-    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 bash -c 'gh pr merge 1'").permission).toBe(
+    expect(evaluateShellCommand("ALLOW_MAIN_PUSH=1 xargs -n1 gh pr merge").permission).toBe(
       "allow",
     );
     process.env.ALLOW_MAIN_PUSH = "1";

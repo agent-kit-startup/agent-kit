@@ -105,12 +105,52 @@ const GIT_GLOBAL_OPTS: ReadonlyMap<string, boolean> = new Map([
   ["--literal-pathspecs", false],
 ]);
 
+/** Shell reserved words that can precede a command in the same segment (`do git push …`). */
+const SHELL_RESERVED_HEADS: ReadonlySet<string> = new Set([
+  "do",
+  "then",
+  "else",
+  "elif",
+  "if",
+  "while",
+  "until",
+  "!",
+]);
+
+/** Shells that run their `-c` script; a segment split already cut the script at `;`/`&&`/`|`. */
+const SHELL_C_RE = /^(?:[\w./-]+\/)?(?:ba|z|da)?sh$/;
+/** Shell options whose value is the next token (`-o pipefail`). */
+const SHELL_ARG_FLAGS: ReadonlySet<string> = new Set(["-o", "+o", "-O", "+O"]);
+
+/**
+ * Index of the script token after `bash|sh|zsh|dash` flags, or -1 when no `-c` flag (alone or
+ * bundled as `-lc`) is present: `bash script.sh` runs a file and stays its own head.
+ */
+function shellCScriptIndex(tokens: readonly string[]): number {
+  let i = 1;
+  let hasC = false;
+  while (i < tokens.length && /^[-+]/.test(tokens[i] as string)) {
+    const f = tokens[i] as string;
+    if (SHELL_ARG_FLAGS.has(f)) {
+      i += 2;
+      continue;
+    }
+    if (/^-[a-zA-Z]+$/.test(f) && f.includes("c")) hasC = true;
+    i++;
+  }
+  return hasC ? i : -1;
+}
+
 /**
  * Canonical invocation head for one segment: strips a leading `(` / `{`, env assignments,
- * the wrappers `sudo`, `env`, `command`, `exec`, `nohup`, `time` (and their flags), and git
- * global options (`-C <p>`, `-c <k=v>`, `--git-dir`, `--work-tree`, `--no-pager`, `-P`,
- * `--namespace`, `--literal-pathspecs`), so `sudo git -C . push origin main` reads as
- * `git push origin main`.
+ * shell reserved words (`do`, `then`, `else`, `elif`, `if`, `while`, `until`, `!`), a
+ * `bash|sh|zsh|dash -c` wrapper and the opening quote of its script, the wrappers `sudo`,
+ * `env`, `command`, `exec`, `nohup`, `time` (and their flags), and git global options
+ * (`-C <p>`, `-c <k=v>`, `--git-dir`, `--work-tree`, `--no-pager`, `-P`, `--namespace`,
+ * `--literal-pathspecs`), so `sudo git -C . push origin main` and
+ * `do bash -c 'git push origin main'` read as `git push origin main`. A trailing `)`, `}` or
+ * quote on the last token is dropped. `xargs` is not a wrapper: its head is denied by
+ * `pr-merge-protected-base` instead (a missing selector would read as the current branch PR).
  */
 export function canonicalGitHead(segment: string): string {
   let tokens = normalizeShellCommand(segment).split(" ").filter(Boolean);
@@ -122,8 +162,15 @@ export function canonicalGitHead(segment: string): string {
       tokens = rest ? [rest, ...tokens.slice(1)] : tokens.slice(1);
       continue;
     }
-    if (/^\w+=/.test(t)) {
+    if (/^\w+=/.test(t) || SHELL_RESERVED_HEADS.has(t)) {
       tokens = tokens.slice(1);
+      continue;
+    }
+    if (SHELL_C_RE.test(t)) {
+      const i = shellCScriptIndex(tokens);
+      if (i < 0) break;
+      const script = (tokens[i] ?? "").replace(/^\$?['"]/, "");
+      tokens = script ? [script, ...tokens.slice(i + 1)] : tokens.slice(i + 1);
       continue;
     }
     const argFlags = WRAPPER_ARG_FLAGS.get(t);
@@ -137,9 +184,10 @@ export function canonicalGitHead(segment: string): string {
     }
     break;
   }
-  // A group can open in an earlier segment: `(cd x && git push origin main)` ends in `main)`.
+  // A group or a `-c` script can open in an earlier segment: `(cd x && git push origin main)`
+  // ends in `main)`, `bash -c 'cd x; git push origin main'` in `main'`.
   if (tokens.length > 0) {
-    const last = (tokens[tokens.length - 1] as string).replace(/[)}]+$/, "");
+    const last = (tokens[tokens.length - 1] as string).replace(/[)}'"]+$/, "");
     tokens = last ? [...tokens.slice(0, -1), last] : tokens.slice(0, -1);
   }
   if (tokens.length > 0 && /^(?:[\w./-]+\/)?git$/.test(tokens[0] as string)) {
@@ -384,8 +432,9 @@ const PR_MERGE_CALL_RE =
 /**
  * True when a segment runs a PR/MR merge the guard cannot resolve to a literal target:
  * the segment text names `gh pr merge` / `glab mr merge`, but its canonical head does not
- * parse as one (`for … do gh pr merge $n`, `then gh pr merge 1`, `! gh pr merge 1`,
- * `xargs -n1 gh pr merge`, `bash -c 'gh pr merge 1'`). No base can be resolved for such a
+ * parse as one (`xargs -n1 gh pr merge`, `echo gh pr merge`). A merge behind a reserved word
+ * (`do`, `then`, `!`) or inside `bash -c` parses through `canonicalGitHead` and reaches the
+ * base check instead, where a `$n` selector fails to resolve. No base can be resolved for such a
  * merge, so the rule denies it whatever the base, also for pure callers (fail-closed). Per
  * segment, so a literal merge elsewhere in the command does not hide one in a loop.
  * `ALLOW_MAIN_PUSH=1` on the segment, or in the environment, lets it through. Accepted
@@ -398,18 +447,34 @@ export function unresolvedPrMergeCall(command: string): boolean {
     (segment) =>
       PR_MERGE_CALL_RE.test(segment) &&
       !segmentHasAllowMainPushEnv(segment) &&
-      parsePrMergeHead(canonicalGitHead(segment)) === null,
+      literalPrMergeTarget(segment) === null,
   );
+}
+
+/** Shell expansion or quoting left in a selector/repo token: not the literal value gh sees. */
+const SHELL_EXPANSION_RE = /[$`'"\\]/;
+
+/**
+ * The segment's merge target when both its selector and repo are literal: `gh pr merge $n`
+ * (a loop variable), `"$PR"` or `$(…)` is null, so it is denied as unresolved without asking
+ * the forge for a base.
+ */
+function literalPrMergeTarget(segment: string): PrMergeTarget | null {
+  const target = parsePrMergeHead(canonicalGitHead(segment));
+  if (!target) return null;
+  if (SHELL_EXPANSION_RE.test(target.selector ?? "")) return null;
+  if (SHELL_EXPANSION_RE.test(target.repo ?? "")) return null;
+  return target;
 }
 
 export function prMergeKey(target: PrMergeTarget): string {
   return `${target.forge}\u0000${target.repo ?? ""}\u0000${target.selector ?? ""}`;
 }
 
-/** Every PR/MR merge the command runs, so the caller can resolve their bases. */
+/** Every literal PR/MR merge the command runs, so the caller can resolve their bases. */
 export function prMergeTargets(command: string): PrMergeTarget[] {
   return shellSegments(command)
-    .map((segment) => parsePrMergeHead(canonicalGitHead(segment)))
+    .map(literalPrMergeTarget)
     .filter((t): t is PrMergeTarget => t !== null);
 }
 
@@ -565,11 +630,12 @@ export const SHELL_DENY_RULES: Array<{
     // A forge API merge (`gh api … pulls/<n>/merge`, a GraphQL merge mutation) has no base
     // to resolve and no /git-staging use: it is denied outright, so neither the API nor
     // Colony's host path (typed yes for main) can be bypassed that way. A merge behind a head
-    // the parser does not read (loop body, `then`, `!`, `xargs`, `bash -c`) has no target
-    // either: denied outright too, so an unrecognized head cannot skip the base check.
+    // the parser does not read (`xargs`) has no target either: denied outright too, so an
+    // unrecognized head cannot skip the base check. Loop bodies, `then`, `!` and `bash -c`
+    // are read by `canonicalGitHead` and go through the base check.
     id: "pr-merge-protected-base",
     description:
-      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too, and so is any gh api / glab api merge call (REST merge endpoint or GraphQL merge mutation) and any gh pr merge / glab mr merge the guard cannot resolve to a literal target (inside a loop, if, xargs, bash -c or sh -c, or after !: run a literal `gh pr merge <n>` at the head of its own segment; text that only mentions the command is denied too)",
+      "merging a PR/MR into main/master/prod bypasses /git-prod; an unresolved base (gh/glab could not read the PR/MR: not logged in, wrong selector, or no such PR) is denied too, and so is any gh api / glab api merge call (REST merge endpoint or GraphQL merge mutation) and any gh pr merge / glab mr merge the guard cannot resolve to a literal target (one run by xargs, or a loop over `$n`: run a literal `gh pr merge <n>` at the head of its own segment; text that only mentions the command is denied too)",
     test: (cmd, opts) => {
       if (forgeApiMergeCall(cmd)) return true;
       if (unresolvedPrMergeCall(cmd)) return true;
@@ -578,7 +644,7 @@ export const SHELL_DENY_RULES: Array<{
       return shellSegments(cmd).some((segment) => {
         // Same authorization as the /git-prod main push.
         if (segmentHasAllowMainPushEnv(segment)) return false;
-        const target = parsePrMergeHead(canonicalGitHead(segment));
+        const target = literalPrMergeTarget(segment);
         if (!target) return false;
         const base = bases[prMergeKey(target)];
         return typeof base !== "string" || isProtectedBranch(base);

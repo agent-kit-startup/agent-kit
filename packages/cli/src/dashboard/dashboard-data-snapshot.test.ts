@@ -480,6 +480,45 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     expect(readFileSync(ledgerPath, "utf8")).toBe(first);
   });
 
+  it("lists rules and a decision index for a host's Workspace view and matches the schema (1.10.0)", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-workspace-docs-"));
+    initGitRepo(repo);
+    mkdirSync(join(repo, ".cursor", "rules"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "rules", "hygiene.mdc"),
+      "---\ndescription: Output hygiene\nalwaysApply: true\n---\n# Hygiene\n",
+    );
+    const decisions = join(repo, ".cursor", "memory", "decisions");
+    mkdirSync(decisions, { recursive: true });
+    writeFileSync(join(decisions, "_index.md"), "# Decisions index\n");
+    writeFileSync(
+      join(decisions, "2026-10-28_rail.md"),
+      "# Rail\n\n- **Date:** 2026-10-28\n- **Status:** Accepted\n- **Tags:** colony, rail\n",
+    );
+
+    const snap = runDashboardData(repo);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    expect(snap.rules).toEqual([
+      expect.objectContaining({
+        id: "hygiene",
+        path: ".cursor/rules/hygiene.mdc",
+        description: "Output hygiene",
+        alwaysApply: true,
+        kitManaged: false,
+      }),
+    ]);
+    const memory = snap.memory as {
+      decisionIndex: { id: string; status: string; tags: string[] }[];
+    };
+    expect(memory.decisionIndex).toEqual([
+      expect.objectContaining({
+        id: "2026-10-28_rail",
+        status: "accepted",
+        tags: ["colony", "rail"],
+      }),
+    ]);
+  });
+
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
     const source = readFileSync(dashboardDataScript, "utf8");
     const fieldsBlock = /fields: \{([\s\S]*?)\n {4}\},\n {2}\},/.exec(source)?.[1] ?? "";

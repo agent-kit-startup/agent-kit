@@ -40,6 +40,7 @@ export const RUN_CATALOG = [
   "backlog-edit",
   "backlog-delete",
   "backlog-cancel",
+  "cancel-plan",
   "git-staging",
   "review-pack",
 ] as const;

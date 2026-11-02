@@ -167,6 +167,118 @@ the demo modal is a user-opted exception to `youtube-nocookie.com`", not an
 unqualified "no request outside origin," which the page was never trying to
 guarantee for every possible click.
 
+## Other sites (`--site`)
+
+The same scripts build two more Claude Design pages for the Colony launch
+(plan `colony-oligarchy-sites-2026-11-01`). The site table lives in
+`scripts/lib/landing-sites.mjs`; `missionkit` is the default and its path is unchanged.
+
+| Site | Page (mirror file) | Served at | Staging |
+|---|---|---|---|
+| `colony` | `Mission Kit Colony Landing.dc.html` | `https://colony.missionkit.io/` | `https://colony-staging.missionkit.io/` |
+| `oligarchy` | `Oligarchy Landing.dc.html` | `https://oligarchy.missionkit.io/` (`/game`, `/game/` 302 to it while the game is offline) | `https://oligarchy-staging.missionkit.io/` |
+
+Mirrors: `.cursor/context/landing-colony/remote/` and `.cursor/context/landing-oligarchy/remote/`
+(dist/ and releases/ next to them are gitignored). `Oligarchy Design System.dc.html` is
+mirrored as reference only, never built or deployed.
+
+```bash
+pnpm landing:sync -- --site colony "~/Downloads/Mission Kit Colony Landing.zip"
+pnpm landing:media -- --site colony            # after every sync: optimized/ store (ffmpeg, magick)
+pnpm landing:build -- --site oligarchy          # landing:build:check -- --site oligarchy
+pnpm landing:serve -- --site oligarchy          # http://127.0.0.1:4173/ (and the /game redirect)
+node scripts/verify-landing.mjs --site oligarchy # serves dist itself, checks every page
+pnpm landing:deploy:staging -- --site colony    # colony-staging/ only
+pnpm landing:verify:staging:colony
+pnpm landing:promote -- --site colony --yes-production   # operator yes only
+```
+
+- **Sync** extracts the untrusted zip into a temp dir (absolute and `..` entries are refused),
+  then copies only the site's pages, `support.js` and the `assets/` files the pages reference:
+  literal `assets/…` paths (must exist in the zip), quoted prefixes joined at runtime
+  (`'assets/card-' + id`), and asset stems that appear as quoted literals
+  (`img: 'uplink-tower-road'`). `uploads/`, `shots/`, `CLAUDE.md`, `github.md` and the old
+  designs never reach the mirror. React is vendored as for missionkit. The upstream prompt
+  guard reads `.cursor/context/landing-<id>/UPSTREAM-DESIGN-FIX-PROMPT.md`.
+- **Build** treats each page like missionkit's canvas: React on `window`, its own
+  precompiled `dc-logic.js`, static head with the page's canonical and absolute
+  `og:image` / `twitter:image` (the Game has none in its canvas, so it gets the site's
+  `assets/og-cover.png`). The helmet's own canonical is dropped (Colony's lacks the
+  trailing slash). These exports ship the stock runtime, so the build also stubs the
+  x-import compile; no request goes to unpkg (React, Babel) at load.
+- **Nested pages.** A page whose `out` sits below the root (`game/index.html`) gets its
+  asset, vendor and logic references rewritten to root-absolute (`/assets/…`) in the HTML
+  and in its own `dc-logic.js`; links to another built page by its design-file name point
+  at that page's route. No `<base href>`: it would break the in-page `#anchor` links. Since
+  2026-11-02 no site uses this: the Oligarchy landing is the apex and `/game/` is reserved
+  for the game, offline (302 to `/`) until it runs on real events.
+- **Redirects** come from the site table: `Redirect 302` for a prefix (colony
+  `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, oligarchy
+  `/game`). Serve answers them locally and verify checks each one against the resolved
+  `Location`.
+- **Verify** (`--site`) checks every page: `#dc-root`, no `{{ }}`, no runtime banner, no
+  `sc-if`/`sc-for`, exactly one canonical equal to the page's, no request beyond the page's
+  own origin (no shields.io allowance), and every same-origin request 2xx. Fetches of a
+  literal `{{ binding }}` URL are logged, not failed: dc-runtime reads its template from the
+  live `<x-dc>`, so the parser requests `<img src="{{ c.card }}">` once before hydration.
+- **Deploy and promote** upload per file into the subdomain directory (`colony-staging/`,
+  `colony/`, `oligarchy-staging/`, `oligarchy/`) of the missionkit.io hosting account; every
+  remote path is checked to stay inside it. They never create subdomains or DNS (all four
+  exist) and never call the Hostinger deploy trigger, which overwrites the missionkit.io root.
+  Staging adds a noindex `.htaccess` and a `Disallow: /` robots.txt. Promote refuses without
+  `--yes-production`, archives what the live host serves first and writes an upload manifest
+  to `.cursor/context/landing-<id>/releases/`. `landing:rollback` is missionkit-only and
+  refuses `--site colony|oligarchy`; roll those back by re-promoting a known-good build.
+- **Untrusted export.** Sync refuses a zip with symlink entries, or more than 512 MB / 4000
+  entries to extract (missionkit's sync runs the same name and symlink checks). Assets must
+  be static media (png, jpg, webp, gif, svg, ico, mp4, webm, woff2, ttf, css, json; no
+  dotfiles); sync, build and the per-file upload all refuse anything else. Uploads go
+  assets and runtime first, `.htaccess` next, the HTML last.
+- **`/install.sh` rule.** `https://colony.missionkit.io/install.sh` must keep answering a 302
+  to `https://github.com/agent-kit-startup/colony/releases/latest/download/install.sh`.
+  Every generated colony `.htaccess` (staging and production) carries
+  `Redirect 302 /install.sh …`, the local serve answers the same 302, and
+  `verify-landing --site colony` fails if the redirect is missing.
+
+### Page transforms and the optimized media store
+
+The mirror stays the export as-is (ADR 2026-08-05). Two build-time layers sit on top of it,
+both committed and both colony/oligarchy only (missionkit has neither):
+
+- **Page transforms** (`page.transforms: [{ find, replace, why }]` in
+  `scripts/lib/landing-sites.mjs`) run on the raw canvas before asset selection, logic
+  extraction and head injection. Each `find` must occur exactly once, or the build fails,
+  names the transform and points at
+  `.cursor/context/landing-<id>/UPSTREAM-DESIGN-FIX-PROMPT-launch-2026-11-01.md`, the design-side
+  fix. Launch set (2026-11-01): the Oligarchy Landing's `signIn` defaults to `GitHub only` (no
+  email field) and "Continue with GitHub" opens `https://github.com/agent-kit-startup/colony`;
+  all three pages load `assets/card-mech-factory.webp` instead of the 1.5 MB PNG (the
+  Landing's three runtime card lists drop their `'.png'` special case); the Landing's hero `<video>` gets `poster="assets/oligarchy-hero-poster.jpg"`. Once an
+  export carries a fix, its `find` is gone: drop the transform in the PR that syncs that export.
+- **Optimized store** (`.cursor/context/landing-<id>/optimized/assets/…` plus
+  `optimized/manifest.json`), written by `pnpm landing:media -- --site <id>`
+  (`scripts/media-landing.mjs`, the only landing step that runs ffmpeg / ImageMagick). Only
+  assets the built pages reference count: every `.mp4` loses its audio track and metadata
+  (video stream copied, moov kept first); `.jpg` over 700 KB goes to 2400 px on the long edge
+  at quality 82; `.png` over 700 KB is recompressed at most 2400 px and kept only if 15%
+  smaller (otherwise listed under `skipped`); derived files the site declares
+  (`media.derived`: `card-mech-factory.webp` from the PNG, `oligarchy-hero-poster.jpg` from
+  frame 0) are made when a page references them. A derived file wins over a mirror file of the
+  same name (oligarchy's mirror still carries the older 640×300 mech-factory WebP).
+- **Build** ships the store file when its manifest entry's `source_sha256` matches the current
+  mirror file (and the store file still matches its `sha256`), and fails with
+  "mirror changed, run pnpm landing:media -- --site <id>" when it does not. An entry whose
+  `command` differs from what the current rule and parameters give (a changed `MAX_EDGE` or
+  quality, or a derived file's `rule` in the site table) fails the same way, as does a
+  `skipped` record made under another rule. It also fails when a
+  page references a derived file the store lacks, or ships a file a rule selects that the store
+  does not cover. `landing:build:check` stays a byte comparison and needs neither tool.
+- **When to re-run `landing:media`:** after every `landing:sync` of the site, then
+  `landing:build`, and commit `optimized/` with the mirror. Regenerating on the same tool
+  versions gives identical bytes (checked 2026-11-01 with ffmpeg n9.0.2 and ImageMagick
+  7.1.2-34, recorded in the manifest); other versions may not, which is why the store is
+  committed and the build never re-encodes.
+
 ## Deployment
 
 - **Hosting:** Hostinger web hosting (`u262837109`), addon vhost root `/home/u262837109/domains/missionkit.io/public_html`

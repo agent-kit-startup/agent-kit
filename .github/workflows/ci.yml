@@ -130,6 +130,10 @@ jobs:
           pnpm check:memory-index
           pnpm landing:build
           pnpm landing:build:check
+          pnpm landing:build -- --site colony
+          pnpm landing:build:check -- --site colony
+          pnpm landing:build -- --site oligarchy
+          pnpm landing:build:check -- --site oligarchy
           # Test files for root node --test suites. Scan scripts already run
           # above (deny-links) and on publish-npm (verify-cli-dashboard-pack.mjs).
           # Factory-only suites (not in public-sync.manifest) stay on

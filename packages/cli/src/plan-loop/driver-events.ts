@@ -7,7 +7,9 @@
  *   `v` (protocol major) and `type`. Human-oriented lines go out as `log`
  *   events; nothing else is written to stdout while the mode is on.
  * - stdin carries the app's answers, one JSON object per line. The only
- *   answers are `hitl_reply` (to the open gate) and `stop`.
+ *   answers are `hitl_reply` (to the open gate) and `stop`; from 1.5.0
+ *   `stop_after_tick` is read at any time and ends the run at the next
+ *   tick boundary (never mid-tick, never with an invented answer).
  *
  * No second tick dialect (ADR 2026-08-13, 2026-09-19): events wrap the same
  * four sentinels verbatim (`tick_start.prompt` is TICK_PROMPT,
@@ -40,7 +42,7 @@ export type { DriverUsage } from "./token-usage.js";
 /** Protocol major carried by every event as `v`. Bumped only on a breaking change. */
 export const DRIVER_PROTOCOL_MAJOR = 1;
 /** Full protocol version announced in `run_start` (SemVer; minor = additive fields/events). */
-export const DRIVER_PROTOCOL_VERSION = "1.4.0";
+export const DRIVER_PROTOCOL_VERSION = "1.5.0";
 /** The only `--events` value accepted today. */
 export const DRIVER_EVENTS_FORMATS = ["ndjson"] as const;
 export type DriverEventsFormat = (typeof DRIVER_EVENTS_FORMATS)[number];
@@ -216,10 +218,19 @@ export function driverStop(stop: HitlStop | undefined): DriverStop {
     : null;
 }
 
+/**
+ * `run_end.reason` prefix of a run that ended at a tick boundary on
+ * `stop_after_tick` (1.5.0). An app keys its "stopped by request" state on
+ * this prefix, not on the exit code (which is 0: a clean end, like the tick
+ * budget or the `loop.stop` file).
+ */
+export const STOPPED_BY_REQUEST_REASON = "stopped by request";
+
 /** Inbound messages (stdin). */
 export type DriverInbound =
   | { type: "hitl_reply"; askId: string; reply: number | string; source?: "policy" }
-  | { type: "stop"; reason?: string };
+  | { type: "stop"; reason?: string }
+  | { type: "stop_after_tick"; reason?: string };
 
 export type DriverInboundParse =
   | { ok: true; message: DriverInbound }
@@ -232,6 +243,8 @@ export type DriverInboundParse =
  * `source: "policy"` (1.4.0) marks a pre-answer from an operator setting;
  * `"operator"` or no `source` is the operator's own choice. The relay checks
  * a policy reply against `PREANSWERABLE_GATES` (hitl-relay.ts).
+ * `stop_after_tick` (1.5.0) asks for the run to end at the next tick
+ * boundary; its optional `reason` is the app's own note, never relayed.
  */
 export function parseDriverInbound(line: string): DriverInboundParse {
   const text = line.trim();
@@ -256,10 +269,13 @@ export function parseDriverInbound(line: string): DriverInboundParse {
   if (msg.v !== undefined && msg.v !== DRIVER_PROTOCOL_MAJOR) {
     return { ok: false, error: `unsupported protocol v${String(msg.v)}` };
   }
-  if (msg.type === "stop") {
+  if (msg.type === "stop" || msg.type === "stop_after_tick") {
     return {
       ok: true,
-      message: { type: "stop", ...(typeof msg.reason === "string" ? { reason: msg.reason } : {}) },
+      message: {
+        type: msg.type,
+        ...(typeof msg.reason === "string" ? { reason: msg.reason } : {}),
+      },
     };
   }
   if (msg.type !== "hitl_reply")
@@ -292,13 +308,18 @@ export function parseDriverInbound(line: string): DriverInboundParse {
 /**
  * Map one inbound message to the raw answer for `gate`. A reply to another
  * gate is a protocol error, never re-routed; `stop` is the app's
- * skip/cancel. The reply text goes through `resolveOperatorAnswer`
- * downstream exactly like a typed line.
+ * skip/cancel, and so is a `stop_after_tick` that reaches an open gate (the
+ * tick cannot end without an answer the kit will not invent). The reply
+ * text goes through `resolveOperatorAnswer` downstream exactly like a typed
+ * line.
  */
 export function inboundToRawAnswer(gate: HitlGate, parsed: DriverInboundParse): RawAnswer {
   if (!parsed.ok) return { kind: "stop", cause: "protocol error", detail: parsed.error };
   const message = parsed.message;
   if (message.type === "stop") return { kind: "stop", cause: "driver stop" };
+  if (message.type === "stop_after_tick") {
+    return { kind: "stop", cause: "driver stop", detail: "stop_after_tick at an open gate" };
+  }
   if (message.askId !== gate.askId) {
     return {
       kind: "stop",
@@ -317,26 +338,42 @@ export interface DriverAnswerReaderOptions {
   emitter: DriverEmitter;
   /** Current tick number, stamped on the `hitl_gate` event. */
   tick: () => number;
+  /**
+   * 1.5.0: called once when a `stop_after_tick` arrives while no gate is
+   * open (the loop polls `stopRequested()` at the tick boundary; a runner
+   * without tick boundaries, `run-plan-all`, uses this to say so).
+   */
+  onStopRequested?: (reason: string | undefined) => void;
 }
 
 export interface DriverAnswerReader {
   read: AnswerReader;
+  /**
+   * 1.5.0: true once a `stop_after_tick` arrived outside a gate. The loop
+   * ends the run at the next tick boundary; a gate that opens first is not
+   * offered (`read` returns a `driver stop` without emitting `hitl_gate`).
+   */
+  stopRequested(): boolean;
   /** Release stdin (call once at run end). */
   close(): void;
 }
 
 /**
  * Answer reader for driver mode. One `node:readline` interface lives for the
- * whole run (stdin is a pipe: a per-gate interface would lose buffered
- * lines). At each gate it emits `hitl_gate` and takes the next inbound line.
- * Lines that arrive while no gate is open are queued and checked against the
- * gate that is open when they are read (a stale reply is a protocol error).
- * Stream end is EOF: the run stops with no default.
+ * whole run, open from the start (stdin is a pipe: a per-gate interface
+ * would lose buffered lines, and a `stop_after_tick` must be seen while a
+ * tick runs). At each gate it emits `hitl_gate` and takes the next inbound
+ * line. Lines that arrive while no gate is open are queued and checked
+ * against the gate that is open when they are read (a stale reply is a
+ * protocol error), except `stop_after_tick` (1.5.0), which is recorded at
+ * once as a stop request instead of being queued. Stream end is EOF: the
+ * run stops with no default.
  */
 export function createDriverAnswerReader(opts: DriverAnswerReaderOptions): DriverAnswerReader {
   const input = opts.input ?? process.stdin;
   const queue: string[] = [];
   let ended = false;
+  let stopRequested = false;
   let waiter: ((line: string | null) => void) | null = null;
   let rl: ReturnType<typeof createInterface> | null = null;
 
@@ -349,7 +386,17 @@ export function createDriverAnswerReader(opts: DriverAnswerReaderOptions): Drive
         const w = waiter;
         waiter = null;
         w(line);
-      } else queue.push(line);
+        return;
+      }
+      const parsed = parseDriverInbound(line);
+      if (parsed.ok && parsed.message.type === "stop_after_tick") {
+        if (!stopRequested) {
+          stopRequested = true;
+          opts.onStopRequested?.(parsed.message.reason);
+        }
+        return;
+      }
+      queue.push(line);
     });
     rl.on("close", () => {
       ended = true;
@@ -388,9 +435,21 @@ export function createDriverAnswerReader(opts: DriverAnswerReaderOptions): Drive
       waiter = settle;
     });
 
+  ensure();
+
   return {
     read: async (gate, readOpts) => {
       ensure();
+      if (stopRequested) {
+        // The operator already asked to stop and the tick cannot end
+        // without an answer the kit will not invent: the gate is not
+        // offered, the tick ends here as the same stop as `{"type":"stop"}`.
+        return { kind: "stop", cause: "driver stop", detail: "stop_after_tick before the gate" };
+      }
+      // Wait before announcing: a line the app writes in reaction to the
+      // event can land synchronously, and it must be read as this gate's
+      // answer (a `stop_after_tick` included), not as a stop request.
+      const pending = nextLine(readOpts.signal);
       opts.emitter.emit({
         type: "hitl_gate",
         tick: opts.tick(),
@@ -400,10 +459,11 @@ export function createDriverAnswerReader(opts: DriverAnswerReaderOptions): Drive
         line: formatHitlGateLine(gate),
         usage: readOpts.usage ?? null,
       });
-      const line = await nextLine(readOpts.signal);
+      const line = await pending;
       if (line === null) return { kind: "eof" };
       return inboundToRawAnswer(gate, parseDriverInbound(line));
     },
+    stopRequested: () => stopRequested,
     close: () => {
       const r = rl;
       rl = null;
