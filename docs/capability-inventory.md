@@ -4,19 +4,20 @@ Mission Kit capability catalog grouped by surface family. Lists every shipped ca
 
 **Status (2026-08-06):** Product manifests at `5.0.0`. Capability counts verified against the working tree on private `staging` @ `7fdb03c` (see Real counts). Catalog narrative remains indicative for non-count claims. Evidence lanes: `docs/evidence/artifact-ledger-summary.md`, `docs/evidence/delivery-reconciliation.json` (RC-003/RC-004). Five-layer README positioning claims: `docs/evidence/five-layer-claim-matrix.md` / `docs/five-layer-claim-matrix.md`.
 
-Real counts (verified against the working tree on 2026-10-09): **32** slash commands under `.cursor/commands/` (**28** syncable/L0-oriented per counting policy below; `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, `/kit-prod` are factory-only), 25 rules, 14 agents, **19** `SKILL.md` files under `.cursor/skills/` (plus L0 one-hop `procedure.md` pages), 5 Cursor hooks, 19 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
+Real counts (verified against the working tree on 2026-10-09): **34** slash commands under `.cursor/commands/` (recounted 2026-10-31; **30** syncable/L0-oriented per counting policy below; `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, `/kit-prod` are factory-only), 25 rules, 14 agents, **19** `SKILL.md` files under `.cursor/skills/` (plus L0 one-hop `procedure.md` pages), 5 Cursor hooks, 19 CLI commands (plus 5 subsystems), 7 packs, 3 personas, Mission Control dashboard, Git hooks, root scripts, and auxiliary tooling. Prior SHA snapshot `7fdb03c` was 13 agents / 9 skills before `mission-kit-comms`.
 
 ---
 
-## Slash commands (.cursor/commands/ - 32)
+## Slash commands (.cursor/commands/ - 34)
 
-Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **28** syncable commands (excluding `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, and `/kit-prod`). The on-disk factory tree has **32** files; `/public-issue-triage` and `/public-inbound-radar` are omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` remain factory files (landing wraps of native git); they are not consumer L0. `/qa` is consumer L0 (command plus core skill; no new L0 agent).
+Factory-only counting policy: inventories that describe the **consumer/L0** surface should cite **30** syncable commands (excluding `/public-issue-triage`, `/public-inbound-radar`, `/kit-staging`, and `/kit-prod`). The on-disk factory tree has **34** files; `/public-issue-triage` and `/public-inbound-radar` are omitted from L0 install and excluded from `scripts/public-sync.manifest`. `/kit-staging` and `/kit-prod` remain factory files (landing wraps of native git); they are not consumer L0. `/qa` is consumer L0 (command plus core skill; no new L0 agent).
 
 - `/start-project` - Plan creation with two-gate HITL (broad intake, write confirm, optional Gate B start unit)
 - `/backlog-add` - Enqueue plan under HANDOFF Backlog without activation
 - `/backlog-edit` - Edit backlog plan markdown after confirmation
 - `/backlog-delete` - Remove from HANDOFF Backlog and archive plan file
 - `/backlog-cancel` - Soft-cancel open to-dos, drop Backlog row, keep plan file
+- `/cancel-plan` - Cancel the active plan: open to-dos cancelled, HANDOFF active fields cleared, plan file kept
 - `/agent-kit-onboard` - Repository readiness check with essential/non-essential pillars
 - `/continue-plan` - Resume plan from HANDOFF state, confirm next unit, execute one phase
 - `/run-plan` - Continuous execution mode with orchestrated or in-session loop strategies

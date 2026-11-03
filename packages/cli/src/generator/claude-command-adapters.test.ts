@@ -67,6 +67,7 @@ describe("renderClaudeCommandAdapter", () => {
       "archive-plan",
       "backlog-cancel",
       "backlog-delete",
+      "cancel-plan",
       "git-prod",
       "hotfix",
       "kit-prod",

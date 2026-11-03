@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
-  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, the shipLane envelope and rows, and the outcomeLedger summary are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.9.0",
+  "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, the shipLane envelope and rows, the outcomeLedger summary, the rules rows and the memory.decisionIndex rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
+  "version": "1.10.0",
   "type": "object",
   "required": [
     "_schema",
@@ -13,6 +13,7 @@
     "system",
     "agents",
     "commands",
+    "rules",
     "memory",
     "git",
     "terminals",
@@ -30,12 +31,72 @@
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.9.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.10.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
     "commands": { "type": "array" },
-    "memory": { "type": "object" },
+    "rules": {
+      "type": "array",
+      "description": "Rules of the workspace (1.10.0): frontmatter summary of .cursor/rules/*.mdc|*.md, sorted by id, capped at 200. Bodies never ship; a host opens the file by path.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "file",
+          "path",
+          "description",
+          "alwaysApply",
+          "globs",
+          "kitManaged",
+          "modifiedAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "file": { "type": "string" },
+          "path": { "type": "string" },
+          "description": { "type": "string" },
+          "alwaysApply": { "type": "boolean" },
+          "globs": { "type": "array", "items": { "type": "string" } },
+          "kitManaged": { "type": "boolean" },
+          "modifiedAt": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "decisionIndex": {
+          "type": "array",
+          "description": "Decision index (1.10.0): one row per .cursor/memory/decisions/*.md record (not _index.md), newest file name first, capped at 600. Status uses the memory-loop vocabulary; bodies never ship.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "path",
+              "title",
+              "date",
+              "status",
+              "statusText",
+              "tags",
+              "amends",
+              "modifiedAt"
+            ],
+            "properties": {
+              "id": { "type": "string" },
+              "path": { "type": "string" },
+              "title": { "type": "string" },
+              "date": { "type": "string" },
+              "status": { "enum": ["proposed", "accepted", "deprecated", "superseded", "unknown"] },
+              "statusText": { "type": "string" },
+              "tags": { "type": "array", "items": { "type": "string" } },
+              "amends": { "type": "array", "items": { "type": "string" } },
+              "modifiedAt": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
     "git": { "type": "object" },
     "terminals": { "type": "array" },
     "runLogs": {

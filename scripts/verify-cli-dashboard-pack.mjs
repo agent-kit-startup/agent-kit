@@ -47,6 +47,7 @@ export const REQUIRED_DASHBOARD = [
   "package/dashboard/lib/terminal-snapshot.mjs",
   "package/dashboard/lib/triage-heading.mjs",
   "package/dashboard/lib/live-refresh.mjs",
+  "package/dashboard/lib/workspace-docs.mjs",
 ];
 
 /** Case-insensitive README path under an extracted pack root. */

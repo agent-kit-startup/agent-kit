@@ -29,7 +29,7 @@ Examples:
 
 - Plan file exists at `.cursor/plans/<plan-file>` (not under `archive/`)
 - Prefer HANDOFF Backlog-listed targets
-- If the plan is the **active** HANDOFF `- **Plan:**` entry, **stop**. Park or finish first; do not soft-cancel the live active plan with this command.
+- If the plan is the **active** HANDOFF `- **Plan:**` entry, **stop** and point to `/cancel-plan`; do not soft-cancel the live active plan with this command.
 - Parked-only plans: use `/archive-plan` (or park workflow), not this command.
 
 ## What to Do
@@ -68,6 +68,7 @@ Examples:
 |---------|------------|
 | `/backlog-delete` | Removes from Backlog and moves file to `archive/`. |
 | `/archive-plan` | Parked-list dispose to `archive/`. |
+| `/cancel-plan` | Active plan: open to-dos cancelled, HANDOFF active fields cleared, file kept. |
 
 ## Ask questions requirement
 

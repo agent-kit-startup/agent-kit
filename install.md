@@ -116,6 +116,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/backlog-edit.md` | idem |
 | `.cursor/commands/backlog-delete.md` | idem |
 | `.cursor/commands/backlog-cancel.md` | idem |
+| `.cursor/commands/cancel-plan.md` | idem |
 | `.cursor/commands/archive-plan.md` | idem |
 | `.cursor/commands/agent-kit-onboard.md` | idem |
 | `.cursor/commands/continue-plan.md` | idem |

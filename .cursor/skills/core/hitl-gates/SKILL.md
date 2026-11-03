@@ -15,7 +15,7 @@ Kit-wide human-in-the-loop. Commands stay Goal + five hard stops + Ask labels + 
 1. Any confirmation, choice, or clarification before acting uses **Ask questions** (`AskQuestion` / ACP `cursor/ask_question`). Do not ask the user to type yes.
 2. Prefer one question at a time.
 3. Options are concrete labels (tables below). Do not invent a fake tool call.
-4. **Numbered-list fallback is path 1** when the tool is not in the session toolset. Say the tool is missing once, print one `HITL_GATE: <ask-id> | <labels>` line and the same labels as a numbered list (block below), accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Tip: switch to a model that exposes Ask questions for the clickable UI. Matrix: `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`.
+4. **Numbered-list fallback is path 1** when the tool is not in the session toolset. Say the tool is missing once, print one `HITL_GATE: <ask-id> | <labels>` line and the same labels as a numbered list (block below), accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Matrix: `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`.
 5. Skipped or cancelled answers mean **stop** (same as no yes).
 6. Do not fabricate HITL in HANDOFF. Parked / approved / deferred / confirmed / stopped-by-operator need Ask id, operator reply, or `agent-inferred`. In a headless run the operator reply arrives as a `HITL_REPLY: <ask-id> | operator reply <n> | <label>` line; cite that line.
 7. CLI `agent-kit init` keeps `@clack/prompts`. Do not call IDE Ask questions from the CLI.
@@ -82,6 +82,7 @@ Asks only at these rows (ADR `2026-09-25_run-plan-all-three-hitl-points.md`, Ame
 | `/backlog-edit` | `Edit [plan-file]` / `Cancel` |
 | `/backlog-delete` | `Delete [plan-file] from backlog` / `Cancel` |
 | `/backlog-cancel` | `Cancel [plan-file] on backlog` / `Keep on backlog` |
+| `/cancel-plan` | Id `cancel-plan`: `Cancel active plan [plan-file]` / `Keep the active plan` |
 | `/git-prod` | `Proceed with production deploy` / `Review changes first` / `Cancel`. Claude lane (or recorded classifier denial): `I pushed main` / `Open staging→main PR instead` / `Cancel` |
 | `/hotfix` | `Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel` |
 | `/qa` | Mode (when ambiguous): `QA this release` / `Repro this bug` / `Claims only` / `Cancel`. Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel`. Playbook: `.cursor/skills/core/qa/SKILL.md` |
@@ -99,7 +100,7 @@ A project may wrap `/git-staging` / `/git-prod` (the kit factory keeps `/kit-sta
 
 ## Numbered fallback (path 1)
 
-When Ask questions is absent, the numbered list is **mandatory** (path 1, not optional). Do not invent a fake tool call. Print the `HITL_GATE:` sentinel line immediately before the list, in the same message: it is how a headless run (`agent-kit run`, `run-plan`, `run-plan-all`) detects the gate and relays the operator's answer (ADR `2026-09-19_headless-hitl-transport-and-live-tui.md`).
+When Ask questions is absent, the numbered list is **mandatory** (path 1). Print the `HITL_GATE:` sentinel line immediately before the list, in the same message: it is how a headless run (`agent-kit run`, `run-plan`, `run-plan-all`) detects the gate and relays the operator's answer (ADR `2026-09-19_headless-hitl-transport-and-live-tui.md`).
 
 ```text
 Ask questions is not available in this session. Reply with the number or the label. You can also type your own answer (Other).
@@ -113,7 +114,7 @@ HITL_GATE: <ask-id> | <label-a> | <label-b> | <label-c>
 One numbered list per message. Accept number or label. A typed answer that is not a number or label is Other.
 
 Sentinel rules: one line, column 0, `HITL_GATE: <ask-id> | <label 1> | ... | <label n>`.
-`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `malformed-summary`, `next-unit`, `backlog-write`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
+`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `malformed-summary`, `next-unit`, `backlog-write`, `cancel-plan`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
 Surfaces without a listed id keep the numbered list without a sentinel (the headless runner detects them by the wording above as a prose fallback). `git-prod` and `kit-prod` are never relayed headless: the run stops and points at the operator slash.
 The operator's answer comes back as one line, `HITL_REPLY: <ask-id> | operator reply <n> | <label>` (or `operator reply other | <typed text>`); cite it as the Ask provenance in HANDOFF. Never assume a reply: no answer means stop.
 

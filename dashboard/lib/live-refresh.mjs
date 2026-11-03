@@ -30,6 +30,7 @@ export const SNAPSHOT_REPO_SOURCE_RELS = Object.freeze([
   ".cursor/HANDOFF.md",
   ".cursor/agents",
   ".cursor/commands",
+  ".cursor/rules",
   ".cursor/memory",
   ".cursor/context/config.json",
   ".cursor/context/current",
