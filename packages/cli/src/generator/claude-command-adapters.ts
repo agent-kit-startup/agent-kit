@@ -84,6 +84,7 @@ export const MODEL_INVOCATION_DISABLED = new Set([
   "kit-prod",
   "backlog-delete",
   "backlog-cancel",
+  "cancel-plan",
   "archive-plan",
   "hotfix",
   "run-plan-all",

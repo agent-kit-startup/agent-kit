@@ -117,6 +117,7 @@ The minimum structural set every install ships with:
 | `backlog-edit.md` | Edit backlog plan markdown after Ask confirm |
 | `backlog-delete.md` | Remove from Backlog + move to `.cursor/plans/archive/` |
 | `backlog-cancel.md` | Soft-cancel open to-dos; keep file under `.cursor/plans/` |
+| `cancel-plan.md` | Cancel the active plan: open to-dos cancelled, HANDOFF active fields cleared, file kept |
 | `continue-plan.md` | Resume from HANDOFF (manual mode: one phase per chat) |
 | `run-plan.md` | Continuous mode; auto strategy (orchestrated workers / in-session loop / headless); staging per tick |
 | `run-plan-all.md` | `/run-plan-all` multi-plan queue: pure orchestrator dispatches one Task per plan; one release per completed plan when Ship auth is `per-plan-release` |

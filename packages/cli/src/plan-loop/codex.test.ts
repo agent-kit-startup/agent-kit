@@ -277,6 +277,62 @@ describe("run-plan driver mode on codex (scripted no-TTY client)", () => {
   });
   afterEach(() => logSpy.mockRestore());
 
+  it("1.5.0: codex path: stop_after_tick ends the loop after the running tick, exit 0", async () => {
+    const root = await workspace();
+    const plan = path.join(root, ".cursor", "plans", "driver-fixture.plan.md");
+    await writeFile(
+      plan,
+      "---\nname: Codex fixture\ntodos:\n  - id: one\n    status: pending\n  - id: two\n    status: pending\n  - id: three\n    status: pending\n---\n",
+    );
+    const backend: AgentBackend = {
+      id: "codex",
+      resolve: async () => "fake-codex",
+      run: (o) =>
+        codexBackend.run({
+          ...o,
+          spawnFn: fakeSpawn(),
+          versionFn: () => "codex-cli 0.160.1",
+          env: { [OPENAI_ENV]: seededKey(), FAKE_CODEX_MODE: "driver-plan", FAKE_CODEX_PLAN: plan },
+        }),
+    };
+    const input = new PassThrough();
+    let out = "";
+    const write = (text: string) => {
+      out += text;
+      for (const l of text.split("\n").filter(Boolean)) {
+        const ev = JSON.parse(l) as { type: string; tick?: number };
+        if (ev.type === "hitl_gate") throw new Error("no gate expected: the run ends after tick 1");
+        if (ev.type === "tick_start" && ev.tick === 1) {
+          input.write(`${JSON.stringify({ type: "stop_after_tick" })}\n`);
+        }
+      }
+    };
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend,
+      events: { input, write, writeErr: () => {} },
+    });
+    expect(code).toBe(0);
+    const events = out
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(events.filter((e) => e.type === "tick_end")).toEqual([
+      expect.objectContaining({ tick: 1, backend: "codex", pendingAfter: 2, stop: null }),
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: 0,
+      ticks: 1,
+      pending: 2,
+      reason: "stopped by request after tick 1",
+    });
+    expect((await readFile(plan, "utf8")).match(/status: pending/g)).toHaveLength(2);
+  });
+
   it("completes a 3-to-do plan with one gate answered over stdin", async () => {
     const root = await workspace();
     const plan = path.join(root, ".cursor", "plans", "driver-fixture.plan.md");

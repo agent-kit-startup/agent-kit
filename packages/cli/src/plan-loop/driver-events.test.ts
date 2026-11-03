@@ -5,7 +5,12 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type AgentBackend, claudeBackend, resetClaudeVersionCache } from "./backends.js";
+import {
+  type AgentBackend,
+  claudeBackend,
+  cursorAgentBackend,
+  resetClaudeVersionCache,
+} from "./backends.js";
 import {
   createDriverAnswerReader,
   createDriverEmitter,
@@ -17,6 +22,7 @@ import {
   formatDriverEvent,
   inboundToRawAnswer,
   parseDriverInbound,
+  STOPPED_BY_REQUEST_REASON,
 } from "./driver-events.js";
 import {
   askOperator,
@@ -33,6 +39,7 @@ type SpawnFn = typeof spawn;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_CLAUDE = path.join(HERE, "fixtures", "fake-claude.mjs");
+const FAKE_CURSOR_AGENT = path.join(HERE, "fixtures", "fake-cursor-agent.mjs");
 const CLI_ENTRY = path.resolve(HERE, "..", "index.ts");
 const CLI_PKG = path.resolve(HERE, "..", "..");
 
@@ -97,7 +104,11 @@ function fakeClaudeBackend(plan: string): AgentBackend {
  * Scripted no-TTY client: reads the event stream as it is written and
  * answers each `hitl_gate` through `answer` (null = write nothing).
  */
-function scriptedClient(answer: (gate: Ev) => string | null) {
+function scriptedClient(
+  answer: (gate: Ev) => string | null,
+  /** 1.5.0: a line to send when some other event goes out (null = nothing). */
+  onEvent: (ev: Ev) => string | null = () => null,
+) {
   const input = new PassThrough();
   let out = "";
   const gates: Ev[] = [];
@@ -106,7 +117,11 @@ function scriptedClient(answer: (gate: Ev) => string | null) {
     for (const line of text.split("\n")) {
       if (!line) continue;
       const ev = JSON.parse(line) as Ev;
-      if (ev.type !== "hitl_gate") continue;
+      if (ev.type !== "hitl_gate") {
+        const send = onEvent(ev);
+        if (send !== null) input.write(`${send}\n`);
+        continue;
+      }
       gates.push(ev);
       const reply = answer(ev);
       if (reply === null) input.end();
@@ -116,10 +131,12 @@ function scriptedClient(answer: (gate: Ev) => string | null) {
   return { input, write, gates, events: () => parseNdjson(out) };
 }
 
+const STOP_AFTER_TICK = JSON.stringify({ type: "stop_after_tick" });
+
 describe("driver protocol (contract pins)", () => {
   it("pins the protocol version and the event type set", () => {
     expect(DRIVER_PROTOCOL_MAJOR).toBe(1);
-    expect(DRIVER_PROTOCOL_VERSION).toBe("1.4.0");
+    expect(DRIVER_PROTOCOL_VERSION).toBe("1.5.0");
     expect([...DRIVER_EVENT_TYPES]).toEqual([
       "run_start",
       "queue_state",
@@ -157,6 +174,23 @@ describe("driver protocol (contract pins)", () => {
       ok: true,
       message: { type: "stop", reason: "user closed the inbox" },
     });
+  });
+
+  it("1.5.0: parses stop_after_tick; at an open gate it is the same stop as stop", () => {
+    expect(parseDriverInbound('{"type":"stop_after_tick"}')).toEqual({
+      ok: true,
+      message: { type: "stop_after_tick" },
+    });
+    expect(parseDriverInbound('{"v":1,"type":"stop_after_tick","reason":"deadline"}')).toEqual({
+      ok: true,
+      message: { type: "stop_after_tick", reason: "deadline" },
+    });
+    expect(inboundToRawAnswer(GATE, parseDriverInbound('{"type":"stop_after_tick"}'))).toEqual({
+      kind: "stop",
+      cause: "driver stop",
+      detail: "stop_after_tick at an open gate",
+    });
+    expect(STOPPED_BY_REQUEST_REASON).toBe("stopped by request");
   });
 
   it("rejects anything that is not the contract (never a default answer)", () => {
@@ -317,6 +351,71 @@ describe("driver answer reader and askOperator", () => {
     ]);
   });
 
+  it("1.5.0: stop_after_tick outside a gate is a stop request, never a queued answer", async () => {
+    const emitted: string[] = [];
+    const emitter = createDriverEmitter((t) => emitted.push(t));
+    const input = new PassThrough();
+    const reasons: (string | undefined)[] = [];
+    const reader = createDriverAnswerReader({
+      input,
+      emitter,
+      tick: () => 3,
+      onStopRequested: (reason) => reasons.push(reason),
+    });
+    expect(reader.stopRequested()).toBe(false);
+    // Read from the start, no gate needed: the request is recorded at once.
+    input.write('{"type":"stop_after_tick","reason":"operator pressed Stop"}\n');
+    await new Promise((r) => setImmediate(r));
+    expect(reader.stopRequested()).toBe(true);
+    expect(reasons).toEqual(["operator pressed Stop"]);
+    // A second one is a no-op, and a reply sent afterwards is still queued for the gate.
+    input.write('{"type":"stop_after_tick"}\n');
+    input.write('{"type":"hitl_reply","askId":"demo","reply":1}\n');
+    await new Promise((r) => setImmediate(r));
+    expect(reasons).toHaveLength(1);
+    // A gate that opens after the request is not offered: no hitl_gate, the
+    // same driver stop as {"type":"stop"}, and the queued reply is never read.
+    const outcome = await askOperator(GATE, {
+      isTTY: false,
+      policy: "driver",
+      readAnswer: reader.read,
+      write: () => {},
+    });
+    reader.close();
+    expect(outcome.kind === "stop" && [outcome.stop.cause, outcome.stop.exitCode]).toEqual([
+      "driver stop",
+      HITL_UNANSWERED_EXIT_CODE,
+    ]);
+    expect(outcome.kind === "stop" && outcome.stop.message).toBe(
+      "stopped-by-operator: gate demo, no reply (driver stop)",
+    );
+    expect(emitted).toEqual([]);
+  });
+
+  it("1.5.0: stop_after_tick while a gate is open ends the run at the gate, as stop does", async () => {
+    const emitted: string[] = [];
+    const emitter = createDriverEmitter((t) => emitted.push(t));
+    const input = new PassThrough();
+    const reader = createDriverAnswerReader({ input, emitter, tick: () => 2 });
+    const pending = askOperator(GATE, {
+      isTTY: false,
+      policy: "driver",
+      readAnswer: reader.read,
+      write: () => {},
+    });
+    await new Promise((r) => setImmediate(r));
+    expect(parseNdjson(emitted.join("")).map((e) => e.type)).toEqual(["hitl_gate"]);
+    input.write(`${STOP_AFTER_TICK}\n`);
+    const outcome = await pending;
+    reader.close();
+    expect(outcome.kind === "stop" && [outcome.stop.cause, outcome.stop.exitCode]).toEqual([
+      "driver stop",
+      HITL_UNANSWERED_EXIT_CODE,
+    ]);
+    // Answered at the gate: it was never a stop request for the tick boundary.
+    expect(reader.stopRequested()).toBe(false);
+  });
+
   it("1.4.0: a policy pre-answer is stamped as one, and only for the ADR allowlist", async () => {
     const checkpoint: HitlGate = {
       askId: "context-checkpoint",
@@ -460,7 +559,7 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
 
     expect(events[0]).toMatchObject({
       type: "run_start",
-      protocol: "1.4.0",
+      protocol: "1.5.0",
       command: "run-plan",
       backend: "claude",
       plan: "driver-fixture.plan.md",
@@ -535,6 +634,141 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
     expect(await readFile(plan, "utf8")).not.toContain("status: pending");
     expect(stderr.join("")).toContain(`→ ${stamp}`);
   });
+
+  it("1.5.0: stop_after_tick during a tick ends the run after that tick, exit 0, plan as the tick left it", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const client = scriptedClient(
+      () => {
+        throw new Error("no gate expected: tick 1 has none and tick 2 never starts");
+      },
+      (ev) => (ev.type === "tick_start" && ev.tick === 1 ? STOP_AFTER_TICK : null),
+    );
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 30,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+    });
+    expect(code).toBe(0);
+    const events = client.events();
+    expect(events.filter((e) => e.type === "tick_start").map((e) => e.tick)).toEqual([1]);
+    expect(client.gates).toEqual([]);
+    const tickEnd = events.find((e) => e.type === "tick_end");
+    // The tick was not interrupted: its real result, no stop record.
+    expect(tickEnd).toMatchObject({
+      tick: 1,
+      pendingAfter: 2,
+      result: { kind: "continue", line: "LOOP_TICK_RESULT: continue" },
+      stop: null,
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: 0,
+      ticks: 1,
+      pending: 2,
+      reason: `${STOPPED_BY_REQUEST_REASON} after tick 1`,
+      planExhausted: false,
+    });
+    expect(
+      events.some((e) => e.type === "log" && String(e.message).includes("stop_after_tick")),
+    ).toBe(true);
+    // One to-do done, two still pending: a later run-plan continues the plan.
+    const text = await readFile(plan, "utf8");
+    expect(text.match(/status: pending/g)).toHaveLength(2);
+    expect(text.match(/status: completed/g)).toHaveLength(1);
+  }, 20_000);
+
+  it("1.5.0: a gate that opens after stop_after_tick is not offered; the tick ends as a driver stop (exit 4)", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const client = scriptedClient(
+      () => {
+        throw new Error("the gate must not be offered after stop_after_tick");
+      },
+      (ev) => (ev.type === "tick_start" && ev.tick === 2 ? STOP_AFTER_TICK : null),
+    );
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+    });
+    expect(code).toBe(HITL_UNANSWERED_EXIT_CODE);
+    const events = client.events();
+    expect(events.filter((e) => e.type === "hitl_gate")).toEqual([]);
+    expect(events.filter((e) => e.type === "tick_end").at(-1)).toMatchObject({
+      tick: 2,
+      stop: { askId: "driver-demo", cause: "driver stop", exitCode: HITL_UNANSWERED_EXIT_CODE },
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: HITL_UNANSWERED_EXIT_CODE,
+      ticks: 2,
+      reason: "stopped-by-operator: gate driver-demo, no reply (driver stop)",
+    });
+  }, 20_000);
+
+  it("1.5.0: stop_after_tick at an open gate is the same as stop (exit 4)", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const client = scriptedClient(() => STOP_AFTER_TICK);
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+    });
+    expect(code).toBe(HITL_UNANSWERED_EXIT_CODE);
+    expect(client.gates).toHaveLength(1);
+    expect(client.events().at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: HITL_UNANSWERED_EXIT_CODE,
+      reason: "stopped-by-operator: gate driver-demo, no reply (driver stop)",
+    });
+  }, 20_000);
+
+  it("1.5.0: cursor-agent path: stop_after_tick ends the loop after the running tick", async () => {
+    const { root } = await fixtureWorkspace();
+    const spawnFn = ((_cmd: string, args: string[], opts: Parameters<SpawnFn>[2]) =>
+      spawn(process.execPath, [FAKE_CURSOR_AGENT, ...args], opts)) as unknown as SpawnFn;
+    const backend: AgentBackend = {
+      id: "cursor-agent",
+      resolve: async () => "fake-cursor-agent",
+      run: (o) =>
+        cursorAgentBackend.run({ ...o, spawnFn, env: { FAKE_CURSOR_AGENT_MODE: "nogate" } }),
+    };
+    // The fake ends every tick with `LOOP_TICK_RESULT: continue` and touches no
+    // to-do, so without the request the loop would run to its tick budget.
+    const client = scriptedClient(
+      () => null,
+      (ev) => (ev.type === "tick_start" && ev.tick === 2 ? STOP_AFTER_TICK : null),
+    );
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend,
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+    });
+    expect(code).toBe(0);
+    const events = client.events();
+    expect(events.filter((e) => e.type === "tick_end").map((e) => [e.tick, e.backend])).toEqual([
+      [1, "cursor-agent"],
+      [2, "cursor-agent"],
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      type: "run_end",
+      exitCode: 0,
+      ticks: 2,
+      pending: 3,
+      reason: `${STOPPED_BY_REQUEST_REASON} after tick 2`,
+    });
+  }, 20_000);
 
   it("EOF at the gate stops the run with exit 4 and no default answer", async () => {
     const { root, plan } = await fixtureWorkspace();

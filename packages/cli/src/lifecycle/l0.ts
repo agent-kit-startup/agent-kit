@@ -119,6 +119,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/commands/backlog-cancel.md",
   },
   {
+    source: ".cursor/commands/cancel-plan.md",
+    target: ".cursor/commands/cancel-plan.md",
+  },
+  {
     source: ".cursor/commands/archive-plan.md",
     target: ".cursor/commands/archive-plan.md",
   },

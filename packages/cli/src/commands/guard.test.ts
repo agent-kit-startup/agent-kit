@@ -118,16 +118,28 @@ describe("evaluateGuardShell git helper gating", () => {
     const { calls, deps } = spyDeps();
     for (const cmd of [
       "for n in 31 32; do gh pr merge $n -R acme/app --merge; done",
-      "if true; then gh pr merge 12; fi",
       "echo 12 | xargs -n1 gh pr merge",
-      "bash -c 'gh pr merge 12'",
-      "! glab mr merge 12",
+      "bash -c 'gh pr merge $n'",
     ]) {
       const result = await evaluateGuardShell(cmd, "/tmp/repo", deps);
       expect(result.permission, cmd).toBe("deny");
       expect(result.rule, cmd).toBe("pr-merge-protected-base");
     }
     expect(calls.some((c) => c.startsWith("base:"))).toBe(false);
+  });
+
+  it("resolves the base of a literal merge behind a reserved word or inside sh -c", async () => {
+    const { calls, deps } = spyDeps();
+    for (const [cmd, permission] of [
+      ["if true; then gh pr merge 12; fi", "allow"],
+      ["bash -c 'gh pr merge 12'", "allow"],
+      ["! glab mr merge 12", "allow"],
+      ["for n in 1; do gh pr merge 7; done", "deny"],
+    ] as const) {
+      const result = await evaluateGuardShell(cmd, "/tmp/repo", deps);
+      expect(result.permission, cmd).toBe(permission);
+    }
+    expect(calls.filter((c) => c.startsWith("base:"))).toHaveLength(4);
   });
 
   it("denies a selector the forge cannot read, such as a quoted variable", async () => {

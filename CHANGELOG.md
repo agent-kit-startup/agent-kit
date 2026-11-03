@@ -10,6 +10,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.13.1] - 2026-11-02
+
+### Fixed
+
+- Tests: `pnpm test` passes again on a clone of the public repository. `packages/cli/src/docs/cancel-plan.test.ts` read the factory Claude adapter `.claude/commands/cancel-plan.md`, which does not ship to the public repository, so the v6.13.0 public build failed with `ENOENT`. The adapter assertions now run only when that file exists; the L0, `MODEL_INVOCATION_DISABLED` and run-catalog checks still run everywhere.
+
+## [6.13.0] - 2026-11-02
+
+### Added
+
+- Landing: colony and oligarchy builds apply exact-match page transforms (the build fails when a design export drops the matched text) and ship media from a committed store that `pnpm landing:media -- --site <id>` generates: mp4 loops without audio, JPGs over 700 KB at 2400 px, smaller PNGs, a webp Mech Factory card and a hero poster. Build and `--check` only copy the committed bytes and never run ffmpeg or ImageMagick. Tonight's transforms: the Oligarchy landing's sign-in is GitHub-only and opens the Colony repository, so the page collects no email.
+- Landing: `oligarchy.missionkit.io/` now serves the Oligarchy landing. The game page is offline until it runs on real events: `/game` and `/game/` answer 302 to the apex, the landing's demo shows a still, and its Play buttons lead to its Colony section. Site redirects can be exact (`RedirectMatch`), and verify compares the resolved `Location`.
+- Landing: every `landing:*` script takes `--site missionkit|colony|oligarchy` (missionkit stays the default and builds the same bytes). The site table in `scripts/lib/landing-sites.mjs` gives `colony.missionkit.io` the Mission Kit Colony landing and `oligarchy.missionkit.io` the Oligarchy game page plus its landing at `/game/`, with staging on `colony-staging` and `oligarchy-staging`. Sync keeps only the site's pages and the assets they use and refuses unsafe zip entries; build precompiles each page's logic and self-hosts React, so no page requests another host; verify checks every page of a site, and for colony that `/install.sh` still answers 302; production promote for these two sites uploads per file and refuses without `--yes-production`. `getWebsite` now matches the exact domain.
+- `/cancel-plan` cancels the active plan: after one confirmation, its open to-dos become `cancelled`, HANDOFF stops naming it as the active plan and the plan file stays under `.cursor/plans/`. It refuses while a `run-plan` or `run-plan-all` run is going on the plan and never picks the next plan. `/backlog-cancel` still handles Backlog rows only and now points to `/cancel-plan` for the active plan.
+- Driver protocol 1.5.0: an app can end `agent-kit run-plan --events ndjson` at the next tick boundary by sending `{"type":"stop_after_tick"}` on stdin at any time. The running tick finishes untouched (the agent is not interrupted and no answer is invented), `tick_end` reports its real result, and the run ends with `run_end.reason` `stopped by request after tick <n>` and exit 0, so a later `run-plan` continues the same plan. At an open gate the message is the same as `stop` (exit 4); a gate that opens after the request is not offered; `run-plan-all` has no tick boundary and ends at its next gate (`docs/driver-events-protocol.md`, "Stop after the current tick").
+- Mission Control snapshot 1.10.0: `rules` lists `.cursor/rules/*.mdc|*.md` by frontmatter (description, `alwaysApply`, globs, kit-managed), and `memory.decisionIndex` lists every decision record with its title, date, Status, tags and amend dates. A host such as Colony can now browse rules and decisions natively and open the file by its path; bodies never ship in the snapshot. `docs/mission-control-embedding.md` maps each Colony rail item to its snapshot data and actions.
+
+### Fixed
+
+- Shell guard: every rule now reads the command behind a shell reserved word (`do`, `then`, `else`, `elif`, `if`, `while`, `until`, `!`) and inside `bash -c` / `sh -c` / `zsh -c` / `dash -c`. Before, only the first word of each segment was read, so `for b in x; do git push origin main; done`, `if true; then git push origin main; fi` and `bash -c "git push origin main"` were allowed, and the same held for `git reset --hard` and the other git rules. A `gh pr merge` / `glab mr merge` in those positions now goes through the normal base check: a literal `gh pr merge <n>` into an unprotected base is allowed, one into `main`, `master` or `prod` is denied. A selector or repo that is not literal (`$n`, `"$PR"`, `$(…)`) is denied without looking up a base, and a merge run by `xargs` stays denied whatever the base. A script file run by `bash script.sh` stays out of reach of the guard.
+
 ## [6.12.0] - 2026-10-28
 
 ### Added

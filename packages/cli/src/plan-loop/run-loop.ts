@@ -18,6 +18,7 @@ import {
   type DriverUsage,
   driverReplies,
   driverStop,
+  STOPPED_BY_REQUEST_REASON,
 } from "./driver-events.js";
 import {
   armExternalPlanReview,
@@ -341,8 +342,19 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     // tick stops on a vendor usage limit (same plan, same tick prompt).
     let backend = opts.backend;
     let limitSwitched = false;
+    // Driver protocol 1.5.0: `stop_after_tick` ends the run at the next tick
+    // boundary, here (before a tick starts) and right after a tick that
+    // would otherwise continue. The tick itself is never interrupted.
+    const stopRequested = (): boolean => {
+      if (!driver?.reader.stopRequested()) return false;
+      const msg = `Stop requested by the driver (stop_after_tick) - stopping after tick ${ticksRun}. The plan is as the tick left it.`;
+      say(msg);
+      endReason = `${STOPPED_BY_REQUEST_REASON} after tick ${ticksRun}`;
+      return true;
+    };
 
     while (true) {
+      if (stopRequested()) break;
       tick += 1;
       if (tick > opts.maxTicks) {
         const msg = `Budget of ${opts.maxTicks} ticks reached - stopping. Run again to continue.`;
@@ -595,6 +607,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         endReason = "plan exhausted";
         break;
       }
+
+      if (stopRequested()) break;
 
       if (opts.sleepSeconds > 0) {
         if (banners) banners.sleep(opts.sleepSeconds);

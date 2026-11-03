@@ -1,11 +1,13 @@
 /**
  * Driver mode for a dispatched L0 session (`agent-kit run-plan-all --events
- * ndjson`, driver protocol 1.4.0). The queue runner is one headless agent
+ * ndjson`, driver protocol 1.5.0). The queue runner is one headless agent
  * session running the L0 command, not a tick loop: the events are
  * `run_start`, `agent_event` / `agent_text`, `hitl_gate`, `log` and
  * `run_end` (no `tick_start` / `tick_end`; `tick` is always 1). Answers,
  * stops and exit codes are the `run-plan` ones: the same answer reader, the
- * same agent sink, the same relay (`policy: "driver"`).
+ * same agent sink, the same relay (`policy: "driver"`). A `stop_after_tick`
+ * (1.5.0) has no tick boundary here: it is logged, and the session ends at
+ * its next gate as a `driver stop` (the gate is not offered).
  *
  * No second tick dialect: the session runs the unchanged L0 prompt; the
  * driver only transports events and replies. Contract doc:
@@ -228,18 +230,23 @@ export async function landDispatchOutcome(opts: {
 export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<number> {
   const root = path.resolve(opts.root);
   const emitter = createDriverEmitter(opts.events.write, opts.events.now);
+  const say = (message: string, level: "info" | "warn" | "error" = "info") =>
+    emitter.emit({ type: "log", level, message });
   const reader = createDriverAnswerReader({
     input: opts.events.input,
     emitter,
     tick: () => DISPATCH_DRIVER_TICK,
+    onStopRequested: () =>
+      say(
+        `stop_after_tick received: ${opts.slash} has no tick boundary, so the session runs on until its next gate, which is not offered (the run ends there, exit 4). Send {"type":"stop"} at a gate or terminate the process to end it sooner.`,
+        "warn",
+      ),
   });
   const writeErr =
     opts.events.writeErr ??
     ((text: string) => {
       process.stderr.write(text);
     });
-  const say = (message: string, level: "info" | "warn" | "error" = "info") =>
-    emitter.emit({ type: "log", level, message });
   let ticks = 0;
   let queue: ReturnType<typeof createQueueStateWatcher> | null = null;
   const finish = async (

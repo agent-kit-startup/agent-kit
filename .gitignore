@@ -106,6 +106,8 @@ __pycache__/
 # Landing build output — derived from the Claude Design export by
 # `pnpm landing:build`; never edit by hand. See docs/agentkit-landing.md.
 .cursor/context/landing-missionkit/dist/
+.cursor/context/landing-colony/dist/
+.cursor/context/landing-oligarchy/dist/
 
 # Landing promote/rollback release archives — timestamped zips of bytes that
 # were actually deployed to missionkit.io, written by `pnpm landing:promote`
@@ -113,6 +115,10 @@ __pycache__/
 # large (binary assets), and account-specific; not source. See
 # docs/agentkit-landing.md and missionkit-staging-promote.plan.md.
 .cursor/context/landing-missionkit/releases/
+# Same for colony.missionkit.io / oligarchy.missionkit.io (`pnpm landing:promote -- --site <id>`
+# writes a per-file upload manifest and a pre-promote baseline here).
+.cursor/context/landing-colony/releases/
+.cursor/context/landing-oligarchy/releases/
 
 # Knowledge-classification ledger: derived from the tracked tree on demand
 # (`pnpm evidence:knowledge-classification`). CI validates a fresh census
