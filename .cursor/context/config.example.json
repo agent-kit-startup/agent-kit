@@ -25,6 +25,7 @@
   },
   "autoHandoff": false,
   "interTickCooldownMs": 0,
+  "promoteMergeWaitMs": 3600000,
   "dogfood": {
     "factoryRoot": null
   },

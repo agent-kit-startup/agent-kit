@@ -489,7 +489,13 @@ describe("driver answer reader and askOperator", () => {
       );
       expect(out.kind === "stop" && out.stop.cause).toBe("reserved");
     }
-    for (const askId of ["queue-confirm", "risk", "ticket", "queue-end-gates"]) {
+    for (const askId of [
+      "queue-confirm",
+      "risk",
+      "ticket",
+      "queue-end-gates",
+      "promote-merge-wait",
+    ]) {
       expect(isPreanswerable(askId, "Run as proposed")).toBe(false);
     }
     expect(PREANSWERABLE_GATES).toEqual({ "context-checkpoint": ["Continue queue"] });

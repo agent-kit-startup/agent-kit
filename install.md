@@ -103,6 +103,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/skills/core/hitl-gates/start-project-intake.md` | idem |
 | `.cursor/skills/core/hitl-gates/run-plan-all-queue.md` | idem |
 | `.cursor/skills/core/hitl-gates/pending-ticket.md` | idem |
+| `.cursor/skills/core/hitl-gates/promote-merge-wait.md` | idem |
 | `.cursor/skills/core/qa/SKILL.md` | idem |
 | `.cursor/skills/core/dashboard-broadcast/SKILL.md` | idem |
 | `.cursor/skills/core/plan-review-triage/procedure.md` | idem |
