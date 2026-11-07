@@ -38,6 +38,20 @@ describe("ci.yml private-origin allowlist pin", () => {
   });
 
   it.skipIf(!ciPresent)(
+    "scopes the App key to the public-sync Environment on the two jobs that read it",
+    () => {
+      // Environment secrets reach only jobs that name the Environment: without this line the
+      // mint step gets an empty key. publish-npm stays out because its npm Trusted Publisher
+      // binds no environment; sync-landing stays out because it reads no public repo credential.
+      const line = "\n    environment: public-sync\n";
+      expect(jobBlock("sync-public")).toContain(line);
+      expect(jobBlock("publish-engine")).toContain(line);
+      expect(jobBlock("publish-npm")).not.toContain("environment:");
+      expect(jobBlock("sync-landing")).not.toContain("environment:");
+    },
+  );
+
+  it.skipIf(!ciPresent)(
     "has no npm token publish path (the cutover fallback was removed after v6.11.0)",
     () => {
       // Plan kit-public-release-pipeline p4: v6.11.0 published from the public repo with

@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.14.0] - 2026-11-07
+
+### Added
+
+- Promote: `agent-kit promote wait --pr <N>` waits for the operator merge of a staging→main promote PR, read-only, with backoff from 30 s to 5 min, and stops at a cap (`promoteMergeWaitMs` in `.cursor/context/config.json`, default 60 min). At the cap the agent Asks `promote-merge-wait` (`Keep waiting` / `Show the merge box reason` / `Stop and hand off`) instead of polling forever. `/git-prod` (PR path) and the `/run-plan-all` ship lane use it. It never merges.
+- Promote: `agent-kit promote rules --base <branch>` reads the branch rules of the promote base and prints each rule parameter the kit has no model for, by name (for example `pull_request.require_extra_approval_for_unattributed_changes`). GitHub can refuse a merge for such a rule while it reports `CLEAN` and every check is green. Advisory: no `gh`, no auth or an API error prints one note line and never blocks.
+
 ## [6.13.1] - 2026-11-02
 
 ### Fixed

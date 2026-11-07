@@ -68,10 +68,10 @@ jobs:
           fi
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6.1.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -128,6 +128,8 @@ jobs:
           # Guards that shipped with tests but no runner until the 10-cycle audit.
           pnpm check:guidance-claims
           pnpm check:memory-index
+          # Game content canon: private path, so this stays in the private-origin step.
+          pnpm check:game-content
           pnpm landing:build
           pnpm landing:build:check
           pnpm landing:build -- --site colony
@@ -164,6 +166,12 @@ jobs:
   # Credential: the public-sync GitHub App (vars.PUBLIC_SYNC_APP_CLIENT_ID +
   # secrets.PUBLIC_SYNC_APP_PRIVATE_KEY, installed on the public repo and listed as
   # a bypass actor on its ruleset) when configured, else the PUBLIC_REPO_TOKEN PAT.
+  # The App key lives in the public-sync Environment, which limits it to v* tags and
+  # main once its deployment rule is set. The Environment does not hide repo-level
+  # secrets, so the PAT fallback keeps working. A run that reaches this job creates
+  # the Environment, empty and without a rule, when it does not exist. Once the rule
+  # exists, a sync_public dispatch from any other ref does not reach a runner, on the
+  # App or the PAT.
   # Either needs Contents, Pull requests, Workflows, and Administration on the
   # public repo. Administration is what lets the job use the Protect main bypass
   # (one required review, squash only, auto-merge disabled). Opt out:
@@ -183,6 +191,7 @@ jobs:
       && (startsWith(github.ref, 'refs/tags/v')
           || (github.event_name == 'workflow_dispatch'
               && github.event.inputs.sync_public == 'true'))
+    environment: public-sync
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
@@ -194,10 +203,10 @@ jobs:
       # has "packageManager". This job only runs node (no pnpm install), so disable
       # the cache and install pnpm first so the resolver does not fail the job.
       - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6.1.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 22
           package-manager-cache: false
@@ -267,10 +276,10 @@ jobs:
           persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6.1.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 22
           package-manager-cache: false
@@ -346,7 +355,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 22
           package-manager-cache: false
@@ -381,7 +390,8 @@ jobs:
   # Private-origin allowlist only (same SoT as sync-public).
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
-  # Public repo credential (same App or PUBLIC_REPO_TOKEN as sync-public): fail loud when neither is set.
+  # Public repo credential (same App or PUBLIC_REPO_TOKEN as sync-public, same public-sync
+  # Environment for the App key): fail loud when neither is set.
   # Secret ENGINE_SIGNING_KEY (passwordless minisign key): SHA256SUMS.minisig; skipped while
   # the key does not exist.
   publish-engine:
@@ -389,16 +399,17 @@ jobs:
     if: >-
       github.repository == 'agent-kit-startup/agent-kit-dev'
       && startsWith(github.ref, 'refs/tags/v')
+    environment: public-sync
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6.1.1
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
           node-version: 22
           cache: pnpm

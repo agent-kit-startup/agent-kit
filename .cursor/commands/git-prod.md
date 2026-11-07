@@ -40,7 +40,7 @@ Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This 
    - `Cancel`
 
    **On `I pushed main`:** The operator already pushed. Verify `origin/main` advanced, then continue with the annotated tag, staging sync, and the report. Do not run the push.
-   **On `Open staging→main PR instead`:** While on local `main`, `git reset --hard origin/main`, then `gh pr create --base main --head staging`. Prefer a merge commit. Wait for the operator to merge the PR.
+   **On `Open staging→main PR instead`:** While on local `main`, `git reset --hard origin/main`, run the advisory `agent-kit promote rules --base main`, then `gh pr create --base main --head staging`. Prefer a merge commit. Wait for the operator merge with `agent-kit promote wait --pr <N>` only (bounded by `promoteMergeWaitMs`; exit 3 = Ask `promote-merge-wait`): [promote-merge-wait.md](../skills/core/hitl-gates/promote-merge-wait.md). Never merge the PR yourself.
    **On `Cancel`:** Stop. Do not tag, push, or open a PR.
 
    **Other lanes:** Push with the authorized inline form `ALLOW_MAIN_PUSH=1 git push origin main`, then continue with the annotated tag. Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Keep it on one line (the guard denies an env prefix split off with a `\` continuation). Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination.

@@ -176,7 +176,7 @@ The same scripts build two more Claude Design pages for the Colony launch
 | Site | Page (mirror file) | Served at | Staging |
 |---|---|---|---|
 | `colony` | `Mission Kit Colony Landing.dc.html` | `https://colony.missionkit.io/` | `https://colony-staging.missionkit.io/` |
-| `oligarchy` | `Oligarchy Landing.dc.html` | `https://oligarchy.missionkit.io/` (`/game`, `/game/` 302 to it while the game is offline) | `https://oligarchy-staging.missionkit.io/` |
+| `oligarchy` | `Oligarchy Landing.dc.html`, `Oligarchy Game.dc.html` | `https://oligarchy.missionkit.io/`, the trial at `/game/` | `https://oligarchy-staging.missionkit.io/` |
 
 Mirrors: `.cursor/context/landing-colony/remote/` and `.cursor/context/landing-oligarchy/remote/`
 (dist/ and releases/ next to them are gitignored). `Oligarchy Design System.dc.html` is
@@ -186,7 +186,7 @@ mirrored as reference only, never built or deployed.
 pnpm landing:sync -- --site colony "~/Downloads/Mission Kit Colony Landing.zip"
 pnpm landing:media -- --site colony            # after every sync: optimized/ store (ffmpeg, magick)
 pnpm landing:build -- --site oligarchy          # landing:build:check -- --site oligarchy
-pnpm landing:serve -- --site oligarchy          # http://127.0.0.1:4173/ (and the /game redirect)
+pnpm landing:serve -- --site oligarchy          # http://127.0.0.1:4173/ and /game/
 node scripts/verify-landing.mjs --site oligarchy # serves dist itself, checks every page
 pnpm landing:deploy:staging -- --site colony    # colony-staging/ only
 pnpm landing:verify:staging:colony
@@ -209,12 +209,20 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
 - **Nested pages.** A page whose `out` sits below the root (`game/index.html`) gets its
   asset, vendor and logic references rewritten to root-absolute (`/assets/…`) in the HTML
   and in its own `dc-logic.js`; links to another built page by its design-file name point
-  at that page's route. No `<base href>`: it would break the in-page `#anchor` links. Since
-  2026-11-02 no site uses this: the Oligarchy landing is the apex and `/game/` is reserved
-  for the game, offline (302 to `/`) until it runs on real events.
+  at that page's route. No `<base href>`: it would break the in-page `#anchor` links. The
+  Oligarchy trial at `/game/` is the one page built this way. The Landing's `#demo` iframe
+  points at `/game/`, so a Landing load makes one extra HTML request to it before hydration.
+- **Colony link.** The build fails if a page holds any `colony:` URL other than exactly
+  `colony://play`. A page with that link also fails if it listens for `blur`,
+  `visibilitychange` or `pagehide`, or says Colony was found, detected, connected or missing,
+  because a page cannot tell whether the scheme is registered (ADR
+  `2026-11-06_oligarchy-game-handoff-colony-scheme`). `verify-landing` needs no exception: it
+  only looks at requests, and a link is a navigation the visitor starts. The Game page's link
+  is designed behind a `colonyLink` prop that exports at `off`. A transform turns it on only
+  once a Colony release answers the link (`g4-site-wire`).
 - **Redirects** come from the site table: `Redirect 302` for a prefix (colony
-  `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, oligarchy
-  `/game`). Serve answers them locally and verify checks each one against the resolved
+  `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, no site uses
+  it today). Serve answers them locally and verify checks each one against the resolved
   `Location`.
 - **Verify** (`--site`) checks every page: `#dc-root`, no `{{ }}`, no runtime banner, no
   `sc-if`/`sc-for`, exactly one canonical equal to the page's, no request beyond the page's
@@ -255,6 +263,9 @@ both committed and both colony/oligarchy only (missionkit has neither):
   all three pages load `assets/card-mech-factory.webp` instead of the 1.5 MB PNG (the
   Landing's three runtime card lists drop their `'.png'` special case); the Landing's hero `<video>` gets `poster="assets/oligarchy-hero-poster.jpg"`. Once an
   export carries a fix, its `find` is gone: drop the transform in the PR that syncs that export.
+  One transform is kit-side on purpose, with no design-side fix to wait for: the Landing's three
+  Play buttons change from `https://oligarchy.missionkit.io/game/` to `/game/`, so a visitor stays
+  on the host they are on and a staging review plays the staging build.
 - **Optimized store** (`.cursor/context/landing-<id>/optimized/assets/…` plus
   `optimized/manifest.json`), written by `pnpm landing:media -- --site <id>`
   (`scripts/media-landing.mjs`, the only landing step that runs ffmpeg / ImageMagick). Only

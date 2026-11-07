@@ -66,6 +66,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/skills/core/hitl-gates/pending-ticket.md",
   },
   {
+    source: ".cursor/skills/core/hitl-gates/promote-merge-wait.md",
+    target: ".cursor/skills/core/hitl-gates/promote-merge-wait.md",
+  },
+  {
     source: ".cursor/skills/core/qa/SKILL.md",
     target: ".cursor/skills/core/qa/SKILL.md",
   },

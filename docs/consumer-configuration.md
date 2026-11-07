@@ -20,6 +20,7 @@ Writable via tab = the Mission Control Config tab (More menu) can save the key t
 |------|---------------|---------|--------------|------------------|--------------|
 | `autoHandoff` (boolean) | `config.example.json` | `context-guardian` rule (chat agents) | Yes | Yes (Session) | `{ "autoHandoff": true }` |
 | `interTickCooldownMs` (integer 0..3600000) | `config.example.json` | `/run-plan`, `/run-plan-all` tick pacing | Yes | Yes (Session) | `{ "interTickCooldownMs": 15000 }` |
+| `promoteMergeWaitMs` (integer 60000..86400000, default 3600000) | `config.example.json` | `packages/cli/src/plan-loop/promote-merge-wait.ts` (`agent-kit promote wait`), `/git-prod` PR path, `/run-plan-all` ship lane | Yes | No (edit config.json) | `{ "promoteMergeWaitMs": 3600000 }` — cap on the wait for the operator merge of a staging→main promote PR; at the cap the agent Asks `promote-merge-wait` |
 | `fieldReportReviewCadence.enabled` (boolean) | `config.example.json` | `dashboard/lib/semantic-model.mjs` (Flight Log cadence) | Yes | Yes (Session) | `{ "fieldReportReviewCadence": { "enabled": true } }` |
 | `fieldReportReviewCadence.tickThreshold` (integer 1..100) | `config.example.json` | `dashboard/lib/semantic-model.mjs` | Yes | Yes (Session) | `{ "fieldReportReviewCadence": { "tickThreshold": 3 } }` |
 | `updateCheck.enabled` (boolean) | `config.example.json` | `packages/cli/src/lifecycle/check-updates.ts` | Yes | Yes (Update check) | `{ "updateCheck": { "enabled": true } }` |

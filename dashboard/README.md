@@ -4,14 +4,14 @@ The dashboard the CLI serves. Plain ES modules, no build step: `serve.mjs` reads
 directly, and `packages/cli/dashboard/` is a generated copy (gitignored, produced by
 `scripts/sync-cli-dashboard.mjs` at build/prepack time so the npm tarball can ship it).
 
-| Path | Role |
-| --- | --- |
-| `serve.mjs` | HTTP server, auth gate, SSE |
-| `start.mjs` / `start-broadcast.mjs` | loopback and LAN entry points, per-workspace port allocation |
-| `dashboard-data.mjs` | snapshot builder for the panel |
-| `dashboard.html`, `open.html` | panel and share shell |
-| `lib/*.mjs` | guards, semantic model, live refresh, browser open, terminal snapshot, headless run feed (`run-logs.mjs`) |
-| `lib/guards.d.mts` | hand-written types consumed by the CLI package (parity is pinned by a test) |
+| Path                                | Role                                                                                                      |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `serve.mjs`                         | HTTP server, auth gate, SSE                                                                               |
+| `start.mjs` / `start-broadcast.mjs` | loopback and LAN entry points, per-workspace port allocation                                              |
+| `dashboard-data.mjs`                | snapshot builder for the panel                                                                            |
+| `dashboard.html`, `open.html`       | panel and share shell                                                                                     |
+| `lib/*.mjs`                         | guards, semantic model, live refresh, browser open, terminal snapshot, headless run feed (`run-logs.mjs`) |
+| `lib/guards.d.mts`                  | hand-written types consumed by the CLI package (parity is pinned by a test)                               |
 
 ## Where the tests live
 

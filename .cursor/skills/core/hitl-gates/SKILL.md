@@ -69,6 +69,7 @@ Never steal `/git-prod`. Exhaustion Ask/arm is after Final HANDOFF and the prod 
 | Context checkpoint (plan boundary, ~50% window) | `context-checkpoint` | `Continue queue` / `Stop and prepare handoff` / `Change queue` |
 | Novel error / expired wait | `novel-failure` | `Retry recovery once` / `Hold and document` / `Stop the queue` |
 | Queue end, deferred rows (after Final HANDOFF) | `queue-end-gates` | `Resolve gates now` / `Print resolution prompt` / `Later` |
+| Promote PR merge wait cap | `promote-merge-wait` | `Keep waiting` / `Show the merge box reason` / `Stop and hand off` |
 | Malformed Task summary | `malformed-summary` | Ask before advancing the cursor |
 
 Asks only at these rows (ADR `2026-09-25_run-plan-all-three-hitl-points.md`, Amend 2026-10-26). Drift only for Backlog new since `- **Confirmed backlog:**`. No mid-queue triage Ask. Queue end: `queue-end-gates`, `/plan-review-triage`, `/git-prod` suggestion, separately.
@@ -114,7 +115,7 @@ HITL_GATE: <ask-id> | <label-a> | <label-b> | <label-c>
 One numbered list per message. Accept number or label. A typed answer that is not a number or label is Other.
 
 Sentinel rules: one line, column 0, `HITL_GATE: <ask-id> | <label 1> | ... | <label n>`.
-`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `malformed-summary`, `next-unit`, `backlog-write`, `cancel-plan`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
+`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `promote-merge-wait`, `malformed-summary`, `next-unit`, `backlog-write`, `cancel-plan`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
 Surfaces without a listed id keep the numbered list without a sentinel (the headless runner detects them by the wording above as a prose fallback). `git-prod` and `kit-prod` are never relayed headless: the run stops and points at the operator slash.
 The operator's answer comes back as one line, `HITL_REPLY: <ask-id> | operator reply <n> | <label>` (or `operator reply other | <typed text>`); cite it as the Ask provenance in HANDOFF. Never assume a reply: no answer means stop.
 
@@ -140,5 +141,5 @@ Broad Intake (index + HANDOFF only; no `.cursor/plans/*.plan.md` glob) → Gate 
 
 ## /run-plan-all compressed
 
-Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or queue confirm (write `- **Confirmed backlog:**`) → one Task per plan. Context checkpoint at plan boundaries when window self-estimate is ~50%+ (`Continue queue` / `Stop and prepare handoff` / `Change queue`). Novel error / expired wait: `Retry recovery once` / `Hold and document` / `Stop the queue`.
+Pure orchestrator. PO synthesis (Task explore) → start-vs-resume or queue confirm (write `- **Confirmed backlog:**`) → one Task per plan. Checkpoint (~50%+ window), novel error / expired wait, promote merge wait cap: labels above.
 When Ship auth is `per-plan-release`, one release per completed plan before the next. `Run plans only` does not promote. Mid-batch audits wait, no triage Ask. Queue-end wait then `/plan-review-triage`. Details: [run-plan-all-queue.md](run-plan-all-queue.md).
