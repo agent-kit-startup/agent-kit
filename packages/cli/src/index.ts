@@ -42,6 +42,7 @@ const main = defineCommand({
     countdown: () => import("./commands/countdown.js").then((m) => m.countdownCommand),
     "ground-control": () =>
       import("./commands/ground-control.js").then((m) => m.groundControlCommand),
+    conflicts: () => import("./commands/conflicts.js").then((m) => m.conflictsCommand),
     dashboard: () => import("./commands/dashboard.js").then((m) => m.dashboardCommand),
     "dashboard-broadcast": () =>
       import("./commands/dashboard-broadcast.js").then((m) => m.dashboardBroadcastCommand),

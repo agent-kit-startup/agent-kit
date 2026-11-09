@@ -1,0 +1,107 @@
+[
+  {
+    "id": "bio-1",
+    "name": "Bio one",
+    "tier": 1,
+    "family": "biological",
+    "vector": "Placeholder biological vector",
+    "countermeasure": "Bio one filter",
+    "capture": {
+      "name": "Captured bio one",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "social-1",
+    "name": "Social one",
+    "tier": 1,
+    "family": "social",
+    "vector": "Placeholder social vector",
+    "countermeasure": "Social one filter",
+    "capture": {
+      "name": "Captured social one",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "net-1",
+    "name": "Net one",
+    "tier": 1,
+    "family": "electronic",
+    "vector": "Placeholder electronic vector",
+    "countermeasure": "Net one filter",
+    "capture": {
+      "name": "Captured net one",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "bio-2",
+    "name": "Bio two",
+    "tier": 2,
+    "family": "biological",
+    "vector": "Placeholder biological vector",
+    "countermeasure": "Bio two filter",
+    "capture": {
+      "name": "Captured bio two",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "market-2",
+    "name": "Market two",
+    "tier": 2,
+    "family": "economic",
+    "vector": "Placeholder economic vector",
+    "countermeasure": "Market two filter",
+    "capture": {
+      "name": "Captured market two",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "net-3",
+    "name": "Net three",
+    "tier": 3,
+    "family": "electronic",
+    "vector": "Placeholder electronic vector",
+    "countermeasure": "Net three filter",
+    "capture": {
+      "name": "Captured net three",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "power-3",
+    "name": "Power three",
+    "tier": 3,
+    "family": "political",
+    "vector": "Placeholder political vector",
+    "countermeasure": "Power three filter",
+    "capture": {
+      "name": "Captured power three",
+      "effect": "Placeholder effect."
+    },
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  }
+]

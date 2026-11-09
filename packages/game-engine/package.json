@@ -1,0 +1,29 @@
+{
+  "name": "@dadado/oligarchy-engine",
+  "version": "0.1.0",
+  "description": "Oligarchy game rules engine: pure functions over an outcome ledger, with the catalog passed in.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-kit-startup/agent-kit.git",
+    "directory": "packages/game-engine"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./placeholder": "./placeholder/index.mjs"
+  },
+  "files": [
+    "src",
+    "placeholder",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "lint": "biome check src test placeholder",
+    "test": "node --test test/*.test.mjs"
+  }
+}

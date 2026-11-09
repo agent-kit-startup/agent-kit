@@ -63,9 +63,11 @@ import {
 } from "./lib/semantic-model.mjs";
 import {
   buildShipLaneRows,
+  capCommitPaths,
   classifyGhFailure,
   FACTORY_PUBLIC_REPO,
   isFactorySlug,
+  MAX_COMPARE_COMMITS,
   parseForgeRemote,
   readCachedShipLaneRemote,
   SHIP_LANE_CACHE_ENV,
@@ -73,6 +75,7 @@ import {
   SHIP_LANE_NPM_TIMEOUT_MS,
   safeNpmName,
   safeTagName,
+  shipLaneCompare,
   shipLaneGhArgs,
   shipLaneReasonNote,
   trimShipLaneGraphql,
@@ -165,7 +168,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.10.0",
+    version: "1.11.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -191,7 +194,7 @@ const SNAPSHOT = {
       chats:
         "Saved agent chats of this workspace: {withheld, vendors[]} with one envelope per vendor {vendor: claude|codex|cursor, status: ok|unsupported|none, projectDir, sessions[] ({id, title, titleSource: custom|ai|first-prompt|none, modified unix ms, sizeBytes}, newest first, capped at 200), total}; same contract as agent-kit sessions --json. withheld is true (vendors empty) in broadcast mode: chat titles never leave the machine (1.7.0)",
       shipLane:
-        "Release ship lane for the Git e CI/CD section (read-only, copy-only next commands): {lane: factory|consumer|null, repo, publicRepo, local {latestTag, version, mainRef, stagingAheadOfMain, mainInStaging, tagOnMain}, remote ({available, reason?, fetchedAt?, repo, tag, prs[] (number, capped title, base, head, draft, mergeable, mergeState, stackedOn, checks {state, total, failing[], pending, signatureScan}), prsTotal, originRelease, tagCi {workflow, runId, jobs[]}, public {release, syncPrs[]}, npm {name, version}}; one gh api graphql call + one npm registry read, run alongside gh run list and reused from serve.mjs for up to 120s; reason budget|gh-missing|gh-auth|timeout|call-failed|no-remote|provider-unsupported), rows[] ({id, label, state: green|red|pending|unknown, detail, next {text, destination}|null}) mirroring the /kit-prod Done rows} (1.8.0)",
+        "Release ship lane for the Git e CI/CD section (read-only, copy-only next commands): {lane: factory|consumer|null, repo, publicRepo, local {latestTag, version, mainRef, stagingAheadOfMain, mainInStaging, tagOnMain}, remote ({available, reason?, fetchedAt?, repo, tag, prs[] (number, capped title, base, head, draft, mergeable, mergeState, stackedOn, checks {state, total, failing[], pending, signatureScan}), prsTotal, originRelease, tagCi {workflow, runId, jobs[]}, tagCommit {oid, committedDate}, compare {ahead, behind, total, commits[] (oid, capped headline, parents)} from Ref.compare of main and staging, promoted {number, title, mergedAt, mergeOid} the latest merged staging -> main PR, public {release, syncPrs[]}, npm {name, version}}; one gh api graphql call + one npm registry read, run alongside gh run list and reused from serve.mjs for up to 120s; reason budget|gh-missing|gh-auth|timeout|call-failed|no-remote|provider-unsupported), compare ({source: forge|local|null, fetchedAt, ahead, behind, pending, release, merge, sync, docs, examined, total, truncated}: staging vs main from the forge, else from the unfetched local origin/* refs marked local; a release is pending only when staging holds a commit that is not a merge, not the staging sync merge-back and not docs- or memory-only (1.11.0)), rows[] ({id, label, state: green|red|pending|unknown, detail, next {text, destination}|null}) mirroring the /kit-prod Done rows; the staging -> main row shows a merged promote PR while its tag or sync is still open} (1.8.0; compare 1.11.0)",
       outcomeLedger:
         "Verified-outcome ledger (read-only, product-neutral; ADR 2026-10-23 colony-game-canon-outcome-ledger-art-policy): {available, reason (budget|unreadable)|null, version, path (.cursor/context/outcome-ledger.json), entries, totals {logic, compute, rare}, byKind {todo, test, ci, releaseCut, plan, review, releasePublished}, recent[] ({key, kind, resource, at, label}, newest 20), flow {plan, streak, lastClosedAt, brokenAt}|null (from mission-timing.json; a failed, gated or stopped tick breaks it), tests {configured, lastRun {at, ok, head}|null}}. Folded on every snapshot, idempotent by event key, entries never removed; never rewards lines of code, commits, diff size, tokens or time (1.9.0)",
       processes:
@@ -202,7 +205,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.10.0",
+  dashboardDataVersion: "1.11.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -886,6 +889,112 @@ function collectShipLaneLocal() {
   };
 }
 
+const SHIP_GIT_OPTS = {
+  cwd: ROOT,
+  encoding: "utf-8",
+  timeout: 5000,
+  maxBuffer: 4 * 1024 * 1024,
+  stdio: ["ignore", "pipe", "ignore"],
+};
+
+/**
+ * `git log --name-only` records (`\x00<oid>\t<parents>\t<subject>` then paths)
+ * as `{oid, headline, parents, paths}`.
+ */
+function parseShipLog(text) {
+  const out = [];
+  for (const chunk of String(text || "")
+    .split("\x00")
+    .slice(1)) {
+    const [head, ...rest] = chunk.split("\n");
+    const [oid, parents, ...subject] = head.split("\t");
+    if (!/^[0-9a-f]{40,64}$/.test(oid || "")) continue;
+    out.push({
+      oid,
+      headline: subject.join("\t"),
+      parents: parents ? parents.trim().split(/\s+/).filter(Boolean).length : 0,
+      paths: capCommitPaths(rest.map((l) => l.trim()).filter(Boolean)),
+    });
+  }
+  return out;
+}
+
+/**
+ * Staging vs main from the local origin/* refs (the forge-down fallback; the
+ * collector never fetches, so these refs can be stale). null without both refs.
+ */
+function collectLocalShipCompare(mainRef) {
+  if (!mainRef) return null;
+  const count = (range) => {
+    try {
+      const n = Number.parseInt(
+        execFileSync("git", ["rev-list", "--count", range], SHIP_GIT_OPTS).trim(),
+        10,
+      );
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  };
+  const ahead = count(`${mainRef}..origin/staging`);
+  const behind = count(`origin/staging..${mainRef}`);
+  if (ahead == null || behind == null) return null;
+  let commits = [];
+  try {
+    commits = parseShipLog(
+      execFileSync(
+        "git",
+        [
+          "log",
+          "--reverse",
+          "--format=%x00%H%x09%P%x09%s",
+          "--name-only",
+          "-n",
+          String(MAX_COMPARE_COMMITS),
+          `${mainRef}..origin/staging`,
+        ],
+        SHIP_GIT_OPTS,
+      ),
+    );
+  } catch {
+    commits = [];
+  }
+  return { ahead, behind, total: ahead, commits };
+}
+
+/**
+ * Paths of the forge's compare commits that are already in the local object
+ * store (one cat-file and one log call); the others classify by commit type.
+ * @param {string[]} oids
+ * @returns {Map<string, string[]>}
+ */
+function localCommitPaths(oids) {
+  const paths = new Map();
+  const wanted = oids.filter((o) => /^[0-9a-f]{40,64}$/.test(o));
+  if (!wanted.length) return paths;
+  try {
+    const present = execFileSync("git", ["cat-file", "--batch-check=%(objectname) %(objecttype)"], {
+      ...SHIP_GIT_OPTS,
+      input: `${wanted.join("\n")}\n`,
+      stdio: ["pipe", "pipe", "ignore"],
+    })
+      .split("\n")
+      .map((l) => l.split(" "))
+      .filter(([oid, type]) => type === "commit" && wanted.includes(oid))
+      .map(([oid]) => oid);
+    if (!present.length) return paths;
+    const log = execFileSync(
+      "git",
+      ["log", "--no-walk=unsorted", "--format=%x00%H%x09%P%x09%s", "--name-only", ...present],
+      SHIP_GIT_OPTS,
+    );
+    for (const c of parseShipLog(log)) paths.set(c.oid, c.paths);
+  } catch {
+    // Paths are an accuracy aid only: without them the commit type decides.
+  }
+  return paths;
+}
+
 /** execFile as a promise that never rejects: { err, stdout, stderr }. */
 function execFileSettled(bin, args, timeout) {
   return new Promise((resolveExec) => {
@@ -921,7 +1030,13 @@ function startShipLaneRemote(ship) {
   const fetchedAt = new Date().toISOString();
   const gh = execFileSettled(
     "gh",
-    shipLaneGhArgs({ owner: forge.owner, name: forge.name, tag: local.latestTag, publicRepo }),
+    shipLaneGhArgs({
+      owner: forge.owner,
+      name: forge.name,
+      tag: local.latestTag,
+      publicRepo,
+      main: local.mainRef ? local.mainRef.replace(/^origin\//, "") : "main",
+    }),
     SHIP_LANE_GH_TIMEOUT_MS,
   );
   const npm = npmName
@@ -1682,6 +1797,19 @@ SNAPSHOT.devops = {
     mainInStaging: null,
     tagOnMain: null,
   };
+  let compare = shipLaneCompare({ remote, local: null });
+  try {
+    const forgeCompare = remote.available === true ? remote.compare : null;
+    compare = forgeCompare
+      ? shipLaneCompare({
+          remote,
+          local: null,
+          paths: localCommitPaths(forgeCompare.commits.map((c) => c.oid)),
+        })
+      : shipLaneCompare({ remote, local: collectLocalShipCompare(local.mainRef) });
+  } catch {
+    // keep the empty comparison (source null): the rows read unknown
+  }
   let rows = [];
   try {
     rows = buildShipLaneRows({
@@ -1690,6 +1818,7 @@ SNAPSHOT.devops = {
       publicRepo: shipLaneLocal?.publicRepo ?? null,
       local,
       remote,
+      compare,
     });
   } catch {
     rows = [];
@@ -1700,6 +1829,7 @@ SNAPSHOT.devops = {
     publicRepo: shipLaneLocal?.publicRepo ?? null,
     local,
     remote,
+    compare,
     note: remote.available ? null : shipLaneReasonNote(remote.reason),
     rows,
   };

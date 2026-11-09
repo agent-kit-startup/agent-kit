@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.15.0] - 2026-11-08
+
+### Added
+
+- Conflicts: `agent-kit conflicts` lists the unmerged paths of a merge, rebase, cherry-pick or revert, each parsed into hunks with ours, base and theirs (the base comes from diff3 markers, or from the index stages when the file has two-way markers); `--json` for tools. `agent-kit conflicts propose <path>` asks a no-tools agent session (`--backend claude` or `cursor-agent`, new L0 prompt `resolve-conflicts`) for one proposal per hunk. The session gets the three-way context and both sides' commit messages as untrusted data and runs in an empty directory outside the repository. A proposal that leaves a conflict marker, names a missing or repeated hunk, or rewrites the lines around its hunk is refused. The resolved file is verified in a temporary worktree with `stack.validationCommands` and `stack.testCommands` from HEAD's `.cursor/agent-kit.config.json`, or `--verify-cmd`. `--no-verify` skips the check. Read-only: the command never writes the file, stages, commits or pushes. Colony's conflict window uses it.
+- Oligarchy: `oligarchy.missionkit.io/game/` serves a trial you can play in the browser: a random colony and sector, a starter pack of Logic, Compute and Rare Finds, and your save kept in this browser. When the pack runs out, the game shows how to install Colony to keep playing on real resources from your shipped work. The landing's Play buttons open it; `/game` answers 301 to `/game/`.
+
+### Fixed
+
+- Mission Control: the ship lane reads staging against main from the forge (GraphQL `Ref.compare`, in the same cached call) instead of local `origin/*` refs the collector never fetches; when the forge is unavailable it falls back to the local refs and says so. A release counts as pending only when staging holds a release-worthy commit: merge commits, the staging sync merge-back and docs- or memory-only changes no longer read as a release to close. A just-merged staging to main PR shows as merged, waiting on the tag or the staging sync, instead of "staging N ahead, no open PR". The snapshot gains `shipLane.compare` (contract 1.11.0).
+
 ## [6.14.0] - 2026-11-07
 
 ### Added

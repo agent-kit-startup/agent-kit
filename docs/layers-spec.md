@@ -129,6 +129,7 @@ The minimum structural set every install ships with:
 | `plan-external-review.md` | Manual arm for optional Claude Code post-exhaustion review |
 | `plan-review-triage.md` | Triage monitor residuals (Ask: residuals plan / nits / ack) |
 | `review-pack.md` | Review-only prompt for the CLI review job (`agent-kit countdown --job review`); the CLI appends the diff pack and lands the findings as a gate exit |
+| `resolve-conflicts.md` | Proposal-only prompt for `agent-kit conflicts propose <path>`; the CLI appends the three-way conflict pack, runs it with no tools, checks and verifies the JSON proposals, and writes nothing |
 | `qa.md` | `/qa` release or bug claim matrix (install journey, tests, hygiene). Playbook: `.cursor/skills/core/qa/`. No new L0 agent. Never `/git-prod` |
 
 Optional external plan review ships with L0 (commands above, templates below, launcher, `config.example.json`) but stays **config-disabled** by default (`externalPlanReview.enabled: false`). Never forces a Claude install. See [external-plan-review.md](external-plan-review.md).
