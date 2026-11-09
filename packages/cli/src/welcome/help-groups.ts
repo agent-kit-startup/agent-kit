@@ -36,6 +36,7 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
       "promote",
       "countdown",
       "ground-control",
+      "conflicts",
     ],
   },
   {

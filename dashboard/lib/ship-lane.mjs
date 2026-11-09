@@ -4,7 +4,8 @@
  *
  * Read-only. One `gh api graphql` call fetches the forge half (open PRs with
  * mergeable state and check rollups, the latest tag's CI jobs, GitHub Release
- * Latest, and, in the factory lane, the public repo's release and sync PRs);
+ * Latest, staging vs main from Ref.compare, the latest merged promote PR, and,
+ * in the factory lane, the public repo's release and sync PRs);
  * one registry fetch reads the npm version. Local git facts (latest v* tag,
  * manifest version, staging vs main) are recomputed on every snapshot, so the
  * rows stay current while the network half is cached between snapshots the
@@ -39,6 +40,10 @@ const MAX_FAILING_CHECKS = 8;
 const MAX_TAG_JOBS = 12;
 const MAX_SYNC_PRS = 5;
 const MAX_REASON_CHARS = 80;
+/** Commits of the staging vs main comparison that are classified (GraphQL page size). */
+export const MAX_COMPARE_COMMITS = 100;
+const MAX_HEADLINE_CHARS = 120;
+const MAX_COMMIT_PATHS = 200;
 
 /** Signature scan check name (errors/2026-10-05_git-prod-signature-gate-merged-staging-commit.md). */
 const SIGNATURE_SCAN_CHECK = "signature-scan";
@@ -100,8 +105,12 @@ export function isFactorySlug(slug) {
   return typeof slug === "string" && /agent-kit-dev$/i.test(slug);
 }
 
-export const SHIP_LANE_QUERY = `query($owner:String!,$name:String!,$tag:String!,$withPublic:Boolean!,$pubOwner:String!,$pubName:String!){
+export const SHIP_LANE_QUERY = `query($owner:String!,$name:String!,$tag:String!,$main:String!,$mainRef:String!,$withPublic:Boolean!,$pubOwner:String!,$pubName:String!){
   repo: repository(owner:$owner,name:$name){
+    base: ref(qualifiedName:$mainRef){ compare(headRef:"refs/heads/staging"){ aheadBy behindBy
+      commits(first:${MAX_COMPARE_COMMITS}){ totalCount nodes{ oid messageHeadline parents{ totalCount } } } } }
+    promoted: pullRequests(states:MERGED,baseRefName:$main,headRefName:"staging",first:3,orderBy:{field:UPDATED_AT,direction:DESC}){
+      nodes{ number title mergedAt mergeCommit{ oid } } }
     pullRequests(states:OPEN,first:${MAX_SHIP_LANE_PRS},orderBy:{field:UPDATED_AT,direction:DESC}){
       totalCount
       nodes{ number title isDraft baseRefName headRefName mergeable mergeStateStatus
@@ -115,14 +124,17 @@ export const SHIP_LANE_QUERY = `query($owner:String!,$name:String!,$tag:String!,
     pullRequests(states:[OPEN,MERGED],last:${MAX_SYNC_PRS}){ nodes{ number title state mergedAt } }
   }
 }
-fragment suites on Commit{ checkSuites(first:12){ nodes{ workflowRun{ databaseId event workflow{ name } } checkRuns(first:20){ nodes{ name status conclusion } } } } }`;
+fragment suites on Commit{ oid committedDate checkSuites(first:12){ nodes{ workflowRun{ databaseId event workflow{ name } } checkRuns(first:20){ nodes{ name status conclusion } } } } }`;
 
 /**
- * argv for `gh` (no shell; values are validated slugs and a v* tag name).
- * @param {{ owner: string, name: string, tag: string | null, publicRepo: string | null }} p
+ * argv for `gh` (no shell; values are validated slugs, a v* tag name and the
+ * production branch name `main` or `master`).
+ * @param {{ owner: string, name: string, tag: string | null, publicRepo: string | null,
+ *   main?: string | null }} p
  */
-export function shipLaneGhArgs({ owner, name, tag, publicRepo }) {
+export function shipLaneGhArgs({ owner, name, tag, publicRepo, main }) {
   const [pubOwner, pubName] = publicRepo ? publicRepo.split("/") : ["_", "_"];
+  const mainBranch = main === "master" ? "master" : "main";
   return [
     "api",
     "graphql",
@@ -134,6 +146,10 @@ export function shipLaneGhArgs({ owner, name, tag, publicRepo }) {
     `name=${name}`,
     "-F",
     `tag=refs/tags/${tag || "__no_tag__"}`,
+    "-F",
+    `main=${mainBranch}`,
+    "-F",
+    `mainRef=refs/heads/${mainBranch}`,
     "-F",
     `withPublic=${publicRepo ? "true" : "false"}`,
     "-F",
@@ -221,6 +237,52 @@ function trimTagCi(tagRef) {
   };
 }
 
+/** The tag's commit (oid, committedDate), through an annotated tag object when there is one. */
+function trimTagCommit(tagRef) {
+  const commit = tagRef?.target?.__typename === "Tag" ? tagRef.target.target : tagRef?.target;
+  if (!commit || typeof commit.oid !== "string") return null;
+  return {
+    oid: capText(commit.oid, 64),
+    committedDate: typeof commit.committedDate === "string" ? commit.committedDate : null,
+  };
+}
+
+/** Ref.compare of main (base) and staging (head): counts plus the first page of commits. */
+function trimCompare(base) {
+  const cmp = base?.compare;
+  if (!cmp || typeof cmp !== "object") return null;
+  const ahead = Number(cmp.aheadBy);
+  const behind = Number(cmp.behindBy);
+  if (!Number.isSafeInteger(ahead) || !Number.isSafeInteger(behind)) return null;
+  const nodes = (cmp.commits?.nodes ?? []).slice(0, MAX_COMPARE_COMMITS);
+  return {
+    ahead,
+    behind,
+    total: Number(cmp.commits?.totalCount) || ahead,
+    commits: nodes.map((c) => ({
+      oid: capText(c?.oid, 64),
+      headline: capText(c?.messageHeadline, MAX_HEADLINE_CHARS),
+      parents: Number(c?.parents?.totalCount) || 0,
+    })),
+  };
+}
+
+/** The most recently merged staging -> main PR (the query reads three, ordered by update). */
+function trimPromoted(conn) {
+  let best = null;
+  for (const n of conn?.nodes ?? []) {
+    if (typeof n?.mergedAt !== "string" || !Number.isFinite(Date.parse(n.mergedAt))) continue;
+    if (!best || Date.parse(n.mergedAt) > Date.parse(best.mergedAt)) best = n;
+  }
+  if (!best) return null;
+  return {
+    number: Number(best.number) || 0,
+    title: capText(best.title, MAX_PR_TITLE_CHARS),
+    mergedAt: best.mergedAt,
+    mergeOid: typeof best.mergeCommit?.oid === "string" ? capText(best.mergeCommit.oid, 64) : null,
+  };
+}
+
 function trimRelease(release) {
   if (!release || typeof release.tagName !== "string") return null;
   return {
@@ -252,6 +314,9 @@ export function trimShipLaneGraphql(json, { repo: repoSlug, tag, publicRepo, fet
     prsTotal: Number(repo.pullRequests?.totalCount) || prs.length,
     originRelease: trimRelease(repo.latestRelease),
     tagCi: tag ? trimTagCi(repo.tag) : null,
+    tagCommit: tag ? trimTagCommit(repo.tag) : null,
+    compare: trimCompare(repo.base),
+    promoted: trimPromoted(repo.promoted),
     public:
       publicRepo && pub
         ? {
@@ -334,7 +399,129 @@ export function shipLaneCacheJsonFromSnapshot(snapshot) {
   return isCacheableRemote(remote) ? JSON.stringify(remote) : null;
 }
 
+/**
+ * Paths that make a commit a docs- or memory-only change: repo docs, the memory
+ * records, plans, the handoff, dogfood notes and root-level Markdown files.
+ */
+const DOCS_ONLY_PATH =
+  /^(?:docs\/|\.cursor\/memory\/|\.cursor\/plans\/|\.cursor\/dogfood\/|dogfood\/|\.cursor\/HANDOFF\.md$|[^/]+\.md$)/;
+/** Conventional Commits `docs` type, not marked breaking. */
+const DOCS_TYPE = /^docs(?:\([^)]*\))?:/i;
+/** The staging fast-forward sync head (Colony src/prgate.ts SYNC_HEAD), or its squashed title. */
+const SYNC_HEADLINE = /\bsync-staging-|^chore(?:\([^)]*\))?:\s*sync staging\b/i;
+
+/**
+ * Whether staging holds something to release: the one classification of the
+ * commits on staging that are not on main (pure). A commit is not
+ * release-worthy when it is a merge commit, the staging sync merge-back, or a
+ * docs- or memory-only change: decided from its paths when they are known (the
+ * commit is in the local object store), else from the Conventional Commits
+ * `docs` type. When the commit list is shorter than `total` (a truncated page)
+ * and none of the listed commits is release-worthy, the result stays pending
+ * and `truncated` is true: partial data never reads as nothing to ship.
+ * @param {{ commits: Array<{ oid?: string, headline?: string, parents?: number,
+ *   paths?: string[] | null }>, total?: number }} input
+ * @returns {{ pending: boolean, release: number, merge: number, sync: number, docs: number,
+ *   examined: number, total: number, truncated: boolean }}
+ */
+export function classifyReleasePending({ commits, total }) {
+  const list = Array.isArray(commits) ? commits : [];
+  const counts = { release: 0, merge: 0, sync: 0, docs: 0 };
+  for (const c of list) {
+    const headline = typeof c?.headline === "string" ? c.headline : "";
+    if ((Number(c?.parents) || 0) > 1) counts.merge += 1;
+    else if (SYNC_HEADLINE.test(headline)) counts.sync += 1;
+    else if (
+      Array.isArray(c?.paths) && c.paths.length
+        ? c.paths.every((p) => DOCS_ONLY_PATH.test(String(p)))
+        : DOCS_TYPE.test(headline)
+    )
+      counts.docs += 1;
+    else counts.release += 1;
+  }
+  const all = Math.max(Number(total) || 0, list.length);
+  const truncated = list.length < all;
+  return {
+    pending: counts.release > 0 || truncated,
+    ...counts,
+    examined: list.length,
+    total: all,
+    truncated,
+  };
+}
+
+/**
+ * The staging vs main comparison the rows read: the forge's Ref.compare when
+ * the forge half has one, else the local origin/* refs (which the collector
+ * never fetches), marked `source: "local"`; `source: null` when neither exists.
+ * @param {{ remote: any, local: { ahead: number, behind: number, total?: number,
+ *   commits: any[] } | null, paths?: Map<string, string[]> | null }} input
+ */
+export function shipLaneCompare({ remote, local, paths = null }) {
+  const forge = remote?.available === true ? remote.compare : null;
+  const picked = forge ?? local ?? null;
+  if (!picked) {
+    return {
+      source: null,
+      fetchedAt: null,
+      ahead: null,
+      behind: null,
+      pending: false,
+      release: 0,
+      merge: 0,
+      sync: 0,
+      docs: 0,
+      examined: 0,
+      total: 0,
+      truncated: false,
+    };
+  }
+  const commits = (picked.commits ?? []).map((c) =>
+    Array.isArray(c?.paths) || !paths ? c : { ...c, paths: paths.get(c?.oid) ?? null },
+  );
+  return {
+    source: forge ? "forge" : "local",
+    fetchedAt: forge ? (remote.fetchedAt ?? null) : null,
+    ahead: picked.ahead,
+    behind: picked.behind,
+    ...classifyReleasePending({ commits, total: picked.total ?? picked.ahead }),
+  };
+}
+
+/** Commit paths are repo text: cap the count and each path before classifying. */
+export function capCommitPaths(paths) {
+  return (Array.isArray(paths) ? paths : []).slice(0, MAX_COMMIT_PATHS).map((p) => capText(p, 300));
+}
+
 const cmd = (text, destination = "terminal") => ({ text, destination });
+
+/** " · local refs" when the comparison came from unfetched local refs. */
+const localMark = (compare) => (compare?.source === "local" ? " · local refs, not fetched" : "");
+
+/** Worthy-commit summary for a pending release. */
+function pendingDetail(compare) {
+  const n = compare.truncated
+    ? `${compare.total} commit(s), first ${compare.examined} classified`
+    : `${compare.release} commit(s)`;
+  return `release pending: ${n}`;
+}
+
+/**
+ * The latest merged promote PR when its follow-up is still open: no tag cut
+ * after its merge, or main not yet back in staging. null otherwise.
+ */
+function promoteFollowUp(promoted, tagCommit, compare, mainInStagingLocal) {
+  if (!promoted?.mergedAt) return null;
+  const tagDate = tagCommit?.committedDate ? Date.parse(tagCommit.committedDate) : Number.NaN;
+  const waitingTag =
+    promoted.mergeOid !== tagCommit?.oid &&
+    !(Number.isFinite(tagDate) && tagDate >= Date.parse(promoted.mergedAt));
+  const behind = compare?.source ? compare.behind : null;
+  const waitingSync = behind != null ? behind > 0 : mainInStagingLocal === false;
+  if (!waitingTag && !waitingSync) return null;
+  const waits = [waitingTag && "the tag", waitingSync && "the staging sync"].filter(Boolean);
+  return { promoted, waits };
+}
 
 function prCheckState(pr) {
   if (pr.checks.failing.length || pr.mergeable === "conflicting") return "red";
@@ -356,9 +543,11 @@ function prDetail(pr) {
  * @param {{ lane: "factory" | "consumer", repo: string | null, publicRepo: string | null,
  *   local: { latestTag: string | null, version: string | null, mainRef: string | null,
  *     stagingAheadOfMain: number | null, mainInStaging: boolean | null, tagOnMain: boolean | null },
- *   remote: any }} input
+ *   remote: any, compare?: ReturnType<typeof shipLaneCompare> | null }} input
+ *   `compare` (from shipLaneCompare) decides the staging vs main rows; the raw
+ *   local counts are not read for them.
  */
-export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
+export function buildShipLaneRows({ lane, repo, publicRepo, local, remote, compare = null }) {
   const slash = lane === "factory" ? "/kit-prod" : "/git-prod";
   const tag = local.latestTag;
   const tagVersion = tag ? tag.replace(/^v/, "") : null;
@@ -366,6 +555,7 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
   const forgeNote = forgeUp ? null : shipLaneReasonNote(remote?.reason ?? "call-failed");
   const prs = forgeUp ? remote.prs : [];
   const mainBase = local.mainRef ? local.mainRef.replace(/^origin\//, "") : "main";
+  const cmp = compare?.source ? compare : null;
   const rows = [];
 
   // 1. Release close (manifests bumped, close PR into staging).
@@ -394,13 +584,21 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
       detail: `v${local.version} closed`,
       next: null,
     });
-  } else if ((local.stagingAheadOfMain ?? 0) > 0) {
+  } else if (cmp?.pending) {
     rows.push({
       id: "release-close",
       label: "Release close",
       state: "pending",
-      detail: `staging is ${local.stagingAheadOfMain} commit(s) ahead of ${mainBase}; next release not closed`,
+      detail: `${pendingDetail(cmp)} on staging, not on ${mainBase}; next release not closed${localMark(cmp)}`,
       next: cmd(slash, "agent chat input"),
+    });
+  } else if (cmp && cmp.ahead > 0) {
+    rows.push({
+      id: "release-close",
+      label: "Release close",
+      state: "green",
+      detail: `v${local.version} shipped; staging +${cmp.ahead} (nothing to ship)${localMark(cmp)}`,
+      next: null,
     });
   } else {
     rows.push({
@@ -416,6 +614,10 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
   const promotePr = prs.find(
     (p) => p.head === "staging" && (p.base === "main" || p.base === "master"),
   );
+  const followUp =
+    !promotePr && forgeUp
+      ? promoteFollowUp(remote.promoted, remote.tagCommit, cmp, local.mainInStaging)
+      : null;
   if (promotePr) {
     rows.push({
       id: "staging-main",
@@ -424,7 +626,15 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
       detail: prDetail(promotePr),
       next: cmd(`gh pr checks ${promotePr.number}`),
     });
-  } else if (local.stagingAheadOfMain == null) {
+  } else if (followUp) {
+    rows.push({
+      id: "staging-main",
+      label: `Staging → ${mainBase}`,
+      state: "green",
+      detail: `#${followUp.promoted.number} merged; waiting on ${followUp.waits.join(" and ")}`,
+      next: null,
+    });
+  } else if (!cmp) {
     rows.push({
       id: "staging-main",
       label: `Staging → ${mainBase}`,
@@ -432,13 +642,21 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
       detail: "no origin/staging or origin/main ref",
       next: null,
     });
-  } else if (local.stagingAheadOfMain > 0) {
+  } else if (cmp.pending) {
     rows.push({
       id: "staging-main",
       label: `Staging → ${mainBase}`,
       state: "pending",
-      detail: `staging ${local.stagingAheadOfMain} ahead, no open PR${forgeNote ? ` (${forgeNote})` : ""}`,
+      detail: `${pendingDetail(cmp)}, no open PR${localMark(cmp)}${forgeNote ? ` (${forgeNote})` : ""}`,
       next: cmd(slash, "agent chat input"),
+    });
+  } else if (cmp.ahead > 0) {
+    rows.push({
+      id: "staging-main",
+      label: `Staging → ${mainBase}`,
+      state: "green",
+      detail: `staging +${cmp.ahead} (nothing to ship)${localMark(cmp)}`,
+      next: null,
     });
   } else {
     rows.push({
@@ -541,8 +759,10 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
     }
   }
 
-  // 5. Staging fast-forward sync (main is an ancestor of staging).
-  if (local.mainInStaging == null) {
+  // 5. Staging fast-forward sync (main is an ancestor of staging): the forge's
+  // behind count when the comparison has one, else the local ancestry check.
+  const mainInStaging = cmp ? cmp.behind === 0 : local.mainInStaging;
+  if (mainInStaging == null) {
     rows.push({
       id: "staging-sync",
       label: "Staging sync",
@@ -550,12 +770,12 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
       detail: "no origin/staging or origin/main ref",
       next: null,
     });
-  } else if (local.mainInStaging) {
+  } else if (mainInStaging) {
     rows.push({
       id: "staging-sync",
       label: "Staging sync",
       state: "green",
-      detail: `${mainBase} is an ancestor of staging`,
+      detail: `${mainBase} is an ancestor of staging${localMark(cmp)}`,
       next: null,
     });
   } else {
@@ -563,7 +783,7 @@ export function buildShipLaneRows({ lane, repo, publicRepo, local, remote }) {
       id: "staging-sync",
       label: "Staging sync",
       state: "red",
-      detail: `${mainBase} has commits staging lacks`,
+      detail: `${mainBase} has ${cmp ? `${cmp.behind} commit(s)` : "commits"} staging lacks${localMark(cmp)}`,
       next: cmd(`git log --oneline origin/staging..${local.mainRef || "origin/main"}`),
     });
   }

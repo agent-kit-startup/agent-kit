@@ -1,0 +1,142 @@
+[
+  {
+    "id": "hub",
+    "name": "Hub",
+    "glyph": "H",
+    "cost": {
+      "logic": 0,
+      "compute": 2,
+      "rare": 0
+    },
+    "build_minutes": 30,
+    "greens": 2,
+    "unique": true,
+    "blurb": "Placeholder hub.",
+    "terrain": "centre",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "sprout",
+    "name": "Sprout",
+    "glyph": "S",
+    "cost": {
+      "logic": 2,
+      "compute": 0,
+      "rare": 0
+    },
+    "build_minutes": 45,
+    "greens": 3,
+    "unique": false,
+    "blurb": "Placeholder sprout.",
+    "terrain": "plain",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "frost-post",
+    "name": "Frost post",
+    "glyph": "F",
+    "cost": {
+      "logic": 3,
+      "compute": 1,
+      "rare": 0
+    },
+    "build_minutes": 90,
+    "greens": 2,
+    "unique": false,
+    "blurb": "Placeholder frost post.",
+    "terrain": "tundra",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "relay",
+    "name": "Relay",
+    "glyph": "R",
+    "cost": {
+      "logic": 3,
+      "compute": 3,
+      "rare": 0
+    },
+    "build_minutes": 240,
+    "greens": 3,
+    "unique": false,
+    "blurb": "Placeholder relay.",
+    "terrain": "plain",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "tower",
+    "name": "Tower",
+    "glyph": "T",
+    "cost": {
+      "logic": 8,
+      "compute": 4,
+      "rare": 1
+    },
+    "build_minutes": 600,
+    "greens": 6,
+    "unique": false,
+    "blurb": "Placeholder tower.",
+    "terrain": "plain",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "bio-guard",
+    "name": "Bio guard",
+    "glyph": "G",
+    "cost": {
+      "logic": 3,
+      "compute": 1,
+      "rare": 0
+    },
+    "build_minutes": 120,
+    "greens": 1,
+    "unique": false,
+    "blurb": "Placeholder bio guard.",
+    "terrain": "plain",
+    "aliases": [],
+    "countermeasure_for": "bio-1",
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  },
+  {
+    "id": "block",
+    "name": "Block",
+    "glyph": "B",
+    "cost": {
+      "logic": 2,
+      "compute": 2,
+      "rare": 0
+    },
+    "build_minutes": 60,
+    "greens": 1,
+    "unique": false,
+    "blurb": "Placeholder block.",
+    "terrain": "plain",
+    "aliases": [],
+    "countermeasure_for": null,
+    "art": null,
+    "placeholder": "placeholder",
+    "status": "proposed"
+  }
+]

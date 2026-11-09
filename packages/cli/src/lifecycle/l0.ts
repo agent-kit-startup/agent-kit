@@ -196,6 +196,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     source: ".cursor/commands/review-pack.md",
     target: ".cursor/commands/review-pack.md",
   },
+  {
+    source: ".cursor/commands/resolve-conflicts.md",
+    target: ".cursor/commands/resolve-conflicts.md",
+  },
   // Factory-only: `.cursor/commands/public-issue-triage.md` and
   // `.cursor/commands/public-inbound-radar.md` are intentionally omitted from
   // L0 (and excluded from public-sync). See ADRs

@@ -152,6 +152,7 @@ describe("renderGroupedRootHelp", () => {
       "promote",
       "countdown",
       "ground-control",
+      "conflicts",
     ]);
     for (const g of CLI_HELP_GROUPS) {
       expect(g.commands.length).toBeGreaterThan(0);

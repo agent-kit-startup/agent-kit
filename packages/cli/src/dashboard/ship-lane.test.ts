@@ -1,5 +1,5 @@
 // Ship lane collector (dashboard/lib/ship-lane.mjs) and its wiring in
-// dashboard-data.mjs (snapshot 1.8.0). Pure parsing/row logic is tested
+// dashboard-data.mjs (snapshot 1.8.0; staging vs main comparison 1.11.0). Pure parsing/row logic is tested
 // against fixture `gh api graphql` output; the subprocess cases run the real
 // data script with a `gh` shim on PATH (fixture, failed call, budget, cache).
 import { execFileSync } from "node:child_process";
@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildShipLaneRows,
   classifyGhFailure,
+  classifyReleasePending,
   isFactorySlug,
   parseForgeRemote,
   readCachedShipLaneRemote,
@@ -19,6 +20,7 @@ import {
   safeNpmName,
   safeTagName,
   shipLaneCacheJsonFromSnapshot,
+  shipLaneCompare,
   shipLaneGhArgs,
   trimShipLaneGraphql,
 } from "../../../../dashboard/lib/ship-lane.mjs";
@@ -55,11 +57,40 @@ function pr(
   };
 }
 
-/** Shape of `gh api graphql` stdout for SHIP_LANE_QUERY (trimmed from a live 2026-10-23 read). */
-function graphqlFixture(tagJobs: unknown[] = []) {
+const commit = (oid: string, headline: string, parents = 1) => ({
+  oid: oid.padEnd(40, "0"),
+  messageHeadline: headline,
+  parents: { totalCount: parents },
+});
+
+/** The 2026-11-07 staging: the #1422 sync merge-back and a docs(memory) commit. */
+const MERGE_BACK_AND_DOCS = [
+  commit(
+    "fb4982e7",
+    "Merge pull request #1422 from agent-kit-startup/chore/sync-staging-6.14.0",
+    2,
+  ),
+  commit("9dcf435a", "docs(memory): record the 76px labelled Colony rail in the shell ADR (#1423)"),
+];
+
+/**
+ * Shape of `gh api graphql` stdout for SHIP_LANE_QUERY (trimmed from a live
+ * 2026-10-23 read; compare and promoted from a live 2026-11-08 read).
+ */
+function graphqlFixture(
+  tagJobs: unknown[] = [],
+  opts: { compare?: unknown; promoted?: unknown[] } = {},
+) {
   return {
     data: {
       repo: {
+        base: {
+          compare:
+            "compare" in opts
+              ? opts.compare
+              : { aheadBy: 0, behindBy: 0, commits: { totalCount: 0, nodes: [] } },
+        },
+        promoted: { nodes: opts.promoted ?? [] },
         pullRequests: {
           totalCount: 3,
           nodes: [
@@ -85,6 +116,8 @@ function graphqlFixture(tagJobs: unknown[] = []) {
           target: {
             __typename: "Tag",
             target: {
+              oid: "a".repeat(40),
+              committedDate: "2026-10-23T11:00:00Z",
               checkSuites: {
                 nodes: [
                   {
@@ -212,6 +245,21 @@ describe("shipLaneGhArgs", () => {
     expect(args.slice(0, 2)).toEqual(["api", "graphql"]);
     expect(args).toContain("tag=refs/tags/__no_tag__");
     expect(args).toContain("withPublic=false");
+    expect(args).toContain("main=main");
+    expect(args).toContain("mainRef=refs/heads/main");
+  });
+
+  it("compares against master when that is the production branch, and nothing else", () => {
+    const master = shipLaneGhArgs({
+      owner: "a",
+      name: "b",
+      tag: null,
+      publicRepo: null,
+      main: "master",
+    });
+    expect(master).toContain("mainRef=refs/heads/master");
+    const odd = shipLaneGhArgs({ owner: "a", name: "b", tag: null, publicRepo: null, main: "x;y" });
+    expect(odd).toContain("main=main");
   });
 });
 
@@ -246,6 +294,39 @@ describe("trimShipLaneGraphql", () => {
     expect(remote?.tagCi?.jobs.map((j: any) => j.state)).toEqual(["success", "success"]);
   });
 
+  it("reads the staging vs main comparison, the tag commit and the latest merged promote", () => {
+    const r = trimShipLaneGraphql(
+      graphqlFixture([], {
+        compare: {
+          aheadBy: 2,
+          behindBy: 1,
+          commits: { totalCount: 2, nodes: MERGE_BACK_AND_DOCS },
+        },
+        promoted: [
+          {
+            number: 1400,
+            title: "older",
+            mergedAt: "2026-11-01T10:00:00Z",
+            mergeCommit: { oid: "b".repeat(40) },
+          },
+          {
+            number: 1421,
+            title: "promote",
+            mergedAt: "2026-11-07T17:24:41Z",
+            mergeCommit: { oid: "c".repeat(40) },
+          },
+        ],
+      }),
+      META,
+    );
+    expect(r?.compare).toMatchObject({ ahead: 2, behind: 1, total: 2 });
+    expect(r?.compare?.commits[0]).toMatchObject({ parents: 2 });
+    expect(r?.promoted).toMatchObject({ number: 1421, mergeOid: "c".repeat(40) });
+    expect(r?.tagCommit).toEqual({ oid: "a".repeat(40), committedDate: "2026-10-23T11:00:00Z" });
+    // A missing staging branch on the forge: compare is null, not an error.
+    expect(trimShipLaneGraphql(graphqlFixture([], { compare: null }), META)?.compare).toBeNull();
+  });
+
   it("reads the public release and sync PRs", () => {
     expect(remote?.public?.release?.tag).toBe("v1.0.0");
     expect(remote?.public?.syncPrs[0]).toMatchObject({ number: 3, state: "merged" });
@@ -263,6 +344,7 @@ describe("buildShipLaneRows", () => {
       publicRepo: META.publicRepo,
       local: LOCAL_SHIPPED,
       remote,
+      compare: shipLaneCompare({ remote, local: null }),
     });
     expect(rows.map((r: any) => r.id)).toEqual([
       "release-close",
@@ -279,7 +361,13 @@ describe("buildShipLaneRows", () => {
 
   it("a red tag CI job copies a rerun of the failed jobs; a close PR shows its checks", () => {
     const remote = trimShipLaneGraphql(
-      graphqlFixture([checkRun("build", "SUCCESS"), checkRun("sync-public", "FAILURE")]),
+      graphqlFixture([checkRun("build", "SUCCESS"), checkRun("sync-public", "FAILURE")], {
+        compare: {
+          aheadBy: 2,
+          behindBy: 0,
+          commits: { totalCount: 2, nodes: [commit("1", "feat: a"), commit("2", "fix: b")] },
+        },
+      }),
       META,
     );
     const rows = rowsById(
@@ -289,6 +377,7 @@ describe("buildShipLaneRows", () => {
         publicRepo: META.publicRepo,
         local: { ...LOCAL_SHIPPED, stagingAheadOfMain: 2 },
         remote,
+        compare: shipLaneCompare({ remote, local: null }),
       }),
     );
     expect(rows["tag-ci"]).toMatchObject({
@@ -339,6 +428,202 @@ describe("buildShipLaneRows", () => {
   });
 });
 
+describe("classifyReleasePending", () => {
+  const c = (headline: string, parents = 1, paths: string[] | null = null) => ({
+    oid: "x",
+    headline,
+    parents,
+    paths,
+  });
+
+  it("a merge-back and a docs(memory) commit leave nothing to ship", () => {
+    const r = classifyReleasePending({
+      commits: MERGE_BACK_AND_DOCS.map((n) => c(n.messageHeadline, n.parents.totalCount)),
+      total: 2,
+    });
+    expect(r).toMatchObject({ pending: false, release: 0, merge: 1, docs: 1, sync: 0 });
+  });
+
+  it("a feat commit makes a release pending", () => {
+    const r = classifyReleasePending({ commits: [c("docs: x"), c("feat(cli): y")], total: 2 });
+    expect(r).toMatchObject({ pending: true, release: 1, docs: 1 });
+  });
+
+  it("a squashed staging sync is not release-worthy", () => {
+    expect(
+      classifyReleasePending({ commits: [c("chore: sync staging with main after v6.14.0")] }).sync,
+    ).toBe(1);
+    expect(classifyReleasePending({ commits: [c("chore/sync-staging-6.14.0 (#9)")] }).sync).toBe(1);
+  });
+
+  it("known paths decide over the commit type", () => {
+    const r = classifyReleasePending({
+      commits: [
+        c("docs: describe the engine split", 1, ["docs/x.md", "packages/game/src/a.ts"]),
+        c("feat: memory only", 1, [".cursor/memory/decisions/a.md", ".cursor/HANDOFF.md"]),
+        c("chore: notes", 1, ["CHANGELOG.md", "dogfood/README.md", ".cursor/plans/p.plan.md"]),
+      ],
+    });
+    expect(r).toMatchObject({ release: 1, docs: 2, pending: true });
+    expect(
+      classifyReleasePending({ commits: [c("docs(commands): x", 1, [".cursor/commands/a.md"])] })
+        .pending,
+    ).toBe(true);
+  });
+
+  it("a truncated page never reads as nothing to ship", () => {
+    const r = classifyReleasePending({ commits: [c("docs: a")], total: 140 });
+    expect(r).toMatchObject({ pending: true, truncated: true, examined: 1, total: 140 });
+  });
+});
+
+describe("buildShipLaneRows: staging vs main from the comparison", () => {
+  const rows = (
+    remote: unknown,
+    compare: ReturnType<typeof shipLaneCompare> | null,
+    local: Record<string, unknown> = {},
+  ) =>
+    rowsById(
+      buildShipLaneRows({
+        lane: "factory",
+        repo: META.repo,
+        publicRepo: META.publicRepo,
+        local: { ...LOCAL_SHIPPED, ...local },
+        remote,
+        compare,
+      }),
+    );
+  const forge = (opts: Parameters<typeof graphqlFixture>[1]) => {
+    const remote = trimShipLaneGraphql(graphqlFixture([], opts), META);
+    remote.prs = [];
+    return remote;
+  };
+
+  it("merge-back + docs commit: nothing to ship, no release close and no promote asked for", () => {
+    const remote = forge({
+      compare: { aheadBy: 2, behindBy: 0, commits: { totalCount: 2, nodes: MERGE_BACK_AND_DOCS } },
+    });
+    const r = rows(remote, shipLaneCompare({ remote, local: null }), { stagingAheadOfMain: 2 });
+    expect(r["release-close"]).toMatchObject({ state: "green", next: null });
+    expect(r["release-close"].detail).toMatch(/staging \+2 \(nothing to ship\)/);
+    expect(r["staging-main"]).toMatchObject({
+      state: "green",
+      detail: "staging +2 (nothing to ship)",
+    });
+    expect(r["staging-sync"].state).toBe("green");
+  });
+
+  it("a feat commit: release pending on both rows", () => {
+    const remote = forge({
+      compare: {
+        aheadBy: 3,
+        behindBy: 0,
+        commits: { totalCount: 3, nodes: [...MERGE_BACK_AND_DOCS, commit("3", "feat(cli): z")] },
+      },
+    });
+    const r = rows(remote, shipLaneCompare({ remote, local: null }));
+    expect(r["release-close"]).toMatchObject({ state: "pending", next: { text: "/kit-prod" } });
+    expect(r["release-close"].detail).toMatch(/^release pending: 1 commit\(s\)/);
+    expect(r["staging-main"]).toMatchObject({
+      state: "pending",
+      detail: "release pending: 1 commit(s), no open PR",
+    });
+  });
+
+  it("a just-merged promote PR shows as merged, waiting on the tag and the sync", () => {
+    const remote = forge({
+      compare: { aheadBy: 0, behindBy: 1, commits: { totalCount: 0, nodes: [] } },
+      promoted: [
+        {
+          number: 1421,
+          title: "promote",
+          mergedAt: "2026-11-07T17:24:41Z",
+          mergeCommit: { oid: "c".repeat(40) },
+        },
+      ],
+    });
+    // Local refs are stale (never fetched): they still say staging is 2 ahead.
+    const r = rows(remote, shipLaneCompare({ remote, local: null }), {
+      version: "1.1.0",
+      stagingAheadOfMain: 2,
+      mainInStaging: true,
+    });
+    expect(r["staging-main"]).toMatchObject({
+      state: "green",
+      detail: "#1421 merged; waiting on the tag and the staging sync",
+    });
+    expect(r["staging-main"].detail).not.toMatch(/no open PR/);
+    expect(r["staging-sync"]).toMatchObject({ state: "red" });
+    expect(r["staging-sync"].detail).toMatch(/1 commit\(s\) staging lacks/);
+  });
+
+  it("a promote whose tag and sync are done falls back to the comparison", () => {
+    const remote = forge({
+      promoted: [
+        {
+          number: 1,
+          title: "p",
+          mergedAt: "2026-10-23T10:00:00Z",
+          mergeCommit: { oid: "a".repeat(40) },
+        },
+      ],
+    });
+    const r = rows(remote, shipLaneCompare({ remote, local: null }));
+    expect(r["staging-main"]).toMatchObject({
+      state: "green",
+      detail: "main has everything on staging",
+    });
+  });
+
+  it("forge down: the local refs decide, labelled local", () => {
+    const local = {
+      ahead: 2,
+      behind: 0,
+      total: 2,
+      commits: [
+        { oid: "1", headline: "feat: a", parents: 1, paths: ["src/a.ts"] },
+        { oid: "2", headline: "docs: b", parents: 1, paths: ["docs/b.md"] },
+      ],
+    };
+    const remote = { available: false, reason: "timeout" };
+    const compare = shipLaneCompare({ remote, local });
+    expect(compare).toMatchObject({ source: "local", fetchedAt: null, release: 1, docs: 1 });
+    const r = rows(remote, compare);
+    expect(r["staging-main"].state).toBe("pending");
+    expect(r["staging-main"].detail).toMatch(/local refs, not fetched/);
+    expect(r["staging-main"].detail).toMatch(/skipped: gh timed out/);
+    expect(r["release-close"].detail).toMatch(/local refs, not fetched/);
+  });
+
+  it("a forge half without a comparison (no staging on the forge) uses the local refs", () => {
+    const remote = forge({ compare: null });
+    expect(shipLaneCompare({ remote, local: null }).source).toBeNull();
+    expect(rows(remote, shipLaneCompare({ remote, local: null }))["staging-main"].state).toBe(
+      "unknown",
+    );
+    expect(
+      shipLaneCompare({ remote, local: { ahead: 0, behind: 0, total: 0, commits: [] } }).source,
+    ).toBe("local");
+  });
+
+  it("forge commit paths from the local object store refine the type", () => {
+    const remote = forge({
+      compare: {
+        aheadBy: 1,
+        behindBy: 0,
+        commits: { totalCount: 1, nodes: [commit("d", "docs: engine split")] },
+      },
+    });
+    const paths = new Map([["d".padEnd(40, "0"), ["packages/game/src/a.ts"]]]);
+    expect(shipLaneCompare({ remote, local: null }).pending).toBe(false);
+    expect(shipLaneCompare({ remote, local: null, paths })).toMatchObject({
+      source: "forge",
+      pending: true,
+      fetchedAt: META.fetchedAt,
+    });
+  });
+});
+
 describe("ship lane cache", () => {
   const NOW = Date.parse(META.fetchedAt);
   const remote = trimShipLaneGraphql(graphqlFixture(), META);
@@ -381,6 +666,8 @@ describe("dashboard-data.mjs: shipLane collector", { timeout: 60_000 }, () => {
     budgetMs?: string;
     cache?: string;
     tag?: string;
+    /** origin/staging gets a feature branch merge (feat), a docs-only commit and a docs-typed commit. */
+    stagingCommits?: boolean;
   }) {
     const work = mkdtempSync(join(tmpdir(), "ak-ship-lane-"));
     try {
@@ -412,8 +699,24 @@ describe("dashboard-data.mjs: shipLane collector", { timeout: 60_000 }, () => {
       git("commit", "-q", "-m", "init");
       git("remote", "add", "origin", "git@github.com:acme/app.git");
       git("update-ref", "refs/remotes/origin/main", "HEAD");
-      git("update-ref", "refs/remotes/origin/staging", "HEAD");
       git("tag", opts.tag ?? "v1.0.0");
+      if (opts.stagingCommits) {
+        git("checkout", "-q", "-b", "work");
+        mkdirSync(join(repo, "src"));
+        writeFileSync(join(repo, "src", "a.js"), "export const a = 1;\n");
+        git("add", "src/a.js");
+        git("commit", "-q", "-m", "feat: a");
+        git("checkout", "-q", "-");
+        git("merge", "-q", "--no-ff", "-m", "Merge branch 'work'", "work");
+        mkdirSync(join(repo, "docs"));
+        writeFileSync(join(repo, "docs", "a.md"), "# a\n");
+        git("add", "docs/a.md");
+        git("commit", "-q", "-m", "chore: notes");
+        git("commit", "-q", "--allow-empty", "-m", "docs: empty");
+        git("update-ref", "refs/remotes/origin/staging", "HEAD");
+      } else {
+        git("update-ref", "refs/remotes/origin/staging", "HEAD");
+      }
       const out = execFileSync("node", [dashboardDataScript], {
         cwd: repo,
         encoding: "utf8",
@@ -440,6 +743,12 @@ describe("dashboard-data.mjs: shipLane collector", { timeout: 60_000 }, () => {
       ghScript: 'case "$1" in api) cat "FIXTURE" ;; *) echo "[]" ;; esac',
     });
     expect(ghCalled).toBe(true);
+    expect(shipLane.compare).toMatchObject({
+      source: "forge",
+      ahead: 0,
+      behind: 0,
+      pending: false,
+    });
     expect(shipLane).toMatchObject({ lane: "consumer", repo: "acme/app", publicRepo: null });
     expect(shipLane.local).toMatchObject({
       latestTag: "v1.0.0",
@@ -459,6 +768,26 @@ describe("dashboard-data.mjs: shipLane collector", { timeout: 60_000 }, () => {
     expect(typeof shipLane.remote.fetchedAt).toBe("string");
     expect(shipLane.note).toMatch(/skipped/);
     expect(rowsById(shipLane.rows)["tag-ci"].state).toBe("unknown");
+    expect(shipLane.compare).toMatchObject({ source: "local", ahead: 0, behind: 0 });
+  });
+
+  it("forge down with staging ahead locally: a merge and a docs commit stay off, a feat counts", () => {
+    const { shipLane } = runWithShim({
+      ghScript: 'echo "HTTP 502" >&2; exit 1',
+      stagingCommits: true,
+    });
+    expect(shipLane.compare).toMatchObject({
+      source: "local",
+      ahead: 4,
+      behind: 0,
+      merge: 1,
+      docs: 2,
+      release: 1,
+      pending: true,
+    });
+    const rows = rowsById(shipLane.rows);
+    expect(rows["staging-main"]).toMatchObject({ state: "pending" });
+    expect(rows["staging-main"].detail).toMatch(/release pending: 1 commit\(s\).*local refs/);
   });
 
   it("a tag with shell metacharacters never reaches gh or a copyable command", () => {

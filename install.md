@@ -137,6 +137,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/commands/field-report-resolve.md` | idem |
 | `.cursor/commands/dogfood.md` | idem |
 | `.cursor/commands/review-pack.md` | idem |
+| `.cursor/commands/resolve-conflicts.md` | idem |
 | `.cursor/commands/cursor-update-awareness.md` | idem |
 | `.cursor/commands/qa.md` | idem |
 | `.cursor/commands/update.md` | idem |

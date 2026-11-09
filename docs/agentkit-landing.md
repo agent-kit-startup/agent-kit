@@ -218,8 +218,9 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   because a page cannot tell whether the scheme is registered (ADR
   `2026-11-06_oligarchy-game-handoff-colony-scheme`). `verify-landing` needs no exception: it
   only looks at requests, and a link is a navigation the visitor starts. The Game page's link
-  is designed behind a `colonyLink` prop that exports at `off`. A transform turns it on only
-  once a Colony release answers the link (`g4-site-wire`).
+  is designed behind a `colonyLink` prop that exports at `off`, and a test fails if an export
+  changes that default. A transform turns it on only once a Colony release answers the link
+  (`g4-site-wire`).
 - **Redirects** come from the site table: `Redirect 302` for a prefix (colony
   `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, no site uses
   it today). Serve answers them locally and verify checks each one against the resolved

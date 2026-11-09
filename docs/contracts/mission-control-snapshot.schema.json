@@ -3,7 +3,7 @@
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/mission-control-snapshot.schema.json",
   "title": "Mission Control snapshot",
   "description": "Output of dashboard/dashboard-data.mjs (one JSON document per refresh). Versioned by dashboardDataVersion: an added field or collector is a minor bump, a removed or retyped top-level field is a major bump. Only the top level, the runLogs rows, the gateExit tickets, the chats envelopes and sessions, the shipLane envelope and rows, the outcomeLedger summary, the rules rows and the memory.decisionIndex rows are fixed here; nested collector shapes may grow without a bump (additionalProperties stays open).",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "type": "object",
   "required": [
     "_schema",
@@ -31,7 +31,7 @@
   "properties": {
     "_schema": { "type": "object", "required": ["version", "fields"] },
     "generatedAt": { "type": "string" },
-    "dashboardDataVersion": { "type": "string", "const": "1.10.0" },
+    "dashboardDataVersion": { "type": "string", "const": "1.11.0" },
     "plans": { "type": "array" },
     "system": { "type": "object", "required": ["repoRoot"] },
     "agents": { "type": "array" },
@@ -292,7 +292,7 @@
     },
     "shipLane": {
       "type": "object",
-      "required": ["lane", "repo", "publicRepo", "local", "remote", "note", "rows"],
+      "required": ["lane", "repo", "publicRepo", "local", "remote", "compare", "note", "rows"],
       "properties": {
         "lane": { "enum": ["factory", "consumer", null] },
         "repo": { "type": ["string", "null"] },
@@ -312,6 +312,38 @@
           "type": "object",
           "required": ["available"],
           "properties": { "available": { "type": "boolean" } }
+        },
+        "compare": {
+          "type": "object",
+          "description": "Staging vs main (1.11.0): from the forge's Ref.compare when the forge half has one, else from the local origin/* refs, which the collector never fetches (source local); source null when neither exists. pending is true only when staging holds a release-worthy commit (not a merge commit, not the staging sync merge-back, not a docs- or memory-only change), or when the commit list was truncated (truncated true).",
+          "required": [
+            "source",
+            "fetchedAt",
+            "ahead",
+            "behind",
+            "pending",
+            "release",
+            "merge",
+            "sync",
+            "docs",
+            "examined",
+            "total",
+            "truncated"
+          ],
+          "properties": {
+            "source": { "enum": ["forge", "local", null] },
+            "fetchedAt": { "type": ["string", "null"] },
+            "ahead": { "type": ["number", "null"] },
+            "behind": { "type": ["number", "null"] },
+            "pending": { "type": "boolean" },
+            "release": { "type": "number" },
+            "merge": { "type": "number" },
+            "sync": { "type": "number" },
+            "docs": { "type": "number" },
+            "examined": { "type": "number" },
+            "total": { "type": "number" },
+            "truncated": { "type": "boolean" }
+          }
         },
         "note": { "type": ["string", "null"] },
         "rows": {
