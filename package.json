@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "6.15.0",
+  "version": "6.16.0",
   "description": "HITL framework for AI-assisted IDEs: plan, handoff, staging-to-prod, memory loop; Cursor-first with partial generators for VS Code and Windsurf.",
   "private": true,
   "license": "Apache-2.0",
@@ -33,6 +33,7 @@
     "check:guidance-claims": "node scripts/check-guidance-stale-claims.mjs",
     "check:memory-index": "node scripts/validate-memory-index.mjs",
     "check:game-content": "node packages/game/scripts/check-content.mjs",
+    "game:colony-catalog": "node packages/game/scripts/write-colony-catalog.mjs",
     "game:design-pack": "node packages/game/scripts/build-design-pack.mjs",
     "check:release-preflight": "node scripts/release-preflight.mjs",
     "check:secret-lifetime": "node scripts/secret-lifetime-preflight.mjs",

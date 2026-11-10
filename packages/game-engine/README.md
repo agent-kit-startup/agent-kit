@@ -2,7 +2,7 @@
 
 The rules of Oligarchy, the colony game in Colony IDE, as pure functions over an outcome ledger. The engine holds no game content: the host passes the catalog in. The game's own story, catalog and art are not in this package; players get them inside Colony builds.
 
-Apache-2.0 (`LICENSE`). Not published to npm yet.
+Apache-2.0 (`LICENSE`). Published on npm as `@dadado/oligarchy-engine` (`npm install @dadado/oligarchy-engine`). Version 0.1.0 was published by hand and has no npm provenance, because npm binds a trusted publisher only to a package that already exists. Later versions are published from CI by a release tag of this repository, with npm provenance (trusted publishing); a version npm already has is skipped.
 
 ## Use
 

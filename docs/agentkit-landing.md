@@ -219,8 +219,12 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   `2026-11-06_oligarchy-game-handoff-colony-scheme`). `verify-landing` needs no exception: it
   only looks at requests, and a link is a navigation the visitor starts. The Game page's link
   is designed behind a `colonyLink` prop that exports at `off`, and a test fails if an export
-  changes that default. A transform turns it on only once a Colony release answers the link
-  (`g4-site-wire`).
+  changes that default. Colony 0.4.2 is the first release that registers and answers the link
+  (the `.deb` and AppImage desktop entries, and the `colony-handler.desktop` that `install.sh`
+  writes), so a kit transform in the site table turns `colonyLink` on for the built page
+  (`g4-site-wire`). With it on, the Briefing and the `Resources gone` screen show Open in
+  Colony next to the install line, the Briefing offers the trial below it, and the HUD badge
+  reopens the Briefing.
 - **Redirects** come from the site table: `Redirect 302` for a prefix (colony
   `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, no site uses
   it today). Serve answers them locally and verify checks each one against the resolved
