@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.16.0] - 2026-11-10
+
+### Added
+
+- Oligarchy: the game's rules engine is on npm as [`@dadado/oligarchy-engine`](https://www.npmjs.com/package/@dadado/oligarchy-engine) 0.1.0 (Apache-2.0). It holds the rules as pure functions over the outcome ledger and takes the catalog as input; a generic placeholder catalog ships in `@dadado/oligarchy-engine/placeholder`. The game's own story, catalog and art are not in the package.
+- Oligarchy: `oligarchy.missionkit.io/game/` has an Open in Colony link on the Briefing and on the end screen. It opens the game in the Colony app through `colony://play` and needs Colony 0.4.2 or later. If nothing opens, the install line sits next to the link and the trial still plays in the browser.
+
+### Fixed
+
+- CLI: `agent-kit queue gates` now reads the bulleted `Queue outcomes` rows that the queue itself writes. It used to report no deferred gates on those rows, so `--prompt` came back empty and Colony's driver chat showed nothing deferred.
+
 ## [6.15.0] - 2026-11-08
 
 ### Added

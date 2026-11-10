@@ -24,7 +24,7 @@ Decision recorded in the maintainers' decision log (private repo memory).
 | Dogfood on this repo (plan, HANDOFF, staging→prod, memory) | ✅ |
 | Public sync opens an append-only PR by default | ✅ `scripts/sync-public.mjs` |
 | GitHub About description and topics | ✅ aligned with [github-about.md](github-about.md) |
-| `PUBLIC_REPO_TOKEN` secret on private CI | ⏳ ops - requires Contents + Pull requests + Workflows write on the public repo; **private repo only** (never configure on the public storefront) |
+| Public-sync GitHub App on private CI | ✅ live since v6.15.0 (Contents + Pull requests + Workflows write on the public repo, Protect main bypass actor; key in the private `public-sync` Environment, never on the public storefront). The `PUBLIC_REPO_TOKEN` PAT was retired; see [repository-boundaries.md](repository-boundaries.md) |
 | Public `main` ruleset | ✅ active (`Protect main` - PR + 1 approval + Admin bypass + check `build`) |
 | Fase 7 registry-on-public topology | ✅ spec [topology-private-public.md](topology-private-public.md); cutover ops still open |
 | Final plan review (`review-camadas`) | ✅ [review-camadas.md](review-camadas.md) |
@@ -104,7 +104,7 @@ After the next storefront tag (from private sync + public Release):
 
 1. Public Actions for that tag: `build` green.
 2. `sync-public` does **not** run (skipped unless `github.repository == 'agent-kit-startup/agent-kit-dev'`); `publish-npm` runs and is green (published, or the already-published notice).
-3. No `PUBLIC_REPO_TOKEN` / `NPM_TOKEN` on the public repo.
+3. No `PUBLIC_SYNC_APP_PRIVATE_KEY` or other private-repo secret on the public repo.
 4. Do **not** force-move an already-pushed `v*` tag; use a new patch tag if retry is needed.
 5. **Path C lag:** the allowlist guard protects the public mirror only after a private sync has shipped the updated `ci.yml`. A red storefront tag before that sync is expected lag, not a broken private sync.
 

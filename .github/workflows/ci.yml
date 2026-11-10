@@ -24,10 +24,10 @@ on:
         default: ""
 
 # Read-only GITHUB_TOKEN by default. Public pushes and Releases use a
-# public-sync GitHub App installation token when vars.PUBLIC_SYNC_APP_CLIENT_ID
-# is set, else the PUBLIC_REPO_TOKEN PAT. publish-npm runs only on the public
-# origin and adds id-token: write there (npm trusted publishing with provenance,
-# ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance).
+# public-sync GitHub App installation token (vars.PUBLIC_SYNC_APP_CLIENT_ID +
+# the public-sync Environment key); there is no PAT path. publish-npm runs only
+# on the public origin and adds id-token: write there (npm trusted publishing
+# with provenance, ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance).
 permissions:
   contents: read
 
@@ -163,26 +163,23 @@ jobs:
 
 
   # ── Sync to public mirror (tag or manual trigger) ──
-  # Credential: the public-sync GitHub App (vars.PUBLIC_SYNC_APP_CLIENT_ID +
+  # Credential: the public-sync GitHub App only (vars.PUBLIC_SYNC_APP_CLIENT_ID +
   # secrets.PUBLIC_SYNC_APP_PRIVATE_KEY, installed on the public repo and listed as
-  # a bypass actor on its ruleset) when configured, else the PUBLIC_REPO_TOKEN PAT.
+  # a bypass actor on its ruleset). The PUBLIC_REPO_TOKEN PAT fallback was removed
+  # after the v6.15.0 tag run (42590953824) proved the App path.
   # The App key lives in the public-sync Environment, which limits it to v* tags and
-  # main once its deployment rule is set. The Environment does not hide repo-level
-  # secrets, so the PAT fallback keeps working. A run that reaches this job creates
-  # the Environment, empty and without a rule, when it does not exist. Once the rule
-  # exists, a sync_public dispatch from any other ref does not reach a runner, on the
-  # App or the PAT.
-  # Either needs Contents, Pull requests, Workflows, and Administration on the
-  # public repo. Administration is what lets the job use the Protect main bypass
-  # (one required review, squash only, auto-merge disabled). Opt out:
+  # main. A sync_public dispatch from any other ref does not reach a runner.
+  # The App needs Contents, Pull requests and Workflows: write on the public repo, no
+  # Administration: its bypass actor entry on Protect main (one required review,
+  # squash only, auto-merge disabled) lets the --admin squash retry land. Opt out:
   # PUBLIC_SYNC_AUTO_MERGE=false.
   # The job fails if the public build is red or the squash merge does not land.
   # Private-origin allowlist only (SoT: agent-kit-startup/agent-kit-dev).
-  # Path C mirrors ci.yml; public / forks have no PUBLIC_REPO_TOKEN by design.
+  # Path C mirrors ci.yml; public / forks have no App key by design.
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # The secrets context is not allowed in job-level `if`; the guard step
-  # below fails loudly when the secret is unset on private tag/manual sync paths.
+  # below fails loudly when the App variable or key is missing on private tag/manual sync paths.
   # vars.PUBLIC_REPO_URL redirects push + gh --repo (slug derived from URL); it cannot override this `if`.
   sync-public:
     needs: build
@@ -213,12 +210,25 @@ jobs:
 
       # GitHub App installation token for the public repo (ADR
       # 2026-10-21_ci-auth-without-expiring-secrets point 3): minted per run, lasts
-      # one hour, nothing to expire between releases. Inert until the operator sets
-      # vars.PUBLIC_SYNC_APP_CLIENT_ID and secrets.PUBLIC_SYNC_APP_PRIVATE_KEY; until
-      # then GH_TOKEN falls back to the PUBLIC_REPO_TOKEN PAT.
-      - name: Mint public repo App token (when configured)
+      # one hour, nothing to expire between releases. The only credential: the guard
+      # step below fails the job when the App variable or key is missing.
+      - name: Require the public-sync App
+        run: |
+          missing=""
+          [ -n "$APP_CLIENT_ID" ] || missing="repository variable PUBLIC_SYNC_APP_CLIENT_ID"
+          if [ "$APP_KEY_SET" != "true" ]; then
+            missing="${missing:+$missing and }secret PUBLIC_SYNC_APP_PRIVATE_KEY in the public-sync Environment"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::public-sync GitHub App not configured: missing $missing on $GITHUB_REPOSITORY. It is the only public repo credential (no PAT fallback); sync did not run. See docs/repository-boundaries.md (Public-sync GitHub App)."
+            exit 1
+          fi
+        env:
+          APP_CLIENT_ID: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
+          APP_KEY_SET: ${{ secrets.PUBLIC_SYNC_APP_PRIVATE_KEY != '' }}
+
+      - name: Mint public repo App token
         id: app-token
-        if: vars.PUBLIC_SYNC_APP_CLIENT_ID != ''
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
         with:
           client-id: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
@@ -229,13 +239,13 @@ jobs:
       - name: Run sync
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::No public repo credential: neither the public-sync App (vars.PUBLIC_SYNC_APP_CLIENT_ID) nor PUBLIC_REPO_TOKEN is configured. Tag and manual public-sync runs require one; sync did not run."
+            echo "::error::The public-sync App token step produced no token; sync did not run."
             exit 1
           fi
           gh auth setup-git
           node scripts/sync-public.mjs
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PUBLIC_REPO_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           # Slug for gh --repo is derived from this URL in sync-public.mjs (no hardcoded PUBLIC_REPO_SLUG).
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}
           PUBLIC_BRANCH: main
@@ -330,6 +340,111 @@ jobs:
         working-directory: packages/cli
         run: npm publish --provenance --access public
 
+  # Oligarchy rules engine (packages/game-engine, @dadado/oligarchy-engine, Apache-2.0):
+  # same trust as publish-npm (public origin, hosted runner, OIDC, provenance, no secret),
+  # its own npm Trusted Publisher row (workflow ci.yml, no environment). The tag names the
+  # CLI version, so the gate here is the engine version: publish only a version npm does
+  # not have. npm binds a Trusted Publisher only to a package that already exists, so
+  # while the name is absent from npm this job packs with --dry-run and stops (the first
+  # publish is the operator's). packages/game (story, catalog, art) is never published.
+  publish-oligarchy-engine:
+    needs: build
+    if: >-
+      github.repository == 'agent-kit-startup/agent-kit'
+      && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm >= 11.5.1 on Node >= 22.14; Node 22 bundles npm 10.
+      - name: Upgrade npm for trusted publishing
+        run: |
+          set -euo pipefail
+          npm install -g npm@^11.5.1
+          node -e 'const [a,b,c]=process.versions.node.split(".").map(Number); if (a<22||(a===22&&b<14)) { console.error(`::error::Node ${process.versions.node} < 22.14`); process.exit(1) }'
+          npm_v="$(npm --version)"
+          node -e 'const [a,b,c]=process.argv[1].split(".").map(Number); if (a<11||(a===11&&(b<5||(b===5&&c<1)))) { console.error(`::error::npm ${process.argv[1]} < 11.5.1`); process.exit(1) }' "$npm_v"
+          echo "node $(node --version), npm $npm_v"
+
+      # Three outcomes: the package is absent from npm (dry run only), this version is
+      # already on npm (skip, a re-run stays green), or a new version (publish). Any
+      # npm view error other than E404 fails the job instead of guessing.
+      - name: Check published engine version
+        id: version
+        working-directory: packages/game-engine
+        run: |
+          set -euo pipefail
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          if [ "$name" != "@dadado/oligarchy-engine" ]; then
+            echo "::error::packages/game-engine/package.json name is $name, not @dadado/oligarchy-engine."
+            exit 1
+          fi
+          if ! npm view "$name" name > /dev/null 2> "$RUNNER_TEMP/view.err"; then
+            if grep -q 'E404' "$RUNNER_TEMP/view.err"; then
+              echo "::notice::$name is not on npm yet. A Trusted Publisher needs an existing package, so the first publish is the operator's; this run packs $version with --dry-run only."
+              echo "mode=dry-run" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/view.err"
+            echo "::error::npm view $name failed (not E404); nothing was published."
+            exit 1
+          fi
+          published="$(npm view "$name@$version" version 2>/dev/null || true)"
+          if [ "$published" = "$version" ]; then
+            echo "::notice::$name@$version is already on npm; publish skipped."
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=publish" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test the engine
+        if: steps.version.outputs.mode != 'skip'
+        working-directory: packages/game-engine
+        run: node --test test/*.test.mjs
+
+      # The tarball holds the engine and its placeholder catalog only, never game content.
+      - name: Check the pack contents
+        if: steps.version.outputs.mode != 'skip'
+        working-directory: packages/game-engine
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e '
+            const out = require(process.argv[1]);
+            // npm 11 prints an array, npm 12 an object keyed by package name.
+            const files = (Array.isArray(out) ? out[0] : Object.values(out)[0]).files.map((f) => f.path);
+            const ok = (p) => ["package.json", "LICENSE", "README.md"].includes(p) || /^(src|placeholder)\//.test(p);
+            const bad = files.filter((p) => !ok(p));
+            if (bad.length) { console.error(`::error::unexpected files in the engine tarball: ${bad.join(", ")}`); process.exit(1) }
+            console.log(files.join("\n"));
+          ' "$RUNNER_TEMP/pack.json"
+
+      - name: Publish dry run
+        if: steps.version.outputs.mode != 'skip'
+        working-directory: packages/game-engine
+        run: npm publish --dry-run --access public
+
+      # npm (not pnpm) publishes, so the npm >= 11.5.1 above does the OIDC exchange.
+      # The engine package has no dependencies to rewrite.
+      - name: Publish (trusted publishing, provenance)
+        if: steps.version.outputs.mode == 'publish'
+        working-directory: packages/game-engine
+        run: npm publish --provenance --access public
+
   # ── Stamp + promote missionkit.io from public GitHub Release Latest ──
   # Private-origin allowlist only (same SoT as sync-public).
   # Adding another allowlisted site (this job `if` counts) requires updating the
@@ -390,8 +505,8 @@ jobs:
   # Private-origin allowlist only (same SoT as sync-public).
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
-  # Public repo credential (same App or PUBLIC_REPO_TOKEN as sync-public, same public-sync
-  # Environment for the App key): fail loud when neither is set.
+  # Public repo credential: the same public-sync App as sync-public (key in the same
+  # public-sync Environment); fail loud when the App variable or key is missing.
   # Secret ENGINE_SIGNING_KEY (passwordless minisign key): SHA256SUMS.minisig; skipped while
   # the key does not exist.
   publish-engine:
@@ -436,10 +551,24 @@ jobs:
           ENGINE_SIGNING_KEY: ${{ secrets.ENGINE_SIGNING_KEY }}
           ENGINE_SIGNING_PUBKEY: ${{ vars.ENGINE_SIGNING_PUBKEY }}
 
-      # Same App token as sync-public (inert until configured; PAT fallback).
-      - name: Mint public repo App token (when configured)
+      # Same App token as sync-public (the only credential; no PAT fallback).
+      - name: Require the public-sync App
+        run: |
+          missing=""
+          [ -n "$APP_CLIENT_ID" ] || missing="repository variable PUBLIC_SYNC_APP_CLIENT_ID"
+          if [ "$APP_KEY_SET" != "true" ]; then
+            missing="${missing:+$missing and }secret PUBLIC_SYNC_APP_PRIVATE_KEY in the public-sync Environment"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::public-sync GitHub App not configured: missing $missing on $GITHUB_REPOSITORY. It is the only public repo credential (no PAT fallback); the engine artifact was not uploaded. See docs/repository-boundaries.md (Public-sync GitHub App)."
+            exit 1
+          fi
+        env:
+          APP_CLIENT_ID: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
+          APP_KEY_SET: ${{ secrets.PUBLIC_SYNC_APP_PRIVATE_KEY != '' }}
+
+      - name: Mint public repo App token
         id: app-token
-        if: vars.PUBLIC_SYNC_APP_CLIENT_ID != ''
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510  # v3.3.0
         with:
           client-id: ${{ vars.PUBLIC_SYNC_APP_CLIENT_ID }}
@@ -451,7 +580,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::No public repo credential (public-sync App or PUBLIC_REPO_TOKEN). The engine artifact was not uploaded."
+            echo "::error::The public-sync App token step produced no token. The engine artifact was not uploaded."
             exit 1
           fi
           slug="$(printf '%s' "$PUBLIC_REPO_URL" | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
@@ -470,5 +599,5 @@ jobs:
           gh release upload "$tag" "${files[@]}" --repo "$slug" --clobber
           echo "Uploaded ${files[*]} to $slug Release $tag."
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PUBLIC_REPO_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PUBLIC_REPO_URL: ${{ vars.PUBLIC_REPO_URL || 'https://github.com/agent-kit-startup/agent-kit.git' }}

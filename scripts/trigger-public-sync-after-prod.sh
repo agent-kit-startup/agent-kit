@@ -2,9 +2,9 @@
 # Triggers sync-public job in GitHub Actions (workflow_dispatch) after git prod.
 # Usage: bash scripts/trigger-public-sync-after-prod.sh
 # Requirements: remote "public" (mirror), origin on GitHub, gh authenticated.
-# The origin repository (e.g.: agent-kit-dev) needs a public repo credential for the job:
-# the public-sync GitHub App (vars.PUBLIC_SYNC_APP_CLIENT_ID + secret PUBLIC_SYNC_APP_PRIVATE_KEY)
-# or the PUBLIC_REPO_TOKEN secret.
+# The origin repository (e.g.: agent-kit-dev) needs the public-sync GitHub App for the job:
+# repository variable PUBLIC_SYNC_APP_CLIENT_ID + secret PUBLIC_SYNC_APP_PRIVATE_KEY in the
+# public-sync Environment (no PAT fallback; the job fails loud without them).
 
 set -euo pipefail
 

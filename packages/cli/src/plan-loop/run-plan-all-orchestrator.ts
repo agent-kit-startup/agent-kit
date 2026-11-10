@@ -372,7 +372,7 @@ export function formatQueueEndResolutionPrompt(
   return `${lines.join("\n")}\n`;
 }
 
-const OUTCOME_ROW_RE = /^`?([^\s`:]+\.plan\.md)`?:\s*(.*)$/;
+const OUTCOME_ROW_RE = /^(?:-\s+)?`?([^\s`:]+\.plan\.md)`?:\s*(.*)$/;
 const DEFERRED_PREFIX = "deferred-operator";
 
 /** Text inside the parenthesis that opens at `open`, or the rest of `text` when it never closes. */

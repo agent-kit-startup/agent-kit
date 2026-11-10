@@ -63,13 +63,34 @@ describe("ci.yml private-origin allowlist pin", () => {
   );
 
   it.skipIf(!ciPresent)(
+    "uses the public-sync App as the only public repo credential (no PAT fallback, fail loud)",
+    () => {
+      // Plan ci-secrets-no-surprise-expiry p3: the App path was proved on the v6.15.0 tag
+      // run, then PUBLIC_REPO_TOKEN was deleted. A missing App config must fail the job
+      // before the mint step, not skip it and fall back to a PAT.
+      expect(body).not.toContain("secrets.PUBLIC_REPO_TOKEN");
+      for (const job of ["sync-public", "publish-engine"]) {
+        const block = jobBlock(job);
+        const guard = block.indexOf("- name: Require the public-sync App");
+        const mint = block.indexOf("- name: Mint public repo App token");
+        expect(guard).toBeGreaterThan(-1);
+        expect(mint).toBeGreaterThan(guard);
+        expect(block).toContain("exit 1");
+        expect(block).not.toContain("if: vars.PUBLIC_SYNC_APP_CLIENT_ID");
+        expect(block).toContain("GH_TOKEN: ${{ steps.app-token.outputs.token }}\n");
+      }
+    },
+  );
+
+  it.skipIf(!ciPresent)(
     "runs publish-npm only on the public origin, with OIDC on a hosted runner and no secret",
     () => {
       // ADR 2026-10-26_npm-publish-from-public-repo-oidc-provenance: npm trusted
       // publishing (provenance) works only from the public repo on a GitHub-hosted
       // runner; a secret or vars.CI_RUNNER here would undo both.
+      // Two public-origin sites: publish-npm and publish-oligarchy-engine (next test).
       const publicOrigin = /github\.repository\s*==\s*'agent-kit-startup\/agent-kit'/g;
-      expect(body.match(publicOrigin)?.length).toBe(1);
+      expect(body.match(publicOrigin)?.length).toBe(2);
       const publishBlock = jobBlock("publish-npm");
       expect(publishBlock).toMatch(publicOrigin);
       expect(publishBlock).toContain("startsWith(github.ref, 'refs/tags/v')");
@@ -81,6 +102,34 @@ describe("ci.yml private-origin allowlist pin", () => {
       expect(publishBlock).not.toContain("secrets.");
       expect(publishBlock).not.toContain("CI_RUNNER");
       expect(publishBlock).not.toContain(allowlist);
+    },
+  );
+
+  it.skipIf(!ciPresent)(
+    "publishes the Oligarchy engine the same way, only a new version, and never game content",
+    () => {
+      // @dadado/oligarchy-engine has its own Trusted Publisher row (ci.yml, no environment).
+      // npm binds a Trusted Publisher only to an existing package, so a name absent from npm
+      // packs with --dry-run only; the first publish is the operator's.
+      const block = jobBlock("publish-oligarchy-engine");
+      expect(block).toMatch(/github\.repository\s*==\s*'agent-kit-startup\/agent-kit'/);
+      expect(block).toContain("startsWith(github.ref, 'refs/tags/v')");
+      expect(block).toMatch(/^ {4}runs-on: ubuntu-latest$/m);
+      expect(block).toContain("id-token: write");
+      expect(block).toContain("npm install -g npm@^11.5.1");
+      expect(block).not.toContain("environment:");
+      expect(block).not.toContain("secrets.");
+      expect(block).not.toContain("CI_RUNNER");
+      expect(block).not.toContain(allowlist);
+      expect(block).toContain("working-directory: packages/game-engine");
+      expect(block).not.toMatch(/packages\/game(\/|\s|$)/m);
+      expect(block).toContain("grep -q 'E404'");
+      expect(block).toContain('npm view "$name@$version" version');
+      expect(block).toContain("npm publish --dry-run --access public");
+      expect(block).toContain("if: steps.version.outputs.mode == 'publish'");
+      expect(block).toContain("npm publish --provenance --access public");
+      // The tag names the CLI version; the engine has its own version gate.
+      expect(block).not.toContain("GITHUB_REF_NAME");
     },
   );
 

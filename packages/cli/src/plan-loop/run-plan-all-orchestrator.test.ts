@@ -486,6 +486,33 @@ describe("readDeferredGatesFromHandoff (agent-kit queue gates)", () => {
     ]);
   });
 
+  // Fails if OUTCOME_ROW_RE stops accepting the leading "- " that the writer below emits.
+  it("reads the bulleted rows serializeRunPlanAllQueueFields writes", () => {
+    const written = serializeRunPlanAllQueueFields({
+      runQueue: ["a.plan.md", "b.plan.md"],
+      queueCursor: 2,
+      queueStatus: "exhausted (deferred: b.plan.md -> Ask b-accept)",
+      queueOutcomes: {
+        "a.plan.md": "completed",
+        "b.plan.md": "deferred-operator (gate: Ask b-accept)",
+      },
+    });
+    expect(readDeferredGatesFromHandoff(written)).toEqual({ "b.plan.md": "Ask b-accept" });
+  });
+
+  // Shape of the 2026-11-06 eleventh-pass rows: bullet, backticks, notes after the gate.
+  it("reads bulleted rows with a backticked basename and notes after the gate", () => {
+    expect(
+      readDeferredGatesFromHandoff(
+        [
+          "- **Queue outcomes:** (eleventh pass)",
+          "  - `done.plan.md`: completed, lastTodoId x",
+          "  - `b.plan.md`: deferred-operator (gate: t0 export; g0 choice), agent-inferred, no ship",
+        ].join("\n"),
+      ),
+    ).toEqual({ "b.plan.md": "t0 export; g0 choice" });
+  });
+
   it("is empty without the field, without deferred rows, or with an unclosed gate group", () => {
     expect(readDeferredGatesFromHandoff("")).toEqual({});
     expect(readDeferredGatesFromHandoff("- **Queue outcomes:**\n  a.plan.md: completed\n")).toEqual(
