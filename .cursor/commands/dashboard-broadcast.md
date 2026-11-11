@@ -108,4 +108,4 @@ node dashboard/start-broadcast.mjs
 
 ## Notes and troubleshooting
 
-Port allocation detail, log path, detach lessons, and the failure-symptom table: [dashboard-broadcast-notes](../skills/core/dashboard-broadcast/SKILL.md).
+Port allocation detail, log path, detach lessons, and the failure-symptom table: [dashboard-broadcast skill](../skills/core/dashboard-broadcast/SKILL.md).

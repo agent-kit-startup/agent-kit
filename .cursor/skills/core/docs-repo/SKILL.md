@@ -1,5 +1,5 @@
 ---
-name: Docs & Repo
+name: docs-repo
 description: Docs & Repo skill. Invoke via docs-repo agent or when updating README/ADRs; do not auto-load.
 version: 0.1.1
 category: core

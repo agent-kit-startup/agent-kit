@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.16.1] - 2026-11-10
+
+### Fixed
+
+- Skills: the `dashboard-broadcast` and `docs-repo` core skills declare a frontmatter `name` equal to their directory (they declared `dashboard-broadcast-notes` and `Docs & Repo`), so clients that follow the Agent Skills naming rule, such as the Cursor plugin and the Agent Plugins `skills/` layout, list them. The registry copy of `docs-repo` gets the same name.
+
 ## [6.16.0] - 2026-11-10
 
 ### Added

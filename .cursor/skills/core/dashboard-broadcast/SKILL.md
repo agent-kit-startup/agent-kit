@@ -1,5 +1,5 @@
 ---
-name: dashboard-broadcast-notes
+name: dashboard-broadcast
 description: /dashboard-broadcast notes and troubleshooting table (port allocation, log path, detach lessons, common failure symptoms). Invoke via the command's own link; do not auto-load.
 version: 0.1.0
 category: core
