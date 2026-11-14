@@ -1,7 +1,22 @@
-# Mission Kit Landing (missionkit.io)
+# Mission Kit landings (missionkit.io and subdomains)
 
-**Live URL:** [https://missionkit.io](https://missionkit.io) (static Hostinger hosting + SSL)  
-**Previous:** `agent.startupkit.com.br` (deprecated; now 301 redirects to https://missionkit.io/)
+> **Site split (2026-11-12, ADR `2026-11-12_missionkit-site-split`):** `missionkit.io` serves the suite home; the Agent Kit landing lives at `agent.missionkit.io`. The root keeps `/mc/open.html` and the old root asset paths forever.
+
+> **Root cutover gate:** `ROOT_HOME_LIVE` in `scripts/lib/landing-sites.mjs` is `true` since the cutover of 2026-11-13: the tag `sync_landing` job stamps and promotes `agent`, then rebuilds, stages and promotes the root. Set to `false`, the tag job leaves the root alone and `pnpm landing:promote --site missionkit` refuses without `--yes-root-swap`. Cutover order: Home re-export verified on staging, `agent` promoted to production, root promoted with `--yes-root-swap`, and `ROOT_HOME_LIVE = true` in the same PR. After the root promote, check `curl -I https://missionkit.io/` for the security headers, 200 on `robots.txt`, `sitemap.xml`, `llms.txt` and `mc/open.html`, and that every other subdomain on the account still works (their directories sit under the same `public_html`). Checked 2026-11-13 after the cutover: the subdomains do not receive the root `.htaccess` headers (no HSTS, nosniff, Referrer-Policy or Permissions-Policy on any subdomain checked, staging hosts included); each needs them in its own `.htaccess`.
+
+Four sites, one table (`scripts/lib/landing-sites.mjs`); every `pnpm landing:*` script takes `--site <id>` and defaults to `missionkit`.
+
+| Site | Serves | Lane (mirror in `remote/`) | Production | Staging |
+|---|---|---|---|---|
+| `missionkit` | Suite home, `MissionKit Home.dc.html` | `.cursor/context/landing-home` | `https://missionkit.io/` (the hosting root) | `https://staging.missionkit.io/` |
+| `agent` | Agent Kit landing, `MissionKit Landing.dc.html` | `.cursor/context/landing-missionkit` | `https://agent.missionkit.io/` | `https://agent-staging.missionkit.io/` |
+| `colony` | Colony landing | `.cursor/context/landing-colony` | `https://colony.missionkit.io/` | `https://colony-staging.missionkit.io/` |
+| `oligarchy` | Oligarchy landing and the trial at `/game/` | `.cursor/context/landing-oligarchy` | `https://oligarchy.missionkit.io/` | `https://oligarchy-staging.missionkit.io/` |
+
+Two site properties pick the special paths, never the id: `flavor: "agent-landing"` (the Agent Kit landing's own build: DS stylesheet surgery, numbers stamp, release stamp, license-copy check, whole-zip sync) and `hostinger.productionDir: null` (the hosting root: staging in `staging/`, production through the Hostinger deploy trigger). Every other combination is the generic multi-page path described under "Other sites".
+
+**Hosting:** static Hostinger hosting + SSL, one account; every subdomain is a directory under the root's `public_html`.  
+**Previous:** `agent.startupkit.com.br` (deprecated; 301 redirects to https://missionkit.io/, should become https://agent.missionkit.io/, DNS outside this repo)
 
 ## Source of record
 
@@ -12,46 +27,46 @@ renders client-side via a vendored `dc-runtime` (`support.js`). The repo ships t
 rather than flattening the markup, so the deployed page is byte-identical to what the
 design tool renders.
 
-**Design mirror:** `.cursor/context/landing-missionkit/remote/` (versioned)  
-**Build output:** `.cursor/context/landing-missionkit/dist/` (gitignored, derived)  
+**Design mirror:** `<lane>/remote/` (versioned)  
+**Build output:** `<lane>/dist/` (gitignored, derived)  
 **Decision:** `.cursor/memory/decisions/2026-08-05_landing-external-design-source-of-record.md` (private)  
 **Design system:** [docs/design-system.md](design-system.md) (project id, upstream/downstream map, token divergence notes)
 
 ### Constraints
 
 - Do not edit files under `remote/`; `landing:sync` overwrites them wholesale.
-- **Upstream Design prompt guard:** `pnpm landing:sync` (and `landing:vendor`, same script) fail closed while `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT.md` exists with any unchecked markdown task (`- [ ]`). Apply that prompt in Claude Design first, export a zip via Download, then sync. The prompt counts as applied when the file is absent or every markdown task in it is checked (`- [x]` / `- [X]`). To sync before that (accepting overwrite of `remote/`), pass `--waive-upstream-prompt` or set `LANDING_SYNC_WAIVE_UPSTREAM_PROMPT=1`.
+- **Upstream Design prompt guard:** `pnpm landing:sync` (and `landing:vendor`, same script) fail closed while the site's `<lane>/UPSTREAM-DESIGN-FIX-PROMPT.md` exists with any unchecked markdown task (`- [ ]`). Apply that prompt in Claude Design first, export a zip via Download, then sync. The prompt counts as applied when the file is absent or every markdown task in it is checked (`- [x]` / `- [X]`). To sync before that (accepting overwrite of `remote/`), pass `--waive-upstream-prompt` or set `LANDING_SYNC_WAIVE_UPSTREAM_PROMPT=1`.
 - Do not hand-edit anything in `dist/` after build; `landing:build` derives it (plus the product overlay below).
 - Do not add design assets by hand; the build derives the design asset list from the canvas.
 - Visual or copy changes to the marketing canvas go through the design tool, then re-export and re-sync.
-- **Product overlay (allowed):** `landing:build` copies `dashboard/open.html` → `dist/mc/open.html` for cosmetic Mission Control broadcast Share URLs (ADR `2026-08-11_mission-control-broadcast-url-mask.md`). That file is product SoT under `dashboard/`, not Claude Design. Default share base uses `…/mc/open.html` (live). Extensionless `/mc/open` remains optional Hostinger alias work (align/public compliance), not required for the CLI default.
+- **Product overlay (allowed):** `landing:build` copies `dashboard/open.html` → `dist/mc/open.html` for cosmetic Mission Control broadcast Share URLs (ADR `2026-08-11_mission-control-broadcast-url-mask.md`), for the suite home (site `permanentFiles`) and for the Agent Kit landing. That file is product SoT under `dashboard/`, not Claude Design. Published CLIs build share links on `https://missionkit.io/mc/open.html` (`DEFAULT_SHARE_BASE`), so the root keeps it permanently. Extensionless `/mc/open` remains optional Hostinger alias work (align/public compliance), not required for the CLI default.
 
-## Pipeline
+## Pipeline (Agent Kit landing, `--site agent`)
 
 ```bash
-# 1. Sync a new design export
-pnpm landing:sync "~/Downloads/MissionKit landing page.zip"
+# 1. Sync a new design export (whole zip into landing-missionkit/remote/)
+pnpm landing:sync -- --site agent "~/Downloads/<Agent Kit landing project>.zip"
 
 # 2. Build the deployable bundle (vendors React, injects crawler head, copies assets)
-pnpm landing:build
+pnpm landing:build -- --site agent
 
 # 3. Verify the bundle matches the export
-pnpm landing:build:check
-# Factory CI (agent-kit-dev build job) runs `landing:build` then `landing:build:check`
+pnpm landing:build:check -- --site agent
+# Factory CI (agent-kit-dev build job) runs `landing:build` then `landing:build:check` for all four sites,
 # so retired license wording (PolyForm, noncommercial, source-available, sales@, MIT),
 # missing Apache-2.0 copy and missing canvas sources fail the Evidence path.
 
 # 4. Local stage (loopback, Range-capable, no-store)
-pnpm landing:serve
+pnpm landing:serve -- --site agent
 # Open http://127.0.0.1:4173/
 
 # 5. Deploy to staging — NEVER production
-pnpm landing:deploy:staging
-# Ensures the `staging` subdomain + DNS record exist, then uploads dist/
-# into staging/ on the same hosting account. Never touches missionkit.io.
+pnpm landing:deploy:staging -- --site agent
+# Per-file upload into agent-staging/ (the subdomain must exist; this
+# script never creates one). Never touches agent.missionkit.io.
 
 # 6. Automated acceptance against the live staging URL
-pnpm landing:verify:staging
+pnpm landing:verify:staging:agent
 # Headless-Chrome render (not curl): 0 unresolved bindings, #dc-root
 # present, video + the Mission Control iframe present. On load the only
 # host beyond the page is img.shields.io (HOL trust badge). There is no
@@ -60,23 +75,84 @@ pnpm landing:verify:staging
 # clicks, so it neither tests nor needs to allow that host. See
 # "On-interaction exception".
 
-# 7. HITL — open https://staging.missionkit.io, compare side by side
+# 7. HITL — open https://agent-staging.missionkit.io, compare side by side
 #    against the Claude Design canvas, approve explicitly. Nothing below
 #    this line runs on a passing checklist alone.
 
-# 8. Promote (only after explicit approval) — re-deploys the SAME dist/
-#    bytes already validated on staging. Never rebuilds.
-pnpm landing:promote
-
-# Rollback, any time after a promote
-pnpm landing:rollback            # redeploys the immediately previous release
-pnpm landing:rollback <release>  # redeploys a specific archived release
+# 8. Promote (only after explicit approval) — uploads the SAME dist/
+#    bytes already validated on staging into agent/. Never rebuilds.
+pnpm landing:promote -- --site agent --yes-production
 ```
 
-Every production deploy goes through staging first — there is no script path
-that deploys straight to `missionkit.io`. `landing:promote` is the only script
-that ever writes to the production root; `landing:deploy:staging` refuses (by
-assertion, in code) to write anywhere outside `staging/`.
+Every production deploy goes through staging first: there is no script path that
+deploys straight to production. `landing:deploy:staging` refuses (by assertion, in
+code) to write anywhere outside the site's staging directory, and `landing:promote`
+outside its production directory (or, for the suite home, anywhere but the root
+archive it deploys).
+
+## Suite home (`missionkit`, the missionkit.io root)
+
+```bash
+pnpm landing:sync -- --site missionkit "~/Downloads/MissionKit landing page.zip"
+pnpm landing:media -- --site missionkit        # after every sync: optimized/ store
+pnpm landing:update-versions                   # Colony tag (GitHub) + engine version
+pnpm landing:build                             # landing:build:check
+node scripts/verify-landing.mjs --site missionkit   # local dist, headless Chrome
+pnpm landing:deploy:staging                    # staging/ only
+pnpm landing:verify:staging
+pnpm landing:promote                           # root, operator yes only
+pnpm landing:rollback [release]                # root only
+```
+
+- **Sync** takes `MissionKit Home.dc.html` and what it loads: `support.js`, the referenced
+  `assets/**`, the stylesheets and scripts it links (`_ds/<project>/…`, `colony-ui.css`,
+  `oligarchy-hud.css`) and the site's `extraFiles` (the `mc/` demo: `dashboard.html`,
+  `dashboard-data.json`, `logo.svg`, `logo-bare-metal.svg`). The same Claude Design project
+  also exports `MissionKit Landing.dc.html` and `MissionKit Landing v2.dc.html`, older than
+  the Agent Kit mirror: they never reach either lane.
+- **Transforms** (`page.transforms`, each failing when the export changes): drop the links
+  the Home never uses (`tokens-stk.css`, `ds-core.css` with its Inter `@font-face`, the
+  `styles.css` aggregator, `_ds_bundle.js`; checked 2026-11-12: no class, custom property or
+  font of theirs is used by the page, `colony-ui.css` or `oligarchy-hud.css`), and ship
+  derived WebP for `assets/suite/card-mech-factory.png` (1.5 MB) and `struct-mech-factory.png`
+  (705 KB). The menu cards ship as the export's JPEG with 320/640 srcset variants. `tokens-mission-control.css` and
+  `agent-kit-landing.css` stay at their `_ds/` paths. Design-side fixes go to
+  `.cursor/context/landing-home/UPSTREAM-DESIGN-FIX-PROMPT.md`.
+- **Versions** (`page.versionStamp`): the logic class starts from a literal
+  `ver: { colony, agent, game }`. The build replaces it (exactly one occurrence, or it fails)
+  with `agent` = `packages/cli/package.json` and `colony` / `game` from the tracked stamp
+  `.cursor/context/landing-home/versions.json` (`pnpm landing:update-versions`: latest
+  `agent-kit-startup/colony` release, `packages/game-engine/package.json`). No network at
+  build time. The export's runtime `fetchVersions()` (api.github.com) still refreshes them
+  after load until the design removes it.
+- **Head:** the shared static head (canonical `https://missionkit.io/`, absolute
+  `og:image`), `<html lang="en">` (every site) and a schema.org JSON-LD block
+  (`HOME_JSON_LD`: Organization Mission Kit, SoftwareApplication Colony / Mission Control /
+  Agent Kit CLI, VideoGame Oligarchy).
+- **Root contracts** (`permanentFiles`, ADR 2026-11-12): `mc/open.html` from
+  `dashboard/open.html` and `assets/hero-astronaut.png` (the Agent Kit landing's `og:image`
+  until 2026-10-26) ship in the Home's `dist/`, beside the export's own `assets/og-cover.png`
+  and `assets/logo.svg`.
+- **Media:** the four ~5 MB background loops in `assets/suite/` use the site's
+  `media.videoRule` `mp4-h264-crf28` (H.264 re-encode, at most 1280×720, CRF 28, no audio,
+  faststart: 0.72 to 0.85 MB each) instead of the stream copy colony and oligarchy use.
+- **Staging** is a path-checked per-file upload into `staging/` (generated noindex
+  `.htaccess` and `Disallow: /` robots.txt, never part of `dist/`).
+- **Promote** zips the staging-validated `dist/` plus the generated production root files
+  and calls the Hostinger deploy trigger: `.htaccess` (security headers only: HSTS
+  `max-age=31536000` without `includeSubDomains`/`preload`, `nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` for camera,
+  microphone and geolocation, `DirectoryIndex index.html`; no CSP and no rewrites, because
+  every subdomain directory under `public_html` inherits it), `robots.txt` (allow all,
+  `Sitemap:`), `sitemap.xml` (the root URL only) and `llms.txt`. The deploy trigger
+  **replaces the root's files** with the archive (a file the archive does not carry is gone:
+  `assets/hero-astronaut.png` answered 404 on 2026-11-12 after later promotes), while the
+  subdomain directories survive. Any root URL that must keep resolving has to ship in
+  `dist/`.
+- **Verify:** `#dc-root`, no `{{ }}`, a `<video>`, the `mc/dashboard.html` iframe, one
+  canonical, every same-origin request 2xx. The page may reach `github.com` (the GitHub
+  Sponsors button iframe); `api.github.com` (`fetchVersions()`) is ignored noise. No numbers
+  stamp (that is the Agent Kit landing's).
 
 ### What the build changes (and nothing more)
 
@@ -112,9 +188,9 @@ pnpm landing:update-release -- --version 5.6.0 --notes "Short public product not
 
 `--blurb` is the stamp-safe `publicNotesBlurb` (heading-free, under 1000 characters). Never pass `CHANGELOG.md` as `--notes-file`.
 
-Then `pnpm landing:build`. Deploy stays `landing:deploy:staging` / `landing:promote`.
+Then `pnpm landing:build -- --site agent`. Deploy stays `landing:deploy:staging -- --site agent` / `landing:promote -- --site agent --yes-production`.
 
-**Release closeout (autonomous):** after public GitHub Release Latest exists for `vX.Y.Z`, private tag CI job `sync-landing` runs `node scripts/sync-landing-release.mjs` (same stamp + staging hop + promote). It fails if Latest does not match, `HOSTINGER_API_TOKEN` is unset, or live HTML would stay stale. Manual retry: Actions workflow_dispatch `sync_landing` (optional `landing_version`). Local: `pnpm landing:sync-release -- --version X.Y.Z`. This does not merge the public sync PR and does not skip the staging hop. Design-canvas visual deploys stay on `/kit-staging` HITL.
+**Release closeout (autonomous):** after public GitHub Release Latest exists for `vX.Y.Z`, private tag CI job `sync-landing` runs `node scripts/sync-landing-release.mjs`: stamp the Agent Kit landing, staging hop on agent-staging, promote to agent.missionkit.io; then `landing:update-versions`, rebuild the suite home (its Agent Kit version is the release), staging hop on staging.missionkit.io (the served `dc-logic.js` must be this build's and carry the version), promote the root. It fails if Latest does not match, `HOSTINGER_API_TOKEN` is unset, or live HTML / versions would stay stale on either site. Manual retry: Actions workflow_dispatch `sync_landing` (optional `landing_version`). Local: `pnpm landing:sync-release -- --version X.Y.Z`. This does not merge the public sync PR and does not skip the staging hop. Design-canvas visual deploys stay on `/kit-staging` HITL.
 
 `landing:sync` overwrites `remote/` wholesale. Re-run `landing:update-release` after a Design zip so the two fields are not reverted to a live badge or an empty box. The numbers stamp lives outside `remote/` and survives a sync.
 
@@ -170,8 +246,9 @@ guarantee for every possible click.
 ## Other sites (`--site`)
 
 The same scripts build two more Claude Design pages for the Colony launch
-(plan `colony-oligarchy-sites-2026-11-01`). The site table lives in
-`scripts/lib/landing-sites.mjs`; `missionkit` is the default and its path is unchanged.
+(plan `colony-oligarchy-sites-2026-11-01`), on the generic path the suite home also uses.
+The site table lives in `scripts/lib/landing-sites.mjs`; `missionkit` (the suite home) is
+the default.
 
 | Site | Page (mirror file) | Served at | Staging |
 |---|---|---|---|
@@ -198,9 +275,9 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   literal `assets/…` paths (must exist in the zip), quoted prefixes joined at runtime
   (`'assets/card-' + id`), and asset stems that appear as quoted literals
   (`img: 'uplink-tower-road'`). `uploads/`, `shots/`, `CLAUDE.md`, `github.md` and the old
-  designs never reach the mirror. React is vendored as for missionkit. The upstream prompt
+  designs never reach the mirror. React is vendored as for the Agent Kit landing. The upstream prompt
   guard reads `.cursor/context/landing-<id>/UPSTREAM-DESIGN-FIX-PROMPT.md`.
-- **Build** treats each page like missionkit's canvas: React on `window`, its own
+- **Build** treats each page like the Agent Kit landing's canvas: React on `window`, its own
   precompiled `dc-logic.js`, static head with the page's canonical and absolute
   `og:image` / `twitter:image` (the Game has none in its canvas, so it gets the site's
   `assets/og-cover.png`). The helmet's own canonical is dropped (Colony's lacks the
@@ -237,13 +314,14 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
 - **Deploy and promote** upload per file into the subdomain directory (`colony-staging/`,
   `colony/`, `oligarchy-staging/`, `oligarchy/`) of the missionkit.io hosting account; every
   remote path is checked to stay inside it. They never create subdomains or DNS (all four
-  exist) and never call the Hostinger deploy trigger, which overwrites the missionkit.io root.
+  exist) and never call the Hostinger deploy trigger, which replaces the missionkit.io root's files.
   Staging adds a noindex `.htaccess` and a `Disallow: /` robots.txt. Promote refuses without
   `--yes-production`, archives what the live host serves first and writes an upload manifest
-  to `.cursor/context/landing-<id>/releases/`. `landing:rollback` is missionkit-only and
-  refuses `--site colony|oligarchy`; roll those back by re-promoting a known-good build.
+  to `<lane>/releases/`. The `agent` site (`agent-staging/`, `agent/`) uses this same
+  per-file path. `landing:rollback` is root-only and refuses `--site agent|colony|oligarchy`;
+  roll those back by re-promoting a known-good build.
 - **Untrusted export.** Sync refuses a zip with symlink entries, or more than 512 MB / 4000
-  entries to extract (missionkit's sync runs the same name and symlink checks). Assets must
+  entries to extract (the Agent Kit landing's whole-zip sync runs the same name and symlink checks). Assets must
   be static media (png, jpg, webp, gif, svg, ico, mp4, webm, woff2, ttf, css, json; no
   dotfiles); sync, build and the per-file upload all refuse anything else. Uploads go
   assets and runtime first, `.htaccess` next, the HTML last.
@@ -256,7 +334,7 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
 ### Page transforms and the optimized media store
 
 The mirror stays the export as-is (ADR 2026-08-05). Two build-time layers sit on top of it,
-both committed and both colony/oligarchy only (missionkit has neither):
+both committed, used by every site but the Agent Kit landing (`agent` has neither):
 
 - **Page transforms** (`page.transforms: [{ find, replace, why }]` in
   `scripts/lib/landing-sites.mjs`) run on the raw canvas before asset selection, logic
@@ -298,18 +376,18 @@ both committed and both colony/oligarchy only (missionkit has neither):
 ## Deployment
 
 - **Hosting:** Hostinger web hosting (`u262837109`), addon vhost root `/home/u262837109/domains/missionkit.io/public_html`
-- **DNS:** `@` ALIAS to `missionkit.io.cdn.hstgr.net` (Hostinger CDN); `staging` CNAME to the same CDN target (added by `landing:deploy:staging` on first run, idempotent thereafter)
+- **DNS:** `@` ALIAS to `missionkit.io.cdn.hstgr.net` (Hostinger CDN); `staging` CNAME to the same CDN target (added by `landing:deploy:staging` on first run, idempotent thereafter); the other subdomains are created in hPanel / the Hostinger MCP, never by these scripts
 - **SSL:** Hostinger HTTPS (HTTP/2 200 verified)
-- **Deploy method (production):** `scripts/promote-landing.mjs` (`pnpm landing:promote`) — zips the already-staging-validated `dist/`, uploads it, then triggers the Hostinger static-site deploy against `domain=missionkit.io`. Same underlying REST call the interactive `hosting_deployStaticWebsite` MCP tool used for the original production deploy, reimplemented as a standalone script (see `scripts/lib/hostinger.mjs`) so it can run outside an MCP session
-- **Deploy method (staging):** `scripts/deploy-landing-staging.mjs` (`pnpm landing:deploy:staging`) — per-file upload into the `staging/` subdomain directory. Deliberately does **not** use the website-level deploy trigger: that endpoint's extraction target is the website root, and a subdomain is not a separate "website" in this API (it does not appear in the `/websites` listing, only under `/subdomains`), so routing staging through it risks overwriting production. Every upload path is asserted to start with `staging/`
+- **Deploy method (production, root):** `scripts/promote-landing.mjs` (`pnpm landing:promote`, site `missionkit`) — zips the already-staging-validated `dist/` plus the generated production root files, uploads it, then triggers the Hostinger static-site deploy against `domain=missionkit.io`. Subdomain sites (`agent`, `colony`, `oligarchy`) upload per file into their directory instead. Same underlying REST call the interactive `hosting_deployStaticWebsite` MCP tool used for the original production deploy, reimplemented as a standalone script (see `scripts/lib/hostinger.mjs`) so it can run outside an MCP session
+- **Deploy method (staging):** `scripts/deploy-landing-staging.mjs` (`pnpm landing:deploy:staging`) — per-file upload into the site's staging subdomain directory (`staging/` for the root). Deliberately does **not** use the website-level deploy trigger: that endpoint's extraction target is the website root, and a subdomain is not a separate "website" in this API (it does not appear in the `/websites` listing, only under `/subdomains`), so routing staging through it risks overwriting production. Every upload path is asserted to start with `staging/`
 
 ### Staging pipeline (missionkit-staging-promote.plan.md)
 
 - **Subdomain:** `staging.missionkit.io`, created via `hosting_createWebsiteSubdomainV1` (`POST .../websites/missionkit.io/subdomains`), directory `staging/` under the same document root as production — not a separate hosting account.
 - **Never indexed.** Staging must not carry `noindex` inside `dist/`'s own bytes: `landing:promote` ships the *exact same* `dist/` bytes already validated on staging, and if those bytes carried a `noindex` meta tag, promoting would noindex production too. Instead, `landing:deploy:staging` writes two generated, staging-only files alongside the upload — `staging/.htaccess` (`Header set X-Robots-Tag "noindex, nofollow"`) and `staging/robots.txt` (`Disallow: /`) — neither is part of `dist/`, neither is ever promoted. This is a deliberate deviation from the plan's literal wording ("toggle in build-landing.mjs"), made to preserve the plan's own higher-priority rule that promote never rebuilds and ships identical bytes.
 - **Residual:** the subdomain directory lives under the same document root as production (`.../public_html/staging/`), so the staged build may also be reachable at `missionkit.io/staging/` in addition to `staging.missionkit.io/`. The `X-Robots-Tag` header covers indexing either way; this is noted, not solved, here.
-- **Acceptance:** `pnpm landing:verify:staging` (`scripts/verify-landing.mjs --url https://staging.missionkit.io/`): headless Chrome (`--headless=new --dump-dom`, external DNS blocked via `--host-resolver-rules`, same self-containment technique as the original production acceptance gate) asserting `#dc-root`, zero unresolved bindings, a `<video>`, the `mc/dashboard.html` iframe, and no unexpected request host on load. `img.shields.io` is allowed (HOL guard badge). `update.googleapis.com` and `api.github.com` are ignored noise. This is a load-time check only. It never clicks anything, so it does not exercise (and does not need to allow) the demo modal's on-interaction `youtube-nocookie.com` request; see the on-interaction exception paragraph above.
-- **Promote/rollback safety:** `landing:promote` archives whatever is *currently live* at `missionkit.io` into `.cursor/context/landing-missionkit/releases/<timestamp>/` (zip, gitignored) **before** deploying — fetched over public HTTPS per file (not the Hostinger file-content API, which refuses binary files) so videos/images are captured too. `landing:rollback [release]` redeploys an archived release; with no argument, the immediately previous one. Neither script ever calls `landing:build`.
+- **Acceptance:** `pnpm landing:verify:staging` (suite home, `scripts/verify-landing.mjs --url https://staging.missionkit.io/`) and `pnpm landing:verify:staging:agent` (Agent Kit landing; the assertions below are its set): headless Chrome (`--headless=new --dump-dom`, external DNS blocked via `--host-resolver-rules`, same self-containment technique as the original production acceptance gate) asserting `#dc-root`, zero unresolved bindings, a `<video>`, the `mc/dashboard.html` iframe, and no unexpected request host on load. `img.shields.io` is allowed (HOL guard badge). `update.googleapis.com` and `api.github.com` are ignored noise. This is a load-time check only. It never clicks anything, so it does not exercise (and does not need to allow) the demo modal's on-interaction `youtube-nocookie.com` request; see the on-interaction exception paragraph above.
+- **Promote/rollback safety:** `landing:promote` archives whatever is *currently live* at `missionkit.io` into `.cursor/context/landing-home/releases/<timestamp>/` (zip, gitignored; `landing-missionkit/releases/` before the 2026-11-12 split) **before** deploying — fetched over public HTTPS per file (not the Hostinger file-content API, which refuses binary files) so videos/images are captured too. `landing:rollback [release]` redeploys an archived release; with no argument, the immediately previous one. Neither script ever calls `landing:build`.
 - **HITL gate (Design-canvas / visual):** Phase 3 of the plan — operator opens `https://staging.missionkit.io`, compares against the Claude Design canvas, approves explicitly. Visual deploys do not promote on a passing `landing:verify:staging` alone.
 - **Release-field closeout:** tag CI `sync-landing` may promote after staging HTML field-check (version pill + public blurb). That path is not a Design-canvas compare. Staging hop stays required.
 - **Operator-owed first run:** the upload leg (`scripts/lib/hostinger.mjs`'s `uploadFile`) reconstructs an undocumented Hostinger upload sequence (POST pre-create, then a TUS-style `PATCH`) from the vendored `hostinger-api-mcp` package's source, since this sandbox's permission classifier refused every mutating call attempted (subdomain create, adding a vendored dependency) and that refusal was not retried per this repo's worker contract. All read-only calls (website lookup, subdomain listing, DNS zone, file listing) were exercised live against the real account and work as documented; run `pnpm landing:deploy:staging -- --dry-run` first, and have the first real run be operator-attended.
@@ -345,9 +423,11 @@ root-relative URLs in both legacy HTML files resolve:
 Do not deploy that `index.html` alone. The supported live path remains
 `pnpm landing:build` followed by the `dist/` archive deployment described above.
 
-## SEO
+## SEO (Agent Kit landing)
 
-License copy is Apache-2.0 (ADR `2026-10-08_open-source-apache-2-dco-relicense`). The canvas carries it since the 2026-10-10 Design sync (latest canvas `MissionKit Landing v2.dc.html` promoted to the canonical name). Live `missionkit.io` shows it after the next release sync deploys the landing.
+The suite home's head is described under "Suite home"; this section is the Agent Kit landing's.
+
+License copy is Apache-2.0 (ADR `2026-10-08_open-source-apache-2-dco-relicense`). The canvas carries it since the 2026-10-10 Design sync (latest canvas `MissionKit Landing v2.dc.html` promoted to the canonical name). Live `agent.missionkit.io` shows it after the next release sync deploys the landing.
 
 - **Description / Twitter:** AI harness with built-in Project Management and DevSecOps that fits in any existing workflow. (no license wording)
 - **CTA:** Free and open source (Apache-2.0), and it runs inside the IDE you already use.
@@ -359,7 +439,7 @@ Other crawler fields matching the build pipeline:
 
 - **Title:** Mission Kit 5 · Development operations built into Cursor and VS Code
 - **Favicon:** `assets/logo.svg` (SVG, also `apple-touch-icon`)
-- **Open Graph image:** `assets/hero-astronaut.png` (absolutized to `https://missionkit.io/assets/hero-astronaut.png` in crawler head)
+- **Open Graph image:** `assets/og-cover.png` (absolutized to `https://agent.missionkit.io/assets/og-cover.png` in crawler head; `assets/hero-astronaut.png` until 2026-10-26, kept at the root for links shared before)
 - **Twitter Card:** `summary_large_image` with title, description, and image
 
 Operator path for copy changes: edit Claude Design SoR → Download zip → `pnpm landing:sync` → `pnpm landing:update-release` → `pnpm landing:build` → staging deploy / promote. Do not hand-edit `landing-missionkit/remote/` as the source of truth. Standing `/design` paste template: `.cursor/context/landing-missionkit/CLAUDE-DESIGN-TEMPLATE.md` (grey "release" chip, `a[data-release-version]` to `releases/latest`, HOL guard badge in the link column, no `hol.org` embed). One-off prompt notes: `.cursor/context/landing-missionkit/UPSTREAM-DESIGN-FIX-PROMPT.md` (SEO, clipboard, license copy, and the HOL guard badge tasks are checked). Do not re-apply `UPSTREAM-DESIGN-FIX-PROMPT-badge-changelog.md`.
@@ -382,7 +462,8 @@ The PolyForm cutover Design sync (`783ca90` / PR #698) also refreshed `remote/mc
 
 ```
 OLD: agent.startupkit.com.br (deprecated; 301 → missionkit.io)
-NEW: missionkit.io (current canonical)
+2026-08 to 2026-11-12: missionkit.io served the Agent Kit landing
+NOW: missionkit.io = suite home; agent.missionkit.io = Agent Kit landing
 ```
 
 ## Legacy files
