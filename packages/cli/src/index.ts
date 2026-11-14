@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { defineCommand, runMain, showUsage } from "citty";
 import { KIT_VERSION } from "./lifecycle/version.js";
+import { shutdownAiObservability } from "./plan-loop/ai-observability.js";
 import { rewriteRootArgvToRun } from "./plan-loop/dispatch.js";
 import { renderGroupedRootHelp } from "./welcome/help-groups.js";
 import { hasCliSubcommand, printWelcomeScreen } from "./welcome/screen.js";
@@ -65,12 +66,14 @@ const main = defineCommand({
   },
 });
 
-runMain(main, {
-  showUsage: async (cmd, parent) => {
-    if (!parent) {
-      process.stdout.write(`${await renderGroupedRootHelp(cmd)}\n`);
-      return;
-    }
-    await showUsage(cmd, parent);
-  },
-});
+void Promise.resolve(
+  runMain(main, {
+    showUsage: async (cmd, parent) => {
+      if (!parent) {
+        process.stdout.write(`${await renderGroupedRootHelp(cmd)}\n`);
+        return;
+      }
+      await showUsage(cmd, parent);
+    },
+  }),
+).finally(shutdownAiObservability);

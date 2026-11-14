@@ -68,6 +68,12 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },
+  "dependencies": {
+    "@opentelemetry/exporter-logs-otlp-http": "^0.301.2",
+    "@opentelemetry/resources": "^3.1.1",
+    "@opentelemetry/sdk-logs": "^3.1.1",
+    "posthog-node": "^5.24.3"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.6.4",
     "turbo": "^2.11.10",
