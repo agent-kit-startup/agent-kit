@@ -1,11 +1,11 @@
 {
   "name": "agent-kit",
-  "version": "6.16.1",
+  "version": "6.17.0",
   "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
   "author": {
     "name": "agent-kit-startup"
   },
-  "homepage": "https://missionkit.io/",
+  "homepage": "https://agent.missionkit.io/",
   "repository": "https://github.com/agent-kit-startup/agent-kit",
   "license": "Apache-2.0",
   "keywords": ["agents", "hitl", "handoff", "git-staging", "context", "multi-ide", "anti-slop"],

@@ -15,7 +15,7 @@ on:
         type: boolean
         default: false
       sync_landing:
-        description: "Stamp and promote missionkit.io from public Release Latest"
+        description: "Stamp and promote agent.missionkit.io from public Release Latest, then rebuild and promote the missionkit.io home"
         type: boolean
         default: false
       landing_version:
@@ -132,6 +132,8 @@ jobs:
           pnpm check:game-content
           pnpm landing:build
           pnpm landing:build:check
+          pnpm landing:build -- --site agent
+          pnpm landing:build:check -- --site agent
           pnpm landing:build -- --site colony
           pnpm landing:build:check -- --site colony
           pnpm landing:build -- --site oligarchy
@@ -445,12 +447,16 @@ jobs:
         working-directory: packages/game-engine
         run: npm publish --provenance --access public
 
-  # ── Stamp + promote missionkit.io from public GitHub Release Latest ──
+  # ── Stamp + promote agent.missionkit.io from public GitHub Release Latest ──
+  # The Agent Kit landing (site agent) carries the release stamp; the suite home at the
+  # missionkit.io root (site missionkit) is rebuilt with the release as its Agent Kit
+  # version and fresh Colony / Oligarchy versions (landing:update-versions, GH_TOKEN).
   # Private-origin allowlist only (same SoT as sync-public).
   # Adding another allowlisted site (this job `if` counts) requires updating the
   # exact-count pin in packages/cli/src/dashboard/ci-private-origin-allowlist.test.ts.
   # Secret HOSTINGER_API_TOKEN: fail loud when unset on tag/manual landing sync.
-  # Staging hop is required: deploy:staging, field-check, then promote the same dist/.
+  # Staging hop is required for both sites: deploy:staging, field-check, then promote
+  # the same dist/ (agent-staging -> agent, then staging -> root).
   # Does not merge the public sync PR. On tag runs it waits until sync-public
   # has squash-merged and published the public Release. A landing-only dispatch
   # still runs when sync-public is skipped.
@@ -478,13 +484,13 @@ jobs:
       - name: Sync landing from public Release Latest
         run: |
           if [ -z "$HOSTINGER_API_TOKEN" ]; then
-            echo "::error::HOSTINGER_API_TOKEN is not configured. Tag and manual landing sync require this secret; missionkit.io was not updated."
+            echo "::error::HOSTINGER_API_TOKEN is not configured. Tag and manual landing sync require this secret; agent.missionkit.io and missionkit.io were not updated."
             exit 1
           fi
           # Dispatch input arrives via env, never as an inline expression (script injection).
           if [ -n "$LANDING_VERSION_INPUT" ]; then
             if ! [[ "$LANDING_VERSION_INPUT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::landing_version must be X.Y.Z; missionkit.io was not updated."
+              echo "::error::landing_version must be X.Y.Z; agent.missionkit.io and missionkit.io were not updated."
               exit 1
             fi
             export LANDING_RELEASE_VERSION="$LANDING_VERSION_INPUT"

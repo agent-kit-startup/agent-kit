@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.17.0] - 2026-11-13
+
+### Added
+
+- Claude plugin: `.claude-plugin/plugin.json` declares an `icon` (`.claude-plugin/icon.png`, 1024x1024 PNG of the Mission Kit marketplace mark), so `claude plugin validate` no longer warns `ICON_MISSING` and the Anthropic plugin directory can use it as the listing icon when the plugin is first submitted.
+
+### Changed
+
+- Websites: `missionkit.io` is now the Mission Kit suite home (Colony, Mission Control, Agent Kit CLI, Oligarchy), and the Agent Kit page moves to `agent.missionkit.io`. Mission Control share links (`https://missionkit.io/mc/open.html`) keep working.
+- `homepage` in the npm package and in the Claude and Codex plugin manifests now points at `https://agent.missionkit.io/`.
+
 ## [6.16.1] - 2026-11-10
 
 ### Fixed
