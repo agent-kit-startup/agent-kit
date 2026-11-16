@@ -13,7 +13,7 @@ Mission Control **Flight Log** shows HANDOFF Gaps only. It does **not** host Res
 
 ## When to Use
 
-- An External-review, agent-prompt, or cadence attention id remains after you handled it outside the strong auto-clear signals (triage heading / follow-up plan / terminal reviewed-plan demotion / later user reply / unreviewed set cleared)
+- An External-review, agent-prompt, or cadence attention id remains after you handled it outside the strong auto-clear signals (triage heading / follow-up plan / terminal plan lifecycle clears prompt / later user reply / unreviewed set cleared). Report demotion to Review debt is not one of them
 - You pasted `/field-report-resolve` with one or more attention ids (from chat, memory, or a prior copy)
 - You want a durable local hide without deleting the monitor file or answering the chat
 
@@ -56,7 +56,8 @@ Examples:
 
 2. **Load** `.cursor/context/field-report-dismissals.json` if it exists; otherwise start from `{ "dismissals": [] }`. Missing or unreadable file is not an error.
 
-3. **Check/update each claim** before deciding to dismiss. For each valid id that is not already in the store, locate the claim, verify its current state, and decide whether dismiss is eligible. Dismiss eligible in all three shapes means: a strong auto-clear signal already applies (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal reviewed-plan demotion, cadence unreviewed set cleared), or the operator explicitly confirms hide-after-check; otherwise skip.
+3. **Check/update each claim** before deciding to dismiss. For each valid id that is not already in the store, locate the claim, verify its current state, and decide whether dismiss is eligible. Dismiss eligible in all three shapes means: a strong auto-clear signal already applies (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal plan lifecycle clears prompt (`attention:prompt:` only), cadence unreviewed set cleared), or the operator explicitly confirms hide-after-check; otherwise skip.
+   Report demotion is not dismiss-eligible: a terminal plan lifecycle only moves an `attention:report:` row to Review debt (`isReportDemotedByPlanLifecycle`, `buildExternalReportItems` in `dashboard/lib/semantic-model.mjs`); the report needs a triage heading or a follow-up plan.
    Full per-shape locate/check detail (delegated Task(explore) template fields, worker contracts, exact eligibility rules for `attention:prompt:`, `attention:report:`, and `attention:cadence:`): [procedure.md](../skills/core/field-report-resolve/procedure.md).
 
 4. **Append** eligible ids. For each id that passed the check (eligible for dismiss), add it to the store:
@@ -87,7 +88,7 @@ Examples:
 1. **IDs only** in the store. No conversation content.
 2. **Copy-only / chat path:** invoke via pasted `/field-report-resolve <attention-id> [...]`. No in-panel mutation, no server-side dismiss API, no Flight Log Resolve all / Review all UI.
 3. **Never `/git-prod`** from this command. Do not commit the dismissals file (it is gitignored).
-4. Prefer strong auto-clear / resolve signals (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal reviewed-plan demotion, cadence unreviewed set cleared) when those signals already apply; this command is the explicit local override when auto-clear is narrower than resolve.
+4. Prefer strong auto-clear / resolve signals (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal plan lifecycle clears prompt, cadence unreviewed set cleared; report demotion is not one) when those signals already apply; this command is the explicit local override when auto-clear is narrower than resolve.
 
 ## Related
 

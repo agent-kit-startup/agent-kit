@@ -85,3 +85,42 @@ export const INTERACTIVE_ALLOW_RULES: readonly string[] = [
   "Bash(glab mr merge)",
   "Bash(glab mr merge *)",
 ];
+
+export interface PermissionRowControl {
+  /** `SHELL_DENY_RULES` id (shell-guard.ts) that keeps the allow row safe. */
+  guardRule: string;
+  /** One line for the operator: what the control denies. */
+  summary: string;
+}
+
+const MERGE_ALLOW_CONTROL: PermissionRowControl = {
+  guardRule: "pr-merge-protected-base",
+  summary:
+    "the PreToolUse(Bash) hook `agent-kit guard shell` denies a merge into main/master/prod or into a base it cannot resolve",
+};
+
+/**
+ * Compensating control per interactive allow row: `update --claude` prints it next to
+ * each allow row it adds, so a widened permission never lands without its reason.
+ * Every INTERACTIVE_ALLOW_RULES row has an entry (claude-permissions.test.ts).
+ */
+export const INTERACTIVE_ALLOW_CONTROLS: Readonly<Record<string, PermissionRowControl>> = {
+  "Bash(gh pr merge)": MERGE_ALLOW_CONTROL,
+  "Bash(gh pr merge *)": MERGE_ALLOW_CONTROL,
+  "Bash(glab mr merge)": MERGE_ALLOW_CONTROL,
+  "Bash(glab mr merge *)": MERGE_ALLOW_CONTROL,
+};
+
+/** An allow row that lets a PR/MR merge skip the prompt (kit row or a hand-written variant). */
+export function isMergeAllowRow(row: string): boolean {
+  return /^Bash\(\s*(?:gh\s+pr|glab\s+mr)\s+merge\b/.test(row);
+}
+
+/** Operator-facing note for one permission row: what keeps it safe, or that it only narrows. */
+export function permissionRowControl(kind: "allow" | "deny", row: string): string {
+  if (kind === "deny") return "narrows permissions (native deny backstop)";
+  const control =
+    INTERACTIVE_ALLOW_CONTROLS[row] ?? (isMergeAllowRow(row) ? MERGE_ALLOW_CONTROL : undefined);
+  if (!control) return "no kit control (not a kit row)";
+  return `compensating control: guard rule \`${control.guardRule}\` (${control.summary})`;
+}

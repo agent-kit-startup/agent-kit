@@ -23,6 +23,6 @@ Do **not** use this for creating Field Report cards, triaging monitors (use `/pl
 
 Per-id-shape locate/check/dismiss-eligibility detail for `attention:prompt:<chatId>`, `attention:report:<slug>`, and `attention:cadence:<windowId>`: [procedure.md](./procedure.md)
 
-Command SoT: [field-report-resolve.md](../../.cursor/commands/field-report-resolve.md)
+Command SoT: [field-report-resolve.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/field-report-resolve.md)
 
 HITL: Task(explore) delegation for transcript/monitor/plan scans; hide-after-check confirmation when dismissing before resolution is complete.

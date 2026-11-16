@@ -2,9 +2,11 @@ import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INTERACTIVE_ALLOW_RULES } from "../generator/claude-permissions.js";
 import {
   assessClaudeCommandAdapters,
   assessClaudeGuardProbe,
+  assessClaudeMergeAllowGuard,
   assessGitHooksInstallDrift,
   assessHooksHealth,
   assessSignatureGateHook,
@@ -276,6 +278,72 @@ describe("assessClaudeGuardProbe", () => {
     const root = await setup(withGuard, '{"permission":"deny"}');
     const report = await assessHooksHealth(root);
     expect(report.advisories.some((a) => a.includes("too old or stale dist"))).toBe(true);
+  });
+});
+
+describe("assessClaudeMergeAllowGuard", () => {
+  const mergeRows = [...INTERACTIVE_ALLOW_RULES];
+  const guardGroup = { matcher: "Bash", hooks: [{ command: "x guard shell --format claude" }] };
+
+  async function setup(files: Record<string, unknown>) {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-merge-allow-guard-"));
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    for (const [name, body] of Object.entries(files)) {
+      await writeFile(
+        path.join(root, ".claude", name),
+        typeof body === "string" ? body : JSON.stringify(body),
+        "utf8",
+      );
+    }
+    return root;
+  }
+
+  it("flags merge allow rows with no guard hook, naming the rows and the guard rule", async () => {
+    const tips = await assessClaudeMergeAllowGuard(
+      await setup({ "settings.json": { permissions: { allow: mergeRows } } }),
+    );
+    expect(tips).toHaveLength(1);
+    expect(tips[0]).toContain(mergeRows[0]);
+    expect(tips[0]).toContain("pr-merge-protected-base");
+    expect(tips[0]).toContain("agent-kit guard shell");
+  });
+
+  it("is silent when the guard hook sits beside the rows", async () => {
+    const root = await setup({
+      "settings.json": { permissions: { allow: mergeRows }, hooks: { PreToolUse: [guardGroup] } },
+    });
+    expect(await assessClaudeMergeAllowGuard(root)).toEqual([]);
+  });
+
+  it("counts settings.local.json rows and hooks too", async () => {
+    const localRows = await setup({
+      "settings.json": { hooks: { SessionStart: [] } },
+      "settings.local.json": { permissions: { allow: ["Bash(gh pr merge:*)"] } },
+    });
+    expect(await assessClaudeMergeAllowGuard(localRows)).toHaveLength(1);
+    const localGuard = await setup({
+      "settings.json": { permissions: { allow: mergeRows } },
+      "settings.local.json": { hooks: { PreToolUse: [guardGroup] } },
+    });
+    expect(await assessClaudeMergeAllowGuard(localGuard)).toEqual([]);
+  });
+
+  it("is silent without merge allow rows, without settings, or on unparseable JSON", async () => {
+    expect(
+      await assessClaudeMergeAllowGuard(
+        await setup({ "settings.json": { permissions: { allow: ["Bash(npm test)"] } } }),
+      ),
+    ).toEqual([]);
+    expect(await assessClaudeMergeAllowGuard(await setup({}))).toEqual([]);
+    expect(await assessClaudeMergeAllowGuard(await setup({ "settings.json": "{ nope" }))).toEqual(
+      [],
+    );
+  });
+
+  it("leads the assessHooksHealth advisories (doctor prints the first five)", async () => {
+    const root = await setup({ "settings.json": { permissions: { allow: mergeRows } } });
+    const report = await assessHooksHealth(root);
+    expect(report.advisories[0]).toContain("pr-merge-protected-base");
   });
 });
 

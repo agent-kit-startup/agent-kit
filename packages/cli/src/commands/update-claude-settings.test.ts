@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, readdir, readFile, symlink, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { INTERACTIVE_DENY_RULES } from "../generator/claude-permissions.js";
+import {
+  INTERACTIVE_ALLOW_RULES,
+  INTERACTIVE_DENY_RULES,
+} from "../generator/claude-permissions.js";
 import { mergeSessionStartHookIntoSettings } from "../generator/claude-session-start-hook.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { updateCommand } from "./update.js";
@@ -103,6 +106,24 @@ describe("update --claude (opt-in ledger-aware merge)", { timeout: 30_000 }, () 
       await readFile(path.join(root, ".cursor", "agent-kit.json"), "utf8"),
     );
     expect(manifest.protected).toEqual([SETTINGS]);
+  });
+
+  it("prints a permissions changed block naming each added row and its control, once", async () => {
+    const root = await fixture();
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    const parsed = JSON.parse(mergeSessionStartHookIntoSettings(null).content as string);
+    delete parsed.permissions.allow;
+    await writeFile(path.join(root, SETTINGS), `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+
+    const out = await runUpdate(root, true);
+
+    expect(out).toContain(`Permissions changed in ${SETTINGS}:`);
+    for (const row of INTERACTIVE_ALLOW_RULES) expect(out).toContain(`+ allow ${row}`);
+    expect(out).toContain("`pr-merge-protected-base`");
+    expect(out).not.toMatch(/WARNING/);
+
+    const again = await runUpdate(root, true);
+    expect(again).not.toContain("Permissions changed");
   });
 
   it("a row the ledger says was deleted stays deleted", async () => {

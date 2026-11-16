@@ -62,7 +62,12 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isRealWriteTargetContained, resolveContained } from "../lifecycle/paths.js";
 import { ensureDir } from "../utils/fs.js";
-import { INTERACTIVE_ALLOW_RULES, INTERACTIVE_DENY_RULES } from "./claude-permissions.js";
+import {
+  INTERACTIVE_ALLOW_RULES,
+  INTERACTIVE_DENY_RULES,
+  isMergeAllowRow,
+  permissionRowControl,
+} from "./claude-permissions.js";
 import {
   CLAUDE_SETTINGS_LEDGER_REL,
   type ClaudeHookEntryRecord,
@@ -380,6 +385,106 @@ export interface WriteSessionStartHookResult {
   pending?: ClaudeSettingsPending;
   /** Ledger path, set when this call created or grew the ledger file. */
   ledgerPath?: string;
+  /** allow/deny rows this call added to or removed from the file (empty when nothing changed). */
+  permissionChanges?: PermissionRowChange[];
+  /** Merge allow rows in the written file with no PreToolUse(Bash) guard hook beside them. */
+  mergeAllowWithoutGuard?: string[];
+}
+
+export interface PermissionRowChange {
+  change: "added" | "removed";
+  kind: "allow" | "deny";
+  row: string;
+}
+
+function permissionRowsOf(root: unknown, kind: "allow" | "deny"): string[] {
+  if (!isPlainObject(root) || !isPlainObject(root.permissions)) return [];
+  const list = root.permissions[kind];
+  return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+}
+
+function parseSettingsObject(raw: string | null): Record<string, unknown> {
+  if (raw === null || raw.trim() === "") return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** allow/deny rows present after but not before (added) and before but not after (removed), allow first. */
+export function diffPermissionRows(
+  beforeRaw: string | null,
+  afterRaw: string,
+): PermissionRowChange[] {
+  const before = parseSettingsObject(beforeRaw);
+  const after = parseSettingsObject(afterRaw);
+  const changes: PermissionRowChange[] = [];
+  for (const kind of ["allow", "deny"] as const) {
+    const had = permissionRowsOf(before, kind);
+    const has = permissionRowsOf(after, kind);
+    for (const row of has) if (!had.includes(row)) changes.push({ change: "added", kind, row });
+    for (const row of had) if (!has.includes(row)) changes.push({ change: "removed", kind, row });
+  }
+  return changes;
+}
+
+/** True when a PreToolUse group whose matcher covers Bash carries the kit guard hook. */
+export function settingsHaveGuardHook(root: unknown): boolean {
+  if (!isPlainObject(root) || !isPlainObject(root.hooks)) return false;
+  const groups = root.hooks.PreToolUse;
+  if (!Array.isArray(groups)) return false;
+  return groups.some((g) => {
+    if (!isPlainObject(g)) return false;
+    const matcher = g.matcher;
+    const coversBash =
+      matcher === undefined ||
+      matcher === "" ||
+      matcher === "*" ||
+      (typeof matcher === "string" && /\bBash\b/.test(matcher));
+    return coversBash && groupHasMarker(g, GUARD_SHELL_HOOK_MARKER);
+  });
+}
+
+/**
+ * Merge allow rows (`isMergeAllowRow`) in the parsed settings object(s) when none of
+ * them wires the guard hook; empty when the guard is present or no merge row is
+ * allowed. Several objects = settings files Claude Code merges (shared + local).
+ */
+export function mergeAllowRowsWithoutGuard(...roots: unknown[]): string[] {
+  if (roots.some(settingsHaveGuardHook)) return [];
+  return roots.flatMap((r) => permissionRowsOf(r, "allow")).filter(isMergeAllowRow);
+}
+
+/**
+ * Operator block for `update --claude`: each allow/deny row added or removed, with
+ * its compensating control. Empty when no row changed. When merge allow rows sit in
+ * the file without the guard hook, the control claim would be false: warn instead.
+ */
+export function formatPermissionsChanged(
+  changes: readonly PermissionRowChange[],
+  opts: { mergeAllowWithoutGuard: readonly string[] },
+): string[] {
+  if (changes.length === 0) return [];
+  const unguarded = new Set(opts.mergeAllowWithoutGuard);
+  const lines = [`Permissions changed in ${CLAUDE_SETTINGS_REL}:`];
+  for (const c of changes) {
+    const sign = c.change === "added" ? "+" : "-";
+    const note =
+      c.change === "removed"
+        ? "removed"
+        : unguarded.has(c.row)
+          ? "no guard hook in this file: nothing denies a merge into main"
+          : permissionRowControl(c.kind, c.row);
+    lines.push(`  ${sign} ${c.kind} ${c.row} -- ${note}`);
+  }
+  if (unguarded.size > 0) {
+    lines.push(
+      `  WARNING: merge allow rows without the PreToolUse(Bash) \`agent-kit guard shell\` hook (guard rule \`pr-merge-protected-base\`): a merge into main/master/prod runs without a prompt. Add the guard hook back to ${CLAUDE_SETTINGS_REL} by hand or remove these rows.`,
+    );
+  }
+  return lines;
 }
 
 export async function writeClaudeSessionStartHook(
@@ -422,9 +527,12 @@ export async function writeClaudeSessionStartHook(
     await writeFile(abs, merged.content, "utf8");
   }
 
+  const written = parseSettingsObject(merged.content);
   const result: WriteSessionStartHookResult = {
     relativePath: CLAUDE_SETTINGS_REL,
     status: merged.status,
+    permissionChanges: diffPermissionRows(existing, merged.content),
+    mergeAllowWithoutGuard: mergeAllowRowsWithoutGuard(written),
   };
   if (
     merged.pending &&
@@ -559,6 +667,9 @@ export function formatClaudeSettingsDrift(
   const allowRows = [...report.allowRows, ...report.ambiguousAllowRows];
   if (allowRows.length > 0) {
     lines.push("Add to permissions.allow:", JSON.stringify(allowRows, null, 2));
+    for (const note of new Set(allowRows.map((row) => permissionRowControl("allow", row)))) {
+      lines.push(`(allow rows: ${note})`);
+    }
     if (report.ambiguousAllowRows.length > 0) {
       lines.push(
         `(${report.ambiguousAllowRows.length} row(s) ambiguous: no ${CLAUDE_SETTINGS_LEDGER_REL} ledger, so a deliberate deletion cannot be told apart.)`,

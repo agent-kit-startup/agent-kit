@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # QA playbook
 
-Operator slash: `/qa`. ADR: `.cursor/memory/decisions/2026-09-16_qa-l0-slash-no-new-agent.md`. HITL labels: [hitl-gates](../hitl-gates/SKILL.md). Command SoT: [qa.md](../../.cursor/commands/qa.md).
+Operator slash: `/qa`. ADR: `.cursor/memory/decisions/2026-09-16_qa-l0-slash-no-new-agent.md`. HITL labels: [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/skills/hitl-gates/SKILL.md). Command SoT: [qa.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/qa.md).
 
 ## When to use
 

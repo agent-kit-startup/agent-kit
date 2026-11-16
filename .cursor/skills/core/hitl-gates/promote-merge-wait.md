@@ -18,6 +18,14 @@ Run `agent-kit promote wait --pr <N>` (add `--repo <owner/name>` outside the che
 
 Never hand-roll an unbounded `gh pr view` loop. On a CLI without `promote wait`, poll `gh pr view <N> --json state` with the same backoff and cap.
 
+## GitLab origin
+
+`agent-kit promote rules` and `agent-kit promote wait` are GitHub-only (they call `gh`); a forge-aware CLI is not shipped. On a GitLab origin:
+
+- Create the staging→main MR with `squash=false` and `remove_source_branch=false`. GitLab project defaults (squash on, delete source branch on) break a promote: a squash drops the staging history from `main`, and a deleted `staging` breaks the staging sync. Set both on the MR explicitly, for example `glab api --method POST projects/:id/merge_requests -f source_branch=staging -f target_branch=main -f title="<title>" -F squash=false -F remove_source_branch=false`.
+- Skip the ruleset preflight (no GitLab model); note `promote rules: skipped (GitLab)` in the summary.
+- Wait with a bounded MR-state poll: read `state` from `glab api projects/:id/merge_requests/<iid>` with the same backoff (30 s up to 5 min) and the same `promoteMergeWaitMs` cap. `merged` = exit `0` row, `closed` = exit `1` row, cap reached = exit `3` row (the Ask below). For `Show the merge box reason`, print the MR's `detailed_merge_status` and `has_conflicts` instead of the `gh` fields.
+
 ## Ask `promote-merge-wait`
 
 Labels, in order: `Keep waiting` / `Show the merge box reason` / `Stop and hand off`. Numbered fallback and `HITL_GATE:` sentinel: [SKILL.md](SKILL.md).

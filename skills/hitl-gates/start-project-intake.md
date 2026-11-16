@@ -168,7 +168,7 @@ After proposing the plan, list any in-progress or parked plans in one short bloc
 3. Options must be concrete labels (e.g. `Write plan file`, `Start first unit`, `Skip for now`)
 4. **Fallback:** if the tool is not available in the current session, say so once and ask the same options in chat
 
-**Note:** Kit-wide contract: always-applied L0 rule [`.cursor/rules/hitl-ask-questions.mdc`](../../.cursor/rules/hitl-ask-questions.mdc).
+**Note:** Kit-wide contract: always-applied L0 rule [`.cursor/rules/hitl-ask-questions.mdc`](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/rules/hitl-ask-questions.mdc).
 
 ## Onboarding flow (correct)
 
