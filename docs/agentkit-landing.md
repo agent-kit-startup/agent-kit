@@ -24,8 +24,12 @@ The landing page is authored in the **Claude Design** project and exported as a 
 The repo is a consumer: it syncs the export, builds a deployable bundle, and deploys it.
 The design canvas is a React component (bindings, `sc-if`/`sc-for`, a logic class) that
 renders client-side via a vendored `dc-runtime` (`support.js`). The repo ships the runtime
-rather than flattening the markup, so the deployed page is byte-identical to what the
-design tool renders.
+rather than flattening the markup: the runtime and template ship as exported. A page
+with `prerender: true` in the site registry may also carry a generated snapshot of its
+own first rendered frame (`pnpm landing:prerender`, committed, checked for staleness by
+`landing:build:check`), which the runtime replaces at its first commit (ADR amend
+2026-11-13, accepted 2026-11-14). The suite Home (`missionkit`) opts in; the other
+sites do not.
 
 **Design mirror:** `<lane>/remote/` (versioned)  
 **Build output:** `<lane>/dist/` (gitignored, derived)  
@@ -96,6 +100,7 @@ archive it deploys).
 pnpm landing:sync -- --site missionkit "~/Downloads/MissionKit landing page.zip"
 pnpm landing:media -- --site missionkit        # after every sync: optimized/ store
 pnpm landing:update-versions                   # Colony tag (GitHub) + engine version
+pnpm landing:prerender -- --site missionkit  # after a sync: first-frame snapshot (local Chrome)
 pnpm landing:build                             # landing:build:check
 node scripts/verify-landing.mjs --site missionkit   # local dist, headless Chrome
 pnpm landing:deploy:staging                    # staging/ only
@@ -125,6 +130,24 @@ pnpm landing:rollback [release]                # root only
   `agent-kit-startup/colony` release, `packages/game-engine/package.json`). No network at
   build time. The export's runtime `fetchVersions()` (api.github.com) still refreshes them
   after load until the design removes it.
+- **First-frame snapshot** (`page.prerender`, ADR 2026-08-05 amend 2026-11-13): the Home
+  paints from HTML before React boots. `pnpm landing:prerender -- --site missionkit` (local,
+  headless Chrome, same binary discovery as verify) builds the page with sentinel versions,
+  captures `#dc-root` at React's first commit twice at 412x823 (they must match), cleans it
+  (`data-dc-tpl`, the `--cx-s`/`--mc-s` scale vars and iframe `src` removed; the first
+  chapter's video becomes its poster `<img fetchpriority="high">`) and writes
+  `.cursor/context/landing-home/prerender/` (snapshot, helmet styles, manifest of input
+  hashes). The build then injects it without Chrome: `<div id="dc-snapshot">` right after
+  `</x-dc>` (the runtime root lands right before it, so its ids win), the helmet styles and a
+  CSS-only handover in `<head>`, a `rel="expect"` render block until the snapshot is parsed,
+  real versions in place of the sentinels, and the runtime scripts as inert `data-after-load`
+  tags that the static `dc-boot.js` starts two animation frames after window load, or at a
+  3 s cap. The frames let Chrome record the snapshot as the LCP before the handover hides
+  it; started in the load task, the runtime boot delays that record until after the
+  handover, Chrome drops it and LCP moves to the runtime video. The build and
+  `landing:build:check` fail when the page, logic, runtime, React or linked CSS changed since
+  the capture, naming `pnpm landing:prerender`; a version bump alone does not. Re-run it after
+  every sync, re-export or transform change, and commit `prerender/` with the mirror.
 - **Head:** the shared static head (canonical `https://missionkit.io/`, absolute
   `og:image`), `<html lang="en">` (every site) and a schema.org JSON-LD block
   (`HOME_JSON_LD`: Organization Mission Kit, SoftwareApplication Colony / Mission Control /
@@ -215,11 +238,11 @@ Known gap: the canvas still fetches `api.github.com` at load to refresh the star
 
 ### On-load vs on-interaction requests
 
-Everything the build ships is self-contained **on load** except the HOL guard
-badge, which requests `img.shields.io` on purpose. Version stays a static
+Everything the build ships is self-contained **on load** except the HOL Registry
+trust badge, which requests `img.shields.io` on purpose. Version stays a static
 `data-release-version` link. There is no live GitHub release badge
 (`img.shields.io/github/...`). `landing:build` and `landing:update-release`
-allow only the HOL guard endpoint and still reject any other `img.shields.io`
+allow only the HOL trust endpoint and reject any other `img.shields.io`
 URL. See ADR `decisions/2026-08-05_landing-external-design-source-of-record.md`
 (2026-08-27 addendum). Visual or copy changes to the marketing canvas still go through
 Claude Design, then re-export and `landing:sync`. The two release fields above are

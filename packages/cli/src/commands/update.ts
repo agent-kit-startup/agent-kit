@@ -6,6 +6,7 @@ import {
 import {
   CLAUDE_SETTINGS_REL,
   formatClaudeSettingsDrift,
+  formatPermissionsChanged,
   planClaudeSettingsDrift,
   writeClaudeSessionStartHook,
 } from "../generator/claude-session-start-hook.js";
@@ -225,6 +226,10 @@ export const updateCommand = defineCommand({
           logger.warn(claude.instructions ?? `${CLAUDE_SETTINGS_REL} could not be merged.`);
         } else {
           console.log(`Claude settings ${claude.status}: ${claude.relativePath}`);
+          const changed = formatPermissionsChanged(claude.permissionChanges ?? [], {
+            mergeAllowWithoutGuard: claude.mergeAllowWithoutGuard ?? [],
+          });
+          for (const line of changed) console.log(line);
         }
         // Adopt the command adapters without reapplying L0: writes only
         // .claude/commands/* (plus the shared managed-hash ledger), overlay-safe.

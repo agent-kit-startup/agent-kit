@@ -15,7 +15,10 @@ import {
   buildSessionStartHookCommand,
   buildSessionStartHookEntry,
   CLAUDE_SETTINGS_REL,
+  diffPermissionRows,
+  formatPermissionsChanged,
   GUARD_SHELL_HOOK_MARKER,
+  mergeAllowRowsWithoutGuard,
   mergeSessionStartHookIntoSettings,
   SESSION_START_DEGRADED_TEXT,
   SESSION_START_HOOK_MARKER,
@@ -418,6 +421,119 @@ describe("writeClaudeSessionStartHook", () => {
     expect(result.status).toBe("unavailable");
     expect(result.instructions).toBeTruthy();
     expect(await readFile(settingsPath, "utf8")).toBe("{ not valid json at all");
+  });
+
+  it("reports the rows it added, and none on a second run", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-claude-settings-changes-"));
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    const settingsPath = path.join(root, CLAUDE_SETTINGS_REL);
+    await writeFile(
+      settingsPath,
+      JSON.stringify({ hooks: { SessionStart: [{ hooks: [buildSessionStartHookEntry()] }] } }),
+      "utf8",
+    );
+    const first = await writeClaudeSessionStartHook(root);
+    const added = (first.permissionChanges ?? []).filter((c) => c.change === "added");
+    expect(added.filter((c) => c.kind === "allow").map((c) => c.row)).toEqual([
+      ...INTERACTIVE_ALLOW_RULES,
+    ]);
+    expect(added.filter((c) => c.kind === "deny").map((c) => c.row)).toEqual([
+      ...INTERACTIVE_DENY_RULES,
+    ]);
+    expect(first.mergeAllowWithoutGuard).toEqual([]);
+    const second = await writeClaudeSessionStartHook(root);
+    expect(second.permissionChanges).toEqual([]);
+  });
+
+  it("flags merge allow rows it adds when the ledger records the guard hook as deleted", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-claude-settings-noguard-"));
+    await mkdir(path.join(root, ".claude"), { recursive: true });
+    await mkdir(path.join(root, ".cursor"), { recursive: true });
+    await writeFile(
+      path.join(root, CLAUDE_SETTINGS_REL),
+      JSON.stringify({
+        hooks: { SessionStart: [{ hooks: [buildSessionStartHookEntry()] }] },
+        permissions: { deny: [...INTERACTIVE_DENY_RULES] },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(root, ".cursor", "agent-kit.claude-settings.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        denyRowsWritten: [...INTERACTIVE_DENY_RULES],
+        hookEntriesWritten: [
+          { event: "SessionStart", marker: SESSION_START_HOOK_MARKER },
+          { event: "PreToolUse", marker: GUARD_SHELL_HOOK_MARKER },
+        ],
+      }),
+      "utf8",
+    );
+    const result = await writeClaudeSessionStartHook(root, { authorized: true });
+    expect(result.mergeAllowWithoutGuard).toEqual([...INTERACTIVE_ALLOW_RULES]);
+    const lines = formatPermissionsChanged(result.permissionChanges ?? [], {
+      mergeAllowWithoutGuard: result.mergeAllowWithoutGuard ?? [],
+    }).join("\n");
+    expect(lines).toMatch(/WARNING/);
+    expect(lines).not.toContain("compensating control: guard rule");
+  });
+});
+
+describe("permission change report", () => {
+  const before = JSON.stringify({
+    permissions: { allow: ["Bash(npm test)", "Bash(old row)"], deny: ["Bash(rm -rf *)"] },
+  });
+  const after = JSON.stringify({
+    permissions: {
+      allow: ["Bash(npm test)", ...INTERACTIVE_ALLOW_RULES],
+      deny: ["Bash(rm -rf *)", INTERACTIVE_DENY_RULES[0]],
+    },
+  });
+
+  it("diffPermissionRows lists added and removed rows per kind", () => {
+    const changes = diffPermissionRows(before, after);
+    expect(changes).toEqual([
+      ...INTERACTIVE_ALLOW_RULES.map((row) => ({ change: "added", kind: "allow", row })),
+      { change: "removed", kind: "allow", row: "Bash(old row)" },
+      { change: "added", kind: "deny", row: INTERACTIVE_DENY_RULES[0] },
+    ]);
+    expect(diffPermissionRows(null, "{}")).toEqual([]);
+    expect(diffPermissionRows(after, after)).toEqual([]);
+  });
+
+  it("names each row and the merge rows' compensating control", () => {
+    const lines = formatPermissionsChanged(diffPermissionRows(before, after), {
+      mergeAllowWithoutGuard: [],
+    });
+    const text = lines.join("\n");
+    expect(lines[0]).toBe(`Permissions changed in ${CLAUDE_SETTINGS_REL}:`);
+    for (const row of INTERACTIVE_ALLOW_RULES) {
+      expect(text).toContain(`+ allow ${row}`);
+    }
+    expect(text).toContain("`pr-merge-protected-base`");
+    expect(text).toContain("- allow Bash(old row)");
+    expect(text).toContain(`+ deny ${INTERACTIVE_DENY_RULES[0]}`);
+    expect(text).not.toMatch(/WARNING/);
+  });
+
+  it("prints nothing when no row changed", () => {
+    expect(formatPermissionsChanged([], { mergeAllowWithoutGuard: [] })).toEqual([]);
+  });
+
+  it("mergeAllowRowsWithoutGuard needs a PreToolUse Bash group carrying the guard marker", () => {
+    const allow = { permissions: { allow: [...INTERACTIVE_ALLOW_RULES, "Bash(npm test)"] } };
+    expect(mergeAllowRowsWithoutGuard(allow)).toEqual([...INTERACTIVE_ALLOW_RULES]);
+    const guarded = {
+      ...allow,
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [buildGuardShellHookEntry()] }] },
+    };
+    expect(mergeAllowRowsWithoutGuard(guarded)).toEqual([]);
+    const wrongMatcher = {
+      ...allow,
+      hooks: { PreToolUse: [{ matcher: "Edit", hooks: [buildGuardShellHookEntry()] }] },
+    };
+    expect(mergeAllowRowsWithoutGuard(wrongMatcher)).toEqual([...INTERACTIVE_ALLOW_RULES]);
+    expect(mergeAllowRowsWithoutGuard({ permissions: { allow: ["Bash(npm test)"] } })).toEqual([]);
   });
 });
 

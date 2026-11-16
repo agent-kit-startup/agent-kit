@@ -10,6 +10,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.18.0] - 2026-11-15
+
+### Added
+
+- `agent-kit update --claude` prints a "Permissions changed" block listing each allow or deny row it adds to or removes from `.claude/settings.json`, and what keeps it safe. For the PR/MR merge allow rows that is the `agent-kit guard shell` hook (rule `pr-merge-protected-base`), which denies a merge into `main`/`master`/`prod`. If the file has merge allow rows but no guard hook, update prints a warning instead.
+- `agent-kit doctor` warns when `.claude/settings.json` or `.claude/settings.local.json` allows a PR/MR merge without the PreToolUse(Bash) `agent-kit guard shell` hook. Without that hook, nothing stops a merge into `main`.
+
+### Fixed
+
+- `/git-prod` PR path: the step that reset local `main` no longer runs `git reset --hard origin/main`, which the kit's own shell guard denies. It now uses `git switch <staging> && git branch -f main origin/main`. `agent-kit promote rules` and `promote wait` are now labeled GitHub-only, and the GitLab path is documented: an MR with `squash=false` and `remove_source_branch=false`, plus a bounded MR-state poll.
+- `/field-report-resolve`: a terminal plan lifecycle is no longer listed as a reason to dismiss an External-review report. It only clears agent-prompt rows. A report row moves to Review debt and still needs a triage heading or a follow-up plan.
+- Agent Plugins package: the public tree now passes the awesome-copilot external plugin intake gates. The public `plugin.json` carries `version`, links in the generated `skills/` copies that leave the skill folder point at the public repository on GitHub, and the `clean-code` skill frontmatter is valid YAML again.
+
 ## [6.17.0] - 2026-11-13
 
 ### Added

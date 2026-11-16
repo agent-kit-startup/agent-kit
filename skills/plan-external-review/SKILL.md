@@ -23,7 +23,7 @@ Do **not** use this for inline plan editing, triage of existing monitors (use `/
 
 Manual arm detail, script commands, autonomous vs paste-only modes, background PTY spawn, freshness-gated wait, soft-fail contract, and reviewer cascade: [procedure.md](./procedure.md)
 
-Command SoT: [plan-external-review.md](../../.cursor/commands/plan-external-review.md)
+Command SoT: [plan-external-review.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/plan-external-review.md)
 
 HITL: paste-only fallback when background spawn is unavailable; wait-monitoring budget enforcement; exit 3 is timeout-only, never review done.
 

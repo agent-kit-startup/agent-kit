@@ -9,10 +9,14 @@ import {
 import {
   CLAUDE_SETTINGS_REL,
   GUARD_SHELL_HOOK_MARKER,
+  mergeAllowRowsWithoutGuard,
   RESOLVE_AGENT_KIT_REL,
   SESSION_START_HOOK_MARKER,
 } from "../generator/claude-session-start-hook.js";
+
 import { findOnPath } from "../utils/find-on-path.js";
+
+const CLAUDE_SETTINGS_LOCAL_REL = ".claude/settings.local.json";
 
 const execFileAsync = promisify(execFile);
 
@@ -200,6 +204,31 @@ export async function assessClaudeCommandAdapters(rootDir: string): Promise<stri
   ];
 }
 
+/**
+ * Merge allow rows (`gh pr merge` / `glab mr merge`, kit or hand-written) rely on the
+ * PreToolUse(Bash) `agent-kit guard shell` hook (rule `pr-merge-protected-base`) to deny
+ * a merge into main. Flags them when neither `.claude/settings.json` nor
+ * `.claude/settings.local.json` wires that hook. Silent when the files are absent or
+ * unparseable (a file we cannot read is never guessed at).
+ */
+export async function assessClaudeMergeAllowGuard(rootDir: string): Promise<string[]> {
+  const root = path.resolve(rootDir);
+  const files = [CLAUDE_SETTINGS_REL, CLAUDE_SETTINGS_LOCAL_REL];
+  const parsed: unknown[] = [];
+  for (const rel of files) {
+    try {
+      parsed.push(JSON.parse(await readFile(path.join(root, rel), "utf8")));
+    } catch {
+      // absent or unparseable: contributes neither rows nor a hook
+    }
+  }
+  const rows = mergeAllowRowsWithoutGuard(...parsed);
+  if (rows.length === 0) return [];
+  return [
+    `Claude merge allow rows without the guard hook: ${rows.map((r) => `\`${r}\``).join(", ")} in ${files.map((f) => `\`${f}\``).join(" / ")} skip the merge prompt, but no PreToolUse(Bash) \`agent-kit guard shell\` hook is wired, so nothing denies a merge into main/master/prod (the rows rely on guard rule \`pr-merge-protected-base\`). Run \`agent-kit install --claude\` (or add the hook back by hand if you removed it) or remove the rows.`,
+  ];
+}
+
 /** Same order as `resolve-agent-kit.sh`; returns argv (`[bin]` or `["node", script]`) or null. */
 async function resolveGuardProbeArgv(root: string): Promise<string[] | null> {
   const hookBin = process.env.AGENT_KIT_HOOK_BIN;
@@ -278,7 +307,9 @@ export async function assessHooksHealth(rootDir: string): Promise<HooksHealthRep
   const hooksJsonAbs = path.join(root, hooksJsonPath);
   const reasons: string[] = [];
   const wiredEvents: string[] = [];
+  // Merge-allow-without-guard leads: doctor prints only the first five advisories.
   const advisories = [
+    ...(await assessClaudeMergeAllowGuard(root)),
     ...(await assessGitHooksInstallDrift(root)),
     ...(await assessSignatureGateHook(root)),
     ...(await assessClaudeGuardProbe(root)),

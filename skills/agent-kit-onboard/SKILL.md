@@ -23,6 +23,6 @@ Do **not** use this for plan audits, inbox filing, or post-install overlay updat
 
 Full execution detail, per-check guidance, Ask-label examples, and domain-skills scaffold steps: [procedure.md](./procedure.md)
 
-Command SoT: [agent-kit-onboard.md](../../.cursor/commands/agent-kit-onboard.md)
+Command SoT: [agent-kit-onboard.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/agent-kit-onboard.md)
 
-HITL labels: [hitl-gates](../hitl-gates/SKILL.md)
+HITL labels: [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/skills/hitl-gates/SKILL.md)

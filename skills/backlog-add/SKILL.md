@@ -23,6 +23,6 @@ Do **not** use this for activating a plan (use `/start-project` with Gate B) or 
 
 Full Broad Intake bucket table, triage labels, product-context reasoning, Task(explore) delegation fields, and post-write inbox Ask: [procedure.md](./procedure.md)
 
-Command SoT: [backlog-add.md](../../.cursor/commands/backlog-add.md)
+Command SoT: [backlog-add.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/backlog-add.md)
 
-HITL labels: [hitl-gates](../hitl-gates/SKILL.md)
+HITL labels: [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/skills/hitl-gates/SKILL.md)

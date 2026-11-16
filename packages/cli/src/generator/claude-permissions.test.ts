@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { evaluateShellCommand } from "../invariants/shell-guard.js";
+import { evaluateShellCommand, SHELL_DENY_RULES } from "../invariants/shell-guard.js";
 import {
   HEADLESS_DENY_RULES,
   HEADLESS_ONLY_DENY_RULES,
+  INTERACTIVE_ALLOW_CONTROLS,
   INTERACTIVE_ALLOW_RULES,
   INTERACTIVE_DENY_RULES,
+  isMergeAllowRow,
+  permissionRowControl,
 } from "./claude-permissions.js";
 
 /**
@@ -250,5 +253,34 @@ describe("INTERACTIVE_ALLOW_RULES (the /git-staging merge step)", () => {
     for (const rule of INTERACTIVE_ALLOW_RULES) {
       expect(HEADLESS_DENY_RULES, rule).not.toContain(rule);
     }
+  });
+});
+
+describe("INTERACTIVE_ALLOW_CONTROLS (compensating control per allow row)", () => {
+  it("names a control for every allow row, and only for allow rows", () => {
+    expect(Object.keys(INTERACTIVE_ALLOW_CONTROLS).sort()).toEqual(
+      [...INTERACTIVE_ALLOW_RULES].sort(),
+    );
+  });
+
+  it("each control points at a guard rule that exists in SHELL_DENY_RULES", () => {
+    const ids = new Set(SHELL_DENY_RULES.map((r) => r.id));
+    for (const [row, control] of Object.entries(INTERACTIVE_ALLOW_CONTROLS)) {
+      expect(ids.has(control.guardRule), row).toBe(true);
+      expect(control.guardRule).toBe("pr-merge-protected-base");
+      expect(permissionRowControl("allow", row)).toContain("`pr-merge-protected-base`");
+    }
+  });
+
+  it("describes deny rows as narrowing and unknown allow rows as having no kit control", () => {
+    expect(permissionRowControl("deny", INTERACTIVE_DENY_RULES[0] as string)).toMatch(/narrows/);
+    expect(permissionRowControl("allow", "Bash(npm test)")).toMatch(/no kit control/);
+  });
+
+  it("isMergeAllowRow catches kit and hand-written merge allow rows", () => {
+    for (const row of INTERACTIVE_ALLOW_RULES) expect(isMergeAllowRow(row), row).toBe(true);
+    expect(isMergeAllowRow("Bash(gh pr merge:*)")).toBe(true);
+    expect(isMergeAllowRow("Bash(gh pr view *)")).toBe(false);
+    expect(isMergeAllowRow("Bash(gh pr merged-list)")).toBe(false);
   });
 });

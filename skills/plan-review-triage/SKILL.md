@@ -23,9 +23,9 @@ Do **not** use this for creating monitors (use `/plan-external-review`), plan ex
 
 Full Steps 1-6 walk, selection order (git-fresh/HANDOFF-aligned/untriaged scan), closeout depth, termination gate, uniform batch HITL, paced Task dispatch for multi-plan Write residuals, and example flows: [procedure.md](./procedure.md)
 
-Command SoT: [plan-review-triage.md](../../.cursor/commands/plan-review-triage.md)
+Command SoT: [plan-review-triage.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/plan-review-triage.md)
 
-HITL labels: [hitl-gates](../hitl-gates/SKILL.md)
+HITL labels: [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/skills/hitl-gates/SKILL.md)
 
 ## Selection order (bare command)
 
