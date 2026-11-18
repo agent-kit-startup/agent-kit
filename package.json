@@ -70,8 +70,8 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.4",
-    "turbo": "^2.11.10",
+    "@biomejs/biome": "^2.6.7",
+    "turbo": "^2.11.11",
     "typescript": "^5.8.3"
   }
 }
