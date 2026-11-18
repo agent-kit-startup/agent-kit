@@ -1,6 +1,6 @@
 # /field-report-resolve claim-check contract
 
-Per-id-shape locate/check/dismiss-eligibility detail for `.cursor/commands/field-report-resolve.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan — moved out of the L0 command to fit its size budget; the top-level Validate/Load/Append/Write/Confirm steps and Hard stops stay in the command itself).
+Per-id-shape locate/check/dismiss-eligibility detail for `.cursor/commands/field-report-resolve.md` (kept out of the command to fit its size budget; the top-level Validate/Load/Append/Write/Confirm steps and Hard stops stay in the command itself).
 
    **For `attention:prompt:<chatId>`:**
    - **Locate (delegated):** the transcript + subject-context scan is delegated to a **Task(explore)** subagent. Fill the worker prompt template (`.cursor/context/templates/command-worker-prompt.md`) with:

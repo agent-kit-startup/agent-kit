@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.19.1] - 2026-11-18
+
+### Fixed
+
+- The `claude-directory/` package for the Claude plugin directory now lists only the plan, build, review, ship and keep routine: 13 commands, 3 agents and the `clean-code` skill, each with a description of what it does for you, grouped by stage in its README. Their frontmatter keeps only standard Claude Code keys, which the directory requires from organizations that are not Verified (it refused the 6.19.0 package for the kit's own keys). Installs from the repository marketplace keep every command and the hooks.
+- The Cursor and Codex plugin listings link their website to https://agent.missionkit.io/, the Agent Kit site, instead of the Mission Kit suite home.
+
 ## [6.19.0] - 2026-11-18
 
 ### Added

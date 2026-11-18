@@ -1,15 +1,12 @@
 ---
-name: qa
-description: Test a release, reproduce a bug, and verify CHANGELOG claims against install journey, tests, and hygiene.
-context: goal
-audience: user
+description: "Check a release or a bug report against what the changelog claims: the install path, the tests and what actually changed."
 ---
 
 # Command: /qa
 
 ## Goal
 
-Test a **release**, **reproduce a bug**, or check that CHANGELOG feat/fix/chore claims work (install journey included). Consumers get this slash with L0. Playbook: [qa skill](../skills/qa/SKILL.md). HITL: [hitl-gates](../skills/hitl-gates/SKILL.md). ADR: `2026-09-16_qa-l0-slash-no-new-agent.md`.
+Test a **release**, **reproduce a bug**, or check that CHANGELOG feat/fix/chore claims work (install journey included). Consumers get this slash with L0. Playbook: [qa skill](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/qa/SKILL.md). HITL: [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/SKILL.md). ADR: `2026-09-16_qa-l0-slash-no-new-agent.md`.
 
 ## Hard stops (kit failure if skipped)
 

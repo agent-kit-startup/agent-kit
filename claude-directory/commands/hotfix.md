@@ -1,8 +1,5 @@
 ---
-name: hotfix
-description: Ship a narrow, urgent change as a mini plan and run it with the /run-plan tick contract.
-context: goal
-audience: user
+description: "Ship an urgent, narrow fix as a small plan of a few to-dos, then run it. It goes to staging, never straight to production."
 ---
 
 # Command: /hotfix

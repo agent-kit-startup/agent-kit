@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # /dashboard-broadcast notes and troubleshooting
 
-Moved out of `.cursor/commands/dashboard-broadcast.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan) — off-default-path detail, only needed after the happy path or on failure.
+Off-default-path detail for `.cursor/commands/dashboard-broadcast.md`, only needed after the happy path or on failure.
 
 ## Notes
 

@@ -1,8 +1,5 @@
 ---
-name: agent-kit-onboard
-description: Prepare and validate repository readiness before /start-project.
-context: none
-audience: user
+description: "Get a repository ready for the kit: runs the essential checks and tells you what to fix before your first plan."
 ---
 
 # Command: /agent-kit-onboard
@@ -23,7 +20,7 @@ Prepare and validate repository readiness before `/start-project`. This command 
 
 > **Delegation note:** The initial `agent-kit doctor --json` execution and readiness file reading below is performed by a **Task(explore) subagent** dispatched from this step. The parameters define the specification of what the worker scans. See below for the delegation pattern.
 
-1. **Fill the template** using `.cursor/context/templates/command-worker-prompt.md` (Repo, Command, Task description, `read_scope`, `worker_contract`, `max_ticks`); exact field values: [procedure.md](../skills/agent-kit-onboard/procedure.md).
+1. **Fill the template** using `.cursor/context/templates/command-worker-prompt.md` (Repo, Command, Task description, `read_scope`, `worker_contract`, `max_ticks`); exact field values: [procedure.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/agent-kit-onboard/procedure.md).
 
 2. **Dispatch** a Task subagent with `subagent_type: explore`.
 
@@ -52,7 +49,7 @@ Do not append a second call to action, settings menu, command overview, or unrel
 
 > **Delegation note:** same Task(explore) pattern as Start or Resume, applied only to the re-scan sub-step; the main window owns all HITL and decisions here.
 
-Per-check resolution guidance and exact Ask-label examples: [procedure.md](../skills/agent-kit-onboard/procedure.md).
+Per-check resolution guidance and exact Ask-label examples: [procedure.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/agent-kit-onboard/procedure.md).
 
 
 ## Actions and Revalidation
@@ -91,7 +88,7 @@ When complete:
 
    - **Fallback when Ask questions is unavailable:** present the same options as a numbered list, ask the user to reply with the number or the label, and note they can always **type their own answer** if none of the options fit (equivalent of the built-in "Other" choice).
 
-Domain-skills scaffold execution detail (what happens after each label): [procedure.md](../skills/agent-kit-onboard/procedure.md).
+Domain-skills scaffold execution detail (what happens after each label): [procedure.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/agent-kit-onboard/procedure.md).
 
 7. End with exactly one call to action:
    - `Next: /start-project` when the user wants to plan a deliverable.

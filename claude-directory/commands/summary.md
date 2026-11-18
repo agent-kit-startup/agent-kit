@@ -1,8 +1,5 @@
 ---
-name: summary
-description: Give a quick summary of the current state for a user who lost track of progress.
-context: none
-audience: user
+description: "Lost track? See where the project stands on one screen: what is done, what is left and the next step."
 ---
 
 # Command: /summary

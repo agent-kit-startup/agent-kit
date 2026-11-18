@@ -1,8 +1,5 @@
 ---
-name: handoff
-description: Update HANDOFF.md to preserve current state for continuation in a new conversation.
-context: none
-audience: user
+description: "Write down where the work stands, so a new chat or another agent picks it up without you explaining it again."
 ---
 
 # Command: /handoff

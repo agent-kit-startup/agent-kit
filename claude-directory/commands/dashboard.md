@@ -1,8 +1,5 @@
 ---
-name: dashboard
-description: Start or reuse Mission Control for this workspace and open the printed URL.
-context: none
-audience: user
+description: "Open Mission Control in your browser: the plans, runs, health and memory of this repository."
 ---
 
 # Command: /dashboard

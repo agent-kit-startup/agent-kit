@@ -1,12 +1,8 @@
 ---
 name: security-reviewer
-description: "Review auth, PII, secrets, injection, logging. Modes: secure-by-default, passive detection, on-demand report. Use before merge, in PRs, or when asked."
+description: "Security review of a change: auth, secrets, personal data, injection and logging. Use before a merge or when asked for a security check."
 model: inherit
-readonly: true
-rules:
-  - cursor-skills-general
-  - cursor-skills-json
-  - cursor-skills-n8n
+tools: Read, Grep, Glob
 ---
 
 # Security Reviewer

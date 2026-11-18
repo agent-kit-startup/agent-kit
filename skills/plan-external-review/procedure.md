@@ -1,6 +1,6 @@
 # /plan-external-review arm procedure
 
-Manual arm detail, script commands, and "what Claude should produce" for `.cursor/commands/plan-external-review.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan — moved out of the L0 command to fit its size budget; Goal, Preconditions, the exit-3 honesty clause, and References stay in the command itself).
+Manual arm detail, script commands, and "what Claude should produce" for `.cursor/commands/plan-external-review.md` (kept out of the command to fit its size budget; Goal, Preconditions, the exit-3 honesty clause, and References stay in the command itself).
 
 ## Manual arm
 

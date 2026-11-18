@@ -1,10 +1,6 @@
 ---
 name: memory-extractor
-description: Extract learnings into .cursor/memory/, dedupe entries, update _index.md. Use after milestones, before heavy handoff, or "save what we learned".
-readonly: false
-rules:
-  - memory-loop
-  - cursor-skills-general
+description: "Save the decisions and mistakes worth remembering into the repository memory, so the next session does not repeat them. Use after a milestone or before a handoff."
 ---
 
 # Memory Extractor

@@ -1,8 +1,5 @@
 ---
-name: backlog-add
-description: Enqueue a new plan with to-dos under the HANDOFF Backlog without activating it.
-context: goal
-audience: user
+description: "Save a new plan for later without touching the plan in progress."
 ---
 
 # Command: /backlog-add
@@ -38,7 +35,7 @@ Example: `/backlog-add Polish Mission Control empty-state icons`
 
 Same planning blockers as `/start-project`: unresolved essential readiness → point to `/agent-kit-onboard`. Non-essential pending is advisory only.
 
-**Pending operator ticket:** only while `.cursor/context/gate-exit.json` has a pending entry, Ask `ticket` (`Read the ticket` / `Accept` / `Discard` / `Later`) before the write Ask, and list it as a Broad Intake `include` finding: [pending-ticket.md](../skills/hitl-gates/pending-ticket.md).
+**Pending operator ticket:** only while `.cursor/context/gate-exit.json` has a pending entry, Ask `ticket` (`Read the ticket` / `Accept` / `Discard` / `Later`) before the write Ask, and list it as a Broad Intake `include` finding: [pending-ticket.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/pending-ticket.md).
 
 **Never-Ask:** `confirm-provider` / `collaboration.provider` must not become an Ask. One-line advisory or silence, then continue Broad Intake → propose → write Ask. Do not halt enqueue. Distinct from an essential-readiness hard stop (that still points to `/agent-kit-onboard`). The Broad Intake worker inherits this: do not return a readiness-gate Ask for that check.
 
@@ -47,7 +44,7 @@ Same planning blockers as `/start-project`: unresolved essential readiness → p
 
 ### 1. Broad Intake Review (required before plan proposal)
 
-Same Broad Intake buckets, triage labels, and Task(explore) delegation as `/start-project`; the Plans bucket is index + HANDOFF only. Includes a post-write, post-default inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`, exact labels also in [hitl-gates SKILL.md](../skills/hitl-gates/SKILL.md)) when Unprocessed is non-empty. Full detail: [procedure.md](../skills/backlog-add/procedure.md).
+Same Broad Intake buckets, triage labels, and Task(explore) delegation as `/start-project`; the Plans bucket is index + HANDOFF only. Includes a post-write, post-default inbox Ask (`Analyze inbox now` / `Enqueue Fix now` / `Not now`, exact labels also in [hitl-gates SKILL.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/SKILL.md)) when Unprocessed is non-empty. Full detail: [procedure.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/backlog-add/procedure.md).
 
 ### 2. Vague goal
 
