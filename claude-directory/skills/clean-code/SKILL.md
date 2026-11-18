@@ -1,8 +1,6 @@
 ---
 name: clean-code
-description: Remove AI code slop (redundant comments, noisy try/catch, any casts, deep nesting), alias code-deslop. Use after AI sessions or before review.
-version: 0.1.0
-category: quality
+description: "Remove AI code slop after an agent session: redundant comments, noisy try/catch, any casts and deep nesting. Use before a review or a merge."
 ---
 
 # Clean Code (code-deslop)

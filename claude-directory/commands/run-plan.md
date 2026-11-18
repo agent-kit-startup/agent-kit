@@ -1,8 +1,5 @@
 ---
-name: run-plan
-description: Run the active plan continuously until it is done or blocked, picking the execution strategy automatically.
-context: none
-audience: user
+description: "Work through the active plan to-do by to-do until it is done or needs you, keeping the plan file and the handoff current."
 ---
 
 # Command: /run-plan
@@ -11,7 +8,7 @@ audience: user
 
 Run the **active plan** continuously until it is done or blocked. The agent picks the strategy (orchestrated when Task exists, in-session loop otherwise, headless `agent-kit run-plan`). Never `/git-prod` from this command.
 
-HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../skills/hitl-gates/SKILL.md). Full tick contract: [run-plan-tick-contract.md](../skills/hitl-gates/run-plan-tick-contract.md).
+HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/SKILL.md). Full tick contract: [run-plan-tick-contract.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/run-plan-tick-contract.md).
 
 ## Hard stops (kit failure if skipped)
 
@@ -35,9 +32,9 @@ Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
 
-Check in first: `agent-kit queue lease` (also before each Ask and each plan-state write); `Queue lease held:` means stop and report that line; a `queue` usage message (older CLI) means skip the check. Out-of-queue run while `Queue status` is `running` or `paused`: set `held (by <plan>, <who>, <date>; was <previous>)` and restore it at the end ([tick contract](../skills/hitl-gates/run-plan-tick-contract.md) section 1).
+Check in first: `agent-kit queue lease` (also before each Ask and each plan-state write); `Queue lease held:` means stop and report that line; a `queue` usage message (older CLI) means skip the check. Out-of-queue run while `Queue status` is `running` or `paused`: set `held (by <plan>, <who>, <date>; was <previous>)` and restore it at the end ([tick contract](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/run-plan-tick-contract.md) section 1).
 
-1. Read HANDOFF + plan + config. Preflight API-limit stop, pending operator ticket (Ask `ticket` only while `.cursor/context/gate-exit.json` has a pending entry; inside a `/run-plan-all` Task or `--no-hitl`, list the stamps instead: [pending-ticket.md](../skills/hitl-gates/pending-ticket.md)), audits, unsatisfiable Claude reviewer, session-pile. Read a product-context extract when the plan points at one.
+1. Read HANDOFF + plan + config. Preflight API-limit stop, pending operator ticket (Ask `ticket` only while `.cursor/context/gate-exit.json` has a pending entry; inside a `/run-plan-all` Task or `--no-hitl`, list the stamps instead: [pending-ticket.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/pending-ticket.md)), audits, unsatisfiable Claude reviewer, session-pile. Read a product-context extract when the plan points at one.
 2. Next pending to-do. `force_task: true` or findings → Task. Lightweight docs-only → inline-first. Else Task or in-session.
 3. Execute only that to-do. Findings-only for `review-*`. `autoRemediate` default false: no silent product fix.
 4. Close: plan status, HANDOFF, cadence bump, `/git-staging` on a commitable diff. Staging ready: yes requires lint evidence (or `none applicable`). Dashboard HTML: `none applicable (dashboard-CSS)` covered by plugin-ux-validation. Contract string alone without that evidence is invalid.

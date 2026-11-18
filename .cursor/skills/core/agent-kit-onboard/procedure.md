@@ -1,6 +1,6 @@
 # /agent-kit-onboard progressive resolution and domain-skills scaffold
 
-Per-check resolution guidance, exact Ask-label examples, and the domain-skills scaffold execution detail for `.cursor/commands/agent-kit-onboard.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan — moved out of the L0 command to fit its size budget; Goal, Hard Stops, the scaffold's own Ask prompt/labels, and Completion's verification steps stay in the command itself).
+Per-check resolution guidance, exact Ask-label examples, and the domain-skills scaffold execution detail for `.cursor/commands/agent-kit-onboard.md` (kept out of the command to fit its size budget; Goal, Hard Stops, the scaffold's own Ask prompt/labels, and Completion's verification steps stay in the command itself).
 
 ## Progressive Resolution (per-check guidance)
 

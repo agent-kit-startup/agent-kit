@@ -1,8 +1,5 @@
 ---
-name: start-project
-description: Bootstrap a plan with to-dos from any user payload, with two HITL gates.
-context: goal
-audience: user
+description: "Turn a request, issue or spec into a plan with phases and to-dos. You approve the plan, then the first step; nothing is built before that."
 ---
 
 # Command: /start-project
@@ -11,7 +8,7 @@ audience: user
 
 Bootstrap a **plan with to-dos** from any user payload. This command does **not** mean start coding.
 
-HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../skills/hitl-gates/SKILL.md). Broad Intake and Gate A/B detail: [start-project-intake.md](../skills/hitl-gates/start-project-intake.md).
+HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/SKILL.md). Broad Intake and Gate A/B detail: [start-project-intake.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/start-project-intake.md).
 
 ## Hard stops (kit failure if skipped)
 
@@ -37,7 +34,7 @@ Numbered-list fallback is **path 1** when Ask questions is missing (one list per
 
 ## Procedure
 
-1. Readiness: read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`. Unresolved `essential: true` checks block planning; point to `/agent-kit-onboard`. Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending is warnings only. A pending operator ticket is Asked before Gate A and listed as a Broad Intake `include` finding: [pending-ticket.md](../skills/hitl-gates/pending-ticket.md).
+1. Readiness: read `.cursor/agent-kit.config.json` and `.cursor/context/readiness.json`. Unresolved `essential: true` checks block planning; point to `/agent-kit-onboard`. Do **not** treat `pendingActions` as an essential-only queue. Non-essential pending is warnings only. A pending operator ticket is Asked before Gate A and listed as a Broad Intake `include` finding: [pending-ticket.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/pending-ticket.md).
 2. Broad Intake (delegated). Triage ignore / error / include / note. Product-context extract only when the payload mixes personal and product. Autonomous scheduled mode is not intake.
 3. Vague goal: Ask for 1-2 sentences, then Gate A.
 4. Gate A: write plan + HANDOFF per pick. Backlog paths skip Gate B (`Mode: STOPPED` or current plan stays active).

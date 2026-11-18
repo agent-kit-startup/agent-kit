@@ -1,8 +1,5 @@
 ---
-name: git-staging
-description: Bring local changes to the pre-production branch following the git staging routine.
-context: branch
-audience: user
+description: "Bring your changes to the staging branch: Conventional Commits, a changelog entry and the checks your repository defines."
 ---
 
 # Git staging

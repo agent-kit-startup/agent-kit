@@ -1,13 +1,7 @@
 ---
 name: cleancode-refactor
-description: Architecture, readability, senior code patterns. Use for refactoring, code review or when user asks for clean code / best practices.
+description: "Readability and structure review, and refactors that keep behavior. Use when code works but is hard to follow or change."
 model: inherit
-readonly: false
-rules:
-  - cursor-skills-general
-  - cursor-skills-json
-  - cursor-skills-node
-  - cursor-skills-sql
 ---
 
 # CleanCode + Refactor

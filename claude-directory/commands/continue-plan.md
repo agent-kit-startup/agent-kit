@@ -1,8 +1,5 @@
 ---
-name: continue-plan
-description: Resume a plan from the last handoff and execute only the next unit.
-context: none
-audience: user
+description: "Do only the next to-do of a plan, then stop so you can review it."
 ---
 
 # Command: /continue-plan
@@ -11,7 +8,7 @@ audience: user
 
 Resume a plan from the last handoff. Confirm the next unit, then execute **only that unit** (manual default).
 
-HITL contract, exact Ask labels, and numbered fallback (path 1): [hitl-gates](../skills/hitl-gates/SKILL.md). Resume detail is inline below (moved here from `hitl-gates/procedures.md` in Phase 1 of `contract-read-budget-lazy-layers-2026-09-19` — the 11-line resume section already fully overlapped this file's own Procedure, so it was folded in rather than kept as a separate one-line hop). Plans inventory is `.cursor/context/plan-index.json` + `.cursor/HANDOFF.md` only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`).
+HITL contract, exact Ask labels, and numbered fallback (path 1): [hitl-gates](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/SKILL.md). Resume detail is inline below (moved here from `hitl-gates/procedures.md` in Phase 1 of `contract-read-budget-lazy-layers-2026-09-19` — the 11-line resume section already fully overlapped this file's own Procedure, so it was folded in rather than kept as a separate one-line hop). Plans inventory is `.cursor/context/plan-index.json` + `.cursor/HANDOFF.md` only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`).
 
 ## Hard stops (kit failure if skipped)
 
@@ -35,7 +32,7 @@ Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
 
-1. Read HANDOFF + index. Do not glob `.cursor/plans/*.plan.md`. Check in: run `agent-kit queue lease` before the Ask and before each HANDOFF or plan write; `Queue lease held:` (exit 1) means another live session writes this workspace, so stop and report that line (no Ask, no write). A `queue` usage message (older CLI without the subcommand) is not a held lease: skip the check. A pending operator ticket is Asked before anything else: [pending-ticket.md](../skills/hitl-gates/pending-ticket.md). If multiple resumable plans exist, Ask the picker first.
+1. Read HANDOFF + index. Do not glob `.cursor/plans/*.plan.md`. Check in: run `agent-kit queue lease` before the Ask and before each HANDOFF or plan write; `Queue lease held:` (exit 1) means another live session writes this workspace, so stop and report that line (no Ask, no write). A `queue` usage message (older CLI without the subcommand) is not a held lease: skip the check. A pending operator ticket is Asked before anything else: [pending-ticket.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/pending-ticket.md). If multiple resumable plans exist, Ask the picker first.
 2. Default-path Ask for the next unit. Persona chrome after that Ask. Default chat chrome: no cockpit emoji.
 3. On `Start [to-do-id]`: run only that unit; update plan status. Any other pick stops. When HANDOFF has `Queue status: running` or `paused` and the lease is free or stale, this is an out-of-queue run: write `- **Queue status:** held (by <plan>, <chat>, <date>; was <previous status>)` before the unit and put the previous status back when it ends.
 4. When done: HANDOFF, stop, suggest `/git-staging` if there is a diff. Next phase: new conversation with `/continue-plan`.

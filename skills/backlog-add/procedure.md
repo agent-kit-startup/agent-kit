@@ -1,6 +1,6 @@
 # /backlog-add Broad Intake Review detail
 
-Full Broad Intake bucket table, triage labels, product-context reasoning, Task(explore) delegation fields, and the post-write inbox Ask for `.cursor/commands/backlog-add.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan — moved out of the L0 command to fit its size budget; Goal, Hard stops, and the write-confirm Ask stay in the command itself).
+Full Broad Intake bucket table, triage labels, product-context reasoning, Task(explore) delegation fields, and the post-write inbox Ask for `.cursor/commands/backlog-add.md` (kept out of the command to fit its size budget; Goal, Hard stops, and the write-confirm Ask stay in the command itself).
 
 ### 1. Broad Intake Review (required before plan proposal)
 

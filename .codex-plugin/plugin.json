@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "6.19.0",
+  "version": "6.19.1",
   "description": "Plan, build, ship, and keep shipping. Agent Kit skills for long-term projects with your own coding agents: plans, handoff, durable memory and staging-to-prod gates.",
   "author": {
     "name": "agent-kit-startup"
@@ -17,7 +17,7 @@
     "developerName": "agent-kit-startup",
     "category": "Developer Tools",
     "capabilities": ["Skills"],
-    "websiteURL": "https://missionkit.io/",
+    "websiteURL": "https://agent.missionkit.io/",
     "privacyPolicyURL": "https://github.com/agent-kit-startup/agent-kit/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/agent-kit-startup/agent-kit/blob/main/TERMS.md",
     "composerIcon": "./assets/brand/mission-kit-icon-1024.png",

@@ -1,9 +1,5 @@
 ---
-name: git-prod
-description: Promote origin/staging to origin/main following the git prod routine (HITL confirmation required).
-context: sha
-audience: user
-interactiveOnly: true
+description: "Promote staging to production: closes the release and tags it, and never merges without your explicit yes."
 ---
 
 # Git prod
@@ -43,7 +39,7 @@ Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This 
    - `Cancel`
 
    **On `I pushed main`:** The operator already pushed. Verify `origin/main` advanced, then continue with the annotated tag, staging sync, and the report. Do not run the push.
-   **On `Open staging→main PR instead`:** Reset local `main`, tree untouched: `git switch <staging> && git branch -f main origin/main`. GitHub: advisory `agent-kit promote rules --base main`, then `gh pr create --base main --head staging`; wait with `agent-kit promote wait --pr <N>` only (exit 3 = Ask `promote-merge-wait`). Both `promote` commands are GitHub-only; GitLab (MR with `squash=false`, `remove_source_branch=false`, bounded MR-state poll): [promote-merge-wait.md](../skills/hitl-gates/promote-merge-wait.md). Prefer a merge commit; never merge it yourself.
+   **On `Open staging→main PR instead`:** Reset local `main`, tree untouched: `git switch <staging> && git branch -f main origin/main`. GitHub: advisory `agent-kit promote rules --base main`, then `gh pr create --base main --head staging`; wait with `agent-kit promote wait --pr <N>` only (exit 3 = Ask `promote-merge-wait`). Both `promote` commands are GitHub-only; GitLab (MR with `squash=false`, `remove_source_branch=false`, bounded MR-state poll): [promote-merge-wait.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/skills/core/hitl-gates/promote-merge-wait.md). Prefer a merge commit; never merge it yourself.
    **On `Cancel`:** Stop. Do not tag, push, or open a PR.
 
    **Other lanes:** Push with the authorized inline form `ALLOW_MAIN_PUSH=1 git push origin main`, then continue with the annotated tag. Bare `git push origin main` stays denied by `agent-kit guard shell` and `git-hooks/pre-push`. Keep it on one line (the guard denies an env prefix split off with a `\` continuation). Do not export `ALLOW_MAIN_PUSH=1` as a session environment variable. Do not add `--force`, `--no-verify`, or a non-main destination.

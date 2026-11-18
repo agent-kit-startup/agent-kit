@@ -1,6 +1,6 @@
 # /plan-review-triage procedure
 
-Full Steps 1-6 walk and example flows for `.cursor/commands/plan-review-triage.md` (Phase 2, `contract-read-budget-lazy-layers-2026-09-19` plan — moved out of the L0 command to fit its size budget; Goal, Usage, Preconditions, Hard stops, and exact Ask labels stay in the command itself).
+Full Steps 1-6 walk and example flows for `.cursor/commands/plan-review-triage.md` (kept out of the command to fit its size budget; Goal, Usage, Preconditions, Hard stops, and exact Ask labels stay in the command itself).
 
 ## What to Do
 

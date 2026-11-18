@@ -99,7 +99,7 @@ archive it deploys).
 ```bash
 pnpm landing:sync -- --site missionkit "~/Downloads/MissionKit landing page.zip"
 pnpm landing:media -- --site missionkit        # after every sync: optimized/ store
-pnpm landing:update-versions                   # Colony tag (GitHub) + engine version; also stamps the colony site
+pnpm landing:update-versions                   # Colony tag (GitHub) + engine version into versions.json; the colony and missionkit builds apply it
 pnpm landing:prerender -- --site missionkit  # after a sync: first-frame snapshot (local Chrome)
 pnpm landing:build                             # landing:build:check
 node scripts/verify-landing.mjs --site missionkit   # local dist, headless Chrome
@@ -306,6 +306,15 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   `assets/og-cover.png`). The helmet's own canonical is dropped (Colony's lacks the
   trailing slash). These exports ship the stock runtime, so the build also stubs the
   x-import compile; no request goes to unpkg (React, Babel) at load.
+- **`<dc-import>` components** (Colony export (9) on: `<dc-import name="Colony Hero Mock">`).
+  The runtime fetches the target as a sibling file (`./Colony%20Hero%20Mock.dc.html`, no
+  `?v=`) and compiles its template. Sync and build resolve every static import, nested ones
+  included, and fail listing each missing target. The component ships as a sibling
+  `.dc.html` beside the page, with the assets it references. The page's `dc-logic.js` also
+  registers each imported component's precompiled logic by name, and the patched
+  `evalDcLogic` routes the runtime's compile call to it (an unknown name throws). Sites without
+  an import keep a byte-identical `support.js`. Only root pages may import; a nested page with
+  a `<dc-import>` fails the build. See the `.htaccess` component rules under Deploy and promote.
 - **Colony version** (`page.versionStamp: "colony"`, export (9) on): the export hardcodes the
   release in the hero pill (`<a class="hero-version" href="…/colony/releases/tag/vX.Y.Z"
   aria-label="Colony vX.Y.Z release">` with `vX.Y.Z` as text) and in the footer signature
@@ -314,9 +323,12 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   `pnpm landing:update-versions` refreshes both sites; no network at build time). The link
   stays on the specific tag so it matches the text. Each of the two must occur exactly once,
   else the colony build fails and names the site. Left alone: the hero mock's demo row
-  (`tag v0.5.1 · CI`) and the `Mission Kit Engine` signature. A new Colony release shows on
-  the site only after `landing:update-versions`, a colony build, deploy and promote; the tag
-  `sync_landing` job refreshes the stamp but rebuilds only `agent` and `missionkit`.
+  (`tag v0.5.1 · CI`) and the `Mission Kit Engine` signature. The tag CI `sync_landing` job
+  (`scripts/sync-landing-release.mjs`) refreshes the stamp but rebuilds and promotes only
+  `agent` and `missionkit`. A Colony release reaches colony.missionkit.io only by hand:
+  `pnpm landing:update-versions`, `pnpm landing:build -- --site colony`,
+  `pnpm landing:deploy:staging -- --site colony` (then verify) and
+  `pnpm landing:promote -- --site colony --yes-production`.
 - **Nested pages.** A page whose `out` sits below the root (`game/index.html`) gets its
   asset, vendor and logic references rewritten to root-absolute (`/assets/…`) in the HTML
   and in its own `dc-logic.js`; links to another built page by its design-file name point
@@ -354,6 +366,17 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   to `<lane>/releases/`. The `agent` site (`agent-staging/`, `agent/`) uses this same
   per-file path. `landing:rollback` is root-only and refuses `--site agent|colony|oligarchy`;
   roll those back by re-promoting a known-good build.
+- **Component headers.** Every generated subdomain `.htaccess` (staging and production,
+  `htaccessContent`) carries a `<FilesMatch "\.dc\.html$">` block for `<dc-import>`
+  components. `Header set Cache-Control "no-cache"` makes the browser revalidate the component
+  (ETag / Last-Modified) on every load: it is fetched without `?v=`, while `dc-logic.js?v=<hash>`
+  changes with each build, so a heuristically cached template could otherwise meet new logic.
+  Production adds `Header set X-Robots-Tag "noindex"`, because a component opened alone renders
+  a broken page; staging already sends `noindex, nofollow` site-wide. Built pages are
+  `index.html` or `<route>.html`, never `*.dc.html`, so they stay indexable, and the pages
+  themselves send no `Cache-Control`. The root `.htaccess` (`rootHtaccessContent`) has no such
+  block: the Home ships no component today, and the subdomains do not inherit the root headers.
+  A Home export that adds a `<dc-import>` needs the block there too.
 - **Untrusted export.** Sync refuses a zip with symlink entries, or more than 512 MB / 4000
   entries to extract (the Agent Kit landing's whole-zip sync runs the same name and symlink checks). Assets must
   be static media (png, jpg, webp, gif, svg, ico, mp4, webm, woff2, ttf, css, json; no
