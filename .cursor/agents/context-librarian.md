@@ -1,7 +1,7 @@
 ---
 name: context-librarian
 description: Working memory: summarize, update Context Pack and handoff. Use for long tasks, at end of phase or when context is getting full.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-plan-handoff

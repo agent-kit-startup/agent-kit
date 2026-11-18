@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { defineCommand } from "citty";
 import { shouldUseLiveTui, withLiveTui } from "../mission-control/live-run.js";
-import type { AgentBackend } from "../plan-loop/backends.js";
+import type { AgentBackend, SpawnInfo } from "../plan-loop/backends.js";
 import { getBackend } from "../plan-loop/backends.js";
 import type { WhichFn } from "../plan-loop/detect.js";
 import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js";
@@ -25,8 +25,28 @@ import {
   HITL_UNANSWERED_EXIT_CODE,
   hitlExitCode,
 } from "../plan-loop/hitl-relay.js";
+import {
+  CLAUDE_SUBAGENT_MODEL_ENV,
+  describeResolvedRoles,
+  loadRolesContext,
+  resolveSubworkerModel,
+  resolveWorkerRole,
+} from "../plan-loop/model-roles.js";
+import { resolveActivePlanPath } from "../plan-loop/plan-state.js";
+import {
+  acquirePlanWriterLease,
+  acquireQueueLease,
+  forwardTermination,
+  gateCheckIn,
+  holdQueueStatus,
+  LEASE_FREE_SLASHES,
+  QUEUE_LEASE_INTERRUPT_WAIT_MS,
+  QUEUE_LEASE_SESSION_ENV,
+  type QueueLeaseEnv,
+  type QueueLeaseHandle,
+} from "../plan-loop/queue-lease.js";
 import { REVIEW_PACK_SLASH, runReviewJob } from "../plan-loop/review-job.js";
-import { type DriverRunOptions, runPlanLoop } from "../plan-loop/run-loop.js";
+import { type DriverRunOptions, type RunRolesOptions, runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 import { negatedFlag } from "./negated-flag.js";
 
@@ -59,6 +79,8 @@ export interface ExecuteRunInput {
    */
   note?: string;
   whichFn?: WhichFn;
+  /** Test seam: queue lease clock, liveness and host (run-plan-all only). */
+  lease?: QueueLeaseEnv;
 }
 
 /** The only slash whose dispatch has a driver mode (driver protocol 1.5.0). */
@@ -80,6 +102,26 @@ export function displayPath(target: string, home: string = homedir()): string {
   if (target === resolvedHome) return "~";
   const prefix = resolvedHome.endsWith(path.sep) ? resolvedHome : `${resolvedHome}${path.sep}`;
   return target.startsWith(prefix) ? `~${path.sep}${target.slice(prefix.length)}` : target;
+}
+
+/**
+ * Subworker env for a run-plan-all session (driver path): the queue
+ * session's Task workers are the subworkers, and only claude has the knob.
+ * Detection here only names the backend; the driver detects again to spawn.
+ */
+async function dispatchSubworkerEnv(
+  backendRequest: string,
+  runRoles: RunRolesOptions,
+  note: (line: string) => void,
+  whichFn?: WhichFn,
+): Promise<NodeJS.ProcessEnv | undefined> {
+  const detected = await detectAgentBackend(backendRequest, whichFn);
+  if (!detected.ok) return undefined;
+  const sub = resolveSubworkerModel({ backend: detected.id, roles: runRoles.roles });
+  if (sub.warning) note(`roles: ${sub.warning}`);
+  return sub.model && detected.id === "claude"
+    ? { [CLAUDE_SUBAGENT_MODEL_ENV]: sub.model }
+    : undefined;
 }
 
 /**
@@ -109,6 +151,39 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   if (input.note !== undefined && slash !== DRIVER_DISPATCH_SLASH) {
     return { exitCode: 1, error: `--note only applies to ${DRIVER_DISPATCH_SLASH}` };
   }
+  // Model roles (ADR 2026-11-16): run-plan and run-plan-all read
+  // roles.worker when no --backend / --model is given (run-plan also reads
+  // the active plan's worker_backend / worker_model). Other slashes, the
+  // review job included, keep the flag or `auto`.
+  let backendRequest = input.backend.trim() || "auto";
+  let model = input.model?.trim() || undefined;
+  let runRoles: RunRolesOptions | undefined;
+  let dispatchEnv: NodeJS.ProcessEnv | undefined;
+  const rolesWarnings: string[] = [];
+  if (kind === "run-plan" || slash === DRIVER_DISPATCH_SLASH) {
+    const ctx = await loadRolesContext(root, kind === "run-plan");
+    if (!ctx.ok) return { exitCode: 1, error: ctx.error };
+    const worker = resolveWorkerRole({
+      flagBackend: input.backend,
+      flagModel: input.model,
+      plan: ctx.plan,
+      roles: ctx.roles,
+      defaultBackend: "auto",
+    });
+    rolesWarnings.push(...worker.warnings);
+    backendRequest = worker.backend;
+    model = worker.model;
+    runRoles = {
+      roles: ctx.roles,
+      backendSource: worker.backendSource,
+      ...(worker.modelSource ? { modelSource: worker.modelSource } : {}),
+    };
+  }
+  // Driver mode owns stdout (NDJSON only): roles notes go to stderr there.
+  const rolesNote = (line: string) =>
+    input.events ? process.stderr.write(`${line}\n`) : console.log(line);
+  for (const warning of rolesWarnings) rolesNote(`roles: ${warning}`);
+
   if (input.events) {
     if (slash !== DRIVER_DISPATCH_SLASH) {
       return {
@@ -121,21 +196,42 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
     const exitCode = await runDispatchDriver({
       root,
       slash: DRIVER_DISPATCH_SLASH,
-      backend: input.backend,
-      model: input.model,
+      backend: backendRequest,
+      model,
+      ...(runRoles
+        ? { env: await dispatchSubworkerEnv(backendRequest, runRoles, rolesNote, input.whichFn) }
+        : {}),
       dryRun: input.dryRun,
       noHitl: input.noHitl === true,
       landOnGate: input.landOnGate === true,
       events: input.events,
       ...(input.note !== undefined ? { note: input.note } : {}),
       whichFn: input.whichFn,
+      ...(input.lease ? { lease: input.lease } : {}),
     });
     return { exitCode };
   }
 
-  const detected = await detectAgentBackend(input.backend, input.whichFn);
+  const detected = await detectAgentBackend(backendRequest, input.whichFn);
   if (!detected.ok) {
     return { exitCode: 1, error: detected.message };
+  }
+  if (runRoles && kind !== "run-plan") {
+    // run-plan-all: the queue session's Task workers are the subworkers.
+    const sub = resolveSubworkerModel({ backend: detected.id, roles: runRoles.roles });
+    if (sub.warning) console.log(`roles: ${sub.warning}`);
+    if (sub.model && detected.id === "claude") {
+      dispatchEnv = { [CLAUDE_SUBAGENT_MODEL_ENV]: sub.model };
+    }
+    console.log(
+      describeResolvedRoles({
+        backendId: detected.id,
+        backendSource: runRoles.backendSource,
+        ...(model ? { model } : {}),
+        ...(model && runRoles.modelSource ? { modelSource: runRoles.modelSource } : {}),
+        subworker: sub,
+      }),
+    );
   }
 
   if (kind === "run-plan") {
@@ -158,7 +254,8 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       root,
       maxTicks: input.maxTicks,
       sleepSeconds: input.sleepSeconds,
-      model: input.model,
+      model,
+      ...(runRoles ? { roles: runRoles } : {}),
       dryRun: false,
       backend,
       noHitl: input.noHitl === true,
@@ -210,30 +307,110 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   console.log(`Command file: ${path.relative(root, file.path)}`);
   console.log(`Log: ${path.relative(root, logPath)}`);
 
+  // One live owner per queue (queue-lease.ts). run-plan-all owns the queue; any
+  // other slash that may write HANDOFF or plan files holds the same lease, or
+  // runs under it as a subsession (ADR 2026-07-26 Amend 2026-11-16 agent check-in).
+  let lease: QueueLeaseHandle | null = null;
+  let nestedSession: string | null = null;
+  // Check in before each gate: another live session holding the lease means the gate is not offered.
+  const checkIn = gateCheckIn(root, () => lease?.session ?? nestedSession, input.lease);
+  let restoreQueue: (() => boolean) | null = null;
+  if (slash !== DRIVER_DISPATCH_SLASH && !LEASE_FREE_SLASHES.has(slash)) {
+    const writer = acquirePlanWriterLease(root, `agent-kit run ${slash}`, {
+      ...input.lease,
+      onLost: () =>
+        console.log(
+          "Queue lease lost: another session replaced this one's lease. Another session may be writing this workspace's plans.",
+        ),
+    });
+    if (writer.kind === "refused") return { exitCode: 1, error: writer.message };
+    if (writer.kind === "nested") {
+      nestedSession = writer.lease.session;
+      console.log(
+        `Queue lease: running under session ${writer.lease.session} (dispatcher pid ${writer.lease.dispatcher.pid}).`,
+      );
+    } else {
+      lease = writer.handle;
+      if (lease.takeover) {
+        console.log(
+          `Queue lease: took over a stale lease (${lease.takeover.reason}); the takeover is logged in HANDOFF.`,
+        );
+      }
+      if (slash === "continue-plan") {
+        const active = await resolveActivePlanPath(root);
+        restoreQueue = holdQueueStatus(root, {
+          plan: active ? path.basename(active) : "the active plan",
+          who: `agent-kit run continue-plan session ${lease.session}`,
+          at: new Date().toISOString(),
+        });
+      }
+    }
+  } else if (slash === DRIVER_DISPATCH_SLASH) {
+    const acquired = acquireQueueLease(root, {
+      ...input.lease,
+      onLost: () =>
+        console.log(
+          "Queue lease lost: another session replaced this one's lease. Another /run-plan-all may be writing this queue.",
+        ),
+    });
+    if (!acquired.ok) return { exitCode: 1, error: acquired.message };
+    lease = acquired.handle;
+    if (lease.takeover) {
+      console.log(
+        `Queue lease: took over a stale lease (${lease.takeover.reason}); the takeover is logged in HANDOFF.`,
+      );
+    }
+  }
+  const previousSession = process.env[QUEUE_LEASE_SESSION_ENV];
+  if (lease) process.env[QUEUE_LEASE_SESSION_ENV] = lease.session;
+  const live = shouldUseLiveTui({ plain: input.plain });
+  // The live view handles SIGINT / SIGTERM itself (it stops the run, then
+  // `finally` releases). The plain path has no handler of its own: forward
+  // SIGINT, SIGTERM and SIGHUP to the agent child, release the lease once the
+  // agent is gone (else leave it, so the orphan stays visible), exit 130.
+  const offTermination =
+    lease && !live
+      ? forwardTermination(
+          () => lease?.agent(),
+          () => {
+            restoreQueue?.();
+            lease?.releaseAfterAgent(QUEUE_LEASE_INTERRUPT_WAIT_MS);
+            process.exit(130);
+          },
+          { signals: ["SIGINT", "SIGTERM", "SIGHUP"] },
+        )
+      : () => {};
+
   try {
     const dispatch = {
       backendId: detected.id,
       bin: detected.bin,
       workspace: root,
       prompt,
-      model: input.model,
+      model,
       logPath,
+      ...(dispatchEnv ? { env: dispatchEnv } : {}),
     };
-    const result = shouldUseLiveTui({ plain: input.plain })
+    const spawned = (info: SpawnInfo) => lease?.setAgent(info.pid);
+    const result = live
       ? await withLiveTui(
           { root, backend: detected.id, logPath, noHitl: input.noHitl === true },
           (seams) =>
             runHeadlessDispatch({
               ...dispatch,
-              hitl: seams.hitl,
+              hitl: { ...seams.hitl, checkIn },
               render: seams.render,
-              onSpawn: seams.onSpawn,
+              onSpawn: (info) => {
+                spawned(info);
+                seams.onSpawn(info);
+              },
               log: seams.log,
             }),
         )
       : await runHeadlessDispatch({
           ...dispatch,
-          hitl: { policy: input.noHitl ? "off" : "prompt" },
+          hitl: { policy: input.noHitl ? "off" : "prompt", checkIn },
+          onSpawn: spawned,
         });
     for (const line of formatHitlSummary(result.hitl)) console.log(line);
     const exitCode = hitlExitCode(result.exitCode, result.hitl);
@@ -251,6 +428,14 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
     return { exitCode };
   } catch (err) {
     return { exitCode: 1, error: String(err) };
+  } finally {
+    offTermination();
+    restoreQueue?.();
+    lease?.release();
+    if (lease) {
+      if (previousSession === undefined) delete process.env[QUEUE_LEASE_SESSION_ENV];
+      else process.env[QUEUE_LEASE_SESSION_ENV] = previousSession;
+    }
   }
 }
 
@@ -262,8 +447,8 @@ const runDispatchArgs = {
   },
   backend: {
     type: "string" as const,
-    description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto)`,
-    default: "auto",
+    description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto; run-plan and run-plan-all read config roles.worker first)`,
+    default: "",
   },
   model: {
     type: "string" as const,

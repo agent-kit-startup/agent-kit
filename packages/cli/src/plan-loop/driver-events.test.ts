@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,11 +34,14 @@ import {
   isPreanswerable,
   PREANSWERABLE_GATES,
 } from "./hitl-relay.js";
+import { QUEUE_LEASE_RELPATH } from "./queue-lease.js";
 import { runPlanLoop, TICK_PROMPT } from "./run-loop.js";
 
 type SpawnFn = typeof spawn;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const handoffSync = (file: string) => readFileSync(file, "utf8");
+const leaseSync = (file: string) => existsSync(file);
 const FAKE_CLAUDE = path.join(HERE, "fixtures", "fake-claude.mjs");
 const FAKE_CURSOR_AGENT = path.join(HERE, "fixtures", "fake-cursor-agent.mjs");
 const CLI_ENTRY = path.resolve(HERE, "..", "index.ts");
@@ -541,6 +545,122 @@ describe("run-plan driver mode end to end (fake claude, scripted client, no TTY)
   afterEach(() => {
     logSpy.mockRestore();
   });
+
+  it("gate check-in: a gate is not offered once another live session holds the lease (stop cause lease held)", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const leaseFile = path.join(root, QUEUE_LEASE_RELPATH);
+    const client = scriptedClient(
+      () => {
+        throw new Error("the gate must not be offered while another session holds the lease");
+      },
+      (ev) => {
+        if (ev.type === "tick_start" && ev.tick === 2) {
+          const now = new Date().toISOString();
+          writeFileSync(
+            leaseFile,
+            JSON.stringify({
+              version: 1,
+              session: "s-intruder",
+              host: os.hostname(),
+              dispatcher: { pid: process.ppid, start: null },
+              agent: null,
+              startedAt: now,
+              heartbeatAt: now,
+            }),
+          );
+        }
+        return null;
+      },
+    );
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      lease: { nested: { session: "" } },
+    });
+    expect(code).toBe(4);
+    expect(client.gates).toEqual([]);
+    const tickEnd = client.events().find((e) => e.type === "tick_end" && e.tick === 2);
+    expect(tickEnd?.stop).toMatchObject({ askId: "driver-demo", cause: "lease held" });
+    expect(String((tickEnd?.stop as { message?: string })?.message)).toContain(
+      "session s-intruder",
+    );
+    // The intruder's lease is never removed by the loop that lost it.
+    expect(JSON.parse(readFileSync(leaseFile, "utf8")).session).toBe("s-intruder");
+  }, 20_000);
+
+  it("plan-writer lease: refuses with exit 1 while another live session holds the workspace lease (no tick starts)", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    const holder = {
+      version: 1,
+      session: "s-other",
+      host: os.hostname(),
+      dispatcher: { pid: process.ppid, start: null },
+      agent: null,
+      startedAt: new Date().toISOString(),
+      heartbeatAt: new Date().toISOString(),
+    };
+    const leaseFile = path.join(root, QUEUE_LEASE_RELPATH);
+    await writeFile(leaseFile, JSON.stringify(holder));
+    const client = scriptedClient(() => null);
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      lease: { nested: { session: "" } },
+    });
+    expect(code).toBe(1);
+    const events = client.events();
+    expect(events.some((e) => e.type === "tick_start")).toBe(false);
+    const end = events.at(-1);
+    expect(end).toMatchObject({ type: "run_end", exitCode: 1 });
+    expect(String(end?.reason)).toContain("Queue lease held");
+    expect(String(end?.reason)).toContain("agent-kit run-plan did not start");
+    expect(JSON.parse(await readFile(leaseFile, "utf8")).session).toBe("s-other");
+  });
+
+  it("plan-writer lease: holds the lease and a running queue as held for the run, then restores both", async () => {
+    const { root, plan } = await fixtureWorkspace();
+    const handoffPath = path.join(root, ".cursor", "HANDOFF.md");
+    const handoff = "# Handoff\n\n- **Queue status:** running (pass 3)\n";
+    await writeFile(handoffPath, handoff);
+    const seen: string[] = [];
+    const client = scriptedClient(
+      (gate) => JSON.stringify({ type: "hitl_reply", askId: gate.askId, reply: 1 }),
+      (ev) => {
+        if (ev.type === "tick_start" && ev.tick === 1) {
+          seen.push(
+            (handoffSync(handoffPath).match(/^- \*\*Queue status:\*\*.*$/m) ?? [""])[0],
+            String(leaseSync(path.join(root, QUEUE_LEASE_RELPATH))),
+          );
+        }
+        return null;
+      },
+    );
+    const code = await runPlanLoop({
+      root,
+      maxTicks: 5,
+      sleepSeconds: 0,
+      dryRun: false,
+      backend: fakeClaudeBackend(plan),
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      lease: { nested: { session: "" } },
+    });
+    expect(code).toBe(0);
+    expect(seen[0]).toMatch(
+      /^- \*\*Queue status:\*\* held \(by driver-fixture\.plan\.md, agent-kit run-plan session [0-9a-f-]+, .+; was running \(pass 3\)\)$/,
+    );
+    expect(seen[1]).toBe("true");
+    expect(await readFile(handoffPath, "utf8")).toBe(handoff);
+    expect(existsSync(path.join(root, QUEUE_LEASE_RELPATH))).toBe(false);
+  }, 20_000);
 
   it("completes a 3-to-do plan with one gate answered; stdout is NDJSON only", async () => {
     const { root, plan } = await fixtureWorkspace();

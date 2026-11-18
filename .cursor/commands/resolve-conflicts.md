@@ -1,6 +1,8 @@
 ---
 name: resolve-conflicts
 description: Proposal-only prompt for agent-kit conflicts propose: read a three-way conflict pack and reply with one JSON object of per-hunk proposals; no tools, no edits, no commits.
+context: none
+audience: meta
 ---
 
 # Command: /resolve-conflicts

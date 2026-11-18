@@ -1,6 +1,8 @@
 ---
 name: field-report-resolve
 description: Dismiss Field Report attention ids by appending them to the local dismissals store.
+context: none
+audience: user
 ---
 
 # Command: /field-report-resolve

@@ -2,6 +2,12 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { readHandoffText } from "../plan-loop/dispatch-driver.js";
 import {
+  formatQueueLeaseRefusal,
+  inspectQueueLease,
+  QUEUE_LEASE_RELPATH,
+  type QueueLeaseVerdict,
+} from "../plan-loop/queue-lease.js";
+import {
   decideQueueEndGatesAsk,
   formatQueueEndResolutionPrompt,
   type QueueEndGatesDecision,
@@ -74,10 +80,57 @@ const gatesCommand = defineCommand({
   },
 });
 
+/**
+ * Read-only queue owner lease check (ADR 2026-07-26 Amend 2026-11-16): exit 0
+ * when the queue is free, stale or held by the caller's own session
+ * (`AGENT_KIT_QUEUE_LEASE_SESSION`), exit 1 when another live owner holds it.
+ * An orchestrator runs it before writing Queue fields; an interactive
+ * /run-plan-all runs it before dispatching. Never writes the lease.
+ */
+export function renderQueueLease(
+  verdict: QueueLeaseVerdict,
+  json: boolean,
+): { text: string; exitCode: number } {
+  const exitCode = verdict.kind === "held" ? 1 : 0;
+  if (json) return { text: `${JSON.stringify(verdict, null, 2)}\n`, exitCode };
+  switch (verdict.kind) {
+    case "free":
+      return { text: `Queue lease: free (no ${QUEUE_LEASE_RELPATH}).\n`, exitCode };
+    case "own":
+      return { text: `Queue lease: held by this session (${verdict.lease.session}).\n`, exitCode };
+    case "stale":
+      return {
+        text: `Queue lease: stale (${verdict.reason}); the next run-plan-all takes it over and logs it in HANDOFF.\n`,
+        exitCode,
+      };
+    case "held":
+      return { text: `${formatQueueLeaseRefusal(verdict)}\n`, exitCode };
+  }
+}
+
+const leaseCommand = defineCommand({
+  meta: {
+    name: "lease",
+    description:
+      "Check the /run-plan-all queue owner lease (read-only): exit 0 free, stale or own session; exit 1 held by another live owner",
+  },
+  args: {
+    json: { type: "boolean", description: "Print the lease verdict as JSON", default: false },
+    cwd: { type: "string", description: "Workspace folder (default: current directory)" },
+  },
+  run({ args }) {
+    const root = path.resolve(typeof args.cwd === "string" && args.cwd ? args.cwd : ".");
+    const out = renderQueueLease(inspectQueueLease(root), Boolean(args.json));
+    process.stdout.write(out.text);
+    process.exitCode = out.exitCode;
+  },
+});
+
 export const queueCommand = defineCommand({
   meta: {
     name: "queue",
-    description: "Read the /run-plan-all queue from HANDOFF (`gates`: deferred operator gates)",
+    description:
+      "Read the /run-plan-all queue (`gates`: deferred operator gates from HANDOFF; `lease`: the queue owner lease)",
   },
-  subCommands: { gates: gatesCommand },
+  subCommands: { gates: gatesCommand, lease: leaseCommand },
 });

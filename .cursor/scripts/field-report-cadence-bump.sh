@@ -8,8 +8,12 @@
 #   .cursor/scripts/field-report-cadence-bump.sh tick
 #   .cursor/scripts/field-report-cadence-bump.sh batch-complete
 #   .cursor/scripts/field-report-cadence-bump.sh clear
+#   .cursor/scripts/field-report-cadence-bump.sh classify [--survival]
 #
 # Called from /run-plan tick close and /run-plan-all queue-complete.
+# classify prints the owed plans with one class and evidence line each and
+# writes nothing; --survival adds git blame survival of the merge SHAs named
+# in to-do evidence (on demand at triage only, never from Mission Control).
 # Never /git-prod. Does not stage the ledger (gitignored).
 
 set -euo pipefail
@@ -18,9 +22,10 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LEDGER_REL=".cursor/context/field-report-cadence.json"
 CONFIG="$ROOT/.cursor/context/config.json"
 ACTION="${1:-}"
+SURVIVAL="${2:-}"
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [[ -z "$ACTION" || "$ACTION" == "-h" || "$ACTION" == "--help" ]]; then
@@ -29,30 +34,40 @@ if [[ -z "$ACTION" || "$ACTION" == "-h" || "$ACTION" == "--help" ]]; then
 fi
 
 case "$ACTION" in
-  tick|batch-complete|clear) ;;
+  tick|batch-complete|clear|classify) ;;
   *)
-    echo "error: unknown action: $ACTION (tick | batch-complete | clear)" >&2
+    echo "error: unknown action: $ACTION (tick | batch-complete | clear | classify)" >&2
     exit 2
     ;;
 esac
+
+if [[ -n "$SURVIVAL" && ( "$ACTION" != "classify" || "$SURVIVAL" != "--survival" ) ]]; then
+  echo "error: unexpected argument: $SURVIVAL (only classify takes --survival)" >&2
+  exit 2
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "error: node required to bump cadence ledger" >&2
   exit 2
 fi
 
-node --input-type=module - "$ROOT" "$ACTION" "$LEDGER_REL" "$CONFIG" <<'NODE'
+node --input-type=module - "$ROOT" "$ACTION" "$LEDGER_REL" "$CONFIG" "$SURVIVAL" <<'NODE'
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const [root, action, ledgerRel, configPath] = process.argv.slice(2);
+const [root, action, ledgerRel, configPath, survivalFlag] = process.argv.slice(2);
 const sm = await import(pathToFileURL(join(root, "dashboard/lib/semantic-model.mjs")).href);
 const {
   parseCadenceLedger,
   serializeCadenceLedger,
   parseFieldReportReviewCadenceConfig,
   listUnreviewedReviewTargets,
+  attachTodoEvidenceRefs,
+  classifyOwedPlan,
+  planDeliveryRefs,
+  resolvePlanLifecycle,
   recordCadenceTickClose,
   recordCadenceBatchComplete,
   clearCadenceWarning,
@@ -97,6 +112,7 @@ function collectPlans() {
       for (const m of fm.matchAll(todoRegex)) {
         todos.push({ id: m[1], content: m[2], status: m[3] });
       }
+      attachTodoEvidenceRefs(fm, todos);
     }
     plans.push({
       id,
@@ -142,6 +158,116 @@ function collectReports() {
     if (parsed) out.push(parsed);
   }
   return out;
+}
+
+function git(args) {
+  return execFileSync("git", ["-C", root, ...args], {
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+}
+
+/**
+ * Blame survival of merge SHAs: lines each commit added (numstat, no renames)
+ * against lines HEAD still blames on it. SHAs that are not commits reachable
+ * from HEAD are skipped (a PR head SHA is not the merge), and so are merge
+ * commits (blame credits their lines to the merged commits). The same patch
+ * landed twice (cherry-pick) counts once by `git patch-id --stable`, while
+ * blame on either copy counts as alive. A file renamed since delivery reads
+ * as gone, so the figure is a lower bound. Argv only, -z paths.
+ */
+function deliverySurvival(shas) {
+  const commits = [];
+  for (const short of shas) {
+    let full = "";
+    try {
+      full = git(["rev-parse", "--verify", "--quiet", `${short}^{commit}`]).trim();
+      git(["merge-base", "--is-ancestor", full, "HEAD"]);
+      const parents = git(["rev-list", "--parents", "-n", "1", full]).trim().split(/\s+/);
+      if (parents.length > 2) continue;
+    } catch {
+      continue;
+    }
+    if (full && !commits.includes(full)) commits.push(full);
+  }
+  if (commits.length === 0) return null;
+  const patchIds = new Set();
+  const counted = [];
+  for (const sha of commits) {
+    let patchId = sha;
+    try {
+      patchId =
+        execFileSync("git", ["-C", root, "patch-id", "--stable"], {
+          input: git(["show", sha]),
+          encoding: "utf-8",
+          stdio: ["pipe", "pipe", "ignore"],
+        }).split(" ")[0] || sha;
+    } catch {
+      patchId = sha;
+    }
+    if (patchIds.has(patchId)) continue;
+    patchIds.add(patchId);
+    counted.push(sha);
+  }
+  let added = 0;
+  const files = new Set();
+  for (const sha of counted) {
+    const out = git(["show", "--numstat", "-z", "--no-renames", "--format=", sha]);
+    for (const rec of out.split("\0")) {
+      const m = /^\s*(\d+|-)\t(\d+|-)\t(.+)$/s.exec(rec);
+      if (!m || m[1] === "-") continue;
+      added += Number(m[1]);
+      files.add(m[3].trim());
+    }
+  }
+  const wanted = new Set(commits);
+  let alive = 0;
+  for (const file of files) {
+    let blame = "";
+    try {
+      blame = git(["blame", "--line-porcelain", "HEAD", "--", file]);
+    } catch {
+      continue;
+    }
+    for (const line of blame.split("\n")) {
+      const head = /^([0-9a-f]{40}) \d+ \d+/.exec(line);
+      if (head && wanted.has(head[1])) alive += 1;
+    }
+  }
+  return { added, alive, commits: commits.map((c) => c.slice(0, 8)) };
+}
+
+if (action === "classify") {
+  const handoffPath = join(root, ".cursor/HANDOFF.md");
+  let handoff = null;
+  if (existsSync(handoffPath)) {
+    try {
+      handoff = parseHandoffMarkdown(readFileSync(handoffPath, "utf-8"));
+    } catch {
+      handoff = null;
+    }
+  }
+  const plans = collectPlans();
+  const archived = collectArchived();
+  const targets = listUnreviewedReviewTargets(plans, handoff, collectReports(), archived);
+  const rows = [];
+  for (const t of targets) {
+    if (t.kind !== "owed") continue;
+    const plan = plans.find((p) => p.file === t.planFile);
+    if (!plan) continue;
+    const lifecycle = resolvePlanLifecycle(t.planFile, plans, handoff, archived);
+    let survival = null;
+    if (survivalFlag === "--survival") {
+      survival = deliverySurvival(planDeliveryRefs(plan).shas);
+    }
+    const verdict = classifyOwedPlan(plan, lifecycle, { survival });
+    rows.push({ planFile: t.planFile, lifecycle, ...verdict, survival });
+  }
+  process.stdout.write(
+    JSON.stringify({ action, survival: survivalFlag === "--survival", plans: rows }, null, 2) + "\n",
+  );
+  process.exit(0);
 }
 
 const ledgerPath = join(root, ledgerRel);

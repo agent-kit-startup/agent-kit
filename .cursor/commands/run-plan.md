@@ -1,6 +1,8 @@
 ---
 name: run-plan
 description: Run the active plan continuously until it is done or blocked, picking the execution strategy automatically.
+context: none
+audience: user
 ---
 
 # Command: /run-plan
@@ -32,6 +34,8 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 Numbered-list fallback is **path 1** when Ask questions is missing.
 
 ## Procedure
+
+Check in first: `agent-kit queue lease` (also before each Ask and each plan-state write); `Queue lease held:` means stop and report that line; a `queue` usage message (older CLI) means skip the check. Out-of-queue run while `Queue status` is `running` or `paused`: set `held (by <plan>, <who>, <date>; was <previous>)` and restore it at the end ([tick contract](../skills/core/hitl-gates/run-plan-tick-contract.md) section 1).
 
 1. Read HANDOFF + plan + config. Preflight API-limit stop, pending operator ticket (Ask `ticket` only while `.cursor/context/gate-exit.json` has a pending entry; inside a `/run-plan-all` Task or `--no-hitl`, list the stamps instead: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md)), audits, unsatisfiable Claude reviewer, session-pile. Read a product-context extract when the plan points at one.
 2. Next pending to-do. `force_task: true` or findings → Task. Lightweight docs-only → inline-first. Else Task or in-session.

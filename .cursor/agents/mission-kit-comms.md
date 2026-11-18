@@ -1,7 +1,7 @@
 ---
 name: mission-kit-comms
 description: Dedicated Mission Kit comms/community agent. Drafts recap, release, contributor-ask, and reply copy under explicit HITL gates. Not an Agent Persona (personas are chat chrome only).
-model: claude-sonnet-4
+model: inherit
 readonly: false
 ---
 

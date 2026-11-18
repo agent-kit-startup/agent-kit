@@ -1,6 +1,8 @@
 ---
 name: dashboard-broadcast
 description: Start Mission Control in opt-in LAN broadcast mode with a required session token.
+context: none
+audience: user
 ---
 
 # Command: /dashboard-broadcast

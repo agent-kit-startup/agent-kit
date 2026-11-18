@@ -17,6 +17,7 @@ import {
   buildMissionControlView,
   buildRunQueueView,
   classifyFlightLogMessageKind,
+  classifyOwedPlan,
   classifyPlan,
   clearCadenceWarning,
   collectDeferredCheckIds,
@@ -44,6 +45,7 @@ import {
   formatPlanReviewActivity,
   formatSubagentActivity,
   isFieldReportAttentionId,
+  isReportDemotedByPlanLifecycle,
   listFlightLogQuietOpenTriages,
   listUnreviewedReviewTargets,
   MAX_ACTIVITY,
@@ -71,6 +73,8 @@ import {
   parseQueueOutcomes,
   parseRunQueue,
   parseSubagentRun,
+  parseTodoEvidenceFromFrontmatter,
+  parseTodoEvidenceRefs,
   planQueueRole,
   recordCadenceBatchComplete,
   recordCadenceTickClose,
@@ -2571,6 +2575,156 @@ describe("Field Report activity review cadence", () => {
     expect(targets.some((t) => t.kind === "owed" && t.planFile === "finished-widget.plan.md")).toBe(
       true,
     );
+  });
+
+  const makePlan = (file: string, statuses: string[]) => ({
+    id: file.replace(/\.plan\.md$/, ""),
+    file,
+    path: `.cursor/plans/${file}`,
+    overview: "",
+    todos: {
+      total: statuses.length,
+      completed: statuses.filter((s) => s === "completed").length,
+      pending: statuses.filter((s) => s === "pending").length,
+      inProgress: statuses.filter((s) => s === "in_progress").length,
+      items: statuses.map((status, i) => ({ id: `t${i}`, content: "x", status })),
+    },
+  });
+
+  it("does not count a parked plan with zero completed to-dos as owed", () => {
+    const parked = makePlan("parked-nothing.plan.md", ["pending", "pending"]);
+    const handoffParked = { parkedPlans: ["parked-nothing.plan.md"] };
+    const targets = listUnreviewedReviewTargets([parked], handoffParked as never, [], []);
+    expect(targets).toEqual([]);
+  });
+
+  it("does not count an all-cancelled terminal plan as owed", () => {
+    const cancelled = makePlan("all-cancelled.plan.md", ["cancelled", "cancelled"]);
+    expect(listUnreviewedReviewTargets([cancelled], null, [], [])).toEqual([]);
+    const handoffParked = { parkedPlans: ["all-cancelled.plan.md"] };
+    expect(listUnreviewedReviewTargets([cancelled], handoffParked as never, [], [])).toEqual([]);
+  });
+
+  it("owes a parked plan only for its completed slice", () => {
+    const parked = makePlan("parked-slice.plan.md", ["completed", "pending", "cancelled"]);
+    const handoffParked = { parkedPlans: ["parked-slice.plan.md"] };
+    const targets = listUnreviewedReviewTargets([parked], handoffParked as never, [], []);
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      kind: "owed",
+      planFile: "parked-slice.plan.md",
+      lifecycle: "parked",
+      completedTodoIds: ["t0"],
+      totalTodos: 3,
+    });
+  });
+
+  it("never owes archived plans (basenames only, not in the plan inventory)", () => {
+    const targets = listUnreviewedReviewTargets([], null, [], ["old-archived.plan.md"]);
+    expect(targets).toEqual([]);
+  });
+
+  it("keeps prompt clear and report demotion terminal for parked zero-completed plans", () => {
+    const parked = makePlan("parked-nothing.plan.md", ["pending"]);
+    const handoffParked = { parkedPlans: ["parked-nothing.plan.md"] };
+    expect(
+      isReportDemotedByPlanLifecycle(
+        { reviewedPlanFile: "parked-nothing.plan.md" },
+        [parked],
+        handoffParked as never,
+      ),
+    ).toBe(true);
+  });
+
+  it("parses per-to-do evidence from frontmatter (quoted, plain, missing)", () => {
+    const fm = [
+      'name: "X"',
+      "todos:",
+      "  - id: a",
+      '    content: "A"',
+      "    status: completed",
+      '    evidence: "agent-kit-dev#12 merged abc1234 \\"quoted\\""',
+      "  - id: b",
+      '    content: "B"',
+      "    status: completed",
+      "    evidence: colony#7 plain",
+      "  - id: c",
+      '    content: "C"',
+      "    status: pending",
+      "isProject: true",
+      "evidence: top-level-not-a-todo",
+    ].join("\n");
+    const map = parseTodoEvidenceFromFrontmatter(fm);
+    expect(map.get("a")).toBe('agent-kit-dev#12 merged abc1234 "quoted"');
+    expect(map.get("b")).toBe("colony#7 plain");
+    expect(map.has("c")).toBe(false);
+  });
+
+  it("reads structured PR refs and SHAs, with a prose fallback", () => {
+    expect(parseTodoEvidenceRefs("agent-kit-dev#1484 merged c01a6978; colony#125")).toEqual({
+      prs: [
+        { repo: "agent-kit-dev", number: 1484 },
+        { repo: "colony", number: 125 },
+      ],
+      shas: ["c01a6978"],
+      structured: true,
+    });
+    expect(parseTodoEvidenceRefs("Kit PR #1361 squash-merged into staging `bbffebf4`")).toEqual({
+      prs: [{ repo: null, number: 1361 }],
+      shas: ["bbffebf4"],
+      structured: false,
+    });
+    // Dates, digit-only and letter-only hex words are not SHAs.
+    expect(parseTodoEvidenceRefs("on 20261116, deadbeef, see #12").shas).toEqual([]);
+    expect(parseTodoEvidenceRefs("")).toEqual({ prs: [], shas: [], structured: false });
+  });
+
+  it("classifies owed plans with one evidence line each", () => {
+    const live = makePlan("live.plan.md", ["completed", "completed"]);
+    (live.todos.items[0] as Record<string, unknown>).evidenceRefs = parseTodoEvidenceRefs(
+      "agent-kit-dev#1484 merged c01a6978",
+    );
+    expect(classifyOwedPlan(live, "completed")).toEqual({
+      classification: "live-unreviewed",
+      evidenceLine: "2 of 2 to-dos completed; agent-kit-dev#1484 merged c01a6978",
+    });
+    const bare = makePlan("bare.plan.md", ["completed"]);
+    expect(classifyOwedPlan(bare, "completed").evidenceLine).toBe(
+      "1 of 1 to-dos completed; no PR ref or merge SHA in to-do evidence",
+    );
+    const parked = makePlan("parked.plan.md", ["completed", "pending"]);
+    expect(classifyOwedPlan(parked, "parked").classification).toBe("partial-parked");
+    const nothing = makePlan("nothing.plan.md", ["cancelled"]);
+    expect(classifyOwedPlan(nothing, "completed")).toEqual({
+      classification: "delivered-nothing",
+      evidenceLine: "0 of 1 to-dos completed (all cancelled)",
+    });
+    const rewritten = classifyOwedPlan(live, "completed", { survival: { added: 100, alive: 44 } });
+    expect(rewritten.classification).toBe("superseded-or-rewritten");
+    expect(rewritten.evidenceLine).toMatch(/^about 44% of 100 delivered lines alive; /);
+    const kept = classifyOwedPlan(live, "completed", { survival: { added: 10, alive: 9 } });
+    expect(kept.classification).toBe("live-unreviewed");
+    expect(kept.evidenceLine).toContain("about 90% of 10 delivered lines alive");
+  });
+
+  it("puts one evidence line per owed plan on the cadence attention item", () => {
+    const live = makePlan("live.plan.md", ["completed"]);
+    const targets = listUnreviewedReviewTargets([live], null, [], []);
+    expect(targets[0]).toMatchObject({ classification: "live-unreviewed" });
+    const ledger = recordCadenceBatchComplete(emptyCadenceLedger(), {
+      unreviewedTargets: targets,
+      nowIso: "2026-11-16T12:00:00.000Z",
+    });
+    const item = buildCadenceAttentionItem(ledger, targets, {}) as {
+      planEvidence: { planFile: string; classification: string; evidenceLine: string }[];
+    };
+    expect(item.planEvidence).toEqual([
+      {
+        planFile: "live.plan.md",
+        classification: "live-unreviewed",
+        evidenceLine: "1 of 1 to-dos completed; no PR ref or merge SHA in to-do evidence",
+      },
+    ]);
   });
 
   it("does not count terminal plans with an already-triaged monitor as owed", () => {

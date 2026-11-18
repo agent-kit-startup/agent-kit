@@ -20,6 +20,12 @@ jobs:
   scan:
     runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
+      - name: Job temp dir in RUNNER_TEMP
+        # The runner empties RUNNER_TEMP at the start and end of every job, so
+        # temp dirs tests create under os.tmpdir() never pile up in the
+        # self-hosted runner's /tmp (it hung the kvm4 boot on 2026-11-17).
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

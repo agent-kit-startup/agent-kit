@@ -1,6 +1,8 @@
 ---
 name: backlog-delete
 description: Remove a plan from the HANDOFF Backlog and move the file to .cursor/plans/archive/.
+context: plan
+audience: user
 ---
 
 # Command: /backlog-delete

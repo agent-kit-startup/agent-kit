@@ -92,6 +92,8 @@ export interface HitlRunOptions {
   /** Called around the prompt so a caller can pause its own terminal chrome (spinner). */
   onPromptStart?: () => void;
   onPromptEnd?: () => void;
+  /** Check-in before each gate (workspace lease); a line stops the run instead of asking. */
+  checkIn?: () => string | null;
   /** After a stop: ms of grace after stdin end before SIGTERM, then SIGKILL (default 5000). */
   killAfterMs?: number;
 }
@@ -215,6 +217,7 @@ export interface SpawnHitlOptions {
   write: (text: string) => void;
   onPromptStart?: () => void;
   onPromptEnd?: () => void;
+  checkIn?: () => string | null;
   killAfterMs?: number;
 }
 
@@ -233,6 +236,7 @@ export function resolveHitlRunOptions(
     write: hitl?.write ?? ((text) => process.stdout.write(text)),
     onPromptStart: hitl?.onPromptStart,
     onPromptEnd: hitl?.onPromptEnd,
+    checkIn: hitl?.checkIn,
     killAfterMs: hitl?.killAfterMs,
   };
 }
@@ -779,6 +783,7 @@ function createRelay(
       usage: usage.total(),
       onPromptStart: hitl.onPromptStart,
       onPromptEnd: hitl.onPromptEnd,
+      checkIn: hitl.checkIn,
     }).then(
       (outcome) => {
         if (record.stop) return;

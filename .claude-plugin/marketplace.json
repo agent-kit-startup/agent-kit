@@ -3,12 +3,12 @@
   "owner": {
     "name": "agent-kit-startup"
   },
-  "description": "Mission Kit: HITL framework for AI-assisted IDEs.",
+  "description": "Mission Kit: develop and maintain long-term projects with your own coding agents.",
   "plugins": [
     {
       "name": "agent-kit",
       "source": "./",
-      "description": "HITL framework for AI-assisted IDEs — plan, handoff, staging→prod, memory loop, anti-slop. Stack skills via agent-kit add.",
+      "description": "Plan, build, ship, and keep shipping. Agent Kit for Claude Code: plans, handoff, durable memory and staging-to-prod gates for long-term projects, followed from Mission Control in your browser.",
       "strict": true
     }
   ]

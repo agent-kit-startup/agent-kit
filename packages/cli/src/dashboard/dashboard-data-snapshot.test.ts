@@ -519,6 +519,41 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     ]);
   });
 
+  it("ships to-do evidence refs, never the evidence prose (1.12.0)", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-evidence-"));
+    initGitRepo(repo);
+    mkdirSync(join(repo, ".cursor", "plans"), { recursive: true });
+    const prose = "evidence-prose-sentinel-7d1f";
+    writeFileSync(
+      join(repo, ".cursor", "plans", "demo.plan.md"),
+      [
+        "---",
+        'name: "Demo"',
+        "todos:",
+        "  - id: one",
+        '    content: "First"',
+        "    status: completed",
+        `    evidence: "agent-kit-dev#1484 merged c01a6978. ${prose}"`,
+        "  - id: two",
+        '    content: "Second"',
+        "    status: pending",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    const raw = runDashboardDataRaw(repo);
+    expect(raw).not.toContain(prose);
+    const snap = JSON.parse(raw);
+    expect(schemaErrors(schema, snap)).toEqual([]);
+    const items = (snap.plans as { todos: { items: Record<string, unknown>[] } }[])[0].todos.items;
+    expect(items[0].evidenceRefs).toEqual({
+      prs: [{ repo: "agent-kit-dev", number: 1484 }],
+      shas: ["c01a6978"],
+      structured: true,
+    });
+    expect(items[1].evidenceRefs).toBeUndefined();
+  });
+
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
     const source = readFileSync(dashboardDataScript, "utf8");
     const fieldsBlock = /fields: \{([\s\S]*?)\n {4}\},\n {2}\},/.exec(source)?.[1] ?? "";

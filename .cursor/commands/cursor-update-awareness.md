@@ -1,6 +1,8 @@
 ---
 name: cursor-update-awareness
 description: Run an opt-in advisory check for Cursor product updates against the native audit inventory.
+context: none
+audience: meta
 ---
 
 # Command: /cursor-update-awareness

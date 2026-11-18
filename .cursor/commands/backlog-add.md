@@ -1,6 +1,8 @@
 ---
 name: backlog-add
 description: Enqueue a new plan with to-dos under the HANDOFF Backlog without activating it.
+context: goal
+audience: user
 ---
 
 # Command: /backlog-add

@@ -1,6 +1,8 @@
 ---
 name: plan-external-review
 description: Arm an optional external plan audit after /run-plan exhausts its implementable to-dos.
+context: none
+audience: meta
 ---
 
 # Command: /plan-external-review

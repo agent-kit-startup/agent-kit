@@ -1,6 +1,8 @@
 ---
 name: handoff
 description: Update HANDOFF.md to preserve current state for continuation in a new conversation.
+context: none
+audience: user
 ---
 
 # Command: /handoff

@@ -1,6 +1,8 @@
 ---
 name: start-project
 description: Bootstrap a plan with to-dos from any user payload, with two HITL gates.
+context: goal
+audience: user
 ---
 
 # Command: /start-project

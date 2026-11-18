@@ -1,7 +1,7 @@
 ---
 name: test-suites
 description: Maintains daily test suites, dependencies, template-report and E2E tests. Use to update test suites, checklists, reports and prerequisites.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-general

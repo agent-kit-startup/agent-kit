@@ -32,8 +32,29 @@ import {
   type HitlStop,
   type TurnResult,
 } from "./hitl-relay.js";
+import {
+  CLAUDE_SUBAGENT_MODEL_ENV,
+  describeResolvedRoles,
+  type ModelRoles,
+  type RoleSource,
+  readPlanRoleOverrides,
+  resolveSubworkerModel,
+} from "./model-roles.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, readPlan, resolveActivePlanPath } from "./plan-state.js";
+import {
+  acquirePlanWriterLease,
+  forwardTermination,
+  gateCheckIn,
+  holdQueueStatus,
+  type NestedLeaseProbe,
+  procStart,
+  QUEUE_LEASE_INTERRUPT_WAIT_MS,
+  QUEUE_LEASE_SESSION_ENV,
+  type QueueLeaseEnv,
+  type QueueLeaseHandle,
+  type QueueLeaseProc,
+} from "./queue-lease.js";
 import {
   formatSentinelLine,
   resolveTickResultStatus,
@@ -78,6 +99,25 @@ export interface RunPlanLoopOptions {
   landOnGate?: boolean;
   /** Test seam for the landing step (defaults: the real git / gh / glab). */
   gateExit?: Partial<Omit<Parameters<typeof landGateExit>[0], "root" | "outcome">>;
+  /**
+   * Model roles (ADR 2026-11-16 model roles): the parsed config `roles` and
+   * where the worker backend and model came from. Present = each tick logs
+   * the resolved roles and the claude backend gets the subworker model.
+   * Absent = no roles logic (callers that predate the key).
+   */
+  roles?: RunRolesOptions;
+  /**
+   * Test seam: plan-writer lease clock, liveness, host and ancestry
+   * (queue-lease.ts). The loop holds the workspace lease for the whole run, or
+   * runs under the holder's lease when it is a subsession of it.
+   */
+  lease?: QueueLeaseEnv & { nested?: NestedLeaseProbe };
+}
+
+export interface RunRolesOptions {
+  roles: ModelRoles;
+  backendSource: RoleSource;
+  modelSource?: RoleSource;
 }
 
 /** Driver-mode seams (defaults: process.stdin / process.stdout / process.stderr). */
@@ -128,9 +168,12 @@ async function runTickWithSpinner(
       (seams) =>
         backend.run({
           ...opts,
-          hitl: seams.hitl,
+          hitl: { ...seams.hitl, checkIn: opts.hitl?.checkIn },
           render: seams.render,
-          onSpawn: seams.onSpawn,
+          onSpawn: (info) => {
+            opts.onSpawn?.(info);
+            seams.onSpawn(info);
+          },
           log: seams.log,
         }),
     );
@@ -279,7 +322,29 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     // absent is fine
   }
 
+  // Plan-writer lease (ADR 2026-07-26 Amend 2026-11-16 agent check-in): held
+  // for the whole run, or joined as a subsession of the holder.
+  let lease: QueueLeaseHandle | null = null;
+  let nestedSession: string | null = null;
+  // Check in before each gate: another live session holding the lease means the gate is not offered.
+  const checkIn = gateCheckIn(opts.root, () => lease?.session ?? nestedSession, opts.lease);
+  let restoreQueue: (() => boolean) | null = null;
+  let previousLeaseSession: string | undefined;
+  let leaseSessionSet = false;
+  const releaseLease = (interrupted: boolean) => {
+    restoreQueue?.();
+    restoreQueue = null;
+    if (interrupted) lease?.releaseAfterAgent(QUEUE_LEASE_INTERRUPT_WAIT_MS);
+    else lease?.release();
+    if (leaseSessionSet) {
+      if (previousLeaseSession === undefined) delete process.env[QUEUE_LEASE_SESSION_ENV];
+      else process.env[QUEUE_LEASE_SESSION_ENV] = previousLeaseSession;
+      leaseSessionSet = false;
+    }
+  };
+
   const onSigInt = () => {
+    releaseLease(true);
     if (driver) {
       emit({
         type: "run_end",
@@ -297,6 +362,28 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     process.exit(130);
   };
   process.on("SIGINT", onSigInt);
+  // Driver mode (an app such as Colony): SIGTERM / SIGHUP, the host's
+  // parent-death signal included, reach the running tick's agent before this
+  // process exits, so no agent outlives its host.
+  let tickAgent: QueueLeaseProc | null = null;
+  const offTermination = driver
+    ? forwardTermination(
+        () => tickAgent,
+        (signal) => {
+          releaseLease(true);
+          emit({
+            type: "run_end",
+            exitCode: 130,
+            ticks: ticksRun,
+            pending: null,
+            reason: `interrupted (${signal})`,
+            planExhausted: false,
+            usage: runUsage,
+          });
+          process.exit(130);
+        },
+      )
+    : () => {};
 
   try {
     // Fail soft: missing persona.json keeps plain console.log (no crash).
@@ -334,6 +421,46 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       return finishRun(1, `${opts.backend.id} not found on PATH`, pendingAtStart);
     }
 
+    const writer = acquirePlanWriterLease(opts.root, "agent-kit run-plan", {
+      ...opts.lease,
+      onLost: (by) =>
+        say(
+          `Queue lease lost: ${by ? `session ${by.session} (pid ${by.dispatcher.pid})` : "the lease file"} replaced this run's lease. Another session may be writing this workspace's plans.`,
+          "warn",
+        ),
+    });
+    if (writer.kind === "refused") {
+      say(writer.message, "error");
+      return finishRun(1, writer.message, pendingAtStart);
+    }
+    if (writer.kind === "nested") {
+      nestedSession = writer.lease.session;
+      say(
+        `Queue lease: running under session ${writer.lease.session} (dispatcher pid ${writer.lease.dispatcher.pid}).`,
+      );
+    } else {
+      lease = writer.handle;
+      if (lease.takeover) {
+        say(
+          `Queue lease: took over a stale lease (${lease.takeover.reason}); the takeover is logged in HANDOFF.`,
+          "warn",
+        );
+      }
+      previousLeaseSession = process.env[QUEUE_LEASE_SESSION_ENV];
+      process.env[QUEUE_LEASE_SESSION_ENV] = lease.session;
+      leaseSessionSet = true;
+      restoreQueue = holdQueueStatus(opts.root, {
+        plan: path.basename(planPath),
+        who: `agent-kit run-plan session ${lease.session}`,
+        at: new Date().toISOString(),
+      });
+      if (restoreQueue) {
+        say(
+          "Queue status: held while this run-plan runs outside the queue; restored when it ends.",
+        );
+      }
+    }
+
     let stopReason: string | undefined;
     let planExhausted = false;
     let exitCode = 0;
@@ -342,6 +469,8 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     // tick stops on a vendor usage limit (same plan, same tick prompt).
     let backend = opts.backend;
     let limitSwitched = false;
+    // Each distinct roles warning prints once per run.
+    const rolesWarned = new Set<string>();
     // Driver protocol 1.5.0: `stop_after_tick` ends the run at the next tick
     // boundary, here (before a tick starts) and right after a tick that
     // would otherwise continue. The tick itself is never interrupted.
@@ -427,12 +556,46 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         });
       };
       try {
+        // `--on-limit` fallback: a model that did not come from a flag
+        // belongs to the configured backend, so it is not sent to the other one.
+        const switched = backend !== opts.backend;
+        const tickModel =
+          switched && opts.roles && opts.roles.modelSource !== "flag" ? undefined : opts.model;
+        let tickEnv: NodeJS.ProcessEnv | undefined;
+        if (opts.roles) {
+          const planOverrides = readPlanRoleOverrides(await readPlan(planPath).catch(() => ""));
+          const sub = resolveSubworkerModel({
+            backend: backend.id,
+            roles: opts.roles.roles,
+            plan: planOverrides,
+          });
+          if (sub.warning && !rolesWarned.has(sub.warning)) {
+            rolesWarned.add(sub.warning);
+            say(`roles: ${sub.warning}`, "warn");
+          }
+          if (sub.model && backend.id === "claude") {
+            tickEnv = { [CLAUDE_SUBAGENT_MODEL_ENV]: sub.model };
+          }
+          say(
+            describeResolvedRoles({
+              backendId: backend.id,
+              backendSource: switched ? "flag" : opts.roles.backendSource,
+              ...(tickModel ? { model: tickModel } : {}),
+              ...(tickModel && opts.roles.modelSource
+                ? { modelSource: opts.roles.modelSource }
+                : {}),
+              subworker: sub,
+            }),
+          );
+        }
         const runOpts: Parameters<AgentBackend["run"]>[0] = {
           workspace: opts.root,
           prompt: TICK_PROMPT,
-          model: opts.model,
+          model: tickModel,
           logPath,
-          hitl: { policy: opts.noHitl ? "off" : "prompt" },
+          hitl: { policy: opts.noHitl ? "off" : "prompt", checkIn },
+          ...(tickEnv ? { env: tickEnv } : {}),
+          onSpawn: (info) => lease?.setAgent(info.pid),
         };
         const result = driver
           ? await backend.run({
@@ -443,9 +606,17 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
                 policy: opts.noHitl ? "off" : "driver",
                 readAnswer: driver.reader.read,
                 write: driver.writeErr,
+                checkIn,
+              },
+              onSpawn: (info) => {
+                lease?.setAgent(info.pid);
+                tickAgent =
+                  info.pid === undefined ? null : { pid: info.pid, start: procStart(info.pid) };
               },
             })
           : await runTickWithSpinner(`tick ${tick}`, backend, runOpts, opts.plain === true);
+        // The tick's agent has exited: a signal between ticks has no one to forward to.
+        tickAgent = null;
         agentExit = result.exitCode;
         tickUsage = result.usage?.total() ?? null;
         for (const line of formatHitlSummary(result.hitl)) say(line);
@@ -458,6 +629,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
           ? [lastResult.resultText, ...lastResult.assistantTexts].join("\n")
           : undefined;
       } catch (err) {
+        tickAgent = null;
         say(String(err), "error");
         agentExit = 1;
         endTick(null, null);
@@ -642,5 +814,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     return finishRun(exitCode, endReason || "stopped", pendingNow, planExhausted);
   } finally {
     process.off("SIGINT", onSigInt);
+    offTermination();
+    releaseLease(false);
   }
 }

@@ -820,12 +820,225 @@ export function cadenceWindowIdFromNow(now = Date.now()) {
   return `w-${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
 }
 
+/** One `- id:` to-do row in plan frontmatter. */
+const FRONTMATTER_TODO_ID_RE = /^\s*-\s+id:\s*(\S+)\s*$/;
+/** `evidence:` key inside a to-do row. */
+const FRONTMATTER_EVIDENCE_RE = /^\s*evidence:\s*(.*)$/;
+/** Structured PR ref: `<repo>#<n>` with no space (`agent-kit-dev#1484`, `colony#125`). */
+const EVIDENCE_STRUCTURED_PR_RE = /(?<![\w#/.-])([A-Za-z][A-Za-z0-9._-]*)#(\d+)\b/g;
+/** Prose fallback PR ref: a bare `#<n>` (older plans: `PR #1361`, `Colony #114`). */
+const EVIDENCE_PROSE_PR_RE = /(?<![\w#/])#(\d+)\b/g;
+/** Commit SHA token: 7-40 lowercase hex holding at least one digit and one letter. */
+const EVIDENCE_SHA_RE = /(?<![\w/#.-])[0-9a-f]{7,40}(?![\w-])/g;
+/** Owed classifier: a plan with less of its delivered lines alive reads as rewritten. */
+export const OWED_SURVIVAL_REWRITTEN_PCT = 50;
+const MAX_OWED_EVIDENCE_LINE = 160;
+/** Cap on per-plan evidence rows carried by the cadence attention item. */
+const MAX_CADENCE_PLAN_EVIDENCE = 50;
+
+function unquoteYamlScalar(raw) {
+  const v = String(raw || "").trim();
+  if (v.startsWith('"') && v.endsWith('"') && v.length >= 2) {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v.slice(1, -1);
+    }
+  }
+  if (v.startsWith("'") && v.endsWith("'") && v.length >= 2) {
+    return v.slice(1, -1).replace(/''/g, "'");
+  }
+  return v;
+}
+
+/**
+ * Per-to-do `evidence:` strings from plan frontmatter, keyed by to-do id.
+ * Single-line scalars only (double-quoted, single-quoted or plain); a missing
+ * or empty value is omitted.
+ * @param {string} frontmatter - text between the `---` fences
+ * @returns {Map<string, string>}
+ */
+export function parseTodoEvidenceFromFrontmatter(frontmatter) {
+  const out = new Map();
+  if (typeof frontmatter !== "string" || !frontmatter) return out;
+  let current = null;
+  for (const line of frontmatter.split("\n")) {
+    const idMatch = FRONTMATTER_TODO_ID_RE.exec(line);
+    if (idMatch) {
+      current = idMatch[1];
+      continue;
+    }
+    if (!current) continue;
+    if (/^\S/.test(line)) {
+      current = null;
+      continue;
+    }
+    const ev = FRONTMATTER_EVIDENCE_RE.exec(line);
+    if (ev && !out.has(current)) {
+      const value = unquoteYamlScalar(ev[1]);
+      if (value) out.set(current, value);
+    }
+  }
+  return out;
+}
+
+/**
+ * Delivery refs in one to-do `evidence:` string. Structured `<repo>#<n>` refs
+ * win; a plan without them falls back to bare `#<n>` prose refs (repo null).
+ * SHAs are 7-40 hex tokens with a digit and a letter. Refs only: no prose
+ * leaves this function.
+ * @param {unknown} evidence
+ * @returns {{ prs: { repo: string|null, number: number }[], shas: string[], structured: boolean }}
+ */
+export function parseTodoEvidenceRefs(evidence) {
+  const empty = { prs: [], shas: [], structured: false };
+  if (typeof evidence !== "string" || !evidence.trim()) return empty;
+  const prs = [];
+  const seenPr = new Set();
+  for (const m of evidence.matchAll(EVIDENCE_STRUCTURED_PR_RE)) {
+    const repo = m[1].toLowerCase();
+    if (repo === "pr") continue;
+    const key = `${repo}#${m[2]}`;
+    if (seenPr.has(key)) continue;
+    seenPr.add(key);
+    prs.push({ repo, number: Number(m[2]) });
+  }
+  const structured = prs.length > 0;
+  if (!structured) {
+    for (const m of evidence.matchAll(EVIDENCE_PROSE_PR_RE)) {
+      const key = `#${m[1]}`;
+      if (seenPr.has(key)) continue;
+      seenPr.add(key);
+      prs.push({ repo: null, number: Number(m[1]) });
+    }
+  }
+  const shas = [];
+  for (const m of evidence.matchAll(EVIDENCE_SHA_RE)) {
+    const sha = m[0];
+    if (!/[0-9]/.test(sha) || !/[a-f]/.test(sha) || shas.includes(sha)) continue;
+    shas.push(sha);
+  }
+  return { prs, shas, structured };
+}
+
+/**
+ * Attach `evidenceRefs` to parsed to-do items from the plan frontmatter.
+ * Mutates and returns `todos`; items without evidence are left unchanged.
+ * @param {string} frontmatter
+ * @param {{ id: string }[]} todos
+ */
+export function attachTodoEvidenceRefs(frontmatter, todos) {
+  const evidence = parseTodoEvidenceFromFrontmatter(frontmatter);
+  if (evidence.size === 0) return todos;
+  for (const todo of todos || []) {
+    const text = todo && evidence.get(todo.id);
+    if (!text) continue;
+    const refs = parseTodoEvidenceRefs(text);
+    if (refs.prs.length > 0 || refs.shas.length > 0) todo.evidenceRefs = refs;
+  }
+  return todos;
+}
+
+/**
+ * Merged delivery refs of a plan's completed to-dos (structured first).
+ * @param {object} plan
+ * @returns {{ prs: { repo: string|null, number: number }[], shas: string[], structured: boolean }}
+ */
+export function planDeliveryRefs(plan) {
+  const prs = [];
+  const shas = [];
+  const seenPr = new Set();
+  let structured = false;
+  for (const todo of plan?.todos?.items || []) {
+    if (todo?.status !== "completed") continue;
+    const refs = todo.evidenceRefs;
+    if (!refs) continue;
+    if (refs.structured) structured = true;
+    for (const pr of refs.prs || []) {
+      const key = `${pr.repo || ""}#${pr.number}`;
+      if (seenPr.has(key)) continue;
+      seenPr.add(key);
+      prs.push(pr);
+    }
+    for (const sha of refs.shas || []) {
+      if (!shas.includes(sha)) shas.push(sha);
+    }
+  }
+  return { prs, shas, structured };
+}
+
+function formatDeliveryRefs(refs) {
+  const parts = [];
+  const prs = refs.prs.slice(0, 3).map((p) => (p.repo ? `${p.repo}#${p.number}` : `#${p.number}`));
+  if (prs.length > 0) {
+    const more = refs.prs.length > 3 ? ` +${refs.prs.length - 3}` : "";
+    parts.push(`${prs.join(", ")}${more}`);
+  }
+  if (refs.shas.length > 0) {
+    const more = refs.shas.length > 2 ? ` +${refs.shas.length - 2}` : "";
+    parts.push(`merged ${refs.shas.slice(0, 2).join(", ")}${more}`);
+  }
+  if (parts.length === 0) return "no PR ref or merge SHA in to-do evidence";
+  return parts.join(" ") + (refs.structured ? "" : " (prose refs)");
+}
+
+/**
+ * Classify one terminal plan for the owed review set, with one evidence line.
+ * Reads frontmatter facts only (to-do status, structured `evidence:` refs);
+ * `survival` comes from the on-demand blame script and is never computed on
+ * the Mission Control snapshot path. A class never removes a plan from the
+ * owed set by itself.
+ * @param {object} plan
+ * @param {string} lifecycle - resolvePlanLifecycle result
+ * @param {{ survival?: { added: number, alive: number } | null }} [opts]
+ * @returns {{ classification: 'delivered-nothing'|'partial-parked'|'superseded-or-rewritten'|'live-unreviewed', evidenceLine: string }}
+ */
+export function classifyOwedPlan(plan, lifecycle, opts = {}) {
+  const stats = todoStats(plan);
+  const done = `${stats.completed} of ${stats.total} to-dos completed`;
+  if (stats.completed === 0) {
+    const why = stats.cancelled > 0 && stats.open === 0 ? "all cancelled" : "none completed";
+    return { classification: "delivered-nothing", evidenceLine: `${done} (${why})` };
+  }
+  const refs = planDeliveryRefs(plan);
+  let refsText = formatDeliveryRefs(refs);
+  const survival = opts.survival;
+  if (survival && Number.isFinite(survival.added) && survival.added > 0) {
+    const pct = Math.round((Math.max(0, survival.alive) / survival.added) * 100);
+    const survivalText = `about ${pct}% of ${survival.added} delivered lines alive`;
+    if (pct < OWED_SURVIVAL_REWRITTEN_PCT) {
+      return {
+        classification: "superseded-or-rewritten",
+        evidenceLine: truncateStr(`${survivalText}; ${refsText}`, MAX_OWED_EVIDENCE_LINE),
+      };
+    }
+    refsText = `${survivalText}; ${refsText}`;
+  }
+  if (lifecycle === "parked" && stats.open > 0) {
+    return {
+      classification: "partial-parked",
+      evidenceLine: truncateStr(`parked, ${done}; ${refsText}`, MAX_OWED_EVIDENCE_LINE),
+    };
+  }
+  return {
+    classification: "live-unreviewed",
+    evidenceLine: truncateStr(`${done}; ${refsText}`, MAX_OWED_EVIDENCE_LINE),
+  };
+}
+
 /**
  * List still-unreviewed work for cadence emit and batch CTAs.
  * Includes untriaged monitors and terminal plans without a matching monitor
  * file (existence). Every report slug enters `monitorSlugs`; triage only gates
  * first-loop inclusion. Does not emit owed attention rows.
- * @returns {{ kind: 'report'|'owed', planFile: string, slug: string, path: string }[]}
+ * A terminal plan with zero completed to-dos delivered nothing (all cancelled,
+ * or parked with every to-do still open) and is never owed. A parked plan with
+ * open work is owed for its completed slice only: `completedTodoIds` names it.
+ * Archived plans are not in `plans` (basenames only), so they are never owed.
+ * `TERMINAL_FIELD_REPORT_LIFECYCLES` stays unchanged: it also drives prompt
+ * clear and report demotion.
+ * Owed targets also carry `classification` and one `evidenceLine` (classifyOwedPlan).
+ * @returns {{ kind: 'report'|'owed', planFile: string, slug: string, path: string, lifecycle?: string, completedTodoIds?: string[], totalTodos?: number, classification?: string, evidenceLine?: string }[]}
  */
 export function listUnreviewedReviewTargets(
   plans,
@@ -865,12 +1078,18 @@ export function listUnreviewedReviewTargets(
     if (!isPlanLifecycleTerminal(lifecycle)) continue;
     const slug = planFile.replace(/\.plan\.md$/i, "");
     if (!slug || monitorSlugs.has(normalizeSlug(slug))) continue;
+    const stats = todoStats(plan);
+    if (stats.completed === 0) continue;
     seenPlans.add(planFile);
     targets.push({
       kind: "owed",
       planFile,
       slug,
       path: `.cursor/plans/${planFile}`,
+      lifecycle,
+      completedTodoIds: stats.items.filter((t) => t.status === "completed").map((t) => t.id),
+      totalTodos: stats.total,
+      ...classifyOwedPlan(plan, lifecycle),
     });
   }
 
@@ -1025,6 +1244,14 @@ export function buildCadenceAttentionItem(ledger, targets, opts = {}) {
     modifiedAt: parsed.lastBatchCompleteAt || null,
     progress: null,
     pendingPlanFiles: parsed.pendingPlanFiles.slice(),
+    planEvidence: liveTargets
+      .filter((t) => t && t.kind === "owed" && typeof t.evidenceLine === "string")
+      .slice(0, MAX_CADENCE_PLAN_EVIDENCE)
+      .map((t) => ({
+        planFile: t.planFile,
+        classification: t.classification || null,
+        evidenceLine: t.evidenceLine,
+      })),
     action: {
       type: "copy",
       target: batchTarget,

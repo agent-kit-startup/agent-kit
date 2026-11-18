@@ -28,6 +28,7 @@ Per-id-shape locate/check/dismiss-eligibility detail for `.cursor/commands/field
 
    **For `attention:cadence:<windowId>`:**
    - **Locate:** read `.cursor/context/field-report-cadence.json` (pendingPlanFiles / activeWarningId) and recompute the live unreviewed set (untriaged monitors + terminal plans without monitors) via the same named-local rules as the cadence ADR.
+   - **Classify (on demand):** `.cursor/scripts/field-report-cadence-bump.sh classify` prints each owed plan of the live set with one class (`partial-parked` or `live-unreviewed`; plans with zero completed to-dos are already out of the set) and one evidence line (PR refs, merge SHAs). Add `--survival` to count how many lines the plan's merge SHAs added are still blamed on them at `HEAD`; under 50% reads `superseded-or-rewritten` (a file renamed since delivery reads as gone: a lower bound, not a verdict). Run it here, at triage time only: Mission Control never runs git blame. A class is evidence for the operator, never a dismiss signal by itself.
    - **worker_contract / inline:** `subject_resolved: true|false; evidence: none | list of path/plan basenames only`
    - **Check:** `subject_resolved` when every plan in `pendingPlanFiles` (or the live unreviewed set for this window) no longer needs review: each either has a triaged monitor or is no longer terminal-without-monitor. Prefer false negatives.
    - **Dismiss eligible:** `subject_resolved` or operator hide-after-check.

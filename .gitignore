@@ -23,6 +23,8 @@
 .cursor/context/review-ledger.json
 # Local pending-only plan index (generated from HANDOFF-named plans)
 .cursor/context/plan-index.json
+# Local /run-plan-all queue owner lease (pid, session, heartbeat; run-plan-all only)
+.cursor/context/run-plan-all.lock
 # Local Field Report activity cadence ledger (tick/batch counters)
 .cursor/context/field-report-cadence.json
 # Local audit wait-state (arm epoch / remaining budget; launcher-owned)

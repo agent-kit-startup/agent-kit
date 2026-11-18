@@ -43,6 +43,7 @@ Optional fields in the frontmatter of each `todos` item (see `autogit/plan-routi
 | `worker_type` | string | Preferred Task `subagent_type` (orchestrated strategy); omit = routing table in `/run-plan` |
 | `inline_first` | boolean | Opt-in signal for orchestrated `/run-plan` in-session implement. **Not force-inline.** Ignored unless every lightweight check passes (see `/run-plan` and authoring note below) |
 | `force_task` | boolean | Always Task dispatch; overrides inline-first even when lightweight |
+| `evidence` | string | Written at close on a delivered to-do. Lead with structured delivery refs: `<repo>#<n>` per PR (`my-app#42`, `my-lib#7`, no space before `#`) and `merged <sha>` per merge commit; prose after. The Field Report owed classifier reads the refs (older plans with bare `#n` fall back to prose refs) |
 
 ### Authoring `inline_first` (do not mislead)
 

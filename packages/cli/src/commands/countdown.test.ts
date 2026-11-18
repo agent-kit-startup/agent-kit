@@ -642,3 +642,77 @@ describe("executeCountdown runs", () => {
     expect(landed).toEqual([]);
   });
 });
+
+describe("executeCountdown: model roles", () => {
+  async function rolesRepo(roles: unknown): Promise<string> {
+    const root = await repo();
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({ roles }),
+    );
+    await writeFile(
+      path.join(root, ".gitignore"),
+      ".cursor/context/gate-exit.json\n.cursor/loop-logs/\n.cursor/context/config.json\n",
+    );
+    git(root, "commit", "-q", "-am", "ignore config");
+    return root;
+  }
+
+  it("the tick job reads roles.worker when no --backend / --model is given", async () => {
+    const root = await rolesRepo({ worker: { backend: "claude", model: "claude-opus-5-5" } });
+    const child = fakeChild();
+    const { spawnJob, calls } = spawnReturning(child);
+    const lines: string[] = [];
+    const run = executeCountdown({
+      ...base,
+      backend: "",
+      cwd: root,
+      spawnJob,
+      write: (t) => lines.push(t),
+    });
+    await vi.waitFor(() => expect(calls.length).toBe(1));
+    const args = calls[0] ?? [];
+    expect(args.slice(args.indexOf("--backend"), args.indexOf("--backend") + 2)).toEqual([
+      "--backend",
+      "claude",
+    ]);
+    expect(args.slice(args.indexOf("--model"), args.indexOf("--model") + 2)).toEqual([
+      "--model",
+      "claude-opus-5-5",
+    ]);
+    expect(lines.join("")).toContain(
+      "roles: worker claude (config), model claude-opus-5-5 (config)",
+    );
+    child.exit(0);
+    await run;
+  });
+
+  it("the review job ignores roles.worker (the reviewer role is separate)", async () => {
+    const root = await rolesRepo({ worker: { backend: "claude", model: "claude-opus-5-5" } });
+    const child = fakeChild();
+    const { spawnJob, calls } = spawnReturning(child);
+    const { land } = recordingLand();
+    const run = executeCountdown({
+      ...base,
+      backend: "",
+      cwd: root,
+      job: "review",
+      spawnJob,
+      land,
+    });
+    await vi.waitFor(() => expect(calls.length).toBe(1));
+    expect(calls[0]).not.toContain("--model");
+    child.exit(0);
+    await run;
+  });
+
+  it("a malformed roles value is a usage error, never the default backend", async () => {
+    const root = await rolesRepo({ worker: { backend: "opnerouter" } });
+    const { spawnJob, calls } = spawnReturning(fakeChild());
+    const r = await executeCountdown({ ...base, backend: "", cwd: root, spawnJob });
+    expect(r.exitCode).toBe(COUNTDOWN_EXIT.usage);
+    expect(r.error).toMatch(/roles\.worker\.backend/);
+    expect(calls).toEqual([]);
+  });
+});

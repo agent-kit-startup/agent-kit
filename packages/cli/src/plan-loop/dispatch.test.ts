@@ -255,6 +255,26 @@ describe("runHeadlessDispatch on claude", () => {
     resetClaudeVersionCache();
   });
 
+  it("merges the model-roles env (subworker model) into the claude child env", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "agent-kit-dispatch-roles-"));
+    const spawnFn = mockSpawn({ exitCode: 0, stdoutChunks: [] });
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await runHeadlessDispatch({
+      backendId: "claude",
+      bin: "/usr/bin/claude",
+      workspace: "/repo",
+      prompt: "follow L0",
+      logPath: path.join(dir, "run.log"),
+      env: { CLAUDE_CODE_SUBAGENT_MODEL: "haiku" },
+      spawnFn: spawnFn as unknown as SpawnFn,
+      versionFn: versionOk,
+      log: () => {},
+    });
+    write.mockRestore();
+    const opts = spawnFn.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv };
+    expect(opts.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe("haiku");
+  });
+
   it("spawns in the workspace, passes env through and redacts the run log", async () => {
     vi.stubEnv("ANTHROPIC_AUTH_TOKEN", TOKEN);
     vi.stubEnv("CLAUDECODE", "1");

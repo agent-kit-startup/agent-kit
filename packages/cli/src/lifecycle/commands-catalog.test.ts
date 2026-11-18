@@ -6,9 +6,13 @@ import { describe, expect, it } from "vitest";
 import { RUN_CATALOG } from "../plan-loop/dispatch.js";
 import {
   buildCommandsCatalog,
+  COMMAND_AUDIENCES,
+  COMMAND_CONTEXTS,
   COMMANDS_CATALOG_VERSION,
   FACTORY_COMMAND_IDS,
+  INTERACTIVE_ONLY_COMMAND_IDS,
   KIT_COMMAND_IDS,
+  parseCommandRunMeta,
   renderCommandsCatalog,
 } from "./commands-catalog.js";
 import { KIT_VERSION } from "./version.js";
@@ -117,13 +121,105 @@ describe("commands catalog", () => {
     try {
       const catalog = await buildCommandsCatalog(dir);
       expect(catalog.commands).toEqual([
-        { name: "deploy-site", description: "Ship the site.", layer: "project", headless: false },
-        { name: "run-plan", description: "Run the plan.", layer: "kit", headless: true },
+        {
+          name: "deploy-site",
+          description: "Ship the site.",
+          layer: "project",
+          headless: false,
+          context: "none",
+          interactiveOnly: false,
+          audience: "user",
+        },
+        {
+          name: "run-plan",
+          description: "Run the plan.",
+          layer: "kit",
+          headless: true,
+          context: "none",
+          interactiveOnly: false,
+          audience: "user",
+        },
       ]);
       expect(schemaErrors(schema, catalog)).toEqual([]);
       expect(renderCommandsCatalog(catalog).split("\n")).toEqual([
         "/deploy-site  [project] Ship the site.",
         "/run-plan     [kit, headless] Run the plan.",
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("declares context and audience in every command file of this repo", () => {
+    const dir = join(repoRoot, ".cursor", "commands");
+    for (const f of readdirSync(dir).filter((x) => x.endsWith(".md"))) {
+      const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(join(dir, f), "utf8"))?.[1] ?? "";
+      const context = /^context:\s*(\S+)\s*$/m.exec(fm)?.[1];
+      const audience = /^audience:\s*(\S+)\s*$/m.exec(fm)?.[1];
+      expect(COMMAND_CONTEXTS as readonly string[], `${f} context`).toContain(context);
+      expect(COMMAND_AUDIENCES as readonly string[], `${f} audience`).toContain(audience);
+    }
+  });
+
+  it("marks only git-prod and kit-prod interactive-only, factory ids meta, goal commands goal", async () => {
+    const catalog = await buildCommandsCatalog(repoRoot);
+    const byName = new Map(catalog.commands.map((c) => [c.name, c]));
+    expect([...INTERACTIVE_ONLY_COMMAND_IDS].sort()).toEqual(["git-prod", "kit-prod"]);
+    for (const c of catalog.commands) {
+      expect(c.interactiveOnly, c.name).toBe(INTERACTIVE_ONLY_COMMAND_IDS.has(c.name));
+      if (c.interactiveOnly) expect(c.headless, c.name).toBe(false);
+    }
+    for (const id of FACTORY_COMMAND_IDS) {
+      const row = byName.get(id);
+      if (row) expect(row.audience, id).toBe("meta");
+    }
+    for (const id of ["start-project", "backlog-add", "hotfix", "dogfood"]) {
+      expect(byName.get(id)?.context, id).toBe("goal");
+    }
+    expect(byName.get("git-prod")).toMatchObject({ context: "sha", audience: "user" });
+    // RUN_CATALOG (headless dispatch) never gains a production promote command.
+    for (const id of INTERACTIVE_ONLY_COMMAND_IDS) {
+      expect(RUN_CATALOG as readonly string[]).not.toContain(id);
+    }
+  });
+
+  it("defaults missing or unknown run fields and never relaxes the promote floor", () => {
+    expect(parseCommandRunMeta("deploy", "---\nname: deploy\ndescription: d\n---\n")).toEqual({
+      context: "none",
+      interactiveOnly: false,
+      audience: "user",
+    });
+    const odd =
+      "---\ndescription: d\ncontext: everything\naudience: admins\ninteractiveOnly: yes\n---\n";
+    expect(parseCommandRunMeta("odd", odd)).toEqual({
+      context: "none",
+      interactiveOnly: false,
+      audience: "user",
+    });
+    const relaxed =
+      "---\ndescription: d\ncontext: plan\naudience: meta\ninteractiveOnly: false\n---\n";
+    expect(parseCommandRunMeta("git-prod", relaxed)).toEqual({
+      context: "plan",
+      interactiveOnly: true,
+      audience: "meta",
+    });
+    // Keys after the frontmatter fence are body text, not fields.
+    expect(parseCommandRunMeta("x", "---\ndescription: d\n---\ncontext: goal\n").context).toBe(
+      "none",
+    );
+  });
+
+  it("renders the 1.1.0 tags in plain output", async () => {
+    const dir = scratchWorkspace({
+      "git-prod.md": "---\ndescription: Promote.\ncontext: sha\naudience: user\n---\n",
+      "review-pack.md": "---\ndescription: Review.\naudience: meta\n---\n",
+    });
+    try {
+      const catalog = await buildCommandsCatalog(dir);
+      expect(schemaErrors(schema, catalog)).toEqual([]);
+      expect(renderCommandsCatalog(catalog).split("\n")).toEqual([
+        "/git-prod     [kit, interactive-only, context: sha] Promote.",
+        "/review-pack  [kit, headless, meta] Review.",
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

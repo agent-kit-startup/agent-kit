@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 # HITL gates
 
-Kit-wide human-in-the-loop. Commands stay Goal + five hard stops + Ask labels + a link here. Per-command procedures, one hop each: [run-plan-tick-contract.md](run-plan-tick-contract.md), [start-project-intake.md](start-project-intake.md), [run-plan-all-queue.md](run-plan-all-queue.md), [pending-ticket.md](pending-ticket.md); `/continue-plan` is inline in its own command file (`procedures.md` is a redirect stub only). Always-applied short rule: `.cursor/rules/hitl-ask-questions.mdc`.
+Kit-wide human-in-the-loop. Commands stay Goal + five hard stops + Ask labels + a link here. Per-command procedures, one hop each: [run-plan-tick-contract.md](run-plan-tick-contract.md), [start-project-intake.md](start-project-intake.md), [run-plan-all-queue.md](run-plan-all-queue.md), [pending-ticket.md](pending-ticket.md); `/continue-plan` is inline in its own command file. Always-applied short rule: `.cursor/rules/hitl-ask-questions.mdc`.
 
 ## Contract
 
@@ -19,6 +19,7 @@ Kit-wide human-in-the-loop. Commands stay Goal + five hard stops + Ask labels + 
 5. Skipped or cancelled answers mean **stop** (same as no yes).
 6. Do not fabricate HITL in HANDOFF. Parked / approved / deferred / confirmed / stopped-by-operator need Ask id, operator reply, or `agent-inferred`. In a headless run the operator reply arrives as a `HITL_REPLY: <ask-id> | operator reply <n> | <label>` line; cite that line.
 7. CLI `agent-kit init` keeps `@clack/prompts`. Do not call IDE Ask questions from the CLI.
+8. **Check in** before each Ask and plan write: `agent-kit queue lease`; `Queue lease held:` means stop and report it ([tick contract](run-plan-tick-contract.md)).
 
 ## Default-path Ask inventory
 
@@ -133,7 +134,7 @@ Inline-first allowlist, findings authorship, worker prompt, headless runner, and
 
 ## /continue-plan compressed
 
-Read HANDOFF first. Plans inventory is index + HANDOFF only (ADR `2026-07-26_command-orchestration-delegation-pattern.md`). Default-path Ask is the next-unit confirm (or the multi-plan picker when more than one resumable plan exists). Persona chrome after the entry Ask. One unit per chat unless `/run-plan`. Full procedure: `.cursor/commands/continue-plan.md` (inline, no separate skill page).
+Read HANDOFF first. Plans inventory is index + HANDOFF only. Default-path Ask: next-unit confirm (multi-plan picker first when several plans resume). Persona chrome after the entry Ask. One unit per chat unless `/run-plan`. Procedure: `.cursor/commands/continue-plan.md`.
 
 ## /start-project compressed
 

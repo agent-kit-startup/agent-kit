@@ -8,6 +8,7 @@ import {
   formatChatAge,
   shellQuote,
 } from "../../../../dashboard/lib/chat-sessions.mjs";
+import { collectLiveRoster, renderLiveRoster } from "../plan-loop/live-roster.js";
 
 const VENDOR_LABEL: Record<string, string> = {
   claude: "Claude Code",
@@ -70,12 +71,20 @@ export function renderChatSessions(
 export const sessionsCommand = defineCommand({
   meta: {
     name: "sessions",
-    description: "List this folder's saved agent chats with the command that resumes each one",
+    description:
+      "List this folder's saved agent chats with the command that resumes each one; --live lists the agents running in it now",
   },
   args: {
     json: {
       type: "boolean",
-      description: "Print {withheld, vendors[]} as JSON (one envelope per vendor)",
+      description:
+        "Print {withheld, vendors[]} as JSON (one envelope per vendor); with --live, the roster as JSON",
+      default: false,
+    },
+    live: {
+      type: "boolean",
+      description:
+        "Read-only roster of live agents in this workspace: queue lease, agent processes (pid, age, cwd), worktrees in use, recent transcripts, audit sessions",
       default: false,
     },
     cwd: {
@@ -83,9 +92,17 @@ export const sessionsCommand = defineCommand({
       description: "Workspace folder whose chats to list (default: current directory)",
     },
   },
-  run({ args }) {
+  async run({ args }) {
     const cwd = process.cwd();
     const workspace = path.resolve(cwd, typeof args.cwd === "string" && args.cwd ? args.cwd : ".");
+    if (args.live) {
+      const { listDetachedAuditSessions } = await import("../hooks/session-start.js");
+      const roster = await collectLiveRoster(workspace, { listAudit: listDetachedAuditSessions });
+      process.stdout.write(
+        args.json ? `${JSON.stringify(roster, null, 2)}\n` : `${renderLiveRoster(roster)}\n`,
+      );
+      return;
+    }
     const chats = collectChats({ cwd: workspace });
     process.stdout.write(
       args.json
