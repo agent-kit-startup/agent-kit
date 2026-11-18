@@ -1,7 +1,7 @@
 ---
 name: docs-repo
 description: Repository documentation - README, structure, context docs, guides. 4-step process. Professional and inheritable standard (docs-professional-standard). L1 engineering-architecture pack (with docs-repo skill). Use for README, ADRs, runbooks and guides.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-general

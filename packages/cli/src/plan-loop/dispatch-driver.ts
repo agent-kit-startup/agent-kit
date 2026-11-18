@@ -12,6 +12,11 @@
  * No second tick dialect: the session runs the unchanged L0 prompt; the
  * driver only transports events and replies. Contract doc:
  * docs/driver-events-protocol.md ("Queue runner").
+ *
+ * The session holds the queue owner lease (queue-lease.ts): a second
+ * dispatcher on the same repository is refused with a setup failure (exit 1,
+ * reason in `log` and `run_end`), and SIGTERM / SIGHUP reach the agent child
+ * before this process exits.
  */
 
 import type { spawn } from "node:child_process";
@@ -41,6 +46,15 @@ import {
 import { classifyGateExit, landGateExit } from "./gate-exit.js";
 import { formatHitlSummary, hitlExitCode } from "./hitl-relay.js";
 import { readRunQueueState } from "./plan-state.js";
+import {
+  acquireQueueLease,
+  forwardTermination,
+  gateCheckIn,
+  QUEUE_LEASE_INTERRUPT_WAIT_MS,
+  QUEUE_LEASE_SESSION_ENV,
+  type QueueLeaseEnv,
+  type QueueLeaseHandle,
+} from "./queue-lease.js";
 import type { DriverRunOptions } from "./run-loop.js";
 
 /** The one session of a dispatched driver run carries this tick number on its events. */
@@ -159,6 +173,8 @@ export interface DispatchDriverOptions {
   /** Requested backend (`auto` or an id); resolved like `agent-kit run`. */
   backend: string;
   model?: string;
+  /** Extra child env (model roles: the claude subworker model); claude only. */
+  env?: NodeJS.ProcessEnv;
   dryRun: boolean;
   noHitl?: boolean;
   landOnGate?: boolean;
@@ -171,6 +187,8 @@ export interface DispatchDriverOptions {
   queuePollMs?: number;
   /** `--note`: operator resolution text appended to the prompt (no event carries it). */
   note?: string;
+  /** Test seam: queue lease clock, liveness and host (queue-lease.ts). */
+  lease?: QueueLeaseEnv;
 }
 
 /**
@@ -315,20 +333,49 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
   const logPath = await ensureDispatchLogPath(root);
   say(`Log: ${path.relative(root, logPath)}`);
 
-  const onSigInt = () => {
+  const acquired = acquireQueueLease(root, {
+    ...opts.lease,
+    onLost: (by) =>
+      say(
+        `Queue lease lost: ${by ? `session ${by.session} (pid ${by.dispatcher.pid})` : "the lease file"} replaced this session's lease. Another /run-plan-all may be writing this queue.`,
+        "warn",
+      ),
+  });
+  if (!acquired.ok) {
+    say(acquired.message, "error");
+    return finish(1, acquired.message);
+  }
+  const lease: QueueLeaseHandle = acquired.handle;
+  if (lease.takeover) {
+    say(
+      `Queue lease: took over a stale lease (${lease.takeover.reason}); the takeover is logged in HANDOFF.`,
+      "warn",
+    );
+  }
+  const previousSession = process.env[QUEUE_LEASE_SESSION_ENV];
+  process.env[QUEUE_LEASE_SESSION_ENV] = lease.session;
+  const interrupted = (reason: string) => {
     queue?.stop();
+    // Release only once the agent is gone: a lease left with a live agent
+    // makes the next dispatcher name the orphan instead of racing it.
+    lease.releaseAfterAgent(QUEUE_LEASE_INTERRUPT_WAIT_MS);
     emitter.emit({
       type: "run_end",
       exitCode: 130,
       ticks,
       pending: null,
-      reason: "interrupted (SIGINT)",
+      reason,
       planExhausted: false,
       usage: null,
     });
     process.exit(130);
   };
+  const onSigInt = () => interrupted("interrupted (SIGINT)");
   process.on("SIGINT", onSigInt);
+  const offTermination = forwardTermination(
+    () => lease.agent(),
+    (signal) => interrupted(`interrupted (${signal})`),
+  );
   try {
     ticks = DISPATCH_DRIVER_TICK;
     let result: BackendRunResult;
@@ -340,6 +387,7 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
         prompt,
         model: opts.model,
         logPath,
+        ...(opts.env ? { env: opts.env } : {}),
         spawnFn: opts.spawnFn,
         versionFn: opts.versionFn,
         log: (line) => say(line),
@@ -348,7 +396,9 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
           policy: opts.noHitl ? "off" : "driver",
           readAnswer: reader.read,
           write: writeErr,
+          checkIn: gateCheckIn(root, () => lease.session, opts.lease),
         },
+        onSpawn: (info) => lease.setAgent(info.pid),
       });
     } catch (err) {
       say(String(err), "error");
@@ -376,5 +426,9 @@ export async function runDispatchDriver(opts: DispatchDriverOptions): Promise<nu
     return finish(exitCode, reason, result);
   } finally {
     process.off("SIGINT", onSigInt);
+    offTermination();
+    lease.release();
+    if (previousSession === undefined) delete process.env[QUEUE_LEASE_SESSION_ENV];
+    else process.env[QUEUE_LEASE_SESSION_ENV] = previousSession;
   }
 }

@@ -237,6 +237,7 @@ export const KIT_OWNED_IGNORE_PATTERNS = [
   ".cursor/context/gate-exit.json",
   ".cursor/context/review-ledger.json",
   ".cursor/context/plan-index.json",
+  ".cursor/context/run-plan-all.lock",
   ".cursor/loop-logs/",
 ] as const;
 

@@ -1,6 +1,8 @@
 ---
 name: qa
 description: Test a release, reproduce a bug, and verify CHANGELOG claims against install journey, tests, and hygiene.
+context: goal
+audience: user
 ---
 
 # Command: /qa

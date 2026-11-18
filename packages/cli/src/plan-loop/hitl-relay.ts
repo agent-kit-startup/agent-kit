@@ -317,7 +317,8 @@ export type HitlStopCause =
   | "child exited"
   | "quit"
   | "driver stop"
-  | "protocol error";
+  | "protocol error"
+  | "lease held";
 
 export interface HitlStop {
   askId: string;
@@ -401,6 +402,20 @@ export function driverStop(
   };
 }
 
+/**
+ * The check-in before a gate found another live session holding the
+ * workspace lease (ADR 2026-07-26 Amend 2026-11-16 agent check-in): the gate
+ * is not offered, the run stops with the probe line.
+ */
+export function leaseHeldStop(askId: string, line: string): HitlStop {
+  return {
+    askId,
+    cause: "lease held",
+    message: `stopped: gate ${askId} not offered (${line})`,
+    exitCode: HITL_UNANSWERED_EXIT_CODE,
+  };
+}
+
 export function noRelayStop(askId: string, backend: string): HitlStop {
   return {
     askId,
@@ -452,6 +467,11 @@ export interface AskOperatorOptions {
   usage?: DriverUsage | null;
   onPromptStart?: () => void;
   onPromptEnd?: () => void;
+  /**
+   * Check-in before the gate goes out: a line when another live session holds
+   * the workspace lease (the gate is then not offered), `null` to continue.
+   */
+  checkIn?: () => string | null;
 }
 
 export type AskOutcome =
@@ -469,6 +489,8 @@ export async function askOperator(gate: HitlGate, opts: AskOperatorOptions): Pro
   if (!opts.isTTY && opts.policy !== "driver") {
     return { kind: "stop", stop: unansweredStop(gate.askId, "no TTY") };
   }
+  const held = opts.checkIn?.() ?? null;
+  if (held) return { kind: "stop", stop: leaseHeldStop(gate.askId, held) };
 
   opts.onPromptStart?.();
   let raw: RawAnswer;

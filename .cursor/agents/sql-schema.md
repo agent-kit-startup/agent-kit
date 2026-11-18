@@ -1,7 +1,7 @@
 ---
 name: sql-schema
 description: Create and modify SQL schemas (Postgres) for n8n and agents. Demoted (skill-first): prefer sql-postgres skill; dogfood-only agent for rare Task isolation.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-sql

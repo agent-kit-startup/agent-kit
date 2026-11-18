@@ -1,6 +1,8 @@
 ---
 name: run-plan-all
 description: Orchestrate multiple plans as an ordered queue, then ship one release per completed plan.
+context: none
+audience: user
 ---
 
 # Command: /run-plan-all
@@ -38,5 +40,5 @@ HITL contract, exact Ask labels, numbered fallback (path 1): [hitl-gates](../ski
 1. Pending operator ticket: only while `.cursor/context/gate-exit.json` has a pending entry, Ask `ticket` before the start-vs-resume or queue confirm (a preflight outside the three in-run points; ADR `2026-10-08_countdown-coming-home-generic-lane.md` point 3). Per-plan Tasks never Ask it; they list the stamps in their return: [pending-ticket.md](../skills/core/hitl-gates/pending-ticket.md). Skim Unprocessed (mention only; inbox Ask is post-default). Preflight audit session-pile and unsatisfiable Claude reviewer (`warn`/`block` per `externalPlanReview.preflight`).
 2. PO synthesis (Task explore; no `kind: resume`). Record per-plan ship expectations (intake runbook). On a stored queue, compare current Gate-A Backlog to `- **Confirmed backlog:**`. Resume when no new Backlog since confirm and queued files are valid. On new-since-confirm Backlog (or invalid queue item), Ask start-vs-resume.
 3. Queue confirm on a fresh synthesis. Apply only approved consolidations via `.cursor/scripts/run-plan-all-consolidate.sh`. Write `- **Ship auth:**`, `- **Ship runbook:**`, and `- **Confirmed backlog:**` on HANDOFF.
-4. Dispatch one `/run-plan` Task per queued plan. Worker skips chat exhaustion Ask and never `/git-prod`. Record outcomes. A plan blocked on an operator gate is deferred (`deferred-operator`, no ship) and the queue continues with the next plan. Run the ship lane (consult intake runbook; self-recover before Ask) before advancing the cursor. At each plan boundary, if the orchestrator self-estimates about 50% or more window use, Ask the context checkpoint (Claude Code has no preCompact).
+4. Dispatch one `/run-plan` Task per queued plan. Worker skips chat exhaustion Ask and never `/git-prod`, checks in (`agent-kit queue lease`) before each Ask and plan write, and never reuses a worktree that `agent-kit sessions --live` lists with a live process. Record outcomes. A plan blocked on an operator gate is deferred (`deferred-operator`, no ship) and the queue continues with the next plan. Run the ship lane (consult intake runbook; self-recover before Ask) before advancing the cursor. At each plan boundary, if the orchestrator self-estimates about 50% or more window use, Ask the context checkpoint (Claude Code has no preCompact).
 5. Mid-batch wait when `midBatchAudits` is on. Queue-end: Final HANDOFF, audits, `/plan-review-triage` path list. `plans-only` may then suggest `/git-prod` if staging is ahead of `main` (separate HITL). `per-plan-release` does not ship again at queue end. With `deferred-operator` rows, the last step is Ask `queue-end-gates` (`Resolve gates now` replays the gates' Asks and re-probes in-session).

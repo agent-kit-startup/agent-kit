@@ -6,6 +6,7 @@ import { detectAgentBackend, listDetectBackendIds } from "../plan-loop/detect.js
 import { DRIVER_EVENTS_FORMATS } from "../plan-loop/driver-events.js";
 import { LAND_ON_GATE_DESCRIPTION } from "../plan-loop/gate-exit.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
+import { loadRolesContext, resolveWorkerRole } from "../plan-loop/model-roles.js";
 import { runPlanLoop } from "../plan-loop/run-loop.js";
 import { logger } from "../utils/logger.js";
 import { negatedFlag } from "./negated-flag.js";
@@ -28,7 +29,8 @@ export const runPlanCommand = defineCommand({
     },
     model: {
       type: "string",
-      description: "Optional model id passed to the agent backend",
+      description:
+        "Optional model id passed to the agent backend (default: plan worker_model, then config roles.worker.model)",
       default: "",
     },
     sleep: {
@@ -38,8 +40,8 @@ export const runPlanCommand = defineCommand({
     },
     backend: {
       type: "string",
-      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: cursor-agent)`,
-      default: "cursor-agent",
+      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: plan worker_backend, then config roles.worker.backend, then cursor-agent)`,
+      default: "",
     },
     "dry-run": {
       type: "boolean",
@@ -96,9 +98,31 @@ export const runPlanCommand = defineCommand({
       return;
     }
 
+    // CLI flag > plan frontmatter > config roles.worker > cursor-agent
+    // (ADR 2026-11-16 model roles). A malformed roles value stops here.
+    const root = path.resolve(args.cwd);
+    const rolesCtx = await loadRolesContext(root, true);
+    if (!rolesCtx.ok) {
+      logger.error(rolesCtx.error);
+      process.exitCode = 1;
+      return;
+    }
+    const worker = resolveWorkerRole({
+      flagBackend: String(args.backend ?? ""),
+      flagModel: String(args.model ?? ""),
+      plan: rolesCtx.plan,
+      roles: rolesCtx.roles,
+      defaultBackend: "cursor-agent",
+    });
+    // Driver mode owns stdout (NDJSON only): roles notes go to stderr there.
+    for (const warning of worker.warnings) {
+      if (events) process.stderr.write(`roles: ${warning}\n`);
+      else logger.warn(`roles: ${warning}`);
+    }
+
     let backend: AgentBackend;
     try {
-      const requested = String(args.backend);
+      const requested = worker.backend;
       if (requested === "auto") {
         const detected = await detectAgentBackend("auto");
         if (!detected.ok) {
@@ -129,10 +153,15 @@ export const runPlanCommand = defineCommand({
     }
 
     const code = await runPlanLoop({
-      root: path.resolve(args.cwd),
+      root,
       maxTicks,
       sleepSeconds,
-      model: args.model ? String(args.model) : undefined,
+      model: worker.model,
+      roles: {
+        roles: rolesCtx.roles,
+        backendSource: worker.backendSource,
+        ...(worker.modelSource ? { modelSource: worker.modelSource } : {}),
+      },
       dryRun: Boolean(args["dry-run"]),
       backend,
       noHitl: negatedFlag(args, "hitl"),

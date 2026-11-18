@@ -222,6 +222,7 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
       signal: abort.signal,
       onPromptStart: hitl.onPromptStart,
       onPromptEnd: hitl.onPromptEnd,
+      checkIn: hitl.checkIn,
     });
 
   const cancelSession = () => {

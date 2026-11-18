@@ -1,6 +1,8 @@
 ---
 name: dashboard
 description: Start or reuse Mission Control for this workspace and open the printed URL.
+context: none
+audience: user
 ---
 
 # Command: /dashboard
@@ -11,7 +13,7 @@ Start (or reuse) Mission Control for **this workspace only**, then open the prin
 
 Local-dev only. Read-only. No HITL gate unless `missionControl.preferredBrowser` is unset/`ask` and the operator wants to persist a preference (optional Ask; see step 4).
 
-**Terminal / IDE-agnostic invoke:** `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` from the workspace cwd (ships `dashboard/start.mjs` from 4.8.2 onward; absent on 4.8.0 or older). Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root.
+**Terminal / IDE-agnostic invoke:** `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` from the workspace cwd (ships `dashboard/start.mjs` since 4.8.2). Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root.
 
 ## When to Use
 

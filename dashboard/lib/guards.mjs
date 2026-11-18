@@ -585,6 +585,299 @@ export const CONFIG_REVIEW_MODES = Object.freeze(["paste", "autonomous"]);
 export const CONFIG_REVIEW_PREFLIGHT = Object.freeze(["off", "warn", "block"]);
 
 /**
+ * Per-backend role capabilities (docs/model-roles-capability-matrix.md).
+ * Mirror of ROLE_CAPABILITIES in packages/cli/src/plan-loop/model-roles.ts;
+ * a parity test keeps the two equal.
+ */
+export const ROLE_CAPABILITIES = Object.freeze({
+  claude: Object.freeze({ workerModel: true, subworkerModel: true, reviewer: true }),
+  "cursor-agent": Object.freeze({ workerModel: true, subworkerModel: false, reviewer: true }),
+  codex: Object.freeze({ workerModel: true, subworkerModel: false, reviewer: false }),
+  openrouter: Object.freeze({ workerModel: true, subworkerModel: false, reviewer: false }),
+  "cursor-acp": Object.freeze({ workerModel: false, subworkerModel: false, reviewer: false }),
+});
+
+/** roles.worker.backend values: auto plus every kit backend id. */
+export const CONFIG_ROLE_WORKER_BACKENDS = Object.freeze([
+  "auto",
+  ...Object.keys(ROLE_CAPABILITIES),
+]);
+
+/** roles.reviewer.backend values (kit ids; the audits launcher's `cursor` is `cursor-agent`). */
+export const CONFIG_ROLE_REVIEWER_BACKENDS = Object.freeze(["auto", "claude", "cursor-agent"]);
+
+/** roles.reviewer.scope values. */
+export const CONFIG_ROLE_REVIEWER_SCOPES = Object.freeze(["off", "tick", "plan"]);
+
+/** Role model id: aliases, full ids, OpenRouter vendor/model, Cursor [k=v] parameters. */
+export const ROLE_MODEL_ID = /^[A-Za-z0-9._:/+=,[\]-]{1,128}$/;
+
+/** roles.subworker.byWorkerType keys (plan worker_type values). */
+const ROLE_WORKER_TYPE_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+/**
+ * Validate one `roles` write. `null` clears a field. Values the capability
+ * matrix marks unsupported are rejected when the same write pins the backend.
+ * @param {unknown} roles
+ * @returns {{ ok: true, patch: Record<string, unknown> } | { ok: false, error: string }}
+ */
+export function validateRolesPatch(roles) {
+  if (!roles || typeof roles !== "object" || Array.isArray(roles)) {
+    return { ok: false, error: "roles must be an object" };
+  }
+  for (const key of Object.keys(roles)) {
+    if (!["worker", "subworker", "reviewer"].includes(key)) {
+      return { ok: false, error: `unknown roles key: ${key}` };
+    }
+  }
+  /** @param {unknown} v @param {string} where */
+  const model = (v, where) => {
+    if (v === null || v === "") return { ok: true, value: null };
+    if (typeof v !== "string" || !ROLE_MODEL_ID.test(v.trim())) {
+      return { ok: false, error: `${where} must be a model id` };
+    }
+    return { ok: true, value: v.trim() };
+  };
+  /** @type {Record<string, Record<string, unknown>>} */
+  const patch = {};
+  /** @type {string | null | undefined} */
+  let workerBackend;
+  if ("worker" in roles) {
+    const w = roles.worker;
+    if (!w || typeof w !== "object" || Array.isArray(w)) {
+      return { ok: false, error: "roles.worker must be an object" };
+    }
+    /** @type {Record<string, unknown>} */
+    const wp = {};
+    for (const key of Object.keys(w)) {
+      if (key !== "backend" && key !== "model") {
+        return { ok: false, error: `unknown roles.worker key: ${key}` };
+      }
+    }
+    if ("backend" in w) {
+      if (w.backend === null || w.backend === "") {
+        wp.backend = null;
+      } else if (
+        typeof w.backend !== "string" ||
+        !CONFIG_ROLE_WORKER_BACKENDS.includes(w.backend)
+      ) {
+        return {
+          ok: false,
+          error: `roles.worker.backend must be one of: ${CONFIG_ROLE_WORKER_BACKENDS.join(", ")}`,
+        };
+      } else {
+        wp.backend = w.backend;
+      }
+      workerBackend = /** @type {string | null} */ (wp.backend);
+    }
+    if ("model" in w) {
+      const m = model(w.model, "roles.worker.model");
+      if (!m.ok) return { ok: false, error: m.error };
+      if (
+        m.value &&
+        workerBackend &&
+        workerBackend !== "auto" &&
+        !ROLE_CAPABILITIES[workerBackend].workerModel
+      ) {
+        return {
+          ok: false,
+          error: `roles.worker.model is not supported on ${workerBackend} (capability matrix)`,
+        };
+      }
+      wp.model = m.value;
+    }
+    patch.worker = wp;
+  }
+  if ("subworker" in roles) {
+    const s = roles.subworker;
+    if (!s || typeof s !== "object" || Array.isArray(s)) {
+      return { ok: false, error: "roles.subworker must be an object" };
+    }
+    /** @type {Record<string, unknown>} */
+    const sp = {};
+    for (const key of Object.keys(s)) {
+      if (key !== "model" && key !== "byWorkerType") {
+        return { ok: false, error: `unknown roles.subworker key: ${key}` };
+      }
+    }
+    let anyModel = false;
+    if ("model" in s) {
+      const m = model(s.model, "roles.subworker.model");
+      if (!m.ok) return { ok: false, error: m.error };
+      sp.model = m.value;
+      if (m.value && m.value !== "auto") anyModel = true;
+    }
+    if ("byWorkerType" in s) {
+      const map = s.byWorkerType;
+      if (map === null) {
+        sp.byWorkerType = null;
+      } else if (!map || typeof map !== "object" || Array.isArray(map)) {
+        return { ok: false, error: "roles.subworker.byWorkerType must be an object" };
+      } else {
+        /** @type {Record<string, string | null>} */
+        const mp = {};
+        for (const [type, value] of Object.entries(map)) {
+          if (!ROLE_WORKER_TYPE_KEY.test(type)) {
+            return {
+              ok: false,
+              error: `roles.subworker.byWorkerType key ${type} is not a worker_type`,
+            };
+          }
+          const m = model(value, `roles.subworker.byWorkerType.${type}`);
+          if (!m.ok) return { ok: false, error: m.error };
+          mp[type] = m.value;
+          if (m.value) anyModel = true;
+        }
+        sp.byWorkerType = mp;
+      }
+    }
+    if (
+      anyModel &&
+      workerBackend &&
+      workerBackend !== "auto" &&
+      !ROLE_CAPABILITIES[workerBackend].subworkerModel
+    ) {
+      return {
+        ok: false,
+        error: `roles.subworker model is not supported on ${workerBackend} (capability matrix)`,
+      };
+    }
+    patch.subworker = sp;
+  }
+  if ("reviewer" in roles) {
+    const r = roles.reviewer;
+    if (!r || typeof r !== "object" || Array.isArray(r)) {
+      return { ok: false, error: "roles.reviewer must be an object" };
+    }
+    /** @type {Record<string, unknown>} */
+    const rp = {};
+    for (const key of Object.keys(r)) {
+      if (!["enabled", "scope", "backend", "model", "advisorModel"].includes(key)) {
+        return { ok: false, error: `unknown roles.reviewer key: ${key}` };
+      }
+    }
+    if ("enabled" in r) {
+      if (r.enabled !== null && typeof r.enabled !== "boolean") {
+        return { ok: false, error: "roles.reviewer.enabled must be boolean" };
+      }
+      rp.enabled = r.enabled;
+    }
+    if ("scope" in r) {
+      if (r.scope !== null && !CONFIG_ROLE_REVIEWER_SCOPES.includes(r.scope)) {
+        return { ok: false, error: "roles.reviewer.scope must be off, tick, or plan" };
+      }
+      rp.scope = r.scope;
+    }
+    if ("backend" in r) {
+      if (r.backend !== null && !CONFIG_ROLE_REVIEWER_BACKENDS.includes(r.backend)) {
+        return { ok: false, error: "roles.reviewer.backend must be auto, claude, or cursor-agent" };
+      }
+      rp.backend = r.backend;
+    }
+    for (const key of ["model", "advisorModel"]) {
+      if (key in r) {
+        const m = model(r[key], `roles.reviewer.${key}`);
+        if (!m.ok) return { ok: false, error: m.error };
+        rp[key] = m.value;
+      }
+    }
+    patch.reviewer = rp;
+  }
+  return { ok: true, patch };
+}
+
+/**
+ * Merge a validated roles patch: per role, `null` deletes the field, `byWorkerType`
+ * replaces the whole map, and empty roles drop out.
+ * @param {unknown} existing
+ * @param {Record<string, Record<string, unknown>>} patch
+ */
+export function mergeRoles(existing, patch) {
+  /** @type {Record<string, Record<string, unknown>>} */
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? /** @type {any} */ ({ ...existing })
+      : {};
+  for (const [role, fields] of Object.entries(patch)) {
+    const prevRaw = base[role];
+    /** @type {Record<string, unknown>} */
+    const next =
+      prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw) ? { ...prevRaw } : {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value === null) {
+        delete next[key];
+      } else if (key === "byWorkerType" && value && typeof value === "object") {
+        // The map is replaced as a whole (the Config tab sends the full map);
+        // null entries are dropped and an empty map clears the field.
+        /** @type {Record<string, unknown>} */
+        const map = {};
+        for (const [type, m] of Object.entries(value)) {
+          if (m !== null) map[type] = m;
+        }
+        if (Object.keys(map).length > 0) next.byWorkerType = map;
+        else delete next.byWorkerType;
+      } else {
+        next[key] = value;
+      }
+    }
+    if (Object.keys(next).length > 0) base[role] = next;
+    else delete base[role];
+  }
+  return base;
+}
+
+/**
+ * UI-safe copy of `roles` (strings truncated, unknown keys dropped).
+ * @param {unknown} raw
+ */
+export function allowlistRoles(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  /** @type {Record<string, Record<string, unknown>>} */
+  const out = {};
+  const src = /** @type {Record<string, any>} */ (raw);
+  const str = (/** @type {unknown} */ v, /** @type {number} */ n) =>
+    typeof v === "string" ? truncateStr(v, n) : undefined;
+  if (src.worker && typeof src.worker === "object") {
+    const w = {};
+    const b = str(src.worker.backend, 32);
+    const m = str(src.worker.model, 128);
+    if (b) w.backend = b;
+    if (m) w.model = m;
+    out.worker = w;
+  }
+  if (src.subworker && typeof src.subworker === "object") {
+    const s = {};
+    const m = str(src.subworker.model, 128);
+    if (m) s.model = m;
+    if (src.subworker.byWorkerType && typeof src.subworker.byWorkerType === "object") {
+      /** @type {Record<string, string>} */
+      const map = {};
+      for (const [type, value] of Object.entries(src.subworker.byWorkerType).slice(0, 64)) {
+        const v = str(value, 128);
+        if (v) map[truncateStr(type, 64)] = v;
+      }
+      s.byWorkerType = map;
+    }
+    out.subworker = s;
+  }
+  if (src.reviewer && typeof src.reviewer === "object") {
+    const r = {};
+    if (typeof src.reviewer.enabled === "boolean") r.enabled = src.reviewer.enabled;
+    for (const [key, n] of [
+      ["scope", 16],
+      ["backend", 32],
+      ["model", 128],
+      ["advisorModel", 128],
+    ]) {
+      const v = str(src.reviewer[key], n);
+      if (v) r[key] = v;
+    }
+    out.reviewer = r;
+  }
+  return out;
+}
+
+/**
  * True when the remote address is loopback (IPv4, IPv6, or IPv4-mapped IPv6).
  * @param {string | undefined | null} addr
  */
@@ -655,6 +948,7 @@ export function validateConfigWriteBody(body) {
     "fieldReportReviewCadence",
     "agentPersona",
     "updateCheck",
+    "roles",
   ]);
   for (const key of Object.keys(body)) {
     if (!allowedTop.has(key)) {
@@ -902,6 +1196,12 @@ export function validateConfigWriteBody(body) {
     }
   }
 
+  if ("roles" in body) {
+    const roles = validateRolesPatch(body.roles);
+    if (!roles.ok) return roles;
+    if (Object.keys(roles.patch).length > 0) patch.roles = roles.patch;
+  }
+
   if (Object.keys(patch).length === 0) {
     return { ok: false, error: "no editable fields in body" };
   }
@@ -958,6 +1258,11 @@ export function mergeConfigAllowlist(existing, patch) {
     const prev =
       base.updateCheck && typeof base.updateCheck === "object" ? { ...base.updateCheck } : {};
     base.updateCheck = { ...prev, ...patch.updateCheck };
+  }
+  if (patch.roles && typeof patch.roles === "object") {
+    const roles = mergeRoles(base.roles, patch.roles);
+    if (Object.keys(roles).length > 0) base.roles = roles;
+    else delete base.roles;
   }
   return base;
 }
@@ -1031,6 +1336,8 @@ export function allowlistConfig(raw) {
     }
     summary.externalPlanReview = epr;
   }
+  const roles = allowlistRoles(raw.roles);
+  if (roles) summary.roles = roles;
   if (raw.agentPersona && typeof raw.agentPersona === "object") {
     const modes = {};
     if (raw.agentPersona.modes && typeof raw.agentPersona.modes === "object") {

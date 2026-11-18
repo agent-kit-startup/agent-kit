@@ -1,6 +1,8 @@
 ---
 name: review-pack
 description: Review-only prompt for the CLI review job (agent-kit countdown --job review): read a bounded diff pack of unmerged branches and report findings; no edits, no commits.
+context: none
+audience: meta
 ---
 
 # Command: /review-pack

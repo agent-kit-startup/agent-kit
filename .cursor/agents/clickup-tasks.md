@@ -1,7 +1,7 @@
 ---
 name: clickup-tasks
 description: ClickUp tasks via MCP — only if project uses ClickUp (outside Core Pack). Use to create/edit tasks when integration exists.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-clickup

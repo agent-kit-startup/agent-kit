@@ -3,13 +3,18 @@
 // serve.mjs strips `chats` from every payload it caches when it runs in broadcast mode.
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+
+// Every temp dir this suite creates lives under one root, removed after the suite:
+// these fake HOMEs are ~3 MB each and used to pile up in a self-hosted runner's /tmp.
+const TEST_ROOT = mkdtempSync(join(tmpdir(), "ak-chats-bc-test-"));
+afterAll(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
 const servePath = resolve(repoRoot, "dashboard/serve.mjs");
@@ -56,9 +61,9 @@ function get(port: number, path: string): Promise<{ status: number; body: string
 
 /** Scratch git repo + fake HOME holding one saved chat titled SENTINEL for it. */
 function scratchWorkspace(): { repo: string; home: string } {
-  const repo = mkdtempSync(join(tmpdir(), "ak-chats-bc-repo-"));
+  const repo = mkdtempSync(join(TEST_ROOT, "ak-chats-bc-repo-"));
   execFileSync("git", ["init", "-q"], { cwd: repo });
-  const home = mkdtempSync(join(tmpdir(), "ak-chats-bc-home-"));
+  const home = mkdtempSync(join(TEST_ROOT, "ak-chats-bc-home-"));
   const dir = join(home, ".claude", "projects", repo.replace(/[^a-zA-Z0-9]/g, "-"));
   mkdirSync(dir, { recursive: true });
   writeFileSync(

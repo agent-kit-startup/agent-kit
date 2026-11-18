@@ -6248,6 +6248,143 @@ function personaOptionHtml(selected) {
   );
 }
 
+/* Model roles (roles key; docs/model-roles-capability-matrix.md). Empty = not set:
+   the field is cleared and the command default or the Audits section applies. */
+const ROLE_WORKER_BACKEND_OPTIONS = ['auto', 'claude', 'cursor-agent', 'codex', 'openrouter', 'cursor-acp'];
+const ROLE_REVIEWER_BACKEND_OPTIONS = ['auto', 'claude', 'cursor-agent'];
+const ROLE_REVIEWER_SCOPE_OPTIONS = ['off', 'tick', 'plan'];
+const ROLE_MODEL_SUGGESTIONS = [
+  'opus',
+  'sonnet',
+  'haiku',
+  'fable',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+  'claude-fable-5-2',
+];
+
+function roleSelectHtml(options, selected, unsetLabel) {
+  const cur = typeof selected === 'string' ? selected : '';
+  const unset = `<option value=""${cur === '' ? ' selected' : ''}>${escapeHtml(unsetLabel)}</option>`;
+  return (
+    unset +
+    options
+      .map((v) => `<option value="${escapeAttr(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(v)}</option>`)
+      .join('')
+  );
+}
+
+function formatWorkerTypeMap(map) {
+  if (!map || typeof map !== 'object') return '';
+  return Object.entries(map)
+    .map(([type, model]) => `${type}=${model}`)
+    .join(', ');
+}
+
+function parseWorkerTypeMap(text) {
+  const out = {};
+  for (const part of String(text || '').split(',')) {
+    const [type, model] = part.split('=').map((s) => (s || '').trim());
+    if (type && model) out[type] = model;
+  }
+  return out;
+}
+
+function renderRolesFieldset(cfg) {
+  const roles = cfg.roles && typeof cfg.roles === 'object' ? cfg.roles : {};
+  const worker = roles.worker || {};
+  const sub = roles.subworker || {};
+  const rev = roles.reviewer || {};
+  const enabled = rev.enabled === true ? 'on' : rev.enabled === false ? 'off' : '';
+  return `
+        <fieldset class="config-fieldset config-fieldset-wide">
+          <legend>Model roles</legend>
+          <datalist id="config-role-model-suggestions">
+            ${ROLE_MODEL_SUGGESTIONS.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('')}
+          </datalist>
+          <datalist id="config-role-subworker-suggestions">
+            <option value="auto"></option>
+            ${ROLE_MODEL_SUGGESTIONS.map((m) => `<option value="${escapeAttr(m)}"></option>`).join('')}
+          </datalist>
+          <p class="config-hint">Read by run-plan, run-plan-all and the countdown tick job when no --backend / --model flag is given. A plan's worker_backend / worker_model frontmatter wins over these. Empty = not set.</p>
+          <div class="config-row">
+            <label for="config-role-worker-backend">Worker backend</label>
+            <select id="config-role-worker-backend" name="roleWorkerBackend" data-focus-key="config-role-worker-backend">
+              ${roleSelectHtml(ROLE_WORKER_BACKEND_OPTIONS, worker.backend, 'Not set (command default)')}
+            </select>
+            <span class="config-hint">codex, openrouter and cursor-acp bill their own accounts and never fall back to another backend.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-worker-model">Worker model</label>
+            <input type="text" id="config-role-worker-model" name="roleWorkerModel" list="config-role-model-suggestions" value="${escapeAttr(worker.model || '')}" maxlength="128" placeholder="backend default" data-focus-key="config-role-worker-model" />
+            <span class="config-hint">Alias or full id for the worker backend. cursor-acp cannot select a model.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-subworker-model">Subworker model</label>
+            <input type="text" id="config-role-subworker-model" name="roleSubworkerModel" list="config-role-subworker-suggestions" value="${escapeAttr(sub.model || '')}" maxlength="128" placeholder="same as worker" data-focus-key="config-role-subworker-model" />
+            <span class="config-hint">Claude Code only (subagents without their own model). auto is reserved and not implemented yet.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-subworker-map">Subworker model per worker_type</label>
+            <input type="text" id="config-role-subworker-map" name="roleSubworkerMap" value="${escapeAttr(formatWorkerTypeMap(sub.byWorkerType))}" maxlength="1024" placeholder="docs-repo=haiku, tech-lead=opus" data-focus-key="config-role-subworker-map" />
+            <span class="config-hint">Picked by the next to-do's worker_type; wins over the subworker model.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-reviewer-enabled">Reviewer</label>
+            <select id="config-role-reviewer-enabled" name="roleReviewerEnabled" data-focus-key="config-role-reviewer-enabled">
+              ${roleSelectHtml(['on', 'off'], enabled, 'Not set (Audits section)')}
+            </select>
+            <span class="config-hint">Saved for the reviewer role. Review runs still follow the Audits section until the reviewer role ships.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-reviewer-scope">Reviewer scope</label>
+            <select id="config-role-reviewer-scope" name="roleReviewerScope" data-focus-key="config-role-reviewer-scope">
+              ${roleSelectHtml(ROLE_REVIEWER_SCOPE_OPTIONS, rev.scope, 'Not set')}
+            </select>
+            <span class="config-hint">tick = after each tick, plan = once per plan, off = none.</span>
+          </div>
+          <div class="config-row">
+            <label for="config-role-reviewer-backend">Reviewer backend</label>
+            <select id="config-role-reviewer-backend" name="roleReviewerBackend" data-focus-key="config-role-reviewer-backend">
+              ${roleSelectHtml(ROLE_REVIEWER_BACKEND_OPTIONS, rev.backend, 'Not set')}
+            </select>
+          </div>
+          <div class="config-row">
+            <label for="config-role-reviewer-model">Reviewer model</label>
+            <input type="text" id="config-role-reviewer-model" name="roleReviewerModel" list="config-role-model-suggestions" value="${escapeAttr(rev.model || '')}" maxlength="128" placeholder="not set" data-focus-key="config-role-reviewer-model" />
+          </div>
+          <div class="config-row">
+            <label for="config-role-reviewer-advisor">Reviewer advisor model</label>
+            <input type="text" id="config-role-reviewer-advisor" name="roleReviewerAdvisor" list="config-role-model-suggestions" value="${escapeAttr(rev.advisorModel || '')}" maxlength="128" placeholder="not set" data-focus-key="config-role-reviewer-advisor" />
+          </div>
+          <button type="button" class="btn-config-copy" data-focus-key="config-copy-roles" onclick="return copyConfigSnippet('roles')">Copy config.json snippet</button>
+        </fieldset>`;
+}
+
+function collectRolesPayload() {
+  const val = (id) => (document.getElementById(id)?.value || '').trim();
+  const orNull = (v) => (v ? v : null);
+  const enabled = val('config-role-reviewer-enabled');
+  return {
+    worker: {
+      backend: orNull(val('config-role-worker-backend')),
+      model: orNull(val('config-role-worker-model')),
+    },
+    subworker: {
+      model: orNull(val('config-role-subworker-model')),
+      byWorkerType: parseWorkerTypeMap(val('config-role-subworker-map')),
+    },
+    reviewer: {
+      enabled: enabled === 'on' ? true : enabled === 'off' ? false : null,
+      scope: orNull(val('config-role-reviewer-scope')),
+      backend: orNull(val('config-role-reviewer-backend')),
+      model: orNull(val('config-role-reviewer-model')),
+      advisorModel: orNull(val('config-role-reviewer-advisor')),
+    },
+  };
+}
+
 function renderConfigSection(d) {
   const cfg = d?.system?.config && !d.system.config.error ? d.system.config : {};
   const epr = cfg.externalPlanReview || {};
@@ -6337,6 +6474,7 @@ function renderConfigSection(d) {
           <button type="button" class="btn-config-copy" data-focus-key="config-copy-updateCheck" onclick="return copyConfigSnippet('updateCheck')">Copy config.json snippet</button>
           <button type="button" class="btn-config-copy" data-focus-key="config-copy-updateApply" onclick="return copyStaticConfigSnippet('updateApply')" title="Copy-only; never writable via this tab">Copy updateApply.auto snippet</button>
         </fieldset>
+        ${renderRolesFieldset(cfg)}
         <fieldset class="config-fieldset config-fieldset-wide">
           <legend>Audits (external plan review)</legend>
           <div class="config-row config-row-inline">
@@ -6471,6 +6609,7 @@ function collectMissionConfigPayload() {
       modes: {},
     },
   };
+  if (document.getElementById('config-role-worker-backend')) payload.roles = collectRolesPayload();
   for (const mode of CONFIG_PERSONA_MODES) {
     const el = document.getElementById(`config-persona-${mode.id}`);
     if (!el) continue;
@@ -6487,6 +6626,7 @@ const CONFIG_SNIPPET_GROUPS = {
   updateCheck: ['updateCheck'],
   audits: ['externalPlanReview'],
   personas: ['agentPersona'],
+  roles: ['roles'],
 };
 
 function copyConfigSnippet(group) {

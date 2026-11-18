@@ -32,6 +32,7 @@ import {
   writeGateExitMarker,
 } from "../plan-loop/gate-exit.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
+import { loadRolesContext, resolveWorkerRole } from "../plan-loop/model-roles.js";
 import {
   parseReviewPackMaxBytes,
   REVIEW_BACKENDS,
@@ -409,7 +410,34 @@ export async function executeCountdown(
     return usage("--include-reviewed only applies to --job review");
   }
 
-  const detected = await detectAgentBackend(input.backend, input.whichFn);
+  // Model roles (ADR 2026-11-16): the tick job reads roles.worker and the
+  // active plan's worker_backend / worker_model when no flag is given. The
+  // review and dispatch jobs keep the flag or `auto` (the reviewer role is
+  // separate).
+  let backendRequest = input.backend.trim() || "auto";
+  let model = input.model?.trim() || undefined;
+  const rolesNotes: string[] = [];
+  if (job === "tick") {
+    const ctx = await loadRolesContext(root, true);
+    if (!ctx.ok) return usage(ctx.error);
+    const worker = resolveWorkerRole({
+      flagBackend: input.backend,
+      flagModel: input.model,
+      plan: ctx.plan,
+      roles: ctx.roles,
+      defaultBackend: "auto",
+    });
+    backendRequest = worker.backend;
+    model = worker.model;
+    rolesNotes.push(...worker.warnings.map((w) => `roles: ${w}`));
+    rolesNotes.push(
+      `roles: worker ${worker.backend} (${worker.backendSource}), model ${
+        worker.model ? `${worker.model} (${worker.modelSource})` : "backend default"
+      }`,
+    );
+  }
+
+  const detected = await detectAgentBackend(backendRequest, input.whichFn);
   if (!detected.ok) return usage(detected.message);
   let maxPackBytes: number | undefined;
   if (job === "review") {
@@ -457,6 +485,7 @@ export async function executeCountdown(
   const jobLabel =
     job === "tick" ? "run-plan" : job === "review" ? `run ${REVIEW_PACK_SLASH}` : `run ${slash}`;
   say(`fire ${gateExitStamp(now)}: job ${job} (${jobLabel}) on ${detected.id}`);
+  for (const note of rolesNotes) say(note);
   const preflight = await countdownPreflight({ root, env, exec, now, log: say });
   if (!preflight.ok) {
     say(`refused: ${preflight.reason} (exit ${preflight.exitCode})`);
@@ -480,7 +509,7 @@ export async function executeCountdown(
     slash,
     backend: detected.id,
     maxTicks: maxTicks as number,
-    ...(input.model ? { model: input.model } : {}),
+    ...(model ? { model } : {}),
     ...(maxPackBytes !== undefined ? { maxPackBytes } : {}),
     ...(job === "review" && input.includeReviewed ? { includeReviewed: true } : {}),
   });
@@ -591,8 +620,8 @@ export const countdownCommand = defineCommand({
     },
     backend: {
       type: "string",
-      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: auto)`,
-      default: "auto",
+      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: auto; the tick job reads plan worker_backend and config roles.worker first)`,
+      default: "",
     },
     model: {
       type: "string",

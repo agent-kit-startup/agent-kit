@@ -1,7 +1,7 @@
 ---
 name: git-autogit
 description: Applies staging → production flow (git staging, git prod), CHANGELOG and Conventional Commits. Dogfood-only: not a pack member; consumers use L0 /git-staging and /git-prod. Optional Task isolation in the kit repo.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-git-workflow

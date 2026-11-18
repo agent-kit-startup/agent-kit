@@ -1,6 +1,8 @@
 ---
 name: run-plan-loop
 description: Deprecated alias for /run-plan forcing the in-session loop strategy.
+context: none
+audience: meta
 ---
 
 # Command: /run-plan-loop (deprecated)

@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  rmSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -13,7 +14,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   CHAT_FULL_SCAN_MAX_BYTES,
   CHAT_SESSIONS_CAP,
@@ -32,6 +33,11 @@ import {
   withholdChatsFromPayload,
 } from "../../../../dashboard/lib/chat-sessions.mjs";
 
+// Every temp dir this suite creates lives under one root, removed after the suite:
+// these fake HOMEs are ~3 MB each and used to pile up in a self-hosted runner's /tmp.
+const TEST_ROOT = mkdtempSync(join(tmpdir(), "ak-chats-test-"));
+afterAll(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
+
 const WORKSPACE = "/work/demo.app";
 
 function uuid(n: number): string {
@@ -40,7 +46,7 @@ function uuid(n: number): string {
 
 /** Fake HOME with ~/.claude/projects/<slug of WORKSPACE>/ created; returns {home, dir}. */
 function fakeStore(workspace = WORKSPACE): { home: string; dir: string } {
-  const home = mkdtempSync(join(tmpdir(), "ak-chats-home-"));
+  const home = mkdtempSync(join(TEST_ROOT, "ak-chats-home-"));
   const dir = join(home, ".claude", "projects", claudeProjectSlug(workspace));
   mkdirSync(dir, { recursive: true });
   return { home, dir };
@@ -265,7 +271,7 @@ describe("chat-sessions: listing", () => {
     const { home, dir } = fakeStore();
     const upper = "ABCDEF00-0000-4000-8000-000000000001";
     writeSession(dir, upper, [user("upper")]);
-    const outside = join(mkdtempSync(join(tmpdir(), "ak-chats-outside-")), "secret.jsonl");
+    const outside = join(mkdtempSync(join(TEST_ROOT, "ak-chats-outside-")), "secret.jsonl");
     writeFileSync(outside, jsonl([{ type: "custom-title", customTitle: "outside" }]));
     symlinkSync(outside, join(dir, `${uuid(9)}.jsonl`));
     const env = listClaudeSessions({ cwd: WORKSPACE, home });
@@ -273,7 +279,7 @@ describe("chat-sessions: listing", () => {
   });
 
   it("finds sessions saved under the workspace's real path when given a symlink", () => {
-    const real = mkdtempSync(join(tmpdir(), "ak-chats-real-"));
+    const real = mkdtempSync(join(TEST_ROOT, "ak-chats-real-"));
     const link = `${real}-link`;
     symlinkSync(real, link);
     const { home, dir } = fakeStore(real);

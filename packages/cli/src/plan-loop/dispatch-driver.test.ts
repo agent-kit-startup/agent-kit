@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -97,6 +98,89 @@ async function runQueue(
   });
   return { code, root, stderr: stderr.join("") };
 }
+
+describe("run-plan-all driver mode: queue owner lease", () => {
+  beforeEach(() => resetClaudeVersionCache());
+
+  it("refuses with exit 1 while another live owner holds the lease: no agent, reason in log and run_end", async () => {
+    const root = await queueWorkspace();
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    const held = {
+      version: 1,
+      session: "s-other",
+      host: os.hostname(),
+      dispatcher: { pid: 999_999, start: null },
+      agent: { pid: 999_998, start: null },
+      startedAt: new Date().toISOString(),
+      heartbeatAt: new Date().toISOString(),
+    };
+    await writeFile(
+      path.join(root, ".cursor", "context", "run-plan-all.lock"),
+      JSON.stringify(held),
+    );
+    const client = scriptedClient(() => null);
+    const spawnFn = vi.fn(fakeSpawn("gate"));
+    const code = await runDispatchDriver({
+      root,
+      slash: "run-plan-all",
+      backend: "claude",
+      dryRun: false,
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      whichFn: whichClaude,
+      spawnFn: spawnFn as unknown as SpawnFn,
+      versionFn: () => "2.1.278 (Claude Code)",
+      // The agent pid is the live one: the orphan case of 2026-11-11.
+      lease: { alive: (p) => p.pid === 999_998 },
+    });
+    expect(code).toBe(1);
+    expect(spawnFn).not.toHaveBeenCalled();
+    const events = client.events();
+    const end = events.at(-1);
+    expect(end).toMatchObject({ type: "run_end", exitCode: 1, ticks: 0 });
+    expect(String(end?.reason)).toContain("orphaned agent pid 999998");
+    expect(events.some((e) => e.type === "log" && e.level === "error")).toBe(true);
+    // The other owner's lease is untouched.
+    expect(
+      JSON.parse(
+        await readFile(path.join(root, ".cursor", "context", "run-plan-all.lock"), "utf8"),
+      ),
+    ).toEqual(held);
+  });
+
+  it("holds the lease during the session (agent pid recorded) and releases it at the end", async () => {
+    const root = await queueWorkspace();
+    const lockFile = path.join(root, ".cursor", "context", "run-plan-all.lock");
+    let seen: { session: string; agent: { pid: number } | null } | null = null;
+    const client = scriptedClient((gate) => {
+      seen = JSON.parse(readFileSync(lockFile, "utf8"));
+      return replyTo(gate, 1);
+    });
+    const childEnv: Array<string | undefined> = [];
+    const inner = fakeSpawn("gate");
+    const spawnFn = ((cmd: string, args: string[], opts: Parameters<SpawnFn>[2]) => {
+      childEnv.push(opts?.env?.AGENT_KIT_QUEUE_LEASE_SESSION);
+      return inner(cmd, args, opts as never);
+    }) as unknown as SpawnFn;
+    const code = await runDispatchDriver({
+      root,
+      slash: "run-plan-all",
+      backend: "claude",
+      dryRun: false,
+      events: { input: client.input, write: client.write, writeErr: () => {} },
+      whichFn: whichClaude,
+      spawnFn,
+      versionFn: () => "2.1.278 (Claude Code)",
+    });
+    expect(code).toBe(0);
+    expect(seen).toMatchObject({ version: 1, dispatcher: { pid: process.pid } });
+    const held = seen as unknown as { session: string; agent: { pid: number } | null };
+    expect(held.agent?.pid).toBeGreaterThan(1);
+    // The agent sees its own session, so `agent-kit queue lease` answers "own" inside it.
+    expect(childEnv).toEqual([held.session]);
+    expect(process.env.AGENT_KIT_QUEUE_LEASE_SESSION).toBeUndefined();
+    expect(existsSync(lockFile)).toBe(false);
+  });
+});
 
 describe("run-plan-all driver mode (fake claude, scripted client, no TTY)", () => {
   let logSpy: ReturnType<typeof vi.spyOn>;

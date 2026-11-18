@@ -986,3 +986,92 @@ describe("broadcast multi-instance port allocation", () => {
     expect(skipped).toHaveLength(4);
   });
 });
+
+describe("roles config writes (model roles)", () => {
+  it("accepts a full roles block and merges it without wiping other keys", () => {
+    const body = {
+      roles: {
+        worker: { backend: "claude", model: "claude-opus-5-5" },
+        subworker: { model: "sonnet", byWorkerType: { "docs-repo": "haiku" } },
+        reviewer: { enabled: true, scope: "tick", backend: "claude", model: "fable" },
+      },
+    };
+    const v = validateConfigWriteBody(body);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    const merged = mergeConfigAllowlist({ autoHandoff: true }, v.patch);
+    expect(merged.autoHandoff).toBe(true);
+    expect(merged.roles).toEqual(body.roles);
+    expect(allowlistConfig(merged).roles).toEqual(body.roles);
+  });
+
+  it("null clears a field and an emptied role drops out", () => {
+    const existing = {
+      roles: { worker: { backend: "claude", model: "opus" }, subworker: { model: "sonnet" } },
+    };
+    const v = validateConfigWriteBody({
+      roles: { worker: { model: null }, subworker: { model: null } },
+    });
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(mergeConfigAllowlist(existing, v.patch).roles).toEqual({
+      worker: { backend: "claude" },
+    });
+  });
+
+  it("rejects values the capability matrix marks unsupported", () => {
+    expect(
+      validateConfigWriteBody({ roles: { worker: { backend: "cursor-acp", model: "x" } } }).ok,
+    ).toBe(false);
+    expect(
+      validateConfigWriteBody({
+        roles: { worker: { backend: "cursor-agent" }, subworker: { model: "sonnet" } },
+      }).ok,
+    ).toBe(false);
+    // auto stays allowed on any backend: it is reserved and sets nothing.
+    expect(
+      validateConfigWriteBody({
+        roles: { worker: { backend: "cursor-agent" }, subworker: { model: "auto" } },
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("rejects unknown backends, keys and malformed ids", () => {
+    for (const roles of [
+      { worker: { backend: "glm" } },
+      { worker: { model: "a b" } },
+      { tester: {} },
+      { reviewer: { scope: "always" } },
+      { reviewer: { backend: "codex" } },
+      { subworker: { byWorkerType: { "Bad Key": "x" } } },
+    ]) {
+      expect(validateConfigWriteBody({ roles }).ok, JSON.stringify(roles)).toBe(false);
+    }
+  });
+});
+
+describe("roles: Config tab round trip", () => {
+  it("byWorkerType is replaced as a whole and an all-empty form removes roles", () => {
+    const existing = {
+      roles: { subworker: { byWorkerType: { "docs-repo": "haiku", "tech-lead": "opus" } } },
+    };
+    const v = validateConfigWriteBody({
+      roles: { subworker: { model: null, byWorkerType: { "docs-repo": "sonnet" } } },
+    });
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(mergeConfigAllowlist(existing, v.patch).roles).toEqual({
+      subworker: { byWorkerType: { "docs-repo": "sonnet" } },
+    });
+    const empty = validateConfigWriteBody({
+      roles: {
+        worker: { backend: null, model: null },
+        subworker: { model: null, byWorkerType: {} },
+        reviewer: { enabled: null, scope: null, backend: null, model: null, advisorModel: null },
+      },
+    });
+    expect(empty.ok).toBe(true);
+    if (!empty.ok) return;
+    expect(mergeConfigAllowlist(existing, empty.patch).roles).toBeUndefined();
+  });
+});

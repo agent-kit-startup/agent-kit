@@ -1,6 +1,8 @@
 ---
 name: cancel-plan
 description: Cancel the active plan: mark open to-dos cancelled and clear the HANDOFF active-plan fields, keeping the file.
+context: plan
+audience: user
 ---
 
 # Command: /cancel-plan

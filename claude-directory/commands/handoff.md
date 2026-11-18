@@ -1,0 +1,65 @@
+---
+name: handoff
+description: Update HANDOFF.md to preserve current state for continuation in a new conversation.
+context: none
+audience: user
+---
+
+# Command: /handoff
+
+## Goal
+
+Update the handoff document to preserve current state and allow continuation in a new conversation.
+
+**Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in and used only when the kit repo wants it.
+
+## When to Use
+
+- At the end of each phase of a plan
+- When context is getting full
+- Before pausing work for an extended period
+- When you want to record progress
+
+## What to Do
+
+1. **Check the active task:**
+   - Check whether a Context Pack exists in `.cursor/context/current/`
+   - Check whether an active plan exists in `.cursor/plans/`
+
+2. **Update `.cursor/HANDOFF.md` with machine-field bullets** (Mission Control parses `- **Field:**` only; do not invent `## Backlog plans` / `## Parked plans` headings):
+   - `- **Plan:** \`file.plan.md\`` (or `none`)
+   - Last updated (timestamp)
+   - Phase completed
+   - Completed to-dos (ids)
+   - Next phase
+   - Next to-dos (ids)
+   - Clear instruction for the next agent (1-3 sentences)
+   - Keep `- **Backlog plans:**` / `- **Parked plans:**` / queue fields as bullets when present
+
+3. **Handoff preference (first time / when offering a choice):** if the user has no saved preference in `.cursor/context/config.json`, or you are offering automatic vs manual handoff, use the **Ask questions** tool (not typed yes/no).
+   Options: `Automatic handoff` / `Manual handoff`
+   **Fallback (path 1):** if Ask questions is missing, say so once, print the same two labels as a numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call.
+   If they pick automatic, save `{ "autoHandoff": true }` in `.cursor/context/config.json`.
+
+4. **DevOps spine (suggest, do not run without being asked):**
+   - If the phase produced commitable changes (including versioned HANDOFF, `plan-monitor-*.md`, or `_index.md` Audits rows), suggest `/git-staging`. That command follows `autogit/gitupdate.md` inventory → theme-bucket → ship. Do not treat HANDOFF/memory as skippable dirt.
+   - If there was an error or a tradeoff decision, suggest a memory-loop WRITE (`.cursor/memory/`).
+   - Never suggest committing directly to `main`; production only via `/git-prod` after staging. `/git-prod` still requires a clean tree except hard excludes; staging must leave it that way.
+
+5. **Respond to the user:**
+   > "Handoff updated! Continue: `/continue-plan`. With code ready: `/git-staging`. Production: `/git-prod`."
+
+## CLI alternative
+
+```bash
+./cursor-handoff handoff
+# or: agent-kit handoff
+```
+
+This updates HANDOFF.md based on the active plan / Context Pack.
+
+## Full loop
+
+```
+plan -> work -> /handoff -> /git-staging -> (approval) -> /git-prod -> memory
+```

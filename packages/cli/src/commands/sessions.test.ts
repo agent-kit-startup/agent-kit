@@ -145,4 +145,29 @@ describe("agent-kit sessions", () => {
     // biome-ignore lint/suspicious/noControlCharactersInRegex: asserting their absence
     expect(text).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u007f]/);
   });
+
+  it("--live --json prints the roster envelope and leaves the default --json shape alone", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "ak-sessions-live-"));
+    vi.stubEnv("HOME", seed(workspace));
+    const parsed = JSON.parse(await runCommand({ json: true, live: true, cwd: workspace }));
+    expect(Object.keys(parsed).sort()).toEqual(
+      [
+        "generatedAt",
+        "handoff",
+        "lease",
+        "notes",
+        "root",
+        "rows",
+        "transcripts",
+        "version",
+        "worktrees",
+      ].sort(),
+    );
+    expect(parsed.version).toBe(1);
+    expect(parsed.lease).toEqual({ kind: "free" });
+    expect(Array.isArray(parsed.rows)).toBe(true);
+    const text = await runCommand({ live: true, cwd: workspace });
+    expect(text).toContain(`Live agents in ${workspace}`);
+    expect(text).toContain("Queue lease: free.");
+  });
 });

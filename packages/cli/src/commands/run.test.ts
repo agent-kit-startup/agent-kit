@@ -247,3 +247,64 @@ describe("executeRun", () => {
     expect(claude.stdout).toContain("alias agent-kit run-plan (backend claude at /usr/bin/claude)");
   });
 });
+
+describe("executeRun: model roles", () => {
+  async function rolesRoot(roles: unknown): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-run-roles-"));
+    const dir = path.join(root, ".cursor", "commands");
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, "run-plan-all.md"), "---\nname: run-plan-all\n---\n\nQueue.\n");
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    await writeFile(
+      path.join(root, ".cursor", "context", "config.json"),
+      JSON.stringify({ roles }),
+    );
+    return root;
+  }
+  const whichBoth = async (bin: string) =>
+    bin === "cursor-agent" || bin === "claude" ? `/usr/local/bin/${bin}` : null;
+  const input = { maxTicks: 10, sleepSeconds: 5, dryRun: true, whichFn: whichBoth };
+
+  it("run-plan-all uses roles.worker.backend when no --backend is given", async () => {
+    const root = await rolesRoot({ worker: { backend: "claude" } });
+    const r = await executeRun({ ...input, slash: "run-plan-all", cwd: root, backend: "" });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toContain("Backend: claude (/usr/local/bin/claude)");
+  });
+
+  it("an explicit --backend beats the config", async () => {
+    const root = await rolesRoot({ worker: { backend: "claude" } });
+    const r = await executeRun({ ...input, slash: "run-plan-all", cwd: root, backend: "auto" });
+    expect(r.stdout).toContain("Backend: cursor-agent (/usr/local/bin/cursor-agent)");
+  });
+
+  it("without roles the old default (auto) holds", async () => {
+    const root = await rolesRoot(undefined);
+    const r = await executeRun({ ...input, slash: "run-plan-all", cwd: root, backend: "" });
+    expect(r.stdout).toContain("Backend: cursor-agent (/usr/local/bin/cursor-agent)");
+  });
+
+  it("an explicit-only backend from config never falls back when its binary is missing", async () => {
+    const root = await rolesRoot({ worker: { backend: "openrouter" } });
+    const r = await executeRun({ ...input, slash: "run-plan-all", cwd: root, backend: "" });
+    expect(r.exitCode).toBe(1);
+    expect(r.error).toMatch(/ori not found on PATH/);
+  });
+
+  it("a malformed roles value stops before detection", async () => {
+    const root = await rolesRoot({ worker: { model: "a b" } });
+    const r = await executeRun({ ...input, slash: "run-plan-all", cwd: root, backend: "" });
+    expect(r.exitCode).toBe(1);
+    expect(r.error).toMatch(/roles\.worker\.model/);
+  });
+
+  it("other slashes ignore roles.worker", async () => {
+    const root = await rolesRoot({ worker: { backend: "claude" } });
+    await writeFile(
+      path.join(root, ".cursor", "commands", "backlog-add.md"),
+      "---\nname: backlog-add\n---\n\nEnqueue.\n",
+    );
+    const r = await executeRun({ ...input, slash: "backlog-add", cwd: root, backend: "" });
+    expect(r.stdout).toContain("Backend: cursor-agent (/usr/local/bin/cursor-agent)");
+  });
+});

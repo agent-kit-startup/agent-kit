@@ -1,0 +1,35 @@
+---
+name: git-staging
+description: Bring local changes to the pre-production branch following the git staging routine.
+context: branch
+audience: user
+---
+
+# Git staging
+
+Follow the **git staging** routine to bring local changes to the pre-production branch (`origin/staging` in this repo, or the name configured for the project).
+
+Factory landing wrap (not consumer L0): `/kit-staging` when that file exists. This command stays git-only.
+
+**Auth-block hard stop:** After a successful SSH push, if `gh pr create` / `glab mr create` returns HTTP 401 (or another auth failure), print the compare/create URL and await. Stay on this command. Do not invent product (dotenv, L0, CHANGELOG, overlay hashes, hard-rules). Do not load `.env` as a GitHub token source. Details: Prompt git staging §9.
+
+**Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in and used only when the kit repo wants it.
+
+1. **Read** the "Prompt: git staging" section in `autogit/gitupdate.md` (when it exists).
+2. **Staging hygiene (monitors):** if `git status` shows untracked or unrelated dirty `.cursor/memory/plan-monitor-*.md`, **warn** before commit. Stage memory/monitor files **add-by-name only**; never broad `git add` of `.cursor/memory/` WIP into a product commit (ADR `decisions/2026-07-27_plan-monitor-consumer-awareness.md`, external-review staging hygiene). Warn/add-by-name forbids sweeps; it does **not** mean leave soft kit artifacts dirty. Inventory remaining safe dirt into a `docs(memory):` / `chore(kit):` bucket and ship it in this run (SoT: `autogit/gitupdate.md` Prompt git staging §1 and §7). Do not stop-and-quiz solely because a path looks out of the current flow.
+3. **Lint evidence (required when code/format paths change):** before claiming staging-ready, **run** the repo formatter/linter on touched files and **record the command + result** (pass/fail) in the worker summary or tick notes. Writing `Staging ready: yes` or the contract string alone is **not** evidence. Pure markdown / docs-only with no applicable linter: state `none applicable`. Same gate as `/run-plan` Staging-ready lint gate.
+   **Dashboard CSS/HTML only** (`dashboard/dashboard.html` and similar, outside Biome scope): record `Tests: none applicable (dashboard-CSS); covered by plugin-ux-validation` when the UX suite pins the change (ADR `decisions/2026-07-29_dashboard-css-lint-evidence-convention.md`); do not claim Biome covered the HTML.
+4. Run in order: validation (not on `main`), CHANGELOG (`[Unreleased]`), checkout staging, pull, working branch, Conventional Commits, push, MR/PR (**always `--base staging` / target `staging`**), merge, cleanup.
+   **Colony host:** when `COLONY_HOST_CLI` is set and the merge is operator-owed (refused or not allowed for the agent), file `"$COLONY_HOST_CLI" request merge-pr <N> --reason "<why>"` after the gates below and wait for its exit code instead of stopping the routine (0 merged: continue with cleanup; 2 denied by the operator: final for this run, stop and report the reason; 3 failed or 4 timeout: report, the merge stays operator-owed).
+5. **Agent signature gate (hard stop, before push and before merge):** scan the outgoing commit messages and the PR body against the agent-signature / session-link pattern list embedded in `git-hooks/prepare-commit-msg` (`Co-Authored-By: Claude ...`, `Claude-Session:`, Cursor / Copilot / Codex / Devin trailers, `Generated with <agent>` lines, agent session URLs; `--list` prints it). Same shape as the Evidence-checks gate below: run, read the exit code, never merge over red.
+   - Before `git push`: `git log origin/staging..HEAD --format=%B | sh git-hooks/prepare-commit-msg --check -`
+   - Before `git push`, authors and committers: `sh git-hooks/prepare-commit-msg --check-authors origin/staging`. Exit 1 lists each outgoing commit whose author or committer address is an agent identity (`noreply@anthropic.com`, `cursoragent@cursor.com`, the Copilot bot, the other agent mail domains; `--list-authors` prints them). The check only reads; it never sets an identity or rewrites history.
+     On exit 1 **stop**: set your own identity (`git config user.name` / `user.email`; a cloud agent session sets `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL` in its environment settings).
+     Then rewrite on the working branch: `git commit --amend --no-edit --reset-author` (last commit) or `git rebase --exec 'git commit --amend --no-edit --reset-author' origin/staging` (every outgoing commit), push again and re-run.
+   - After `gh pr create`, before `gh pr merge`: `gh pr view <N> --json body -q .body | sh git-hooks/prepare-commit-msg --check -`
+   Exit 0 prints `ok`. Exit 1 lists the offending lines with line numbers: **stop**, remove them (`git commit --amend` or `git rebase -i` on the working branch, `gh pr edit <N> --body` for the PR body), push again and re-run the scan. Exit 2 is a usage error (missing hook file, grep failure), not a pass: treat it as red. Do not route around a red scan with `--no-verify`, a hand-typed "ok", or a merge from the GitHub UI.
+   A squash merge folds every branch commit message into the staging commit, so a trailer left on any branch commit reaches `staging` and later `main`; that is what the pre-push scan catches. Catch it here: once that commit is merged on a protected `staging`, no PR can reword it, and `/git-prod` step 5 stops and names the operator-owned options (an operator-run history rewrite, or an exception by SHA the operator records in an Accepted ADR). ADR: `2026-09-11_agent-signature-guard-strip-hook-check-gate`.
+6. **Evidence-checks gate (before merge / Gaps-none):** run `gh pr checks <N>` and confirm `build` (including the **Evidence checks** step) is green. If Evidence checks fail, fix and re-push before merge; do not write HANDOFF `- **Gaps:** none` over red. ADR: `2026-08-01_evidence-checks-merge-gate`.
+7. **Never** commit directly to `main`.
+8. On completion: update `.cursor/HANDOFF.md` (phase in staging); memory-loop WRITE if it applies.
+9. Optional: update the project's PM tool (ClickUp, Jira, ...) if MCP is configured.

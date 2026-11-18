@@ -214,6 +214,11 @@ export async function runHeadlessDispatch(opts: {
   prompt: string;
   model?: string;
   logPath: string;
+  /**
+   * Extra child env merged over process.env (model roles: the claude
+   * subworker model). Read by the claude branch only.
+   */
+  env?: NodeJS.ProcessEnv;
   /** Test seam: replacement for `node:child_process` spawn. */
   spawnFn?: typeof spawn;
   /** Test seam: `claude --version` reader (claude only). */
@@ -295,7 +300,7 @@ export async function runHeadlessDispatch(opts: {
     // `--cwd` exists on the claude root command, so the workspace is the
     // spawn cwd.
     const log = opts.log ?? ((line: string) => console.log(line));
-    const env = claudeChildEnv();
+    const env = claudeChildEnv(opts.env);
     const redact = claudeRedactions(env);
     const version = checkClaudeVersion(opts.bin, opts.versionFn);
     if (!version.ok) throw new Error(`claude dispatch: ${version.message}`);

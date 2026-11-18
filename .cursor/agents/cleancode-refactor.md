@@ -1,7 +1,7 @@
 ---
 name: cleancode-refactor
 description: Architecture, readability, senior code patterns. Use for refactoring, code review or when user asks for clean code / best practices.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-general

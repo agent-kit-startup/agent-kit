@@ -1,6 +1,8 @@
 ---
 name: context-status
 description: Show the current context state: active task, handoff, archived tasks.
+context: none
+audience: user
 ---
 
 # Command: /context-status

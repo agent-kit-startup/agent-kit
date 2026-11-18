@@ -35,6 +35,7 @@ import { PIPELINE_CACHE_ENV, readCachedPipeline } from "./lib/pipeline-cache.mjs
 import { selectWorkspaceProcesses } from "./lib/processes.mjs";
 import { collectRunLogs } from "./lib/run-logs.mjs";
 import {
+  attachTodoEvidenceRefs,
   buildMissionControlView,
   collectDeferredCheckIds,
   collectReadinessPendingFromReport,
@@ -168,12 +169,13 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.11.0",
+    version: "1.12.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
       dashboardDataVersion: "Semantic version of the data model schema",
-      plans: "Active plans from .cursor/plans/*.plan.md with frontmatter parsing",
+      plans:
+        "Active plans from .cursor/plans/*.plan.md with frontmatter parsing; todos.items[].evidenceRefs ({prs[] {repo|null, number}, shas[], structured}) from each to-do evidence field, refs only (1.12.0)",
       system:
         "System metadata: repoRoot, listen port, handoff state, allowlisted config summary, package info, version, name, contextPacks, detachedAuditSessions ({count, oldestAgeSeconds}|null; host-wide detached agent-kit-audit-* PTYs)",
       agents: "Agent definitions from .cursor/agents/*.md",
@@ -205,7 +207,7 @@ const SNAPSHOT = {
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.11.0",
+  dashboardDataVersion: "1.12.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -255,6 +257,9 @@ if (existsSync(plansDir)) {
       for (const m of fm.matchAll(todoRegex)) {
         todos.push({ id: m[1], content: m[2], status: m[3] });
       }
+      // Structured delivery refs (`<repo>#<n>`, merge SHAs) from each to-do's
+      // `evidence:` field (1.12.0). Refs only; the evidence prose never ships.
+      attachTodoEvidenceRefs(fm, todos);
     }
 
     const totalTodos = todos.length;

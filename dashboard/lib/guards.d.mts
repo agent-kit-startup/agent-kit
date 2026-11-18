@@ -37,6 +37,26 @@ export const CONFIG_PERSONA_MODES: readonly ["continue-plan", "run-plan", "cli-r
 export const CONFIG_REVIEW_BACKENDS: readonly ["auto", "claude", "cursor"];
 export const CONFIG_REVIEW_MODES: readonly ["paste", "autonomous"];
 export const CONFIG_REVIEW_PREFLIGHT: readonly ["off", "warn", "block"];
+export interface RoleCapability {
+  readonly workerModel: boolean;
+  readonly subworkerModel: boolean;
+  readonly reviewer: boolean;
+}
+export const ROLE_CAPABILITIES: Readonly<
+  Record<"claude" | "cursor-agent" | "codex" | "openrouter" | "cursor-acp", RoleCapability>
+>;
+export const CONFIG_ROLE_WORKER_BACKENDS: readonly string[];
+export const CONFIG_ROLE_REVIEWER_BACKENDS: readonly string[];
+export const CONFIG_ROLE_REVIEWER_SCOPES: readonly string[];
+export const ROLE_MODEL_ID: RegExp;
+export function validateRolesPatch(
+  roles: unknown,
+): { ok: true; patch: Record<string, Record<string, unknown>> } | { ok: false; error: string };
+export function mergeRoles(
+  existing: unknown,
+  patch: Record<string, Record<string, unknown>>,
+): Record<string, Record<string, unknown>>;
+export function allowlistRoles(raw: unknown): Record<string, Record<string, unknown>> | null;
 
 export function escapePerlDoubleQuoted(value: string): string;
 export function resolveSnapshotRepoRoot(env: ProcessEnvLike | undefined, kitRoot: string): string;

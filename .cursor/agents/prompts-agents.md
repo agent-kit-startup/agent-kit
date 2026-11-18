@@ -1,7 +1,7 @@
 ---
 name: prompts-agents
 description: Create and edit agent prompts in Markdown; follow reference model and folder structure. Demoted (skill-first): prefer prompts-markdown skill; dogfood-only agent for rare Task isolation.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-prompts

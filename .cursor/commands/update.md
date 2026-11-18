@@ -1,6 +1,8 @@
 ---
 name: update
 description: Update the Agent Kit layer from the public registry, respecting protected L3 paths.
+context: none
+audience: user
 ---
 
 # Command: /update

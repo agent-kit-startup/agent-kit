@@ -15,6 +15,12 @@ import {
 } from "../lifecycle/public-inbound-radar.js";
 import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
+import {
+  collectLiveRoster,
+  formatRosterLease,
+  formatRosterRow,
+  type LiveRoster,
+} from "../plan-loop/live-roster.js";
 import { READINESS_SNAPSHOT_RELATIVE_PATH } from "../scanner/snapshot.js";
 import { fileExists } from "../utils/fs.js";
 import { HANDOFF_REL } from "../utils/kit-paths.js";
@@ -746,37 +752,45 @@ export function formatSessionAge(seconds: number): string {
   return `${seconds}s`;
 }
 
+/**
+ * Detached `agent-kit-audit-*` sessions on this host (tmux and screen). Also
+ * feeds the live agent roster (`agent-kit sessions --live`). Throws only on an
+ * unexpected error; a missing tool is an empty list.
+ */
+export async function listDetachedAuditSessions(
+  deps: { runCommand?: AuditSessionCommandRunner; now?: () => number } = {},
+): Promise<DetachedAuditSession[]> {
+  const run = deps.runCommand ?? runAuditSessionCommand;
+  const nowMs = (deps.now ?? Date.now)();
+  const [tmuxOut, screenOut] = await Promise.all([
+    run("tmux", ["list-sessions", "-F", "#{session_name} #{session_attached} #{session_created}"]),
+    run("screen", ["-ls"]),
+  ]);
+  const sessions: DetachedAuditSession[] = tmuxOut
+    ? parseTmuxDetachedAuditSessions(tmuxOut, Math.floor(nowMs / 1000))
+    : [];
+  if (screenOut) {
+    for (const entry of parseScreenDetachedAuditSessions(screenOut)) {
+      let ageSeconds = -1;
+      if (entry.socketPath) {
+        try {
+          const { mtimeMs } = await stat(entry.socketPath);
+          if (nowMs >= mtimeMs) ageSeconds = Math.floor((nowMs - mtimeMs) / 1000);
+        } catch {
+          // Unknown age; the session is still counted.
+        }
+      }
+      sessions.push({ channel: "screen", name: entry.name, ageSeconds });
+    }
+  }
+  return sessions;
+}
+
 export async function detachedAuditSessionsSection(
   deps: { runCommand?: AuditSessionCommandRunner; now?: () => number } = {},
 ): Promise<string | null> {
   try {
-    const run = deps.runCommand ?? runAuditSessionCommand;
-    const nowMs = (deps.now ?? Date.now)();
-    const [tmuxOut, screenOut] = await Promise.all([
-      run("tmux", [
-        "list-sessions",
-        "-F",
-        "#{session_name} #{session_attached} #{session_created}",
-      ]),
-      run("screen", ["-ls"]),
-    ]);
-    const sessions: DetachedAuditSession[] = tmuxOut
-      ? parseTmuxDetachedAuditSessions(tmuxOut, Math.floor(nowMs / 1000))
-      : [];
-    if (screenOut) {
-      for (const entry of parseScreenDetachedAuditSessions(screenOut)) {
-        let ageSeconds = -1;
-        if (entry.socketPath) {
-          try {
-            const { mtimeMs } = await stat(entry.socketPath);
-            if (nowMs >= mtimeMs) ageSeconds = Math.floor((nowMs - mtimeMs) / 1000);
-          } catch {
-            // Unknown age; the session is still counted.
-          }
-        }
-        sessions.push({ channel: "screen", name: entry.name, ageSeconds });
-      }
-    }
+    const sessions = await listDetachedAuditSessions(deps);
     if (sessions.length === 0) return null;
     const knownAges = sessions.map((s) => s.ageSeconds).filter((a) => a >= 0);
     const oldest = knownAges.length
@@ -790,12 +804,86 @@ export async function detachedAuditSessionsSection(
   }
 }
 
+/**
+ * Agent check-in at session start (ADR 2026-07-26 Amend 2026-11-16 agent
+ * check-in, points 4 and 5): who else is live in this workspace, from the
+ * `agent-kit sessions --live` roster. The caller's own process chain and the
+ * lease its session owns are excluded; audit sessions have their own section.
+ * Nothing when alone. Bounded by a deadline and a size cap; fail-open.
+ */
+export const LIVE_AGENTS_SECTION_DEADLINE_MS = 3_000;
+export const LIVE_AGENTS_SECTION_MAX_ROWS = 5;
+export const LIVE_AGENTS_SECTION_MAX_WORKTREES = 3;
+export const LIVE_AGENTS_SECTION_MAX_CHARS = 2_000;
+
+export function formatLiveAgentsSection(roster: LiveRoster): string | null {
+  const others = roster.rows.filter((r) => !r.self && r.kind !== "audit");
+  const held = roster.lease.kind === "held";
+  if (!held && others.length === 0) return null;
+  const lines = ["## Other live agents in this workspace", "", formatRosterLease(roster)];
+  for (const row of others.slice(0, LIVE_AGENTS_SECTION_MAX_ROWS)) {
+    lines.push(formatRosterRow(row, roster.root));
+  }
+  if (others.length > LIVE_AGENTS_SECTION_MAX_ROWS) {
+    lines.push(
+      `  +${others.length - LIVE_AGENTS_SECTION_MAX_ROWS} more (agent-kit sessions --live)`,
+    );
+  }
+  const busy = roster.worktrees.filter((w) => !w.self);
+  if (busy.length > 0) {
+    const shown = busy
+      .slice(0, LIVE_AGENTS_SECTION_MAX_WORKTREES)
+      .map((w) => w.path)
+      .join(", ");
+    const more =
+      busy.length > LIVE_AGENTS_SECTION_MAX_WORKTREES
+        ? ` (+${busy.length - LIVE_AGENTS_SECTION_MAX_WORKTREES} more)`
+        : "";
+    lines.push(`Worktrees in use by a live process (never reuse them): ${shown}${more}`);
+  }
+  lines.push(
+    "",
+    held
+      ? "Another live session holds the queue lease: do not write Plan, Next to-dos, queue fields or plan to-do status, and do not dispatch; report the lease line instead. Re-check with `agent-kit queue lease`."
+      : "Check in with `agent-kit queue lease` before each Ask and before each write to Plan, Next to-dos, queue fields or plan to-do status; held by another live session means stop and report that line.",
+  );
+  let text = lines.join("\n");
+  if (text.length > LIVE_AGENTS_SECTION_MAX_CHARS) {
+    text = `${text.slice(0, LIVE_AGENTS_SECTION_MAX_CHARS - 40).trimEnd()}\n  … (agent-kit sessions --live)`;
+  }
+  return text;
+}
+
+export async function liveAgentsSection(
+  root: string,
+  deps: { collect?: (root: string) => Promise<LiveRoster>; deadlineMs?: number } = {},
+): Promise<string | null> {
+  try {
+    const collect =
+      deps.collect ?? ((r: string) => collectLiveRoster(r, { listAudit: async () => [] }));
+    const roster = await withDeadline(
+      collect(root),
+      deps.deadlineMs ?? LIVE_AGENTS_SECTION_DEADLINE_MS,
+    );
+    return roster ? formatLiveAgentsSection(roster) : null;
+  } catch {
+    // Fail-open: the check-in must never break sessionStart.
+    return null;
+  }
+}
+
 export async function buildSessionStartAdditionalContext(
   rootDir: string,
   _payload: SessionStartPayload = {},
-  deps: { spawnFn?: CursorAwarenessSpawn; deadlineMs?: number } = {},
+  deps: {
+    spawnFn?: CursorAwarenessSpawn;
+    deadlineMs?: number;
+    liveRoster?: (root: string) => Promise<LiveRoster>;
+  } = {},
 ): Promise<{ additional_context: string }> {
   const root = path.resolve(rootDir);
+  // Started first so the roster's ps / git shell-outs overlap the other sections.
+  const liveAgentsPending = liveAgentsSection(root, { collect: deps.liveRoster });
   const handoffPath = path.join(root, HANDOFF_REL);
   const handoffFull = await readFull(handoffPath);
   const handoff = capHandoffExcerpt(handoffFull);
@@ -838,6 +926,8 @@ export async function buildSessionStartAdditionalContext(
 
   // Belt and suspenders on top of the section's own try/catch: this section has no
   // config gate, so it runs on every sessionStart and must stay fail-open.
+  const liveAgents = await liveAgentsPending.catch(() => null);
+  if (liveAgents) parts.push(liveAgents);
   const auditSessions = await detachedAuditSessionsSection().catch(() => null);
   if (auditSessions) parts.push(auditSessions);
 

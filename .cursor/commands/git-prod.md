@@ -1,6 +1,9 @@
 ---
 name: git-prod
 description: Promote origin/staging to origin/main following the git prod routine (HITL confirmation required).
+context: sha
+audience: user
+interactiveOnly: true
 ---
 
 # Git prod
@@ -9,17 +12,17 @@ Follow the **git prod** routine to promote `origin/staging` to `origin/main` (pr
 
 Factory landing wrap (not consumer L0): `/kit-prod` when that file exists. This command stays git-only.
 
-**Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in and used only when the kit repo wants it.
+**Runs in the main window by default.** Do not dispatch this command to a Task subagent by default; Task isolation is opt-in.
 
 1. **Read** the "Prompt: git prod" section in `autogit/gitupdate.md` (when it exists in the project).
 2. Critical validation: no uncommitted local changes; never commit directly to main.
 3. Close the release in the CHANGELOG (move `[Unreleased]` to a dated version) before merging. Keep `<!-- changelog-private -->` fences when the project uses them.
 4. Show a summary of the changes (diff/log) between staging and main and **ask for explicit confirmation using Ask questions tool** before merging and pushing to main.
-   
+
    Options: `Proceed with production deploy` / `Review changes first` / `Cancel`
-   
+
    **Advisory (does not replace confirmation):** if Blocking untriaged `.cursor/memory/plan-monitor-*.md` match themes in the staging→main delta, mention them once in the summary. Never steal this Ask; Field Report / `/plan-review-triage` stay attention/HITL SoT.
-   
+
    **Fallback (path 1):** if Ask questions is missing, say so once, print the same three labels as a numbered list, accept number or label, and treat a typed answer as Other. Do not invent a fake tool call.
 5. **Agent signature gate (hard stop, before merge to main):** after the confirmation and before any merge or push, scan everything that would reach `main`: `git log origin/main..origin/staging --format=%B | sh git-hooks/prepare-commit-msg --check -`.
    Also scan the authors and committers of the same delta: `sh git-hooks/prepare-commit-msg --check-authors origin/main origin/staging`. Exit 1 lists each commit whose author or committer address is an agent identity: **stop**. A red commit not yet on `staging` is fixed through `/git-staging` (set your own identity, then `git commit --amend --no-edit --reset-author` or `git rebase --exec 'git commit --amend --no-edit --reset-author' <base>` on the working branch). Already merged on a protected `staging`: stop, never rewrite `staging`; the per-SHA continue rule below covers messages only and never clears an identity red. Option: an operator-run history rewrite.

@@ -91,6 +91,7 @@ Each `todos` item in frontmatter can include **budget** fields (besides `id`, `c
 | `worker_type` | string | Preferred Task `subagent_type` for the orchestrated strategy (e.g. `docs-repo`, `cleancode-refactor`). Omit = orchestrator picks from the routing table in `/run-plan` |
 | `inline_first` | boolean | Opt-in signal for orchestrated `/run-plan` in-session implement. **Not force-inline.** When `true` **and** every lightweight check passes (docs-only `read_scope`, allowed `worker_type`, no findings contract), implement in-session instead of Task. If any check fails, the flag is **ignored** and the tick is Task. See `/run-plan` and authoring rules below |
 | `force_task` | boolean | When `true`, always dispatch Task even if the to-do would qualify for inline-first |
+| `evidence` | string | Delivery refs written at close: structured `<repo>#<n>` PR refs and `merged <sha>` first, prose after (e.g. `"my-app#42 merged 1a2b3c4d. Owed loop skips ..."`). `dashboard/lib/semantic-model.mjs` (`parseTodoEvidenceRefs`) ships the refs only, never the prose; a bare `#n` is the prose fallback for older plans |
 
 Plans also support one **plan-level** attribution field (top-level frontmatter, not per to-do):
 

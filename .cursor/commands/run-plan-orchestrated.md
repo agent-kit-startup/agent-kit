@@ -1,6 +1,8 @@
 ---
 name: run-plan-orchestrated
 description: Deprecated alias for /run-plan forcing the orchestrated strategy.
+context: none
+audience: meta
 ---
 
 # Command: /run-plan-orchestrated (deprecated)

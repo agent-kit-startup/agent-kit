@@ -1,7 +1,7 @@
 ---
 name: json-guardian
 description: JSON validation and normalization; schemas; robust parsing; clear error messages. Demoted (skill-first): prefer json-data-config skill; dogfood-only agent for rare Task isolation.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-json

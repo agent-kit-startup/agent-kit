@@ -1,7 +1,7 @@
 ---
 name: n8n-workflows
 description: Edit and document n8n workflows (JSON), setup, credentials and docs in docs/context/ and docs/n8n-manual-update-*.md. Demoted (skill-first): prefer n8n-workflows skill; dogfood-only agent for rare Task isolation.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-n8n

@@ -1,6 +1,8 @@
 ---
 name: git-staging
 description: Bring local changes to the pre-production branch following the git staging routine.
+context: branch
+audience: user
 ---
 
 # Git staging

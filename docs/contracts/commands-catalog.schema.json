@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/agent-kit-startup/agent-kit/blob/main/docs/contracts/commands-catalog.schema.json",
   "title": "Agent Kit commands catalog",
-  "description": "Output of `agent-kit commands --json`: the workspace's slash commands read from .cursor/commands/*.md frontmatter. Versioned by catalogVersion: an added optional field is a minor bump, a removed or retyped field is a major bump. A host runs a row only through its own allowlist; `headless` is a hint, never a grant. ADR 2026-10-22_colony-commands-catalog-contract.",
-  "version": "1.0.0",
+  "description": "Output of `agent-kit commands --json`: the workspace's slash commands read from .cursor/commands/*.md frontmatter. Versioned by catalogVersion: an added optional field is a minor bump, a removed or retyped field is a major bump. A host runs a row only through its own allowlist; `headless` is a hint, never a grant, and `context`, `interactiveOnly` and `audience` (1.1.0) can only narrow what a host runs. ADR 2026-10-22_colony-commands-catalog-contract (amend 2026-11-16, run with context).",
+  "version": "1.1.0",
   "type": "object",
   "required": ["catalogVersion", "kitVersion", "commands"],
   "properties": {
@@ -40,6 +40,20 @@
           "headless": {
             "type": "boolean",
             "description": "The kit can dispatch this slash headless (agent-kit run). A hint, not permission to run it."
+          },
+          "context": {
+            "type": "string",
+            "enum": ["none", "goal", "plan", "branch", "pr", "sha"],
+            "description": "Since 1.1.0. What a host may append to /name as the one context argument: a goal typed by the user, a plan file, the current branch, a PR number or a commit SHA. none: the command takes no argument. Missing (older catalogs): none."
+          },
+          "interactiveOnly": {
+            "type": "boolean",
+            "description": "Since 1.1.0. Run only as an interactive session the user drives (git-prod, kit-prod): never headless, from a driver or run-plan tick, or with a pre-answered gate. Missing (older catalogs): false, and hosts keep their own production list."
+          },
+          "audience": {
+            "type": "string",
+            "enum": ["user", "meta"],
+            "description": "Since 1.1.0. meta: the command exists to build or ship the kit itself; hosts hide it outside the factory workspace. Missing (older catalogs): user."
           }
         }
       }

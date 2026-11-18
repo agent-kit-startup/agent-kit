@@ -1,6 +1,8 @@
 ---
 name: plan-review-triage
 description: Triage residuals from an external plan review monitor and guide next steps.
+context: none
+audience: user
 ---
 
 # Command: /plan-review-triage

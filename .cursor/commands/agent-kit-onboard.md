@@ -1,6 +1,8 @@
 ---
 name: agent-kit-onboard
 description: Prepare and validate repository readiness before /start-project.
+context: none
+audience: user
 ---
 
 # Command: /agent-kit-onboard

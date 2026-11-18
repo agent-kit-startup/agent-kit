@@ -99,7 +99,7 @@ archive it deploys).
 ```bash
 pnpm landing:sync -- --site missionkit "~/Downloads/MissionKit landing page.zip"
 pnpm landing:media -- --site missionkit        # after every sync: optimized/ store
-pnpm landing:update-versions                   # Colony tag (GitHub) + engine version
+pnpm landing:update-versions                   # Colony tag (GitHub) + engine version; also stamps the colony site
 pnpm landing:prerender -- --site missionkit  # after a sync: first-frame snapshot (local Chrome)
 pnpm landing:build                             # landing:build:check
 node scripts/verify-landing.mjs --site missionkit   # local dist, headless Chrome
@@ -123,7 +123,7 @@ pnpm landing:rollback [release]                # root only
   (705 KB). The menu cards ship as the export's JPEG with 320/640 srcset variants. `tokens-mission-control.css` and
   `agent-kit-landing.css` stay at their `_ds/` paths. Design-side fixes go to
   `.cursor/context/landing-home/UPSTREAM-DESIGN-FIX-PROMPT.md`.
-- **Versions** (`page.versionStamp`): the logic class starts from a literal
+- **Versions** (`page.versionStamp: "home"`): the logic class starts from a literal
   `ver: { colony, agent, game }`. The build replaces it (exactly one occurrence, or it fails)
   with `agent` = `packages/cli/package.json` and `colony` / `game` from the tracked stamp
   `.cursor/context/landing-home/versions.json` (`pnpm landing:update-versions`: latest
@@ -306,6 +306,17 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   `assets/og-cover.png`). The helmet's own canonical is dropped (Colony's lacks the
   trailing slash). These exports ship the stock runtime, so the build also stubs the
   x-import compile; no request goes to unpkg (React, Babel) at load.
+- **Colony version** (`page.versionStamp: "colony"`, export (9) on): the export hardcodes the
+  release in the hero pill (`<a class="hero-version" href="…/colony/releases/tag/vX.Y.Z"
+  aria-label="Colony vX.Y.Z release">` with `vX.Y.Z` as text) and in the footer signature
+  (`Colony <span class="sig-ver">X.Y.Z</span>`). The build stamps all four with the `colony`
+  tag of the Home's tracked stamp `.cursor/context/landing-home/versions.json` (one
+  `pnpm landing:update-versions` refreshes both sites; no network at build time). The link
+  stays on the specific tag so it matches the text. Each of the two must occur exactly once,
+  else the colony build fails and names the site. Left alone: the hero mock's demo row
+  (`tag v0.5.1 · CI`) and the `Mission Kit Engine` signature. A new Colony release shows on
+  the site only after `landing:update-versions`, a colony build, deploy and promote; the tag
+  `sync_landing` job refreshes the stamp but rebuilds only `agent` and `missionkit`.
 - **Nested pages.** A page whose `out` sits below the root (`game/index.html`) gets its
   asset, vendor and logic references rewritten to root-absolute (`/assets/…`) in the HTML
   and in its own `dc-logic.js`; links to another built page by its design-file name point

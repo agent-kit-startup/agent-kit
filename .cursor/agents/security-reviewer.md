@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Review auth, PII, secrets, injection, logging. Modes: secure-by-default, passive detection, on-demand report. Use before merge, in PRs, or when asked.
-model: claude-sonnet-4
+model: inherit
 readonly: true
 rules:
   - cursor-skills-general

@@ -23,6 +23,11 @@
       "model": "composer-2.5"
     }
   },
+  "roles": {
+    "worker": {},
+    "subworker": {},
+    "reviewer": {}
+  },
   "autoHandoff": false,
   "interTickCooldownMs": 0,
   "promoteMergeWaitMs": 3600000,

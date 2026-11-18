@@ -1,7 +1,7 @@
 ---
 name: tech-lead
 description: Technology decisions, ADRs, tradeoffs, compatibility. Use when there's stack/lib choice, architecture change or decision with long-term impact.
-model: claude-sonnet-4
+model: inherit
 readonly: false
 rules:
   - cursor-skills-general
