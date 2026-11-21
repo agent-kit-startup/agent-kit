@@ -38,6 +38,8 @@ import {
   WATCH_DEBOUNCE_MS,
 } from "./lib/live-refresh.mjs";
 import { PIPELINE_CACHE_ENV, pipelineCacheJsonFromSnapshot } from "./lib/pipeline-cache.mjs";
+import { posthog, shutdownPostHog } from "./lib/posthog.mjs";
+import { emitPostHogLog, shutdownPostHogLogs } from "./lib/posthog-logs.mjs";
 import { buildInventoryBaseline } from "./lib/semantic-model.mjs";
 import { SHIP_LANE_CACHE_ENV, shipLaneCacheJsonFromSnapshot } from "./lib/ship-lane.mjs";
 
@@ -239,6 +241,15 @@ async function handleConfigWrite(req, res) {
   cachedAt = 0;
   scheduleBroadcast();
 
+  const configSections = Object.keys(validated.patch).sort();
+  posthog?.capture({
+    event: "dashboard_config_updated",
+    properties: { config_sections: configSections },
+  });
+  emitPostHogLog("info", "dashboard configuration saved", {
+    config_sections: configSections,
+  });
+
   sendJson(res, 200, { ok: true, config: allowlistConfig(merged) });
 }
 
@@ -321,6 +332,9 @@ function runDataScript() {
           const message = timedOut
             ? `dashboard-data.mjs timed out after ${DATA_SCRIPT_TIMEOUT_MS}ms (set AGENT_KIT_DASHBOARD_DATA_TIMEOUT_MS to raise)`
             : err.message;
+          emitPostHogLog("error", "dashboard snapshot generation failed", {
+            timed_out: timedOut,
+          });
           resolve(errorPayload(message));
           return;
         }
@@ -580,8 +594,19 @@ const server = createServer((req, res) => {
   res.end(content);
 });
 
+let shuttingDown = false;
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.close();
+    void Promise.all([shutdownPostHog(), shutdownPostHogLogs()]).finally(() => process.exit(0));
+  });
+}
+
 server.listen(PORT, HOST, () => {
   const loopback = HOST === DEFAULT_HOST || HOST === "localhost" || HOST === "::1";
+  emitPostHogLog("info", "dashboard server started", { broadcast_mode: !loopback });
   if (!loopback) {
     console.warn(
       `[WARN] Mission Control broadcast mode on ${HOST}:${PORT}. Token gate is required; config writes stay loopback-only.`,

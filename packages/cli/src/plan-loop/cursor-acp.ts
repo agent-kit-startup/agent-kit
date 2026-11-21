@@ -35,6 +35,11 @@ import type { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { StringDecoder } from "node:string_decoder";
 import {
+  captureAiGeneration,
+  nextAiGenerationTurn,
+  startAiGeneration,
+} from "./ai-observability.js";
+import {
   type AgentBackend,
   type BackendRunOptions,
   type BackendRunResult,
@@ -189,6 +194,12 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
   let nextId = 1;
   let turnText = "";
   let sessionId: string | null = null;
+  const aiSession = startAiGeneration({
+    provider: "cursor",
+    model: opts.model ?? "cursor-agent",
+    input: opts.prompt,
+  });
+  let aiTurn = aiSession;
 
   const send = (msg: Json) => {
     const text = JSON.stringify(msg);
@@ -400,6 +411,7 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
       errors,
       backgroundTasks: 0,
     };
+    captureAiGeneration(aiTurn, { exitCode: isError ? 1 : 0, result: lastResult });
   };
   const failed = (message: string, subtype = "error") =>
     finishTurn(message, true, subtype, [message]);
@@ -454,6 +466,7 @@ export async function runCursorAcp(opts: BackendRunOptions): Promise<BackendRunR
       record.replies.push(outcome.stamp);
       hitl.write(`→ ${outcome.stamp.line}\n`);
       prompt = outcome.stamp.line;
+      aiTurn = nextAiGenerationTurn(aiSession, prompt);
     }
   };
 

@@ -32,6 +32,7 @@
 import { execFileSync } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
+import { nextAiGenerationTurn, startAiGeneration } from "./ai-observability.js";
 import {
   type AgentBackend,
   type BackendRunResult,
@@ -317,13 +318,19 @@ export const codexBackend: AgentBackend = {
     const records: HitlRunRecord[] = [];
     // One thread across the resumed children: its running total replaces the earlier one.
     const usage = new UsageTally();
+    const aiSession = startAiGeneration({
+      provider: "openai",
+      model: opts.model ?? "codex",
+      input: prepared.prompt,
+    });
+    let aiTurn = aiSession;
     let result: BackendRunResult;
     try {
       result = await spawnLogged(
         "codex",
         codexExecArgs({ workspace: opts.workspace, model: opts.model }),
         opts.logPath,
-        { ...common, stdinText: prepared.prompt },
+        { ...common, stdinText: prepared.prompt, ai: aiTurn },
       );
       if (result.hitl) records.push(result.hitl);
       if (result.usage) usage.merge(result.usage);
@@ -339,11 +346,12 @@ export const codexBackend: AgentBackend = {
           records.push(record);
           break;
         }
+        aiTurn = nextAiGenerationTurn(aiSession, reply);
         result = await spawnLogged(
           "codex",
           codexResumeArgs({ threadId: thread, model: opts.model }),
           opts.logPath,
-          { ...common, stdinText: reply, appendLog: true },
+          { ...common, stdinText: reply, appendLog: true, ai: aiTurn },
         );
         if (result.hitl) records.push(result.hitl);
         if (result.usage) usage.merge(result.usage);

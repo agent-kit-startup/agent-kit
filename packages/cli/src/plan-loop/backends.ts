@@ -5,6 +5,11 @@ import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { HEADLESS_DENY_RULES } from "../generator/claude-permissions.js";
 import { findOnPath } from "../utils/find-on-path.js";
+import {
+  type AiGenerationContext,
+  captureAiGeneration,
+  startAiGeneration,
+} from "./ai-observability.js";
 import { codexBackend } from "./codex.js";
 import { cursorAcpBackend } from "./cursor-acp.js";
 import {
@@ -158,6 +163,8 @@ export interface SpawnLoggedOptions {
   /** Fired once the child is running (pid, stop handle). */
   onSpawn?: (info: SpawnInfo) => void;
   backendId?: BackendId;
+  /** AI Observability context for this externally executed agent turn. */
+  ai?: AiGenerationContext;
   /**
    * Line translator for vendors whose stream is not claude-style stream-json
    * (codex `--json`): the log keeps the vendor's raw lines; the renderer and
@@ -647,14 +654,26 @@ export function spawnLogged(
           else if (relay) {
             const lastResult = relay.lastResult();
             const resumeWith = relay.resumeWith();
+            const exitCode = code ?? 1;
+            if (options.ai) {
+              captureAiGeneration(options.ai, {
+                exitCode,
+                result: lastResult,
+                usage: relay.usage.total(),
+              });
+            }
             resolve({
-              exitCode: code ?? 1,
+              exitCode,
               hitl: relay.record,
               usage: relay.usage,
               ...(lastResult ? { lastResult } : {}),
               ...(resumeWith ? { resumeWith } : {}),
             });
-          } else resolve({ exitCode: code ?? 1 });
+          } else {
+            const exitCode = code ?? 1;
+            if (options.ai) captureAiGeneration(options.ai, { exitCode });
+            resolve({ exitCode });
+          }
         });
       };
       if (relay) relay.closed().then(finish, finish);
@@ -923,6 +942,11 @@ export const cursorAgentBackend: AgentBackend = {
       render: opts.render,
       onSpawn: opts.onSpawn,
       backendId: "cursor-agent",
+      ai: startAiGeneration({
+        provider: "cursor",
+        model: opts.model ?? "cursor-agent",
+        input: opts.prompt,
+      }),
     });
   },
 };
@@ -1187,6 +1211,11 @@ export const claudeBackend: AgentBackend = {
         render: opts.render,
         onSpawn: opts.onSpawn,
         backendId: "claude",
+        ai: startAiGeneration({
+          provider: "anthropic",
+          model: opts.model ?? "claude-code",
+          input: opts.prompt,
+        }),
       });
     } catch (err) {
       // No `cause`: the raw error may carry the secret (see spawnLogged).
@@ -1264,6 +1293,11 @@ export const openrouterBackend: AgentBackend = {
         render: opts.render,
         onSpawn: opts.onSpawn,
         backendId: "openrouter",
+        ai: startAiGeneration({
+          provider: "openrouter",
+          model: opts.model ?? "claude-code",
+          input: opts.prompt,
+        }),
       });
     } catch (err) {
       // No `cause`: the raw error may carry the secret (see spawnLogged).

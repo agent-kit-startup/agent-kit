@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileExists } from "../utils/fs.js";
 import { ensureLoopLogsDir, runnerStatePaths } from "../utils/kit-paths.js";
+import { startAiGeneration } from "./ai-observability.js";
 import type {
   BackendId,
   BackendRunResult,
@@ -285,6 +286,11 @@ export async function runHeadlessDispatch(opts: {
           render: opts.render,
           onSpawn: opts.onSpawn,
           backendId: "openrouter",
+          ai: startAiGeneration({
+            provider: "openrouter",
+            model: opts.model ?? "claude-code",
+            input: opts.prompt,
+          }),
         },
       );
     } catch (err) {
@@ -327,6 +333,11 @@ export async function runHeadlessDispatch(opts: {
           render: opts.render,
           onSpawn: opts.onSpawn,
           backendId: "claude",
+          ai: startAiGeneration({
+            provider: "anthropic",
+            model: opts.model ?? "claude-code",
+            input: opts.prompt,
+          }),
         },
       );
     } catch (err) {
@@ -349,6 +360,11 @@ export async function runHeadlessDispatch(opts: {
     render: opts.render,
     onSpawn: opts.onSpawn,
     backendId: "cursor-agent",
+    ai: startAiGeneration({
+      provider: "cursor",
+      model: opts.model ?? "cursor-agent",
+      input: opts.prompt,
+    }),
   });
 }
 
