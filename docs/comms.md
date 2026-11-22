@@ -10,6 +10,9 @@ Repeatable **draft then HITL approve then publish** loop for Mission Kit adoptio
 | Living calendar | [comms-content-calendar.md](comms-content-calendar.md) |
 | Templates (recap, release, contributor-ask) | [comms-templates/](comms-templates/recap.md) |
 | Draft pipeline and env names | [comms-publish-pipeline.md](comms-publish-pipeline.md) |
+| Handles, accounts and network rules | [comms-presence.md](comms-presence.md) |
+| Discord server spec | [community/discord-server.md](community/discord-server.md) |
+| Fediverse instance comparison and decisions | [community/fediverse-instance.md](community/fediverse-instance.md) |
 | Contributor funnel | [CONTRIBUTING.md](CONTRIBUTING.md), [contribute-upstream.md](contribute-upstream.md) |
 | Community skill | `registry/skills/community/mission-kit-comms/SKILL.md` (`agent-kit add mission-kit-comms`) |
 | Dedicated agent | `.cursor/agents/mission-kit-comms.md` (not an Agent Persona) |

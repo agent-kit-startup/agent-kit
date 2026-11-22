@@ -365,6 +365,39 @@ export const defaultRunShell: RunShellFn = (command, opts) =>
     });
   });
 
+/** Lockfiles that name the install step of `dependencyNote`, in the order it checks them. */
+export const LOCKFILES = [
+  "pnpm-lock.yaml",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+] as const;
+
+/**
+ * The install a `--verify-cmd` needs before the verification commands in a Node repository
+ * (the temporary worktree has no node_modules), from the lockfiles at its root: frozen to
+ * the lockfile and served from the local package cache when it can be. Null when no
+ * lockfile names a package manager.
+ */
+export function installStep(lockfiles: ReadonlySet<string>): string | null {
+  if (lockfiles.has("pnpm-lock.yaml")) return "pnpm install --frozen-lockfile --prefer-offline";
+  if (lockfiles.has("package-lock.json") || lockfiles.has("npm-shrinkwrap.json")) {
+    return "npm ci --prefer-offline";
+  }
+  if (lockfiles.has("yarn.lock")) return "yarn install --frozen-lockfile --prefer-offline";
+  return null;
+}
+
+/**
+ * The note of a failed verification in a Node repository that still has no node_modules
+ * after its commands ran: a ready `--verify-cmd` with the install first.
+ */
+export function dependencyNote(lockfiles: ReadonlySet<string>, commands: string[]): string {
+  const install = installStep(lockfiles) ?? "<your install command>";
+  const recipe = [install, ...commands].join(" && ").replaceAll("'", "'\\''");
+  return `dependencies are not installed in the temporary worktree (no node_modules), so a failure may come from that; to install first: --verify-cmd '${recipe}'`;
+}
+
 /**
  * The verification commands the repository commits: `stack.validationCommands`
  * then `stack.testCommands` from HEAD's `.cursor/agent-kit.config.json` (read
@@ -480,18 +513,19 @@ export async function verifyResolution(opts: {
     }
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, opts.resolvedText, "utf8");
-    try {
-      await lstat(path.join(tree, "package.json"));
-      try {
-        await lstat(path.join(tree, "node_modules"));
-      } catch {
-        notes.push(
-          "dependencies are not installed in the temporary worktree (no node_modules); a failure may come from that: pass --verify-cmd with an install step",
-        );
-      }
-    } catch {
-      /* not a Node project */
-    }
+    const exists = (rel: string) =>
+      lstat(path.join(tree, rel)).then(
+        () => true,
+        () => false,
+      );
+    // Checked after a failure, not before the run: a --verify-cmd that installs first has
+    // created node_modules by then, so the recipe shows only when it can explain the failure.
+    const missingDependencies = async () => {
+      if (!(await exists("package.json")) || (await exists("node_modules"))) return null;
+      const present = new Set<string>();
+      for (const f of LOCKFILES) if (await exists(f)) present.add(f);
+      return dependencyNote(present, opts.commands);
+    };
     const run = opts.runShell ?? defaultRunShell;
     const reports: VerifyCommandReport[] = [];
     for (const command of opts.commands) {
@@ -502,11 +536,12 @@ export async function verifyResolution(opts: {
       });
       reports.push({ command, exitCode: r.code, tail: red(r.output.slice(-VERIFY_TAIL_BYTES)) });
       if (r.code !== 0) {
+        const deps = await missingDependencies();
         return {
           status: "failed",
           reason: `\`${command}\` exited ${r.code}`,
           commands: reports,
-          notes,
+          notes: deps ? [...notes, deps] : notes,
         };
       }
     }

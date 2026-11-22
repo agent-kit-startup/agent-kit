@@ -1,7 +1,10 @@
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { defaultExec, type GitFn } from "../plan-loop/gate-exit.js";
-import { listConflicts, parseUnmergedPorcelainV2 } from "./conflicts.js";
-import { conflictedRepo, GIT_ENV, git } from "./fixture.test-helpers.js";
+import { alignBases, listConflicts, parseUnmergedPorcelainV2 } from "./conflicts.js";
+import { coalescedRepo, conflictedRepo, GIT_ENV, git } from "./fixture.test-helpers.js";
+import { parseConflictText } from "./markers.js";
 
 function gitFn(root: string): GitFn {
   return (args) => defaultExec("git", args, { cwd: root, env: GIT_ENV });
@@ -88,5 +91,92 @@ describe("listConflicts", () => {
     if (typeof r === "string") throw new Error(r);
     expect(r.files).toEqual([]);
     expect(r.operation).toBeNull();
+  });
+});
+
+describe("coalesced hunks", () => {
+  it("keeps the base when git folds two nearby conflicts into one hunk", async () => {
+    const { root } = await coalescedRepo();
+    const working = await readFile(path.join(root, "app.conf"), "utf8");
+    // The fixture really is the folded shape: one two-way hunk carrying the blank line.
+    expect(working.match(/^<<<<<<< /gm)).toHaveLength(1);
+    const before = repoState(root);
+    const r = await listConflicts({ git: gitFn(root), exec: defaultExec, repo: root });
+    if (typeof r === "string") throw new Error(r);
+    const conf = r.files.find((f) => f.path === "app.conf");
+    expect(conf).toMatchObject({ kind: "text", baseSource: "index" });
+    expect(conf?.reason).toBeUndefined();
+    expect(conf?.hunks).toHaveLength(1);
+    expect(conf?.hunks[0]).toMatchObject({
+      ours: "port = 7070\n\nmode = test\n",
+      base: "port = 8080\n\nmode = dev\n",
+      theirs: "port = 9090\n\nmode = prod\n",
+      baseLabel: "index stage 1",
+    });
+    expect(repoState(root)).toEqual(before);
+  });
+
+  it("still reports no base when the working hunk was edited", async () => {
+    const { root } = await coalescedRepo();
+    const file = path.join(root, "app.conf");
+    await writeFile(file, (await readFile(file, "utf8")).replace("mode = test", "mode = edited"));
+    const r = await listConflicts({ git: gitFn(root), exec: defaultExec, repo: root });
+    if (typeof r === "string") throw new Error(r);
+    const conf = r.files.find((f) => f.path === "app.conf");
+    expect(conf).toMatchObject({ kind: "text", baseSource: "none" });
+    expect(conf?.reason).toMatch(/no longer matches the index stages/);
+    expect(conf?.hunks[0]?.base).toBeNull();
+  });
+});
+
+describe("alignBases", () => {
+  const rendition = (text: string) => {
+    const p = parseConflictText(text);
+    if (!p.ok) throw new Error(p.reason);
+    return p.file;
+  };
+  const hunks = (text: string) => rendition(text).hunks;
+  const three = [
+    "a\n",
+    "<<<<<<< ours\no1\n||||||| base\nb1\n=======\nt1\n>>>>>>> theirs\n",
+    "-\n",
+    "<<<<<<< ours\no2\n||||||| base\nb2\n=======\nt2\n>>>>>>> theirs\n",
+    "z\n",
+    "<<<<<<< ours\no3\n||||||| base\nb3\n=======\nt3\n>>>>>>> theirs\n",
+    "end\n",
+  ].join("");
+
+  it("matches one-to-one hunks", () => {
+    const w = hunks(three.replace(/\|\|\|\|\|\|\| base\nb\d\n/g, ""));
+    expect(alignBases(w, rendition(three))).toEqual(["b1\n", "b2\n", "b3\n"]);
+  });
+
+  it("joins a run of rendition hunks with the text between them", () => {
+    const w = hunks(
+      "a\n<<<<<<< HEAD\no1\n-\no2\n=======\nt1\n-\nt2\n>>>>>>> side\nz\n<<<<<<< HEAD\no3\n=======\nt3\n>>>>>>> side\nend\n",
+    );
+    expect(alignBases(w, rendition(three))).toEqual(["b1\n-\nb2\n", "b3\n"]);
+  });
+
+  it("refuses when a rendition hunk is left over, a side differs, or the run ends early", () => {
+    const folded = (o: string, t: string) =>
+      hunks(`a\n<<<<<<< HEAD\n${o}=======\n${t}>>>>>>> side\nend\n`);
+    // Only the first two folded: the third rendition hunk is never used.
+    expect(alignBases(folded("o1\n-\no2\n", "t1\n-\nt2\n"), rendition(three))).toBeNull();
+    // Theirs edited inside the fold.
+    expect(
+      alignBases(folded("o1\n-\no2\nz\no3\n", "t1\n-\nX\nz\nt3\n"), rendition(three)),
+    ).toBeNull();
+    // More than the rendition holds.
+    expect(
+      alignBases(
+        folded("o1\n-\no2\nz\no3\nend\no4\n", "t1\n-\nt2\nz\nt3\nend\nt4\n"),
+        rendition(three),
+      ),
+    ).toBeNull();
+    // The whole file folded: every hunk used.
+    expect(
+      alignBases(folded("o1\n-\no2\nz\no3\n", "t1\n-\nt2\nz\nt3\n"), rendition(three)),
+    ).toEqual(["b1\n-\nb2\nz\nb3\n"]);
   });
 });

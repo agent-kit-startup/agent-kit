@@ -2,7 +2,7 @@
 // colony-game-canon-outcome-ledger-art-policy: runs the shipped render and game
 // functions in a sandbox. Earned totals come from the snapshot outcomeLedger;
 // player state is browser-local; timers are evaluated lazily at render.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
@@ -252,6 +252,60 @@ describe("Colony panel", () => {
     expect(tiles[0]).toEqual({ q: 0, r: 0 });
     expect(new Set(tiles.map((t) => `${t.q},${t.r}`)).size).toBe(61);
   });
+});
+
+// Mission Control keeps a hand copy of the structures (COLONY_STRUCTURES). The rule is
+// canon only, the same set the Colony release catalog carries (kit #1447,
+// packages/game/scripts/colony-catalog.mjs): every `status: "canon"` structure of
+// packages/game/catalog/structures.json and no `proposed` one, with the same name,
+// glyph, cost, build time, greens and uniqueness. Blurbs and art are Mission Control's
+// own. packages/game is private and not in the public mirror, so the check skips there.
+const structuresCatalogPath = resolve(repoRoot, "packages/game/catalog/structures.json");
+
+type CatalogStructure = {
+  id: string;
+  name: string;
+  glyph: string;
+  cost: Earned;
+  build_minutes: number;
+  greens: number;
+  unique: boolean;
+  status: string;
+};
+type PanelStructure = {
+  id: string;
+  name: string;
+  glyph: string;
+  cost: Earned;
+  minutes: number;
+  greens: number;
+  unique: boolean;
+};
+
+describe("Colony panel structures match the game catalog canon", () => {
+  it.skipIf(!existsSync(structuresCatalogPath))(
+    "lists exactly the canon structures with the catalog's numbers",
+    () => {
+      const catalog = JSON.parse(readFileSync(structuresCatalogPath, "utf8")) as CatalogStructure[];
+      const canon = catalog.filter((s) => s.status === "canon");
+      expect(canon.length).toBeGreaterThan(0);
+      const panel = runInNewContext(
+        `(function(){\n${constant("COLONY_STRUCTURES")}\nreturn COLONY_STRUCTURES;\n})()`,
+        { Object },
+      ) as PanelStructure[];
+      const pick = (s: PanelStructure | CatalogStructure) => ({
+        id: s.id,
+        name: s.name,
+        glyph: s.glyph,
+        cost: { logic: s.cost.logic, compute: s.cost.compute, rare: s.cost.rare },
+        minutes: "minutes" in s ? s.minutes : s.build_minutes,
+        greens: s.greens,
+        unique: s.unique,
+      });
+      const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+      expect(panel.map(pick).sort(byId)).toEqual(canon.map(pick).sort(byId));
+    },
+  );
 });
 
 describe("Colony panel contracts", () => {

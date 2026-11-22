@@ -196,11 +196,70 @@ export function withContext(file: ParsedConflictFile, n = CONFLICT_CONTEXT_LINES
 }
 
 /**
+ * The base of each working hunk, aligned by content with a diff3 rendition of
+ * the same three stages; null when anything does not line up. Git's default
+ * `merge` style folds two conflicts that only lines without letters or digits
+ * separate into one hunk, each side carrying the lines between them, while
+ * `--diff3` and `--zdiff3` keep them apart. So a working hunk matches one
+ * rendition hunk, or a run of consecutive ones joined by the plain text
+ * between them, when its ours and its theirs equal that join exactly; its base
+ * is the same join of the rendition's bases. Every rendition hunk is used once,
+ * in order. Pure.
+ */
+export function alignBases(
+  working: ConflictHunk[],
+  rendition: ParsedConflictFile,
+): string[] | null {
+  const run: Array<{ hunk: ConflictHunk; gap: string | null }> = [];
+  rendition.segments.forEach((seg, i) => {
+    if (seg.kind !== "hunk") return;
+    const next = rendition.segments[i + 1];
+    // The plain text before the next hunk; null after the last one.
+    const gap =
+      next?.kind === "hunk"
+        ? ""
+        : next?.kind === "text" && rendition.segments.slice(i + 2).some((s) => s.kind === "hunk")
+          ? next.text
+          : null;
+    run.push({ hunk: seg.hunk, gap });
+  });
+  const bases: string[] = [];
+  let r = 0;
+  for (const w of working) {
+    let ours = "";
+    let theirs = "";
+    let base = "";
+    let matched = false;
+    while (r < run.length) {
+      const { hunk, gap } = run[r] as { hunk: ConflictHunk; gap: string | null };
+      if (hunk.base === null) return null;
+      ours += hunk.ours;
+      theirs += hunk.theirs;
+      base += hunk.base;
+      r++;
+      if (ours === w.ours && theirs === w.theirs) {
+        matched = true;
+        break;
+      }
+      if (gap === null) return null;
+      ours += gap;
+      theirs += gap;
+      base += gap;
+      if (!w.ours.startsWith(ours) || !w.theirs.startsWith(theirs)) return null;
+    }
+    if (!matched) return null;
+    bases.push(base);
+  }
+  return r === run.length ? bases : null;
+}
+
+/**
  * Fill the base of two-way hunks from the index stages: the three blobs are
  * written to a temporary directory outside the repository and rendered with
  * `git merge-file -p --zdiff3` (then `--diff3`), stdout only. The bases are
- * taken only when the rendition has the same hunks, with the same ours and
- * theirs text, in the same order as the working file.
+ * taken only when every working hunk lines up with the rendition's hunks by
+ * content (`alignBases`): the same hunks, or runs of them that git folded into
+ * one, with the same ours and theirs text, in the same order.
  */
 export async function fillBaseFromIndex(opts: {
   git: GitFn;
@@ -246,16 +305,14 @@ export async function fillBaseFromIndex(opts: {
       // Exit code = number of conflicts (>= 0); a negative or signal code is an error.
       if (r.code < 0 || r.code > 127) continue;
       const parsed = parseConflictText(r.stdout);
-      if (!parsed.ok || parsed.file.hunks.length !== opts.hunks.length) continue;
-      const matches = parsed.file.hunks.every(
-        (h, i) => h.ours === opts.hunks[i]?.ours && h.theirs === opts.hunks[i]?.theirs,
-      );
-      if (!matches) continue;
+      if (!parsed.ok) continue;
+      const bases = alignBases(opts.hunks, parsed.file);
+      if (!bases) continue;
       return {
         ok: true,
         hunks: opts.hunks.map((h, i) => ({
           ...h,
-          base: parsed.file.hunks[i]?.base ?? "",
+          base: bases[i] ?? "",
           baseLabel: "index stage 1",
         })),
       };

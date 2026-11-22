@@ -10,6 +10,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.20.0] - 2026-11-22
+
+### Added
+
+- Gemini CLI extension: the public repository now carries a root `gemini-extension.json` with the same name, description and release version as the Agent Plugins `plugin.json`, so `gemini extensions install https://github.com/agent-kit-startup/agent-kit` loads the core skills from `skills/`. Skills only: no slash commands, sub-agents or guard hooks; the full kit still installs with `agent-kit install`. Public sync generates the file on every release, and a CI test fails when it drifts from its sources or is committed by hand.
+
+### Changed
+
+- The Codex plugin (`.codex-plugin/plugin.json`) uses the square 1024 x 1024 Mission Kit icon as its `interface.logo`, since the OpenAI plugin directory takes only square logos. The HOL Registry takes its avatar from this manifest, so it should show the same icon once it reads the new release.
+
+- `/dashboard` and the getting-started guide now say where Mission Control opens in Cursor: one tab in Cursor's own browser, which you can split right to keep beside your code, or a pane beside the chat in the Agents Window.
+- `agent-kit conflicts propose --help` and the configuration reference now say what verification does: it runs your validation and test commands on the model's text and on the files the merge brought in, before anyone has reviewed them, unsandboxed, as you, with your environment and network. `--no-verify` skips it.
+- `agent-kit conflicts propose`: the temporary verification worktree has no dependencies installed. When verification fails and `node_modules` is still missing, the verification note now prints a ready `--verify-cmd` that installs first, frozen to your pnpm, npm or yarn lockfile and served from the local cache when it can be, then runs your verification commands. `--help` and the configuration reference show the same recipe.
+
+### Fixed
+
+- The Claude plugin directory package (`claude-directory/`) no longer documents a download-and-run command. `/dashboard` named `npx @dadado/agent-kit-cli dashboard` and piped a `curl` into `node`; the directory can hold or refuse a version with such a command from an organization that is not Verified. `/dashboard` now names `agent-kit dashboard` and points to the install instructions, and public sync refuses to publish a package file with `npx`, `pnpm dlx`, `bunx`, `uvx` or a download piped into a shell or interpreter.
+- `.cursor/scripts/field-report-cadence-bump.sh` no longer crashes with `ERR_MODULE_NOT_FOUND` in installed projects. It loaded `dashboard/lib/semantic-model.mjs` from the project root, which exists only in the Agent Kit repository, so every `/run-plan` tick close and `/run-plan-all` queue end printed a stack trace and never bumped the Field Report cadence. It now loads the module from the installed `@dadado/agent-kit-cli` package (found through the `agent-kit` on your PATH, then `npm root -g`). When no installed CLI has the module, or the CLI is older than the script, it prints one warning line and exits 0, skipping the cadence step.
+- `agent-kit conflicts` keeps the base of a conflict when git folded two nearby conflicts into one hunk, for example two changed lines with only a blank line between them. The base now comes from the index stages, matched by content, instead of `base from none`, so Colony's conflict window shows its base pane for that file too. A hunk edited since the merge still gets no base.
+- Hooks no longer fail silently when the `agent-kit` on your PATH is found but cannot run, such as a mise shim with no agent-kit installed for the Node version active in that workspace. The hook adapters used to hand over to that CLI, so it exited 1 with only an error on stderr: Cursor got no session context and ran shell commands with the guard off, without saying so. Now every Cursor hook exits 0 with its fail-open answer. The session start explains that hooks run in degraded mode, names the CLI path that failed and how to fix it (install the CLI for that Node, then `mise reshim`, or add it to the project). The shell guard allows the command and says it is inactive. In Claude Code the SessionStart hook prints its degraded-mode text in this case too, and names the cause once `agent-kit update --claude` refreshes `.claude/settings.json`; the Bash guard hook stays silent there and never auto-approves a command. Working CLIs answer exactly as before, and the CLI still runs once per hook call.
+
 ## [6.19.1] - 2026-11-18
 
 ### Fixed

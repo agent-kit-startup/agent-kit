@@ -11,9 +11,12 @@ if ! resolve_agent_kit; then
 fi
 # An older preserved resolver has no run_agent_kit; exec its command prefix.
 if command -v run_agent_kit >/dev/null 2>&1; then
-  # run_agent_kit returns 1 (no exec) when the CLI is a node script and node is missing.
+  AGENT_KIT_RUN_FAILURE=""
+  # run_agent_kit exits with the CLI's status once the CLI answered. It returns 1
+  # when node is missing for a node script, or when the CLI exited non-zero with
+  # no stdout; AGENT_KIT_RUN_FAILURE says which (an older resolver leaves it empty).
   run_agent_kit guard shell --json || {
-    printf '%s\n' '{"permission":"allow","agent_message":"agent-kit guard inactive: node not found for the resolved CLI"}'
+    printf '{"permission":"allow","agent_message":"agent-kit guard inactive: %s"}\n' "${AGENT_KIT_RUN_FAILURE:-node not found for the resolved CLI}"
     exit 0
   }
 fi

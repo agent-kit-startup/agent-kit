@@ -59,12 +59,13 @@ const proposeCommand = defineCommand({
     verify: {
       type: "boolean",
       description:
-        "Verify the resolved file in a temporary worktree (stack.validationCommands and stack.testCommands from HEAD's .cursor/agent-kit.config.json); --no-verify skips. The proposal is code: verification runs it",
+        "Verify the resolved file in a temporary worktree: runs stack.validationCommands and stack.testCommands from HEAD's .cursor/agent-kit.config.json (or --verify-cmd) on the model's text and the files the merge brought in, before anyone has reviewed them, unsandboxed, as you, with your environment and network; --no-verify skips",
       default: true,
     },
     "verify-cmd": {
       type: "string",
-      description: "Shell command to verify with instead of the configured ones",
+      description:
+        "Shell command to verify with instead of the configured ones. The temporary worktree has no dependencies installed: on a Node repository put the install first, e.g. --verify-cmd 'pnpm install --frozen-lockfile --prefer-offline && pnpm test' (npm: 'npm ci --prefer-offline && npm test'); a failed verification without node_modules prints the one for your lockfile and commands",
     },
     "verify-timeout": {
       type: "string",

@@ -53,10 +53,13 @@
  * `$0` is the shell, not the script (a user's exported `AGENT_KIT_ROOT` is
  * not read, so it cannot redirect the Cursor adapters).
  *
- * Fail-open: `exec` replaces the shell process on success, so the trailing
+ * Fail-open: once the CLI answers, `run_agent_kit` exits with its status (the
+ * older resolver's `exec` replaced the shell the same way), so the trailing
  * `printf` degraded-mode diagnostic only runs when resolution fails or
- * `run_agent_kit` returns non-zero (e.g. node missing for a dist-only CLI);
- * either way the command's own exit status is 0.
+ * `run_agent_kit` returns non-zero: node missing for a dist-only CLI, or a CLI
+ * that exited non-zero with no stdout (a mise shim with no agent-kit for the
+ * active Node). The `printf` then appends the resolver's reason, which names the
+ * resolved path, and the command's own exit status is 0.
  */
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -84,12 +87,13 @@ export const RESOLVE_AGENT_KIT_REL = ".cursor/hooks/agent/resolve-agent-kit.sh";
 export const SESSION_START_HOOK_MARKER = "hook session-start --format claude";
 
 export const SESSION_START_DEGRADED_TEXT =
-  "Agent Kit hooks are running in degraded fail-open mode: the agent-kit CLI could not be resolved (checked AGENT_KIT_HOOK_BIN, node_modules/.bin/agent-kit, PATH), or it resolved to a node script and node is not on PATH. Slash command adapters still work; session-context injection is inactive. Fix: install the CLI (npm i -D @dadado/agent-kit-cli), put node on PATH, or set AGENT_KIT_HOOK_BIN.";
+  "Agent Kit hooks are running in degraded fail-open mode: the agent-kit CLI could not be resolved (checked AGENT_KIT_HOOK_BIN, node_modules/.bin/agent-kit, PATH), it resolved to a node script and node is not on PATH, or it ran and exited non-zero with no output (a mise or asdf shim does this when the Node version active in this workspace has no agent-kit installed). Slash command adapters still work; session-context injection and the Bash shell guard are inactive. Fix: install the CLI (npm i -D @dadado/agent-kit-cli, or npm i -g @dadado/agent-kit-cli then mise reshim under mise), put node on PATH, or set AGENT_KIT_HOOK_BIN.";
 
 export function buildSessionStartHookCommand(): string {
   // run_agent_kit quotes args (repo paths with spaces); an older resolver lacks it.
   const run = `{ if command -v run_agent_kit >/dev/null 2>&1; then run_agent_kit ${SESSION_START_HOOK_MARKER}; else exec $AGENT_KIT_RESOLVED ${SESSION_START_HOOK_MARKER}; fi; }`;
-  return `_AGENT_KIT_HOOK_ROOT="\${CLAUDE_PROJECT_DIR}"; . "\${CLAUDE_PROJECT_DIR}/${RESOLVE_AGENT_KIT_REL}" 2>/dev/null && resolve_agent_kit && ${run}; printf '%s' ${shellSingleQuote(SESSION_START_DEGRADED_TEXT)}`;
+  // AGENT_KIT_RUN_FAILURE is cleared first so only this run's resolver reason is printed.
+  return `_AGENT_KIT_HOOK_ROOT="\${CLAUDE_PROJECT_DIR}"; AGENT_KIT_RUN_FAILURE=; . "\${CLAUDE_PROJECT_DIR}/${RESOLVE_AGENT_KIT_REL}" 2>/dev/null && resolve_agent_kit && ${run}; printf '%s%s' ${shellSingleQuote(SESSION_START_DEGRADED_TEXT)} "\${AGENT_KIT_RUN_FAILURE:+ Cause: $AGENT_KIT_RUN_FAILURE.}"`;
 }
 
 /** Present in every kit-generated PreToolUse(Bash) command; identifies the kit-owned group for merge/idempotency. */
@@ -97,10 +101,13 @@ export const GUARD_SHELL_HOOK_MARKER = "guard shell --format claude";
 
 /**
  * PreToolUse command: same resolver chain as SessionStart, but NO trailing
- * degraded-text `printf`: PreToolUse stdout must be at most one JSON object,
- * so fail-open here means empty stdout and exit 0. `exec` replaces the shell on
- * success, so the trailing `:` only runs when resolution fails or `run_agent_kit`
- * returns non-zero, and forces exit 0 there.
+ * degraded-text `printf`: PreToolUse stdout must be at most one JSON object and
+ * the hook never answers `allow` (ADR 2026-08-13, Amend 2026-09-27), so
+ * fail-open here means empty stdout and exit 0; the SessionStart text carries
+ * the notice. `run_agent_kit` exits with the CLI's status once the CLI answered,
+ * so the trailing `:` only runs when resolution fails or `run_agent_kit` returns
+ * non-zero (node missing, or a CLI that exited non-zero with no stdout), and
+ * forces exit 0 there.
  */
 export function buildGuardShellHookCommand(): string {
   const run = `{ if command -v run_agent_kit >/dev/null 2>&1; then run_agent_kit ${GUARD_SHELL_HOOK_MARKER}; else exec $AGENT_KIT_RESOLVED ${GUARD_SHELL_HOOK_MARKER}; fi; }`;

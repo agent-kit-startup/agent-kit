@@ -38,24 +38,63 @@ resolve_agent_kit() {
   return 1
 }
 
-# Exec the resolved CLI with quoted arguments, so a repo path with spaces works.
-# Returns 1 (no exec) when a node script resolved but node is missing: exec of a
-# missing binary would exit a non-interactive shell before any fail-open fallback.
+# Run the resolved CLI with quoted arguments, so a repo path with spaces works.
+# On success it prints the CLI's stdout byte for byte and exits with the CLI's
+# status, like the exec it replaces: nothing after the call runs. It returns 1
+# instead, and sets AGENT_KIT_RUN_FAILURE (a JSON-string-safe reason), when the
+# CLI cannot answer the hook:
+# - node is missing for a node script or a node shim (no run at all);
+# - the CLI ran but exited non-zero with nothing on stdout (AGENT_KIT_RUN_EXIT
+#   holds the status): a mise or asdf shim with no agent-kit for the Node active
+#   in this workspace prints only to stderr and exits 1.
+# The caller then prints its own fail-open answer. No extra probe spawn per call.
 run_agent_kit() {
+  AGENT_KIT_RUN_FAILURE=""
+  AGENT_KIT_RUN_EXIT=""
   if [ -n "${AGENT_KIT_RESOLVED_SCRIPT:-}" ]; then
-    command -v node >/dev/null 2>&1 || return 1
-    exec node "$AGENT_KIT_RESOLVED_SCRIPT" "$@"
+    if ! command -v node >/dev/null 2>&1; then
+      AGENT_KIT_RUN_FAILURE="node not found for the resolved CLI"
+      return 1
+    fi
+    _ak_bin=$AGENT_KIT_RESOLVED_SCRIPT
+    set -- node "$AGENT_KIT_RESOLVED_SCRIPT" "$@"
+  else
+    # A shim that finds node through PATH (`#!/usr/bin/env node`, or a pnpm/cmd-shim
+    # `#!/bin/sh` wrapper that runs `exec node ...`) would run and then exit 127
+    # with no output, so require node on PATH for those. An absolute interpreter
+    # (`#!/opt/homebrew/bin/node`) does not need PATH and runs as before.
+    _ak_bin=$AGENT_KIT_RESOLVED
+    [ -f "$_ak_bin" ] || _ak_bin=$(command -v "$_ak_bin" 2>/dev/null) || _ak_bin=""
+    if [ -n "$_ak_bin" ] && head -n 20 "$_ak_bin" 2>/dev/null |
+      grep -Eq '^#![[:space:]]*[^[:space:]]*/env([[:space:]]+-S)?[[:space:]]+node([[:space:]]|$)|exec[[:space:]]+node[[:space:]]'; then
+      # A pnpm/cmd-shim wrapper runs its sibling "$basedir/node" first when present.
+      if ! command -v node >/dev/null 2>&1 && ! [ -x "$(dirname "$_ak_bin")/node" ]; then
+        AGENT_KIT_RUN_FAILURE="node not found for the resolved CLI"
+        return 1
+      fi
+    fi
+    set -- "$AGENT_KIT_RESOLVED" "$@"
   fi
-  # A shim that finds node through PATH (`#!/usr/bin/env node`, or a pnpm/cmd-shim
-  # `#!/bin/sh` wrapper that runs `exec node ...`) would exec fine and then exit 127
-  # with no output, so require node on PATH for those. An absolute interpreter
-  # (`#!/opt/homebrew/bin/node`) does not need PATH and execs as before.
-  _ak_bin=$AGENT_KIT_RESOLVED
-  [ -f "$_ak_bin" ] || _ak_bin=$(command -v "$_ak_bin" 2>/dev/null) || _ak_bin=""
-  if [ -n "$_ak_bin" ] && head -n 20 "$_ak_bin" 2>/dev/null |
-    grep -Eq '^#![[:space:]]*[^[:space:]]*/env([[:space:]]+-S)?[[:space:]]+node([[:space:]]|$)|exec[[:space:]]+node[[:space:]]'; then
-    # A pnpm/cmd-shim wrapper runs its sibling "$basedir/node" first when present.
-    command -v node >/dev/null 2>&1 || [ -x "$(dirname "$_ak_bin")/node" ] || return 1
+  # The trailing x keeps trailing newlines that $(...) would strip (a Claude
+  # PreToolUse allow is zero bytes, a Cursor answer ends in a newline). The ||
+  # and if forms read the status without tripping a caller's set -e.
+  if _ak_out=$(
+    _ak_rc=0
+    "$@" || _ak_rc=$?
+    printf x
+    exit "$_ak_rc"
+  ); then _ak_rc=0; else _ak_rc=$?; fi
+  _ak_out=${_ak_out%x}
+  if [ "$_ak_rc" -ne 0 ] && [ -z "$_ak_out" ]; then
+    AGENT_KIT_RUN_EXIT=$_ak_rc
+    _ak_where=${_ak_bin:-$AGENT_KIT_RESOLVED}
+    # Name the path only when it is safe inside a JSON string.
+    case $_ak_where in
+      *\"* | *\\* | *[[:cntrl:]]*) _ak_where="" ;;
+    esac
+    AGENT_KIT_RUN_FAILURE="the resolved CLI ${_ak_where:+$_ak_where }exited $_ak_rc with no output"
+    return 1
   fi
-  exec "$AGENT_KIT_RESOLVED" "$@"
+  printf '%s' "$_ak_out"
+  exit "$_ak_rc"
 }

@@ -96,3 +96,37 @@ export async function conflictedRepo(opts: { conflictStyle?: "merge" | "diff3" }
   if (code === 0) throw new Error("fixture merge did not conflict");
   return { dir, root };
 }
+
+/**
+ * A repository mid-merge where git folds two conflicts into one hunk: both
+ * sides changed `app.conf` on two lines separated by one blank line, so the
+ * default `merge` style writes a single two-way hunk whose sides carry the
+ * blank line, while `git merge-file --diff3` keeps two hunks.
+ */
+export async function coalescedRepo() {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "agent-kit-conflicts-coalesced-"));
+  const root = path.join(dir, "repo");
+  await mkdir(root);
+  git(root, "init", "-q", "-b", "main");
+  git(root, "config", "merge.conflictStyle", "merge");
+  await commitFiles(
+    root,
+    { "app.conf": "name = colony\nport = 8080\n\nmode = dev\nlevel = 1\n" },
+    "base: app.conf",
+  );
+  git(root, "checkout", "-q", "-b", "feature");
+  await commitFiles(
+    root,
+    { "app.conf": "name = colony\nport = 9090\n\nmode = prod\nlevel = 1\n" },
+    "feat: prod on 9090",
+  );
+  git(root, "checkout", "-q", "main");
+  await commitFiles(
+    root,
+    { "app.conf": "name = colony\nport = 7070\n\nmode = test\nlevel = 1\n" },
+    "fix: test on 7070",
+  );
+  const code = gitCode(root, "merge", "--no-ff", "feature");
+  if (code === 0) throw new Error("fixture merge did not conflict");
+  return { dir, root };
+}

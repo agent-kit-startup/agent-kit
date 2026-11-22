@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "checked": "2026-11-22",
+  "copySources": {
+    "suite": "https://missionkit.io/ meta description, Colony renamed Outpost (2026-11-21); the CLI name follows plan missionkit-rename-2026-11-22",
+    "outpost": "https://colony.missionkit.io/ meta description, renamed Outpost (2026-11-21)",
+    "oligarchy": "https://oligarchy.missionkit.io/ meta description, Colony renamed Outpost (2026-11-21)"
+  },
+  "names": {
+    "suite": {
+      "handles": [
+        "missionkit",
+        "missionkitio",
+        "missionkithq"
+      ],
+      "displayName": "Mission Kit",
+      "shortBio": "Open-source suite for long-term projects with your own coding agents: Outpost, Mission Control, the Agent Kit CLI and the Oligarchy game.",
+      "longBio": "Mission Kit is a suite for developing and maintaining long-term projects with your own coding agents: Outpost for Linux, Mission Control for IDE, Agent Kit CLI and the Oligarchy game. Open source under Apache-2.0.",
+      "links": [
+        "https://missionkit.io",
+        "https://github.com/agent-kit-startup/agent-kit"
+      ],
+      "avatar": ".claude-plugin/icon.png",
+      "banner": "https://missionkit.io/assets/og-cover.png"
+    },
+    "outpost": {
+      "handles": [
+        "outpost",
+        "outposthde",
+        "missionkitoutpost"
+      ],
+      "displayName": "Outpost",
+      "shortBio": "Hybrid development environment for Linux with project management and DevOps built in. Alpha. Part of Mission Kit.",
+      "longBio": "Outpost is a hybrid development environment built on a Rust core and Tauri 2, with project management and DevOps built in. Alpha for Linux. Part of Mission Kit.",
+      "links": [
+        "https://colony.missionkit.io",
+        "https://github.com/agent-kit-startup/colony"
+      ],
+      "avatar": "https://colony.missionkit.io/assets/colony-icon.svg",
+      "banner": "https://colony.missionkit.io/assets/og-cover.png"
+    },
+    "oligarchy": {
+      "handles": [
+        "oligarchy",
+        "oligarchygame",
+        "playoligarchy"
+      ],
+      "displayName": "Oligarchy",
+      "shortBio": "A strategy game that runs beside Outpost. The work you ship rebuilds a grey planet and holds it against the Oligarchy.",
+      "longBio": "A strategy game that runs beside Outpost. The work you ship rebuilds a grey planet and holds it against the Oligarchy. Part of Mission Kit.",
+      "links": [
+        "https://oligarchy.missionkit.io"
+      ],
+      "avatar": "https://missionkit.io/assets/suite/icon-oligarchy-md.svg",
+      "banner": "https://oligarchy.missionkit.io/assets/og-cover.png"
+    }
+  }
+}

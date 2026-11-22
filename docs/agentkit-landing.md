@@ -162,10 +162,11 @@ pnpm landing:rollback [release]                # root only
 - **Staging** is a path-checked per-file upload into `staging/` (generated noindex
   `.htaccess` and `Disallow: /` robots.txt, never part of `dist/`).
 - **Promote** zips the staging-validated `dist/` plus the generated production root files
-  and calls the Hostinger deploy trigger: `.htaccess` (security headers only: HSTS
-  `max-age=31536000` without `includeSubDomains`/`preload`, `nosniff`,
+  and calls the Hostinger deploy trigger: `.htaccess` (security headers and page
+  revalidation only: HSTS `max-age=31536000` without `includeSubDomains`/`preload`, `nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` for camera,
-  microphone and geolocation, `DirectoryIndex index.html`; no CSP and no rewrites, because
+  microphone and geolocation, `Cache-Control: no-cache` for `*.html` (see Page and component
+  headers), `DirectoryIndex index.html`; no CSP and no rewrites, because
   every subdomain directory under `public_html` inherits it), `robots.txt` (allow all,
   `Sitemap:`), `sitemap.xml` (the root URL only) and `llms.txt`. The deploy trigger
   **replaces the root's files** with the archive (a file the archive does not carry is gone:
@@ -348,6 +349,34 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   (`g4-site-wire`). With it on, the Briefing and the `Resources gone` screen show Open in
   Colony next to the install line, the Briefing offers the trial below it, and the HUD badge
   reopens the Briefing.
+- **Colony page links to Oligarchy and the `?colony` signal** (operator, 2026-11-18). On the
+  Colony page the hero menu, dock and mobile sheet "Oligarchy" links open
+  `https://oligarchy.missionkit.io/` (the game's home), and "Play Oligarchy" opens
+  `https://oligarchy.missionkit.io/game/?colony`. On the Game page, `?colony` reopens the
+  Briefing for a visitor who already landed, with Open in Colony and the install line: it sets
+  the same `briefAgain` flag as the HUD badge, so Land closes the card as usual. It counts only
+  in the top window and outside live mode, so the Landing's `#demo` frame, Colony's own frame
+  and the live game behave as before. `?colony` is a page signal, never a parameter on
+  `colony://play`. Both are kit transforms until a Design export carries them
+  (`COLONY_OLIGARCHY_LINKS`, `COLONY_ENTRY_SIGNAL`; requests in
+  `landing-colony/UPSTREAM-DESIGN-FIX-PROMPT.md` and
+  `landing-oligarchy/UPSTREAM-DESIGN-FIX-PROMPT-colony-entry-2026-11-19.md`). The Colony
+  prompt has no suffix, so `landing:sync --site colony` refuses until its boxes are checked.
+- **Stylesheet versions.** Linked stylesheets (the Home's `_ds/` CSS, `colony-ui.css`,
+  `oligarchy-hud.css`; the Agent Kit landing's `assets/agent-kit-landing.css`) keep their
+  paths, and every `<link rel="stylesheet">` to them (static or snapshot head and the runtime
+  `<helmet>`) gets `?v=<content hash>`, like `dc-logic.js`. The host sends CSS with
+  `max-age=7d` and a promote does not purge the CDN: on 2026-11-18 the old
+  `oligarchy-hud.css` stayed live after v6.19.0 until a manual `hosting_cache_clear`. The build
+  fails if a local stylesheet is still linked without `?v=`.
+- **Kit scripts.** A page row's `kitScripts` lists repo files the build ships at the site root
+  and loads before the page's runtime, with a `?v=<content hash>` like `dc-logic.js` (the host
+  sends `max-age=7d`). The Game page loads `scripts/landing/oligarchy-live.js`: inside Colony's
+  frame it asks Colony for the ADR 2026-11-17 game data, checks it and exposes
+  `window.OligarchyLive` (status `off`, `waiting`, `live`, `empty` or `unavailable`); outside a
+  frame, or framed by the site itself (the landing's demo), it stays `off`. The page reads it
+  once the Design export applies `UPSTREAM-DESIGN-FIX-PROMPT-live-2026-11-18.md`; until then
+  the script loads and nothing reads it. Tests: `scripts/oligarchy-live.test.mjs`.
 - **Redirects** come from the site table: `Redirect 302` for a prefix (colony
   `/install.sh`), `RedirectMatch 302 ^…$` for an exact path (`exact: true`, no site uses
   it today). Serve answers them locally and verify checks each one against the resolved
@@ -366,17 +395,21 @@ pnpm landing:promote -- --site colony --yes-production   # operator yes only
   to `<lane>/releases/`. The `agent` site (`agent-staging/`, `agent/`) uses this same
   per-file path. `landing:rollback` is root-only and refuses `--site agent|colony|oligarchy`;
   roll those back by re-promoting a known-good build.
-- **Component headers.** Every generated subdomain `.htaccess` (staging and production,
-  `htaccessContent`) carries a `<FilesMatch "\.dc\.html$">` block for `<dc-import>`
+- **Page and component headers.** Every generated `.htaccess` (subdomains on staging and
+  production through `htaccessContent`, and the root through `rootHtaccessContent`) sends
+  `Cache-Control: no-cache` for pages (`<FilesMatch "\.html$">`: `index.html`, `<route>.html`).
+  A page names its runtime and stylesheets by `?v=<content hash>`, so the browser revalidates
+  the page (ETag / Last-Modified, a 304 when unchanged) and keeps the hashed files for the
+  host's 7 days; with heuristic caching an old page could keep requesting the previous build's
+  files. Every generated subdomain `.htaccess` also carries a `<FilesMatch "\.dc\.html$">` block for `<dc-import>`
   components. `Header set Cache-Control "no-cache"` makes the browser revalidate the component
   (ETag / Last-Modified) on every load: it is fetched without `?v=`, while `dc-logic.js?v=<hash>`
   changes with each build, so a heuristically cached template could otherwise meet new logic.
   Production adds `Header set X-Robots-Tag "noindex"`, because a component opened alone renders
   a broken page; staging already sends `noindex, nofollow` site-wide. Built pages are
-  `index.html` or `<route>.html`, never `*.dc.html`, so they stay indexable, and the pages
-  themselves send no `Cache-Control`. The root `.htaccess` (`rootHtaccessContent`) has no such
-  block: the Home ships no component today, and the subdomains do not inherit the root headers.
-  A Home export that adds a `<dc-import>` needs the block there too.
+  `index.html` or `<route>.html`, never `*.dc.html`, so they stay indexable. The root
+  `.htaccess` (`rootHtaccessContent`) has no component block: the Home ships no component
+  today. A Home export that adds a `<dc-import>` needs the block there too.
 - **Untrusted export.** Sync refuses a zip with symlink entries, or more than 512 MB / 4000
   entries to extract (the Agent Kit landing's whole-zip sync runs the same name and symlink checks). Assets must
   be static media (png, jpg, webp, gif, svg, ico, mp4, webm, woff2, ttf, css, json; no

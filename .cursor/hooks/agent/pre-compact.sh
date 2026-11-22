@@ -10,7 +10,8 @@ if ! resolve_agent_kit; then
 fi
 # An older preserved resolver has no run_agent_kit; exec its command prefix.
 if command -v run_agent_kit >/dev/null 2>&1; then
-  # run_agent_kit returns 1 (no exec) when the CLI is a node script and node is missing.
+  # run_agent_kit returns 1 when node is missing for the resolved CLI or the CLI
+  # exited non-zero with no stdout; otherwise it exits with the CLI's status.
   run_agent_kit hook pre-compact || {
     printf '%s\n' '{}'
     exit 0

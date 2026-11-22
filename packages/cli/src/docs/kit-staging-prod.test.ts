@@ -102,7 +102,15 @@ describe("docs-contract: kit-staging / kit-prod wrap native git", () => {
       expect(body).toMatch(/public-changelog\.mjs --version <X\.Y\.Z> --blurb/);
       expect(body).toMatch(/Do not invent a second updater/);
       expect(body).toMatch(/landing:build/);
-      expect(body.split("\n").length).toBeLessThan(130);
+      expect(body).toMatch(/publish-oligarchy-engine/);
+      expect(body).toMatch(/^## 6\. After Done$/m);
+      expect(body).toMatch(/^### Store refresh$/m);
+      expect(body).toMatch(/never gate Done, never reopen it/);
+      expect(body).toMatch(/not live \(<date>\): <reason>/);
+      expect(body).toMatch(/^### Release mirror$/m);
+      expect(body).toMatch(/release-mirror\.mjs --version X\.Y\.Z/);
+      // 130 until §6 After Done (Store refresh, 2026-11-21: 129 -> 153 lines; Release mirror, 2026-11-22: -> 157).
+      expect(body.split("\n").length).toBeLessThan(160);
     },
   );
 

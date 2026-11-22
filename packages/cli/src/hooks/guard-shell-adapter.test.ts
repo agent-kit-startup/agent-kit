@@ -35,6 +35,32 @@ describe(".cursor/hooks/agent/guard-shell.sh", () => {
     });
   });
 
+  it("passes the CLI's answer through byte for byte with its exit status", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "agent-kit-guard-shell-bytes-"));
+    const hookDir = path.join(root, ".cursor", "hooks", "agent");
+    await mkdir(hookDir, { recursive: true });
+    for (const name of ["guard-shell.sh", "resolve-agent-kit.sh"]) {
+      await copyFile(path.join(repoRoot, ".cursor/hooks/agent", name), path.join(hookDir, name));
+    }
+    const bin = path.join(root, "node_modules", ".bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(
+      path.join(bin, "agent-kit"),
+      '#!/bin/sh\ncat >/dev/null\nprintf \'{"permission":"deny"}\\n\\n\'\nexit 3\n',
+    );
+    await chmod(path.join(bin, "agent-kit"), 0o755);
+
+    const result = spawnSync("sh", [path.join(hookDir, "guard-shell.sh")], {
+      cwd: root,
+      env: { PATH: "/usr/bin:/bin", HOME: root },
+      input: '{"command":"ls"}',
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(3);
+    expect(result.stdout).toBe('{"permission":"deny"}\n\n');
+  });
+
   it("ignores an exported AGENT_KIT_ROOT (only the Claude hook's private root is honored)", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "agent-kit-guard-shell-envroot-"));
     const hookDir = path.join(root, ".cursor", "hooks", "agent");

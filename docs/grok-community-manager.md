@@ -18,7 +18,7 @@ Related: [comms hub](comms.md), [channel map](comms-channel-map.md), [calendar](
 **Never (hard rules, same as the comms loop):**
 
 - No autonomous posting or replying on any network. `--publish`-style paths fail closed.
-- No Discord/Slack presence until an operator-owned workspace exists ([channel map](comms-channel-map.md) says defer).
+- No Discord/Slack presence until an operator-owned workspace exists (the [channel map](comms-channel-map.md) includes Discord; the server is not created yet).
 - No posting in GitHub Discussions (not enabled per `.github/SUPPORT.md`).
 - No claims beyond the newest closed `CHANGELOG.md` version live on npm and missionkit.io.
 - No paid ads, no Cursor Marketplace submit, no npm/CLI rename to Mission Kit.
@@ -69,7 +69,7 @@ The bot process is operator-owned and runs outside this repo (a small script, an
 | `MISSION_KIT_COMMS_X_BEARER` | X API read (mentions) and human-driven post | no (Live Search can cover reads) | yes, if the human posts via API |
 | `GITHUB_TOKEN` (fine-grained, public repo, read + issues) | Issue/PR triage | only for GitHub duty | yes, for label writes |
 
-Same rules as the [publish pipeline](comms-publish-pipeline.md): the bot must not print env values; webhooks that post without a recorded HITL decision are forbidden.
+Same rules as the [publish pipeline](comms-publish-pipeline.md): the bot must not print env values; webhooks that post without a recorded HITL decision are forbidden. The release mirror exception there does not extend to this bot: everything it drafts keeps the per-post Ask.
 
 ### 3. System prompt
 
