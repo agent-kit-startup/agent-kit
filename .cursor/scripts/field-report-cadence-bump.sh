@@ -53,12 +53,58 @@ fi
 
 node --input-type=module - "$ROOT" "$ACTION" "$LEDGER_REL" "$CONFIG" "$SURVIVAL" <<'NODE'
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { delimiter, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const [root, action, ledgerRel, configPath, survivalFlag] = process.argv.slice(2);
-const sm = await import(pathToFileURL(join(root, "dashboard/lib/semantic-model.mjs")).href);
+
+// semantic-model.mjs lives in the repo only in the factory; consumers get it
+// inside the installed @dadado/agent-kit-cli package (files: dashboard).
+const SM_REL = join("dashboard", "lib", "semantic-model.mjs");
+function findUp(start, levels) {
+  let dir = start;
+  for (let i = 0; i <= levels; i++) {
+    const candidate = join(dir, SM_REL);
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+function fromAgentKitBinary() {
+  for (const dir of (process.env.PATH || "").split(delimiter)) {
+    if (!dir) continue;
+    const bin = join(dir, "agent-kit");
+    if (!existsSync(bin)) continue;
+    try {
+      const found = findUp(dirname(realpathSync(bin)), 3);
+      if (found) return found;
+    } catch {}
+  }
+  return null;
+}
+function fromNpmGlobalRoot() {
+  try {
+    const npmRoot = execFileSync("npm", ["root", "-g"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const candidate = join(npmRoot, "@dadado", "agent-kit-cli", SM_REL);
+    return npmRoot && existsSync(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+const smPath = [join(root, SM_REL)].find((p) => existsSync(p)) || fromAgentKitBinary() || fromNpmGlobalRoot();
+if (!smPath) {
+  console.error(
+    `warning: field-report cadence skipped (${action}): ${SM_REL} not found in the repo or the installed @dadado/agent-kit-cli package; install or update the CLI`,
+  );
+  process.exit(0);
+}
+const sm = await import(pathToFileURL(smPath).href);
 const {
   parseCadenceLedger,
   serializeCadenceLedger,
@@ -75,6 +121,19 @@ const {
   parseExternalReport,
   EXTERNAL_REPORT_FILE_RE,
 } = sm;
+const SM_REQUIRED = [
+  "parseCadenceLedger", "serializeCadenceLedger", "parseFieldReportReviewCadenceConfig",
+  "listUnreviewedReviewTargets", "attachTodoEvidenceRefs", "classifyOwedPlan", "planDeliveryRefs",
+  "resolvePlanLifecycle", "recordCadenceTickClose", "recordCadenceBatchComplete", "clearCadenceWarning",
+  "parseHandoffMarkdown", "parseExternalReport", "EXTERNAL_REPORT_FILE_RE",
+];
+const smMissing = SM_REQUIRED.filter((name) => sm[name] === undefined);
+if (smMissing.length) {
+  console.error(
+    `warning: field-report cadence skipped (${action}): ${smPath} lacks ${smMissing.join(", ")}; update the agent-kit CLI to match this script`,
+  );
+  process.exit(0);
+}
 
 function readJson(path) {
   if (!existsSync(path)) return null;

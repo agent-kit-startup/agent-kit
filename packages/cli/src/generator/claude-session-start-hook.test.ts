@@ -76,7 +76,65 @@ describe("buildSessionStartHookCommand", () => {
       encoding: "utf8",
     });
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe(SESSION_START_DEGRADED_TEXT);
+    expect(result.stdout).toBe(
+      `${SESSION_START_DEGRADED_TEXT} Cause: node not found for the resolved CLI.`,
+    );
+  });
+
+  // A mise or asdf shim with no agent-kit for the active Node: stderr only, exit 1.
+  const brokenCli = '#!/bin/sh\necho "agent-kit is not provided by the active node" >&2\nexit 1\n';
+  // The SessionStart command before the resolver stopped exec'ing (still in consumers'
+  // settings.json until `update --claude` refreshes it).
+  const previousSessionStartCommand = `_AGENT_KIT_HOOK_ROOT="\${CLAUDE_PROJECT_DIR}"; . "\${CLAUDE_PROJECT_DIR}/.cursor/hooks/agent/resolve-agent-kit.sh" 2>/dev/null && resolve_agent_kit && { if command -v run_agent_kit >/dev/null 2>&1; then run_agent_kit hook session-start --format claude; else exec $AGENT_KIT_RESOLVED hook session-start --format claude; fi; }; printf '%s' 'previous degraded text'`;
+
+  const setupPathCli = async (cli: string) => {
+    const resolver = await readFile(
+      path.join(repoRoot, ".cursor/hooks/agent/resolve-agent-kit.sh"),
+      "utf8",
+    );
+    const project = await mkdtemp(path.join(tmpdir(), "ak-claude-hook-broken-"));
+    await mkdir(path.join(project, ".cursor/hooks/agent"), { recursive: true });
+    await writeFile(path.join(project, ".cursor/hooks/agent/resolve-agent-kit.sh"), resolver);
+    const bin = path.join(project, "shims");
+    await mkdir(bin, { recursive: true });
+    await writeFile(path.join(bin, "agent-kit"), cli);
+    await chmod(path.join(bin, "agent-kit"), 0o755);
+    const env: NodeJS.ProcessEnv = {
+      PATH: `${bin}:/usr/bin:/bin`,
+      HOME: project,
+      CLAUDE_PROJECT_DIR: project,
+    };
+    return { project, bin, env };
+  };
+
+  it("names the resolved path and exits 0 when the CLI exits 1 with stderr only", async () => {
+    const { project, bin, env } = await setupPathCli(brokenCli);
+    const result = spawnSync("sh", ["-c", buildSessionStartHookCommand()], {
+      cwd: project,
+      env,
+      encoding: "utf8",
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe(
+      `${SESSION_START_DEGRADED_TEXT} Cause: the resolved CLI ${path.join(bin, "agent-kit")} exited 1 with no output.`,
+    );
+  });
+
+  it("passes the CLI's stdout through byte for byte, with no degraded text, under the previous command too", async () => {
+    const { project, env } = await setupPathCli("#!/bin/sh\nprintf 'context\\n\\n'\n");
+    for (const command of [buildSessionStartHookCommand(), previousSessionStartCommand]) {
+      const result = spawnSync("sh", ["-c", command], { cwd: project, env, encoding: "utf8" });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe("context\n\n");
+    }
+    const broken = await setupPathCli(brokenCli);
+    const previous = spawnSync("sh", ["-c", previousSessionStartCommand], {
+      cwd: broken.project,
+      env: broken.env,
+      encoding: "utf8",
+    });
+    expect(previous.status).toBe(0);
+    expect(previous.stdout).toBe("previous degraded text");
   });
 
   it("runs the resolved CLI with quoted args, and still runs with an older resolver", async () => {
@@ -85,7 +143,7 @@ describe("buildSessionStartHookCommand", () => {
       "utf8",
     );
     // An older resolver (no run_agent_kit) that a consumer kept customized.
-    const oldResolver = newResolver.replace(/\n# Exec the resolved CLI[\s\S]*$/, "\n");
+    const oldResolver = newResolver.replace(/\n# Run the resolved CLI[\s\S]*$/, "\n");
     expect(oldResolver).not.toContain("run_agent_kit()");
 
     const setup = async (resolver: string) => {
@@ -582,7 +640,7 @@ describe("buildGuardShellHookCommand end-to-end (sh -c, PreToolUse stdin)", () =
   });
 
   it("older resolver without run_agent_kit: same single deny JSON object", async () => {
-    const oldResolver = (await readResolver()).replace(/\n# Exec the resolved CLI[\s\S]*$/, "\n");
+    const oldResolver = (await readResolver()).replace(/\n# Run the resolved CLI[\s\S]*$/, "\n");
     expect(oldResolver).not.toContain("run_agent_kit()");
     expectSingleDeny(run(await setup(oldResolver, "repo")));
   });
@@ -594,6 +652,28 @@ describe("buildGuardShellHookCommand end-to-end (sh -c, PreToolUse stdin)", () =
     expect(
       spawnSync("sh", ["-c", "command -v agent-kit"], { env, encoding: "utf8" }).status,
     ).not.toBe(0); // precondition
+    const result = run(project);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("CLI exits 1 with stderr only (mise shim): exit 0 and empty stdout, never an allow", async () => {
+    const project = await setup(await readResolver());
+    await writeFile(
+      path.join(project, "node_modules/.bin/agent-kit"),
+      '#!/bin/sh\necho "agent-kit is not provided by the active node" >&2\nexit 1\n',
+    );
+    const result = run(project);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("CLI allow (exit 0, empty stdout) stays zero bytes", async () => {
+    const project = await setup(await readResolver());
+    await writeFile(
+      path.join(project, "node_modules/.bin/agent-kit"),
+      "#!/bin/sh\ncat >/dev/null\n",
+    );
     const result = run(project);
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("");

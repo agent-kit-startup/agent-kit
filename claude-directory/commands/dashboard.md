@@ -6,16 +6,16 @@ description: "Open Mission Control in your browser: the plans, runs, health and 
 
 ## Goal
 
-Start (or reuse) Mission Control for **this workspace only**, then open the printed URL in **one** browser target: the IDE browser MCP (required path below). Do not open Chrome, Safari, Firefox, or other external browsers in addition. Preferred OS browser applies only when the operator runs `agent-kit dashboard` / `npm run dashboard` without `--no-open`.
+Start (or reuse) Mission Control for **this workspace only**, then open the printed URL in **one** browser target: the IDE browser MCP (required path below). Never open an external browser in addition. Preferred OS browser applies only when the operator runs `agent-kit dashboard` / `npm run dashboard` without `--no-open`.
 
 Local-dev only. Read-only. No HITL gate unless `missionControl.preferredBrowser` is unset/`ask` and the operator wants to persist a preference (optional Ask; see step 4).
 
-**Terminal / IDE-agnostic invoke:** `agent-kit dashboard` or `npx @dadado/agent-kit-cli dashboard` from the workspace cwd (ships `dashboard/start.mjs` since 4.8.2). Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root.
+**Terminal / IDE-agnostic invoke:** `agent-kit dashboard` from the workspace cwd (ships `dashboard/start.mjs` since 4.8.2; no CLI yet: install instructions at https://agent.missionkit.io/). Fallbacks: env `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `node "$KIT_ROOT/dashboard/start.mjs"` with `MISSION_CONTROL_REPO_ROOT` set to this git root.
 
 ## When to Use
 
 - Inspect plans / HANDOFF / git / memory for **the open workspace**
-- Reload the panel after plan or HANDOFF changes (run this command again; starter reuses the same port when already up)
+- Reload the panel after plan or HANDOFF changes (run this command again: same port, see step 2)
 - Several workspaces open: each keeps its **own** instance and port. Never expect one shared `:3333` for every project.
 
 ## What to Do (required order)
@@ -69,19 +69,19 @@ Running this again in the same repo is the **reload** path: same URL, same insta
 In a **separate** shell call:
 
 ```bash
-curl -sf "${MC_URL}dashboard-data.json" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{const j=JSON.parse(d); console.log(j.system?.repoRoot, j.system?.port)})'
+curl -sf "${MC_URL}dashboard-data.json" | grep -o '"repoRoot": *"[^"]*"'
 ```
 
 `system.repoRoot` must equal `SNAPSHOT_ROOT`. If it does not, do not open that URL; re-run step 2 and use the new printed URL.
 
 ### 4. Open the panel (single path)
 
-**Invariant:** open **at most one** browser surface. Never launch multiple external browsers.
+**Invariant:** open **at most one** browser surface.
 
 1. Optional Ask (only when `.cursor/context/config.json` → `missionControl.preferredBrowser` is missing, null, or `"ask"`, and the operator may want a saved OS preference for CLI opens): labels `Keep IDE browser only` / `Remember preferred browser for CLI` / `Skip open`. If they pick remember, set `missionControl.preferredBrowser` to an app name (e.g. `Google Chrome`) or leave null for OS default on future CLI opens. Slash `/dashboard` itself still uses the IDE MCP path below (not a second OS open).
 2. Name the single browser MCP for **this** IDE lane, not one fixed tool id: Cursor → `cursor-ide-browser`; Claude Code → the Claude in Chrome extension. That MCP → `browser_navigate` (or its lane's equivalent) with `newTab: true` and the **printed** `MC_URL` (**only** this navigate; do not also run `open` / `xdg-open` / MCP + OS).
 3. If result is `chrome-error://chromewebdata/`: connection refused; fix step 2/3, then navigate **once** more (still a single surface). If instead the extension renders its own **error page** (not `chrome-error://chromewebdata/`) while step 3's `curl` already returned HTTP 200: this is a **site-permission** failure, not a dead server — see the Troubleshooting row below. Do not spend the one retry on it; a repeat navigate cannot grant the permission.
-4. Copy the URL for the operator (`pbcopy` on macOS). Mention Simple Browser as a **manual** fallback for the human, not as a second agent-driven open.
+4. Copy the URL for the operator (`pbcopy` on macOS). In Cursor the panel opens as an editor tab: split it right to keep it beside the code (Agents Window: a pane beside the chat). Simple Browser is a **manual** human fallback, never a second agent open.
 
 ### 5. Verify
 
@@ -115,6 +115,6 @@ Wait for the `Live` badge (~3–5s) or curl the JSON again. Header should show t
 | `chrome-error://chromewebdata/` | Server not listening on that URL | Re-run starter; navigate again |
 | Browser MCP shows its own error page while `curl "${MC_URL}"` returns 200 | Extension lacks site permission for `127.0.0.1` / loopback (private-network handling varies by extension) | Do **not** retry navigate — a permission gap does not clear on repeat. Check the browser MCP's loopback/site permission for this origin; if it cannot be granted from here, copy the URL (`pbcopy`) and hand it to the operator to open manually. Dogfood: `dogfood/cursor_dashboard_claude_code_browser_mcp_error_page_2026_09_11.md`. |
 | `PORT … will not kill another workspace` | Explicit `PORT` held by another root | `unset PORT` and re-run starter |
-| `No dashboard/start.mjs found` | Consumer-only tree | Set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or `npx @dadado/agent-kit-cli@latest dashboard` |
+| `No dashboard/start.mjs found` | Consumer-only tree | Set `MISSION_CONTROL_KIT_ROOT` / `AGENT_KIT_HOME`, sibling `../agent-kit`, or upgrade the CLI (install instructions: https://agent.missionkit.io/) and run `agent-kit dashboard` |
 | `403 Forbidden` on CLI package fetch | Registry auth policy or private scope | `npm login`, check `.npmrc`, or use env/sibling fallback |
 | Empty skeletons | Cold snapshot | Wait for `Live` |

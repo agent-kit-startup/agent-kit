@@ -46,6 +46,7 @@ Two views of the same state, both named Mission Control:
 
 - **Terminal TUI:** `npx @dadado/agent-kit-cli mission-control`. Live in a TTY (`q` or Ctrl-C quits); `--once` for a single frame. It reads the same data as the browser dashboard and does not start an HTTP server. On a color TTY, field labels use the muted visual-kit token and status values use the dashboard green / yellow / red / cyan tokens; `NO_COLOR`, `CI`, and non-TTY frames stay uncolored.
 - **Browser:** `npx @dadado/agent-kit-cli dashboard` (or `/dashboard` from chat). Binds to `127.0.0.1` by default. To share on your LAN, use `dashboard-broadcast` with its required token.
+  In Cursor, `/dashboard` opens the panel once, as a tab in Cursor's own browser inside the editor area. Split that tab right to keep Mission Control beside your code; in the Agents Window it opens as a pane beside the chat.
 
 The browser dashboard ships inside the CLI package since 4.8.2. The install does not copy a `dashboard/` folder into your project; that is expected.
 

@@ -10,6 +10,8 @@ import { conflictedRepo, GIT_ENV, git, writeFiles } from "./fixture.test-helpers
 import { parseConflictText } from "./markers.js";
 import {
   buildProposePrompt,
+  dependencyNote,
+  installStep,
   outsideHunksUnchanged,
   parseProposalReply,
   reviewProposals,
@@ -309,6 +311,39 @@ describe("runConflictsPropose", () => {
     expect(r.result?.verification.notes.join(" ")).toMatch(/other unresolved paths/);
   });
 
+  it("names a ready --verify-cmd when verification fails with no node_modules, and only then", async () => {
+    const { root } = await repoWithCommand();
+    await writeFiles(root, {
+      "package.json": "{}\n",
+      "pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+    });
+    const verify = (cmd: string) =>
+      runConflictsPropose({
+        root,
+        path: "src/app.txt",
+        backendId: "claude",
+        bin: "claude",
+        env: ENV,
+        verifyCommands: [cmd],
+        dispatch: async () => ({ exitCode: 0, lastResult: turn(reply) }),
+        log: () => undefined,
+      });
+    const recipe = /--verify-cmd/;
+    const failed = await verify("test -d node_modules/left-pad");
+    expect(failed.result?.verification.status).toBe("failed");
+    expect(failed.result?.verification.notes).toContain(
+      "dependencies are not installed in the temporary worktree (no node_modules), so a failure may come from that; to install first: --verify-cmd 'pnpm install --frozen-lockfile --prefer-offline && test -d node_modules/left-pad'",
+    );
+    // Passed: nothing to explain.
+    const passed = await verify("test -f pnpm-lock.yaml");
+    expect(passed.result?.verification.status).toBe("passed");
+    expect(passed.result?.verification.notes.join(" ")).not.toMatch(recipe);
+    // The recipe followed: the command installs first, so node_modules exists when it fails.
+    const installed = await verify("mkdir node_modules && test -d node_modules/left-pad");
+    expect(installed.result?.verification.status).toBe("failed");
+    expect(installed.result?.verification.notes.join(" ")).not.toMatch(recipe);
+  });
+
   it("skips verification with --no-verify and reports not-run with no configured command", async () => {
     const { root } = await repoWithCommand();
     const skipped = await runConflictsPropose({
@@ -377,5 +412,28 @@ describe("runConflictsPropose", () => {
     expect(r.exitCode).toBe(0);
     expect(r.prompt).toMatch(/BEGIN CONFLICT PACK [0-9a-f]{24}/);
     expect(r.prompt).not.toContain(SECRET);
+  });
+});
+
+describe("installStep and dependencyNote", () => {
+  it("picks the install from the lockfile, frozen and cache-first", () => {
+    expect(installStep(new Set(["pnpm-lock.yaml", "package-lock.json"]))).toBe(
+      "pnpm install --frozen-lockfile --prefer-offline",
+    );
+    expect(installStep(new Set(["package-lock.json"]))).toBe("npm ci --prefer-offline");
+    expect(installStep(new Set(["npm-shrinkwrap.json"]))).toBe("npm ci --prefer-offline");
+    expect(installStep(new Set(["yarn.lock"]))).toBe(
+      "yarn install --frozen-lockfile --prefer-offline",
+    );
+    expect(installStep(new Set())).toBeNull();
+  });
+
+  it("joins the install and the verification commands into one quoted --verify-cmd", () => {
+    expect(dependencyNote(new Set(["package-lock.json"]), ["npm run lint", "npm test"])).toMatch(
+      / --verify-cmd 'npm ci --prefer-offline && npm run lint && npm test'$/,
+    );
+    expect(dependencyNote(new Set(), ["grep -q 'x' a.txt"])).toMatch(
+      / --verify-cmd '<your install command> && grep -q '\\''x'\\'' a.txt'$/,
+    );
   });
 });
