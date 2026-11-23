@@ -1,8 +1,9 @@
 /**
  * Model roles: the `roles` key of `.cursor/context/config.json` (worker,
  * subworker, reviewer) and its resolution against CLI flags and plan
- * frontmatter. Proposed ADR 2026-11-16_model-roles-config-contract.md;
- * capability evidence in docs/model-roles-capability-matrix.md.
+ * frontmatter. ADR 2026-11-16_model-roles-config-contract.md; reviewer
+ * model rule in ADR 2026-11-16_reviewer-same-family-rule.md; capability
+ * evidence in docs/model-roles-capability-matrix.md.
  *
  * With no `roles` key and no plan override every command keeps its old
  * default. A bad value stops the run (usage error) instead of running the
@@ -385,8 +386,168 @@ export function describeResolvedRoles(input: {
   return `roles: worker ${input.backendId} (${input.backendSource}), model ${model}${sub}`;
 }
 
+/** Effective reviewer role: when a review runs and with which backend and model. */
+export interface ResolvedReviewer {
+  /** `off` (no review), `tick` (review job after each headless tick) or `plan` (audits path). */
+  scope: ReviewerScope;
+  /** Which key decided on/off: `roles.reviewer`, legacy `externalPlanReview.enabled`, or neither. */
+  source: "roles" | "externalPlanReview" | "default";
+  backend?: (typeof REVIEWER_BACKENDS)[number];
+  model?: string;
+  advisorModel?: string;
+}
+
+/**
+ * Resolve `roles.reviewer` against the legacy `externalPlanReview.enabled`
+ * (ADR model roles point 8). `enabled: false` or `scope: "off"` turns review
+ * off and wins over the legacy key; an absent `enabled` falls back to the
+ * legacy key; an absent `scope` is `plan`. With no `roles.reviewer` the result
+ * is the legacy behavior (`plan` when `externalPlanReview.enabled` is true).
+ */
+export function resolveReviewerRole(
+  roles: ModelRoles | undefined,
+  externalPlanReview?: unknown,
+): ResolvedReviewer {
+  const r = roles?.reviewer;
+  const legacyOn = isPlainObject(externalPlanReview) && externalPlanReview.enabled === true;
+  const fields = {
+    ...(r?.backend ? { backend: r.backend } : {}),
+    ...(r?.model ? { model: r.model } : {}),
+    ...(r?.advisorModel ? { advisorModel: r.advisorModel } : {}),
+  };
+  if (r?.enabled === false || r?.scope === "off") {
+    return { scope: "off", source: "roles", ...fields };
+  }
+  const on = r?.enabled === true || legacyOn;
+  const source = r?.enabled === true ? "roles" : legacyOn ? "externalPlanReview" : "default";
+  if (!on) return { scope: "off", source, ...fields };
+  return { scope: r?.scope ?? "plan", source, ...fields };
+}
+
+/** How a reviewer model relates to the implementer model (ADR reviewer same-family rule). */
+export type ReviewModelRelation = "identical" | "same-family" | "different";
+
+/**
+ * Fold a model id for the identical-model compare: lower case, no
+ * whitespace, no bracket parameter (`opus[1m]` is `opus`); empty and the
+ * Auto spellings are `auto`. Mirrors `normalize_model_id` in
+ * `.cursor/scripts/plan-external-review.sh` (parity test).
+ */
+export function normalizeReviewModelId(raw: string | undefined): string {
+  const id = (raw ?? "").toLowerCase().replace(/\s+/g, "").replace(/\[.*$/, "");
+  if (id === "" || id === "auto" || id === "cursor-auto" || id === "cursorauto" || id === "default")
+    return "auto";
+  return id;
+}
+
+/** Family prefixes, same table as `normalize_model_family` in the audits launcher. */
+const FAMILY_PATTERNS: readonly (readonly [string, RegExp])[] = [
+  [
+    "haiku",
+    /^(haiku|claude-haiku|claude-3-haiku.*|claude-3\.5-haiku.*|claude-3-5-haiku.*|claude-haiku-.*|claude-4-haiku.*|claude-4\.5-haiku.*)$/,
+  ],
+  [
+    "opus",
+    /^(opus|claude-opus|claude-3-opus.*|claude-opus-.*|claude-4-opus.*|claude-4\.5-opus.*)$/,
+  ],
+  [
+    "sonnet",
+    /^(sonnet|claude-sonnet|claude-3-sonnet.*|claude-3\.5-sonnet.*|claude-3-5-sonnet.*|claude-3-7-sonnet.*|claude-sonnet-.*|claude-4-sonnet.*|claude-4\.5-sonnet.*)$/,
+  ],
+  ["fable", /^(fable|claude-fable|claude-fable-.*)$/],
+  ["composer", /^(composer|composer-.*|cursor-composer.*)$/],
+  ["grok", /^(grok|grok-.*)$/],
+];
+
+/** Model family of an id (`opus`, `sonnet`, `haiku`, `fable`, `composer`, `grok`, `auto`), else the folded id. */
+export function reviewModelFamily(raw: string | undefined): string {
+  const id = normalizeReviewModelId(raw);
+  for (const [family, pattern] of FAMILY_PATTERNS) if (pattern.test(id)) return family;
+  return id;
+}
+
+function isFamilyAlias(id: string, family: string): boolean {
+  return id === family || id === `claude-${family}` || id === `cursor-${family}`;
+}
+
+/**
+ * The reviewer rule (ADR 2026-11-16_reviewer-same-family-rule): the identical
+ * model is refused (same folded id, Auto/Auto, or a family alias against any
+ * id of that family, because the alias may resolve to it); two different full
+ * ids of one family run with a warning; different families run.
+ */
+export function reviewModelRelation(
+  implementer: string | undefined,
+  reviewer: string | undefined,
+): ReviewModelRelation {
+  const a = normalizeReviewModelId(implementer);
+  const b = normalizeReviewModelId(reviewer);
+  if (a === b) return "identical";
+  const fa = reviewModelFamily(a);
+  const fb = reviewModelFamily(b);
+  if (fa !== fb) return "different";
+  if (isFamilyAlias(a, fa) || isFamilyAlias(b, fb)) return "identical";
+  return "same-family";
+}
+
+/** One line for a refused identical-model review (never a silent self-review). */
+export function describeIdenticalReviewModel(implementer: string, reviewer: string): string {
+  return `reviewer model ${reviewer} is the implementer model (${implementer}): identical-model review is refused, Auto/Auto and a family alias against an id of that family included. This is not a silent self-review; set roles.reviewer.model to a different model`;
+}
+
+/** One warning line for a same-family reviewer that runs. */
+export function describeSameFamilyReviewModel(implementer: string, reviewer: string): string {
+  return `reviewer model ${reviewer} and implementer model ${implementer} are the same family (${reviewModelFamily(reviewer)}): the review runs, as a second read by a different model of one family`;
+}
+
+export interface ResolvedReviewJob {
+  /** Requested backend (`auto` or an id); the caller runs detection on it. */
+  backend: string;
+  model?: string;
+  backendSource: "flag" | "config" | "default";
+  modelSource?: "flag" | "config";
+  /** Set when the reviewer model is the implementer model: the caller refuses the run. */
+  refusal?: string;
+  /** Set when reviewer and implementer are different models of one family. */
+  warning?: string;
+}
+
+/**
+ * Backend and model of the standalone review job (`agent-kit run review-pack`,
+ * `countdown --job review`): flag > `roles.reviewer` > `auto`. A config model
+ * rides only on the config or default backend (ADR model roles point 3). The
+ * reviewer rule applies when both the reviewer model and `roles.worker.model`
+ * are known; with neither key set nothing changes.
+ */
+export function resolveReviewJobRole(input: {
+  flagBackend?: string;
+  flagModel?: string;
+  roles?: ModelRoles;
+}): ResolvedReviewJob {
+  const flagBackend = input.flagBackend?.trim() ?? "";
+  const flagModel = input.flagModel?.trim() ?? "";
+  const reviewer = input.roles?.reviewer;
+  const backend = flagBackend || reviewer?.backend || "auto";
+  const backendSource = flagBackend ? "flag" : reviewer?.backend ? "config" : "default";
+  const model = flagModel || (flagBackend ? "" : (reviewer?.model ?? ""));
+  const out: ResolvedReviewJob = {
+    backend,
+    backendSource,
+    ...(model ? { model, modelSource: flagModel ? ("flag" as const) : ("config" as const) } : {}),
+  };
+  const implementer = input.roles?.worker?.model;
+  if (model && implementer) {
+    const relation = reviewModelRelation(implementer, model);
+    if (relation === "identical") out.refusal = describeIdenticalReviewModel(implementer, model);
+    else if (relation === "same-family") {
+      out.warning = describeSameFamilyReviewModel(implementer, model);
+    }
+  }
+  return out;
+}
+
 export type LoadRolesResult =
-  | { ok: true; roles: ModelRoles; plan: PlanRoleOverrides }
+  | { ok: true; roles: ModelRoles; plan: PlanRoleOverrides; reviewer: ResolvedReviewer }
   | { ok: false; error: string };
 
 /** Validate the plan frontmatter overrides with the same rules as config (ADR point 5). */
@@ -423,5 +584,10 @@ export async function loadRolesContext(root: string, usePlan: boolean): Promise<
       if (problem) return { ok: false, error: `${planPath}: ${problem}` };
     }
   }
-  return { ok: true, roles: parsed.roles, plan };
+  return {
+    ok: true,
+    roles: parsed.roles,
+    plan,
+    reviewer: resolveReviewerRole(parsed.roles, config?.externalPlanReview),
+  };
 }

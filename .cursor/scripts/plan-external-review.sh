@@ -66,12 +66,23 @@
 #     usable, else cursor-agent. Existing config with missing backend stays claude.
 #     cloud is an opt-in pin only (Cursor Cloud Agents over REST); it is never in the
 #     auto cascade. cursor reviews the working tree; cloud reviews the PUSHED branch.
-#   --reviewer-model NAME: reviewer model id (default sonnet / config reviewerModel).
+#   --reviewer-model NAME: reviewer model id (default sonnet / config roles.reviewer.model,
+#     then externalPlanReview.reviewerModel).
 #   --prompt-file PATH: repo-relative reviewer prompt markdown. Default remains
 #     .cursor/context/templates/plan-external-review-prompt.md (findings audit).
 #   --advisor-model NAME: escalate-only advisor (default opus / config advisorModel).
-#   --implementer-model NAME: stamp the model that shipped the tick (default auto /
-#     AGENT_KIT_AUDIT_IMPLEMENTER_MODEL). Same-family reviewer is refused.
+#   --implementer-model NAME: stamp the model that shipped the tick (default: config
+#     roles.worker.model, then AGENT_KIT_AUDIT_IMPLEMENTER_MODEL, then auto). The identical
+#     model is refused as reviewer (same id, Auto/Auto, or a family alias against an id of
+#     that family); a different model of the same family runs with one warning line
+#     (ADR 2026-11-16_reviewer-same-family-rule).
+#
+# Reviewer role (config roles.reviewer, ADR 2026-11-16_model-roles-config-contract):
+#   enabled false or scope "off" turns the review off and wins over
+#   externalPlanReview.enabled; scope "tick" moves the review to the headless runner's
+#   post-tick review job, so this launcher does not arm; enabled true with scope "plan"
+#   (or no scope) arms it like externalPlanReview.enabled. backend, model and advisorModel
+#   are read before the externalPlanReview keys. --force still arms one review.
 #
 # Progress gate (post-spawn PTY activity):
 #   A successful spawn is a launch, not a running review. After an autonomous background
@@ -158,7 +169,7 @@
 #                                     files past their deadline to status timeout).
 #   AGENT_KIT_AUDIT_FOCUS_TERMINAL    1/true: rollback to OS Terminal activate / emulator focus.
 #   AGENT_KIT_AUDIT_IMPLEMENTER_MODEL model id that shipped the tick (stamp only; no secrets).
-#   AGENT_KIT_AUDIT_REVIEWER_MODEL    override reviewer model id (default sonnet).
+#   AGENT_KIT_AUDIT_REVIEWER_MODEL    override reviewer model id (before config; default sonnet).
 #   CURSOR_API_KEY                    SECRET. Cursor user/service-account key, required by
 #                                     backend=cloud only. Read from the environment; never
 #                                     echoed, logged, put on a command line, or written to
@@ -228,6 +239,8 @@ ADVISOR_MODEL=""
 ADVISOR_MODEL_EXPLICIT=0
 IMPLEMENTER_MODEL_EXPLICIT=0
 SAME_MODEL_REFUSE=0
+SAME_FAMILY_WARN=0
+SAME_FAMILY_NOTE=""
 ADVISOR_ESCALATE_SENTINEL="<!-- audits-advisor-escalate -->"
 # Post-spawn PTY activity gate grace window (seconds). 0 disables.
 PROGRESS_TIMEOUT=60
@@ -590,6 +603,24 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# roles.reviewer turned the launcher off (enabled false / scope off) or moved the review
+# to the post-tick job (scope tick). $1 = off | tick.
+tip_roles_reviewer() {
+  if [[ "$1" == "tick" ]]; then
+    cat <<EOF
+tip: roles.reviewer.scope is "tick": reviews run after each headless tick (agent-kit run-plan,
+  countdown), not at plan exhaustion. No plan audit was armed.
+  One-shot plan audit: $LAUNCHER_REL --force --autonomous
+EOF
+    return
+  fi
+  cat <<EOF
+tip: the reviewer role is off (roles.reviewer.enabled false or scope "off" in
+  .cursor/context/config.json). It wins over externalPlanReview.enabled. No review was armed.
+  One-shot plan audit: $LAUNCHER_REL --force --autonomous
+EOF
+}
+
 tip_enable() {
   cat <<EOF
 tip: audits (external plan review) are opt-in and currently disabled (or config missing).
@@ -675,7 +706,8 @@ tip: missing $TEMPLATE_REL - external plan review skipped (no-op).
 EOF
 }
 
-# Returns 0 only when externalPlanReview.enabled === true.
+# Returns 0 when the plan audit is on: roles.reviewer first (enabled false, scope "off"
+# or scope "tick" => off; enabled true => on), else externalPlanReview.enabled === true.
 config_enabled() {
   if [[ ! -f "$CONFIG" ]]; then
     return 1
@@ -685,6 +717,11 @@ config_enabled() {
       const fs = require("fs");
       try {
         const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        const r = j && j.roles && typeof j.roles === "object" ? j.roles.reviewer : null;
+        if (r && typeof r === "object") {
+          if (r.enabled === false || r.scope === "off" || r.scope === "tick") process.exit(1);
+          if (r.enabled === true) process.exit(0);
+        }
         process.exit(j && j.externalPlanReview && j.externalPlanReview.enabled === true ? 0 : 1);
       } catch {
         process.exit(1);
@@ -698,6 +735,13 @@ import json, sys
 try:
     with open(sys.argv[1], encoding="utf-8") as f:
         j = json.load(f)
+    roles = j.get("roles")
+    r = roles.get("reviewer") if isinstance(roles, dict) else None
+    if isinstance(r, dict):
+        if r.get("enabled") is False or r.get("scope") in ("off", "tick"):
+            sys.exit(1)
+        if r.get("enabled") is True:
+            sys.exit(0)
     sys.exit(0 if j.get("externalPlanReview", {}).get("enabled") is True else 1)
 except Exception:
     sys.exit(1)
@@ -705,7 +749,11 @@ PY
     return $?
   fi
   if command -v jq >/dev/null 2>&1; then
-    [[ "$(jq -r '.externalPlanReview.enabled // false' "$CONFIG" 2>/dev/null || echo false)" == "true" ]]
+    [[ "$(jq -r '(.roles.reviewer? // {}) as $r
+      | if ($r | type) != "object" then (.externalPlanReview.enabled == true)
+        elif $r.enabled == false or $r.scope == "off" or $r.scope == "tick" then false
+        elif $r.enabled == true then true
+        else (.externalPlanReview.enabled == true) end' "$CONFIG" 2>/dev/null || echo false)" == "true" ]]
     return $?
   fi
   echo "tip: cannot parse $CONFIG (need node, python3, or jq). Treating as disabled." >&2
@@ -1511,17 +1559,81 @@ config_review_string() {
   echo "$default"
 }
 
+# Prints a model id from roles.<role>.<key> (worker.model, reviewer.model,
+# reviewer.advisorModel), or $3 when missing/invalid. Same id shape the CLI accepts.
+config_roles_string() {
+  local role="$1"
+  local key="$2"
+  local default="$3"
+  if [[ ! -f "$CONFIG" ]]; then
+    echo "$default"
+    return
+  fi
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      const [file, role, key, fallback] = process.argv.slice(1);
+      try {
+        const j = JSON.parse(fs.readFileSync(file, "utf8"));
+        const r = j && j.roles && typeof j.roles === "object" ? j.roles[role] : null;
+        const v = r && typeof r === "object" ? r[key] : null;
+        const ok = typeof v === "string" && /^[A-Za-z0-9._:\/+=,\[\]-]{1,128}$/.test(v.trim());
+        process.stdout.write(ok ? v.trim() : fallback);
+      } catch {
+        process.stdout.write(fallback);
+      }
+    ' "$CONFIG" "$role" "$key" "$default"
+    return
+  fi
+  echo "$default"
+}
+
+# Prints off | tick | "" for the roles.reviewer switch (tip text only; config_enabled gates).
+# tick only when the review is on (roles.reviewer.enabled, else externalPlanReview.enabled):
+# a scope alone runs nothing, so the generic opt-in tip applies.
+config_roles_reviewer_state() {
+  if [[ ! -f "$CONFIG" ]] || ! command -v node >/dev/null 2>&1; then
+    return 0
+  fi
+  node -e '
+    const fs = require("fs");
+    try {
+      const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const r = j && j.roles && typeof j.roles === "object" ? j.roles.reviewer : null;
+      if (!r || typeof r !== "object") process.exit(0);
+      const on =
+        r.enabled === true ||
+        (r.enabled === undefined && j.externalPlanReview && j.externalPlanReview.enabled === true);
+      if (r.enabled === false || r.scope === "off") process.stdout.write("off");
+      else if (r.scope === "tick" && on) process.stdout.write("tick");
+    } catch {}
+  ' "$CONFIG"
+}
+
+# Fold a model id for the identical-model compare: lower case, no whitespace, no bracket
+# parameter (opus[1m] is opus); empty and the Auto spellings are auto.
+normalize_model_id() {
+  local raw
+  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  raw="${raw%%\[*}"
+  case "$raw" in
+    ""|auto|cursor-auto|cursorauto|default)
+      printf '%s' "auto"
+      ;;
+    *)
+      printf '%s' "$raw"
+      ;;
+  esac
+}
+
 # Collapse vendor aliases to a family id for implementer≠reviewer compare.
 normalize_model_family() {
   local raw
-  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-  if [[ -z "$raw" ]]; then
-    printf '%s' "auto"
-    return
-  fi
+  # Empty and the Auto spellings arrive folded to auto and fall through the default arm.
+  raw="$(normalize_model_id "${1:-}")"
   case "$raw" in
-    auto|cursor-auto|cursorauto|default)
-      printf '%s' "auto"
+    fable|claude-fable|claude-fable-*)
+      printf '%s' "fable"
       ;;
     haiku|claude-haiku|claude-3-haiku*|claude-3.5-haiku*|claude-3-5-haiku*|claude-haiku-*|claude-4-haiku*|claude-4.5-haiku*)
       printf '%s' "haiku"
@@ -1548,13 +1660,44 @@ models_same_family() {
   [[ "$(normalize_model_family "$1")" == "$(normalize_model_family "$2")" ]]
 }
 
+# True when the folded id $1 is a bare alias of family $2 (opus, claude-opus, cursor-composer).
+model_is_family_alias() {
+  [[ "$1" == "$2" || "$1" == "claude-$2" || "$1" == "cursor-$2" ]]
+}
+
+# Prints identical | same-family | different for an implementer/reviewer pair
+# (ADR 2026-11-16_reviewer-same-family-rule). identical: same folded id, Auto/Auto, or a
+# family alias against any id of that family (the alias may resolve to it). same-family:
+# two different full ids of one family. Mirrors reviewModelRelation in
+# packages/cli/src/plan-loop/model-roles.ts (parity test).
+review_model_relation() {
+  local a b fa fb
+  a="$(normalize_model_id "${1:-}")"
+  b="$(normalize_model_id "${2:-}")"
+  if [[ "$a" == "$b" ]]; then
+    printf '%s' "identical"
+    return
+  fi
+  fa="$(normalize_model_family "$a")"
+  fb="$(normalize_model_family "$b")"
+  if [[ "$fa" != "$fb" ]]; then
+    printf '%s' "different"
+    return
+  fi
+  if model_is_family_alias "$a" "$fa" || model_is_family_alias "$b" "$fb"; then
+    printf '%s' "identical"
+    return
+  fi
+  printf '%s' "same-family"
+}
+
 # Runtime reviewer id. Cursor cannot honor Claude-family names; those collapse to auto.
 effective_reviewer_model() {
   local named="${REVIEWER_MODEL:-sonnet}"
   # Cloud Agents run Cursor models: a Claude-family reviewerModel is not honorable there,
   # so the configured cloud model id is the honest stamp for implementer≠reviewer.
   if [[ "${REVIEWER_BACKEND:-}" == "cloud" ]]; then
-    if [[ "$REVIEWER_MODEL_EXPLICIT" -eq 1 && "$(normalize_model_family "$named")" != "haiku" && "$(normalize_model_family "$named")" != "opus" && "$(normalize_model_family "$named")" != "sonnet" ]]; then
+    if [[ "$REVIEWER_MODEL_EXPLICIT" -eq 1 && "$(normalize_model_family "$named")" != "haiku" && "$(normalize_model_family "$named")" != "opus" && "$(normalize_model_family "$named")" != "sonnet" && "$(normalize_model_family "$named")" != "fable" ]]; then
       printf '%s' "$named"
       return
     fi
@@ -1565,7 +1708,7 @@ effective_reviewer_model() {
     local fam
     fam="$(normalize_model_family "$named")"
     case "$fam" in
-      haiku|opus|sonnet)
+      haiku|opus|sonnet|fable)
         printf '%s' "auto"
         return
         ;;
@@ -1576,13 +1719,23 @@ effective_reviewer_model() {
 
 tip_same_model() {
   cat <<EOF
-tip: implementer and reviewer are the same model family (${WAIT_IMPLEMENTER_MODEL:-auto} / ${WAIT_REVIEWER_MODEL:-auto}).
-  Same-model review is refused (including Auto/Auto). This is not a silent self-review.
-  Stamp a different --implementer-model or AGENT_KIT_AUDIT_IMPLEMENTER_MODEL, or set
-  --reviewer-model / reviewerModel to a different id (Claude default is sonnet).
+tip: implementer and reviewer are the identical model (${WAIT_IMPLEMENTER_MODEL:-auto} / ${WAIT_REVIEWER_MODEL:-auto}).
+  Same-model review is refused (including Auto/Auto, and a family alias such as opus
+  against any id of that family). This is not a silent self-review.
+  A different model of the same family is allowed and runs with one warning line.
+  Stamp a different --implementer-model (default: roles.worker.model, then
+  AGENT_KIT_AUDIT_IMPLEMENTER_MODEL), or set --reviewer-model / roles.reviewer.model /
+  reviewerModel to a different id (Claude default is sonnet).
   Cursor fallback cannot honor a Claude-family reviewerModel; runtime is Auto unless
   you pass a named Cursor model. Distinct from the Cursor tick API/usage-limit hard-stop.
 EOF
+}
+
+# One warning line when the reviewer is a different model of the implementer's family.
+warn_same_family() {
+  if [[ "$SAME_FAMILY_WARN" -eq 1 ]]; then
+    echo "warning: reviewer ${WAIT_REVIEWER_MODEL:-auto} and implementer ${WAIT_IMPLEMENTER_MODEL:-auto} are the same model family ($(normalize_model_family "${WAIT_REVIEWER_MODEL:-auto}")); the review runs as a second read by a different model."
+  fi
 }
 
 resolve_review_models() {
@@ -1590,14 +1743,20 @@ resolve_review_models() {
     if [[ -n "${AGENT_KIT_AUDIT_REVIEWER_MODEL:-}" ]]; then
       REVIEWER_MODEL="$AGENT_KIT_AUDIT_REVIEWER_MODEL"
     else
-      REVIEWER_MODEL="$(config_review_string reviewerModel sonnet)"
+      # roles.reviewer.model > externalPlanReview.reviewerModel > sonnet.
+      REVIEWER_MODEL="$(config_roles_string reviewer model "$(config_review_string reviewerModel sonnet)")"
     fi
   fi
   if [[ "$ADVISOR_MODEL_EXPLICIT" -eq 0 ]]; then
-    ADVISOR_MODEL="$(config_review_string advisorModel opus)"
+    ADVISOR_MODEL="$(config_roles_string reviewer advisorModel "$(config_review_string advisorModel opus)")"
   fi
   if [[ "$IMPLEMENTER_MODEL_EXPLICIT" -eq 0 ]]; then
-    if [[ -n "${AGENT_KIT_AUDIT_IMPLEMENTER_MODEL:-}" ]]; then
+    # roles.worker.model > AGENT_KIT_AUDIT_IMPLEMENTER_MODEL > resumed stamp > auto.
+    local roles_worker_model
+    roles_worker_model="$(config_roles_string worker model "")"
+    if [[ -n "$roles_worker_model" ]]; then
+      WAIT_IMPLEMENTER_MODEL="$roles_worker_model"
+    elif [[ -n "${AGENT_KIT_AUDIT_IMPLEMENTER_MODEL:-}" ]]; then
       WAIT_IMPLEMENTER_MODEL="$AGENT_KIT_AUDIT_IMPLEMENTER_MODEL"
     elif [[ -z "${WAIT_IMPLEMENTER_MODEL:-}" ]]; then
       WAIT_IMPLEMENTER_MODEL="auto"
@@ -1607,15 +1766,25 @@ resolve_review_models() {
     WAIT_IMPLEMENTER_MODEL="auto"
   fi
   WAIT_REVIEWER_MODEL="$(effective_reviewer_model)"
-  if models_same_family "$WAIT_IMPLEMENTER_MODEL" "$WAIT_REVIEWER_MODEL"; then
-    SAME_MODEL_REFUSE=1
-  else
-    SAME_MODEL_REFUSE=0
-  fi
+  SAME_MODEL_REFUSE=0
+  SAME_FAMILY_WARN=0
+  SAME_FAMILY_NOTE=""
+  case "$(review_model_relation "$WAIT_IMPLEMENTER_MODEL" "$WAIT_REVIEWER_MODEL")" in
+    identical)
+      SAME_MODEL_REFUSE=1
+      ;;
+    same-family)
+      SAME_FAMILY_WARN=1
+      SAME_FAMILY_NOTE=$'\n'"Same-family note: reviewer and implementer are different models of one family; name both model ids in the monitor header."
+      ;;
+  esac
 }
 
 # Poll-only may resume an already-running review. Dry-run prints the tip and continues.
 enforce_implementer_reviewer_split() {
+  if [[ "$POLL_ONLY" -ne 1 ]]; then
+    warn_same_family
+  fi
   if [[ "$POLL_ONLY" -eq 1 || "$SAME_MODEL_REFUSE" -ne 1 ]]; then
     return 0
   fi
@@ -1637,6 +1806,13 @@ config_review_backend() {
       const fs = require("fs");
       try {
         const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+        // roles.reviewer.backend first (kit id cursor-agent is the launcher id cursor).
+        const r = j && j.roles && typeof j.roles === "object" ? j.roles.reviewer : null;
+        const rb = r && typeof r === "object" ? r.backend : null;
+        if (rb === "auto" || rb === "claude" || rb === "cursor-agent") {
+          process.stdout.write(rb === "cursor-agent" ? "cursor" : rb);
+          process.exit(0);
+        }
         const v = j && j.externalPlanReview && j.externalPlanReview.backend;
         const ok = ["auto", "cursor", "claude", "cloud"];
         process.stdout.write(ok.includes(v) ? v : "claude");
@@ -1787,7 +1963,7 @@ maybe_run_advisor() {
     fi
   done
   [[ "$want" -eq 1 ]] || return 0
-  if models_same_family "${WAIT_IMPLEMENTER_MODEL:-auto}" "${ADVISOR_MODEL:-opus}"; then
+  if [[ "$(review_model_relation "${WAIT_IMPLEMENTER_MODEL:-auto}" "${ADVISOR_MODEL:-opus}")" == "identical" ]]; then
     echo "audits: advisor escalate skipped (advisor-model=${ADVISOR_MODEL:-opus} matches implementer; not a silent self-review)"
     return 0
   fi
@@ -2219,7 +2395,7 @@ Git HEAD: $HEAD_SHA
 Repo root: $ROOT
 autoRemediate (from config): $auto_remediate
 Reviewer model: ${WAIT_REVIEWER_MODEL:-sonnet}
-Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}
+Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}${SAME_FAMILY_NOTE}
 Advisor model (escalate only): ${ADVISOR_MODEL:-opus}
 
 This is a findings-contract against the git delta plus the plan, not a second implement pass.
@@ -2484,7 +2660,7 @@ Git HEAD: $HEAD_SHA
 Repo root: $ROOT
 autoRemediate (from config): $auto_remediate
 Reviewer model: ${WAIT_REVIEWER_MODEL:-sonnet}
-Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}
+Implementer model (stamp): ${WAIT_IMPLEMENTER_MODEL:-auto}${SAME_FAMILY_NOTE}
 Advisor model (escalate only): ${ADVISOR_MODEL:-opus}
 
 This is a findings-contract against the git delta plus each plan, not a second implement pass.
@@ -2694,7 +2870,12 @@ build_triage_paste_line() {
 
 if [[ "$FORCE" -ne 1 ]]; then
   if ! config_enabled; then
-    tip_enable
+    ROLES_REVIEWER_STATE="$(config_roles_reviewer_state)"
+    if [[ -n "$ROLES_REVIEWER_STATE" ]]; then
+      tip_roles_reviewer "$ROLES_REVIEWER_STATE"
+    else
+      tip_enable
+    fi
     exit 0
   fi
 fi
@@ -2851,6 +3032,7 @@ if [[ "$BATCH" -eq 1 ]]; then
   echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
   echo "  prompt-file: $TEMPLATE_REL"
   echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
+  echo "  same-family-warn: $([[ "$SAME_FAMILY_WARN" -eq 1 ]] && echo yes || echo no)"
   echo "  midBatchAudits: $MID_BATCH_AUDITS"
   echo "  autoRemediate: $AUTO_REMEDIATE"
   if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -2959,6 +3141,7 @@ echo "  implementer-model: ${WAIT_IMPLEMENTER_MODEL:-auto}"
 echo "  advisor-model: ${ADVISOR_MODEL:-opus}"
 echo "  prompt-file: $TEMPLATE_REL"
 echo "  same-model-refuse: $([[ "$SAME_MODEL_REFUSE" -eq 1 ]] && echo yes || echo no)"
+echo "  same-family-warn: $([[ "$SAME_FAMILY_WARN" -eq 1 ]] && echo yes || echo no)"
 echo "  midBatchAudits: $MID_BATCH_AUDITS"
 echo "  autoRemediate: $AUTO_REMEDIATE"
 echo "  permission mode: $CLAUDE_PERMISSION_MODE"

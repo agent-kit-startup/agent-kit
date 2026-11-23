@@ -108,6 +108,22 @@ describe("armExternalPlanReview", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("missing"));
   });
 
+  it("passes the tick model as --implementer-model", async () => {
+    const spawnFn = mockSpawn();
+    await armExternalPlanReview("/repo", {
+      implementerModel: " claude-opus-5-5 ",
+      existsFn: async (p) => p.includes(path.join(".cursor", "scripts")),
+      spawnFn: spawnFn as unknown as typeof import("node:child_process").spawn,
+      log: vi.fn(),
+    });
+    expect(spawnFn.mock.calls[0]?.[1]).toEqual([
+      path.join("/repo", canonicalRel),
+      "--print",
+      "--implementer-model",
+      "claude-opus-5-5",
+    ]);
+  });
+
   it("passes --force when force option is true", async () => {
     const log = vi.fn();
     const spawnFn = mockSpawn();

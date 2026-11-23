@@ -161,6 +161,7 @@ export const runPlanCommand = defineCommand({
         roles: rolesCtx.roles,
         backendSource: worker.backendSource,
         ...(worker.modelSource ? { modelSource: worker.modelSource } : {}),
+        reviewer: rolesCtx.reviewer,
       },
       dryRun: Boolean(args["dry-run"]),
       backend,

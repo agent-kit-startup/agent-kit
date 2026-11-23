@@ -32,7 +32,11 @@ import {
   writeGateExitMarker,
 } from "../plan-loop/gate-exit.js";
 import { HITL_UNANSWERED_EXIT_CODE } from "../plan-loop/hitl-relay.js";
-import { loadRolesContext, resolveWorkerRole } from "../plan-loop/model-roles.js";
+import {
+  loadRolesContext,
+  resolveReviewJobRole,
+  resolveWorkerRole,
+} from "../plan-loop/model-roles.js";
 import {
   parseReviewPackMaxBytes,
   REVIEW_BACKENDS,
@@ -412,8 +416,8 @@ export async function executeCountdown(
 
   // Model roles (ADR 2026-11-16): the tick job reads roles.worker and the
   // active plan's worker_backend / worker_model when no flag is given. The
-  // review and dispatch jobs keep the flag or `auto` (the reviewer role is
-  // separate).
+  // review job reads roles.reviewer the same way (flag > config > auto) and
+  // refuses the identical model. The dispatch job keeps the flag or `auto`.
   let backendRequest = input.backend.trim() || "auto";
   let model = input.model?.trim() || undefined;
   const rolesNotes: string[] = [];
@@ -435,6 +439,25 @@ export async function executeCountdown(
         worker.model ? `${worker.model} (${worker.modelSource})` : "backend default"
       }`,
     );
+  } else if (job === "review") {
+    const ctx = await loadRolesContext(root, false);
+    if (!ctx.ok) return usage(ctx.error);
+    const review = resolveReviewJobRole({
+      flagBackend: input.backend,
+      flagModel: input.model,
+      roles: ctx.roles,
+    });
+    if (review.refusal) return usage(review.refusal);
+    backendRequest = review.backend;
+    model = review.model;
+    if (review.warning) rolesNotes.push(`roles: ${review.warning}`);
+    if (review.backendSource === "config" || review.modelSource === "config") {
+      rolesNotes.push(
+        `roles: reviewer ${review.backend} (${review.backendSource}), model ${
+          review.model ? `${review.model} (${review.modelSource})` : "backend default"
+        }`,
+      );
+    }
   }
 
   const detected = await detectAgentBackend(backendRequest, input.whichFn);
@@ -620,7 +643,7 @@ export const countdownCommand = defineCommand({
     },
     backend: {
       type: "string",
-      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: auto; the tick job reads plan worker_backend and config roles.worker first)`,
+      description: `Agent backend (${listDetectBackendIds().join(" | ")}; default: auto; the tick job reads plan worker_backend and config roles.worker first, the review job config roles.reviewer)`,
       default: "",
     },
     model: {

@@ -5,7 +5,8 @@ import { fileExists } from "../utils/fs.js";
 import { ensureLoopLogsDir, runnerStatePaths, STATE_ROOT_ENV } from "../utils/kit-paths.js";
 import { logger } from "../utils/logger.js";
 import { shouldUseVisualMotion, TtySpinner, withCliProgress } from "../welcome/visual-kit.js";
-import type { AgentBackend } from "./backends.js";
+import type { AgentBackend, BackendId } from "./backends.js";
+import { type DetectResult, detectAgentBackend } from "./detect.js";
 import {
   createDriverAnswerReader,
   createDriverEmitter,
@@ -34,11 +35,15 @@ import {
 } from "./hitl-relay.js";
 import {
   CLAUDE_SUBAGENT_MODEL_ENV,
+  describeIdenticalReviewModel,
   describeResolvedRoles,
+  describeSameFamilyReviewModel,
   type ModelRoles,
+  type ResolvedReviewer,
   type RoleSource,
   readPlanRoleOverrides,
   resolveSubworkerModel,
+  reviewModelRelation,
 } from "./model-roles.js";
 import { createPersonaBannerPrinter, loadCliRunPlanPersona } from "./persona-banners.js";
 import { countPendingTodos, readPlan, resolveActivePlanPath } from "./plan-state.js";
@@ -55,6 +60,12 @@ import {
   type QueueLeaseHandle,
   type QueueLeaseProc,
 } from "./queue-lease.js";
+import {
+  REVIEW_BACKENDS,
+  type RunReviewJobInput,
+  type RunReviewJobResult,
+  runReviewJob,
+} from "./review-job.js";
 import {
   formatSentinelLine,
   resolveTickResultStatus,
@@ -106,6 +117,8 @@ export interface RunPlanLoopOptions {
    * Absent = no roles logic (callers that predate the key).
    */
   roles?: RunRolesOptions;
+  /** Test seam for the post-tick review (`roles.reviewer.scope: "tick"`). */
+  tickReview?: TickReviewSeams;
   /**
    * Test seam: plan-writer lease clock, liveness, host and ancestry
    * (queue-lease.ts). The loop holds the workspace lease for the whole run, or
@@ -118,6 +131,17 @@ export interface RunRolesOptions {
   roles: ModelRoles;
   backendSource: RoleSource;
   modelSource?: RoleSource;
+  /**
+   * The resolved reviewer role (`loadRolesContext`). Scope `tick` runs the
+   * review job after each completed tick; absent = no per-tick review.
+   */
+  reviewer?: ResolvedReviewer;
+}
+
+/** Test seams for the post-tick review (defaults: PATH detection and the real review job). */
+export interface TickReviewSeams {
+  detect?: (requested: string) => Promise<DetectResult>;
+  run?: (input: RunReviewJobInput) => Promise<RunReviewJobResult>;
 }
 
 /** Driver-mode seams (defaults: process.stdin / process.stdout / process.stderr). */
@@ -471,6 +495,86 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     let limitSwitched = false;
     // Each distinct roles warning prints once per run.
     const rolesWarned = new Set<string>();
+    // The model the last tick ran on: the implementer stamp for the reviewer.
+    let implementerModel: string | undefined = opts.model;
+    /**
+     * Reviewer scope `tick` (ADR 2026-11-16 model roles): one review-only
+     * session over the unmerged branches after a completed tick. Findings (or
+     * a failed review) land as a gate exit and stop the loop; a clean review
+     * or nothing to review continues. The identical model is refused, never
+     * a silent self-review; a setup problem warns and never fails the loop.
+     */
+    const reviewAfterTick = async (
+      tickBackend: BackendId,
+      tickModel: string | undefined,
+    ): Promise<{ stop: boolean; exitCode: number }> => {
+      const reviewer = opts.roles?.reviewer;
+      const proceed = { stop: false, exitCode: 0 };
+      if (reviewer?.scope !== "tick") return proceed;
+      const warnOnce = (line: string) => {
+        if (rolesWarned.has(line)) return;
+        rolesWarned.add(line);
+        say(`roles: ${line}`, "warn");
+      };
+      const relation = reviewModelRelation(tickModel, reviewer.model);
+      if (relation === "identical") {
+        warnOnce(
+          `post-tick review skipped: ${describeIdenticalReviewModel(tickModel ?? "auto", reviewer.model ?? "auto")}`,
+        );
+        return proceed;
+      }
+      if (relation === "same-family") {
+        warnOnce(describeSameFamilyReviewModel(tickModel ?? "auto", reviewer.model ?? "auto"));
+      }
+      // No reviewer backend set: the tick's own backend when it can run a
+      // review-only session (same subscription), else PATH detection.
+      const requested =
+        reviewer.backend && reviewer.backend !== "auto"
+          ? reviewer.backend
+          : reviewer.backend !== "auto" &&
+              (REVIEW_BACKENDS as readonly string[]).includes(tickBackend)
+            ? tickBackend
+            : "auto";
+      const detected = await (opts.tickReview?.detect ?? detectAgentBackend)(requested);
+      if (!detected.ok) {
+        say(`roles: post-tick review not run: ${detected.message}`, "warn");
+        return proceed;
+      }
+      say(
+        `roles: reviewer ${detected.id}, model ${reviewer.model ?? "(backend default)"} (scope tick) after tick ${tick}`,
+      );
+      let result: RunReviewJobResult;
+      try {
+        result = await (opts.tickReview?.run ?? runReviewJob)({
+          root: opts.root,
+          backendId: detected.id,
+          bin: detected.bin,
+          ...(reviewer.model ? { model: reviewer.model } : {}),
+          noHitl: true,
+          dryRun: false,
+          log: (line) => say(line),
+          ...(driver ? { render: { feed: () => {}, end: () => {} } } : {}),
+          // The review session is this run's live agent while it runs: the
+          // lease names it and a host signal (driver mode) is forwarded to it.
+          onSpawn: (info) => {
+            lease?.setAgent(info.pid);
+            tickAgent =
+              info.pid === undefined ? null : { pid: info.pid, start: procStart(info.pid) };
+          },
+        });
+      } catch (err) {
+        tickAgent = null;
+        say(`roles: post-tick review failed to run: ${String(err)}`, "warn");
+        return proceed;
+      }
+      tickAgent = null;
+      if (result.error) {
+        say(`roles: post-tick review not run: ${result.error}`, "warn");
+        return proceed;
+      }
+      if (result.outcome !== "landed") return proceed;
+      return { stop: true, exitCode: result.exitCode };
+    };
     // Driver protocol 1.5.0: `stop_after_tick` ends the run at the next tick
     // boundary, here (before a tick starts) and right after a tick that
     // would otherwise continue. The tick itself is never interrupted.
@@ -561,6 +665,7 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
         const switched = backend !== opts.backend;
         const tickModel =
           switched && opts.roles && opts.roles.modelSource !== "flag" ? undefined : opts.model;
+        implementerModel = tickModel;
         let tickEnv: NodeJS.ProcessEnv | undefined;
         if (opts.roles) {
           const planOverrides = readPlanRoleOverrides(await readPlan(planPath).catch(() => ""));
@@ -749,6 +854,19 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
       }
       endTick(after, sentinel);
 
+      // Reviewer scope `tick`: review the completed tick before the next one.
+      const review = await reviewAfterTick(backend.id, implementerModel);
+      if (review.stop) {
+        const msg = `Post-tick review landed a gate exit after tick ${tick} - stopping. Read the ticket before the next tick.`;
+        if (banners) banners.stop(msg);
+        else say(msg);
+        if (sentinel.kind === "stop") stopReason = sentinel.reason;
+        if (after === 0) planExhausted = true;
+        exitCode = review.exitCode;
+        endReason = "review findings landed; gate exit pending";
+        break;
+      }
+
       if (sentinel.kind === "continue") {
         // ok
       } else if (sentinel.kind === "stop") {
@@ -804,10 +922,10 @@ export async function runPlanLoop(opts: RunPlanLoopOptions): Promise<number> {
     // Never fails the loop; never /git-prod; not a Cursor stop hook.
     if (planExhausted || shouldArmExternalPlanReview({ pending: pendingNow, stopReason })) {
       // Prefer pending===0; planExhausted covers sentinel "plan exhausted" before status catch-up.
-      await armExternalPlanReview(
-        opts.root,
-        driver ? { log: (line) => say(line), writeOut: driver.writeErr } : {},
-      );
+      await armExternalPlanReview(opts.root, {
+        ...(driver ? { log: (line) => say(line), writeOut: driver.writeErr } : {}),
+        ...(implementerModel ? { implementerModel } : {}),
+      });
     }
 
     await landIfNeeded(exitCode, endReason || "stopped", pendingNow);

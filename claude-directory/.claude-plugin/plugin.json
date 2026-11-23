@@ -1,7 +1,7 @@
 {
   "name": "agent-kit",
   "displayName": "Mission Kit",
-  "version": "6.21.0",
+  "version": "6.22.0",
   "description": "Plan, build, review, ship, keep: a working routine for long-term projects with Claude Code. Plans with to-dos you approve, review agents, staging-to-production gates that wait for your yes, and a handoff and memory that survive new chats.",
   "author": {
     "name": "agent-kit-startup"

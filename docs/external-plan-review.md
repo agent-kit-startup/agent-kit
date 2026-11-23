@@ -146,7 +146,14 @@ Mission Control **Flight Log** shows HANDOFF Gaps (**NOW** + **Earlier** history
 | `midBatchAudits` | When true, `/run-plan-all` runs full audits mid-queue (after each plan) and at queue end via the launcher `--batch` path. Prefer true under `mode: "autonomous"`. Missing or false preserves queue-end / owed-ledger behavior for paste installs. |
 | `preflight` | Audits pre-flight on plan-run commands (`/continue-plan`, `/run-plan`, `/run-plan-all`, `/hotfix`, …): `"off"` (default when missing), `"warn"` (surface once), or `"block"` (arm or stop until owed audits are launched or explicitly deferred). Also covers the unsatisfiable-config check: `enabled: true` with `backend` pinned `"claude"` in the Claude CLI lane, or when ticks run as `agent-kit run-plan --backend claude`, can only end owed (see [Troubleshooting](#troubleshooting)). Enforced in L0 (`continue-plan`, `run-plan`, `run-plan-all`, `hotfix`, HITL gate table). |
 
-**Model roles (`roles.reviewer`):** the neutral `roles` key ([consumer configuration](consumer-configuration.md#model-roles-roles-in-config), [capability matrix](model-roles-capability-matrix.md)) has a `reviewer` block (`enabled`, `scope` `off`|`tick`|`plan`, `backend`, `model`, `advisorModel`). Mission Control can save it, but the launcher does not read it yet: review runs still follow the `externalPlanReview` keys above, and the same-family refusal is unchanged. Wiring waits for an operator decision on the implementer/reviewer family rule.
+**Model roles (`roles.reviewer`):** the neutral `roles` key ([consumer configuration](consumer-configuration.md#model-roles-roles-in-config), [capability matrix](model-roles-capability-matrix.md)) has a `reviewer` block (`enabled`, `scope` `off`|`tick`|`plan`, `backend`, `model`, `advisorModel`), and the launcher reads it before the `externalPlanReview` keys above:
+
+- `enabled: false` or `scope: "off"` turns the review off even when `externalPlanReview.enabled` is true. `enabled: true` turns it on without the legacy key. With `enabled` absent the legacy key decides.
+- `scope: "plan"` (the default) is this page: one audit per plan. `scope: "tick"` moves the review to the headless runner, which reviews after each tick; the launcher then prints a tip and arms nothing. `--force` still arms one audit in every case.
+- `backend` (`auto`, `claude`, `cursor-agent`), `model` and `advisorModel` win over `backend`, `reviewerModel` and `advisorModel` here. The `cloud` backend stays an `externalPlanReview.backend` pin.
+- The implementer stamp is `--implementer-model`, then `roles.worker.model`, then `AGENT_KIT_AUDIT_IMPLEMENTER_MODEL`, then `auto`. `agent-kit run-plan` passes the model its ticks ran on.
+
+**Implementer and reviewer models:** only the identical model is refused as reviewer: the same id, Auto against Auto, or a family alias against any id of that family (`opus` against `claude-opus-5-5`, since the alias may resolve to it). A different model of the same family (`claude-opus-5-5` reviewed by `claude-opus-4-8`) runs, with one `warning:` line in the launcher output and a note in the reviewer prompt to name both ids in the monitor header. `--dry-run` prints `same-model-refuse` and `same-family-warn`. So Opus can implement and Fable or Sonnet review on one Claude subscription.
 
 ### Throughput vs coverage (operator knobs)
 
@@ -326,7 +333,7 @@ AGENT_KIT_AUDIT_REAP_MIN_AGE=0 .cursor/scripts/plan-external-review.sh --reap-au
 
 - `backend: "auto"` uses Cursor Agent when Claude is missing or `AGENT_KIT_AUDIT_CLAUDE_QUOTA_EMPTY` is set. That is not the Cursor tick API/usage-limit hard-stop.
 - Pinned `backend: "claude"` still tips and skips (exit 0, or exit 4 with `--wait-monitor`). Field Report stays owed.
-- Same-family implementer and reviewer is an honest skip (including Auto/Auto), not a silent self-review.
+- The identical implementer and reviewer model is an honest skip (including Auto/Auto, and an alias such as `opus` against an id of that family), not a silent self-review. A different model of the same family runs with one warning line.
 - Pinned `backend: "cloud"` needs `curl`, `node`, and a non-empty `CURSOR_API_KEY`; without them it tips and skips on the same contract. An SSH-alias `origin` cannot be resolved to a GitHub URL — set `cloudAgent.repoUrl` explicitly rather than letting the launcher guess.
 
 **Unsatisfiable audit config (owed by construction):**
