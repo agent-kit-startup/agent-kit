@@ -15,7 +15,7 @@ Kit-wide human-in-the-loop. Commands stay Goal + five hard stops + Ask labels + 
 1. Any confirmation, choice, or clarification before acting uses **Ask questions** (`AskQuestion` / ACP `cursor/ask_question`). Do not ask the user to type yes.
 2. Prefer one question at a time.
 3. Options are concrete labels (tables below). Do not invent a fake tool call.
-4. **Numbered-list fallback is path 1** when the tool is not in the session toolset. Say the tool is missing once, print one `HITL_GATE: <ask-id> | <labels>` line and the same labels as a numbered list (block below), accept number or label, and treat a typed answer as Other. Do not invent a fake tool call. Matrix: `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`.
+4. **Numbered-list fallback is path 1** when the tool is not in the session toolset. Say the tool is missing once, print one `HITL_GATE: <ask-id> | <labels>` line and the same labels as a numbered list (block below), accept number or label, and treat a typed answer as Other. Matrix: `.cursor/memory/decisions/2026-07-20_ask-questions-model-availability.md`.
 5. Skipped or cancelled answers mean **stop** (same as no yes).
 6. Do not fabricate HITL in HANDOFF. Parked / approved / deferred / confirmed / stopped-by-operator need Ask id, operator reply, or `agent-inferred`. In a headless run the operator reply arrives as a `HITL_REPLY: <ask-id> | operator reply <n> | <label>` line; cite that line.
 7. CLI `agent-kit init` keeps `@clack/prompts`. Do not call IDE Ask questions from the CLI.
@@ -89,12 +89,13 @@ Asks only at these rows (ADR `2026-09-25_run-plan-all-three-hitl-points.md`, Ame
 | `/hotfix` | `Write mini plan and run` / `Write mini plan only (stop)` / `Modify proposal first` / `Cancel` |
 | `/qa` | Mode (when ambiguous): `QA this release` / `Repro this bug` / `Claims only` / `Cancel`. Scratch install: `Use a scratch git repo` / `QA this checkout only` / `Cancel`. Playbook: `.cursor/skills/core/qa/SKILL.md` |
 | `/plan-review-triage` | Write residuals / Fix nits only / Ack and stop. Residuals write uses backlog-add labels. Multi-path: one Ask when remaining monitors share a uniform class |
+| `/field-report-resolve` | Cadence id, per owed plan (id `plan-verdict`): `Delivered nothing` / `Superseded` / `Keep owed` |
 | `/handoff` / guardian | `Automatic handoff` / `Manual handoff` (first time) |
 | `install.md` | Registry URL/ref; migrate nested `agent-kit/`; optional git-hooks |
 | `/agent-kit-onboard` | One unresolved essential at a time. Domain skills: `Scaffold domain skills` / `Defer (record reason)` / `Skip` |
 | Pending ticket (preflight, only while `.cursor/context/gate-exit.json` has a pending entry) | Id `ticket`: `Read the ticket` / `Accept` / `Discard` / `Later`. Unattended: list stamps, no Ask. Commands and effects: [pending-ticket.md](pending-ticket.md) |
 
-`/git-prod` and factory `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unfinished post-prod verification (tag CI, or the wrapper's release checks) is a STOP. The next patch needs a new Ask. Labels in the table stay exact. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red post-prod verification still stops the queue.
+`/git-prod` and factory `/kit-prod`: one `Proceed with production deploy` is one ship (one SemVer close, one annotated `v*` tag, one promote). A red or unfinished post-prod verification (tag CI, or the wrapper's release checks) is a STOP. The next patch needs a new Ask. A `/run-plan-all` queue confirm that sets Ship auth `per-plan-release` is that yes for one ship per completed plan. It does not open this Ask again, and a red post-prod verification still stops the queue.
 
 ### Wrapper commands (not consumer L0)
 
@@ -113,10 +114,10 @@ HITL_GATE: <ask-id> | <label-a> | <label-b> | <label-c>
 3. <label-c>
 ```
 
-One numbered list per message. Accept number or label. A typed answer that is not a number or label is Other.
+One numbered list per message.
 
 Sentinel rules: one line, column 0, `HITL_GATE: <ask-id> | <label 1> | ... | <label n>`.
-`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `promote-merge-wait`, `malformed-summary`, `next-unit`, `backlog-write`, `cancel-plan`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
+`<ask-id>` is the kebab-case id from the tables above (`gate-a`, `gate-b`, `risk`, `inbox`, `exhaustion`, `owed-close`, `queue-drift`, `queue-confirm`, `context-checkpoint`, `novel-failure`, `queue-end-gates`, `promote-merge-wait`, `malformed-summary`, `next-unit`, `plan-verdict`, `backlog-write`, `cancel-plan`, `ticket`); labels are the exact table labels, in list order, separated by ` | ` (no label contains `|`).
 Surfaces without a listed id keep the numbered list without a sentinel (the headless runner detects them by the wording above as a prose fallback). `git-prod` and `kit-prod` are never relayed headless: the run stops and points at the operator slash.
 The operator's answer comes back as one line, `HITL_REPLY: <ask-id> | operator reply <n> | <label>` (or `operator reply other | <typed text>`); cite it as the Ask provenance in HANDOFF. Never assume a reply: no answer means stop.
 

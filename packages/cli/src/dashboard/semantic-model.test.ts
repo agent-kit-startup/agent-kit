@@ -64,6 +64,7 @@ import {
   parseCadenceLedger,
   parseDeliveryCommitType,
   parseExternalReport,
+  parseFieldReportPlanVerdicts,
   parseFieldReportReviewCadenceConfig,
   parseFlightLogLedger,
   parseHandoffMarkdown,
@@ -2622,6 +2623,122 @@ describe("Field Report activity review cadence", () => {
   it("never owes archived plans (basenames only, not in the plan inventory)", () => {
     const targets = listUnreviewedReviewTargets([], null, [], ["old-archived.plan.md"]);
     expect(targets).toEqual([]);
+  });
+
+  const verdictRow = (plan: string, verdict = "delivered-nothing") => ({
+    plan,
+    verdict,
+    at: "2026-11-23T12:00:00.000Z",
+    ask: "HITL_REPLY: plan-verdict | operator reply 1 | Delivered nothing",
+  });
+
+  it("parses the verdict store: known verdicts with Ask provenance, one row per basename", () => {
+    expect(parseFieldReportPlanVerdicts(null)).toEqual({ verdicts: [] });
+    expect(parseFieldReportPlanVerdicts("x")).toEqual({ verdicts: [] });
+    expect(parseFieldReportPlanVerdicts({ verdicts: "nope" })).toEqual({ verdicts: [] });
+    const parsed = parseFieldReportPlanVerdicts({
+      verdicts: [
+        verdictRow("a.plan.md"),
+        { ...verdictRow("b.plan.md", "superseded"), note: "n".repeat(200), body: "review prose" },
+        { ...verdictRow("A.plan.md", "superseded"), ask: "plan-verdict | Superseded" },
+        verdictRow("keep.plan.md", "keep-owed"),
+        { plan: "no-ask.plan.md", verdict: "superseded" },
+        { ...verdictRow("blank-ask.plan.md"), ask: "   " },
+        verdictRow("../plans/path.plan.md"),
+        verdictRow("not-a-plan.md"),
+        null,
+        "a.plan.md",
+      ],
+    });
+    expect(parsed.verdicts.map((v) => `${v.plan}:${v.verdict}`)).toEqual([
+      "b.plan.md:superseded",
+      "A.plan.md:superseded",
+    ]);
+    expect(parsed.verdicts[0].note).toHaveLength(120);
+    expect(parsed.verdicts[0]).not.toHaveProperty("body");
+    expect(parsed.verdicts[1].ask).toBe("plan-verdict | Superseded");
+    const longAsk = parseFieldReportPlanVerdicts({
+      verdicts: [{ ...verdictRow("long.plan.md"), ask: "r".repeat(400) }],
+    });
+    expect(longAsk.verdicts[0].ask).toHaveLength(160);
+  });
+
+  it("drops an owed plan that has an operator verdict row, and only that plan", () => {
+    const other = makePlan("other-done.plan.md", ["completed"]);
+    const all = listUnreviewedReviewTargets([completedPlan, other], null, [], []);
+    expect(all.map((t) => t.planFile)).toEqual(["finished-widget.plan.md", "other-done.plan.md"]);
+    const { verdicts } = parseFieldReportPlanVerdicts({
+      verdicts: [verdictRow("Finished-Widget.plan.md", "superseded")],
+    });
+    const targets = listUnreviewedReviewTargets([completedPlan, other], null, [], [], {
+      planVerdicts: verdicts,
+    });
+    expect(targets.map((t) => t.planFile)).toEqual(["other-done.plan.md"]);
+  });
+
+  it("keeps a plan owed when its verdict row has no Ask provenance or an unknown verdict", () => {
+    const { verdicts } = parseFieldReportPlanVerdicts({
+      verdicts: [
+        { plan: "finished-widget.plan.md", verdict: "delivered-nothing" },
+        verdictRow("finished-widget.plan.md", "obsolete"),
+      ],
+    });
+    expect(verdicts).toEqual([]);
+    const targets = listUnreviewedReviewTargets([completedPlan], null, [], [], {
+      planVerdicts: verdicts,
+    });
+    expect(targets.map((t) => t.planFile)).toEqual(["finished-widget.plan.md"]);
+  });
+
+  it("a verdict never hides an untriaged monitor for the same plan", () => {
+    const untriaged = parseExternalReport({
+      file: "plan-monitor-finished-widget.md",
+      content: [
+        "# Monitor log - finished-widget",
+        "",
+        "**Plan:** [`finished-widget.plan.md`](../plans/finished-widget.plan.md)",
+        "",
+        "## Full review",
+        "",
+        "Outcome: one blocking finding.",
+      ].join("\n"),
+      modifiedAt: "2026-11-23T12:00:00.000Z",
+    });
+    expect(untriaged).toBeTruthy();
+    const targets = listUnreviewedReviewTargets([completedPlan], null, [untriaged], [], {
+      planVerdicts: [verdictRow("finished-widget.plan.md")],
+    });
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ kind: "report", planFile: "finished-widget.plan.md" });
+  });
+
+  it("the cadence warning lists only plans without a verdict and clears when none is left", () => {
+    const other = makePlan("other-done.plan.md", ["completed"]);
+    const ledger = recordCadenceBatchComplete(emptyCadenceLedger(), {
+      unreviewedTargets: [
+        { planFile: "finished-widget.plan.md" },
+        { planFile: "other-done.plan.md" },
+      ],
+    });
+    const cadenceOf = (planVerdicts: unknown[]) =>
+      buildAttentionItems({
+        plans: [completedPlan, other],
+        handoff: null,
+        cadenceLedger: ledger,
+        planVerdicts,
+      } as never).find((i: { kind?: string }) => i.kind === "cadence") as
+        | { planEvidence: { planFile: string }[]; label: string }
+        | undefined;
+    expect(cadenceOf([])?.planEvidence.map((e) => e.planFile)).toEqual([
+      "finished-widget.plan.md",
+      "other-done.plan.md",
+    ]);
+    const one = cadenceOf([verdictRow("finished-widget.plan.md")]);
+    expect(one?.planEvidence.map((e) => e.planFile)).toEqual(["other-done.plan.md"]);
+    expect(one?.label).toMatch(/1 unreviewed plan /);
+    expect(
+      cadenceOf([verdictRow("finished-widget.plan.md"), verdictRow("other-done.plan.md")]),
+    ).toBeUndefined();
   });
 
   it("keeps prompt clear and report demotion terminal for parked zero-completed plans", () => {

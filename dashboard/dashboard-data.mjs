@@ -45,6 +45,7 @@ import {
   EXTERNAL_REPORT_FILE_RE,
   extractChatSnippet,
   FIELD_REPORT_CADENCE_LEDGER_REL,
+  FIELD_REPORT_PLAN_VERDICTS_REL,
   FLIGHT_LOG_LEDGER_REL,
   MAX_AGENT_PROMPTS,
   MAX_EXTERNAL_REPORTS,
@@ -53,6 +54,7 @@ import {
   parseCadenceLedger,
   parseExternalReport,
   parseFieldReportDismissals,
+  parseFieldReportPlanVerdicts,
   parseFieldReportReviewCadenceConfig,
   parseFlightLogLedger,
   parseHandoffMarkdown,
@@ -1637,6 +1639,21 @@ function collectFieldReportDismissedIds() {
 }
 
 /**
+ * Local per-plan verdicts for the Field Report owed set (plan basenames and
+ * Ask provenance only). Missing or unreadable file → [].
+ */
+function collectFieldReportPlanVerdicts() {
+  const verdictsPath = join(ROOT, FIELD_REPORT_PLAN_VERDICTS_REL);
+  if (!existsSync(verdictsPath)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(verdictsPath, "utf-8"));
+    return parseFieldReportPlanVerdicts(raw).verdicts;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Local Current mission timing ledger. Missing or unreadable → empty ledger.
  * Gitignored observation store; not a UI mutation API.
  */
@@ -1747,6 +1764,7 @@ let finalTimingLedger = null;
     externalReports: collectExternalReports(),
     subagentRuns: collectSubagentRuns(),
     dismissedIds: collectFieldReportDismissedIds(),
+    planVerdicts: collectFieldReportPlanVerdicts(),
     archivedPlanFiles,
     agents: SNAPSHOT.agents,
     skills: SNAPSHOT.skills,

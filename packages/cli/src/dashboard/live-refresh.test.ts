@@ -129,6 +129,11 @@ describe("live-refresh: watch coverage", () => {
     expect(SNAPSHOT_REPO_SOURCE_RELS).toContain(".cursor/context/field-report-dismissals.json");
   });
 
+  it("documents the per-plan verdict store as a snapshot source", () => {
+    expect(dataSource).toContain("collectFieldReportPlanVerdicts");
+    expect(SNAPSHOT_REPO_SOURCE_RELS).toContain(".cursor/context/field-report-plan-verdicts.json");
+  });
+
   it("documents mission-timing.json as a snapshot source and write-on-change persist", () => {
     expect(dataSource).toContain("MISSION_TIMING_LEDGER_REL");
     expect(dataSource).toContain("persistMissionTimingLedger");

@@ -554,6 +554,65 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     expect(items[1].evidenceRefs).toBeUndefined();
   });
 
+  it("an operator verdict row takes the plan out of the cadence warning", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-verdict-"));
+    initGitRepo(repo);
+    mkdirSync(join(repo, ".cursor", "plans"), { recursive: true });
+    mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+    for (const name of ["kept", "gone"]) {
+      writeFileSync(
+        join(repo, ".cursor", "plans", `${name}.plan.md`),
+        [
+          "---",
+          `name: "${name}"`,
+          "todos:",
+          "  - id: one",
+          '    content: "First"',
+          "    status: completed",
+          "---",
+          "",
+        ].join("\n"),
+      );
+    }
+    writeFileSync(
+      join(repo, ".cursor", "context", "field-report-cadence.json"),
+      JSON.stringify({
+        version: 1,
+        ticksSinceClear: 3,
+        activeWarningId: "attention:cadence:w-test",
+        windowId: "w-test",
+        pendingPlanFiles: ["gone.plan.md", "kept.plan.md"],
+      }),
+    );
+    const cadencePlans = () => {
+      const snap = JSON.parse(runDashboardDataRaw(repo));
+      expect(schemaErrors(schema, snap)).toEqual([]);
+      const attention = (
+        snap.missionControl as {
+          attention: { kind: string; planEvidence?: { planFile: string }[] }[];
+        }
+      ).attention;
+      return (attention.find((a) => a.kind === "cadence")?.planEvidence ?? [])
+        .map((e) => e.planFile)
+        .sort();
+    };
+    expect(cadencePlans()).toEqual(["gone.plan.md", "kept.plan.md"]);
+    writeFileSync(
+      join(repo, ".cursor", "context", "field-report-plan-verdicts.json"),
+      JSON.stringify({
+        verdicts: [
+          {
+            plan: "gone.plan.md",
+            verdict: "delivered-nothing",
+            at: "2026-11-23T12:00:00.000Z",
+            ask: "HITL_REPLY: plan-verdict | operator reply 1 | Delivered nothing",
+          },
+        ],
+      }),
+    );
+    expect(cadencePlans()).toEqual(["kept.plan.md"]);
+  });
+
   it("every top-level field the snapshot documents in _schema.fields is required by the contract", () => {
     const source = readFileSync(dashboardDataScript, "utf8");
     const fieldsBlock = /fields: \{([\s\S]*?)\n {4}\},\n {2}\},/.exec(source)?.[1] ?? "";

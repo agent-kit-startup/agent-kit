@@ -16,6 +16,7 @@ Resolve Field Report attention cards by verifying eligibility and dismissing whe
 - Validating that pending questions have been answered
 - Checking that untriaged monitors have been triaged
 - Resetting cadence windows after review is complete
+- Recording an operator verdict for an owed plan that has nothing to review (delivered nothing, superseded)
 
 Do **not** use this for creating Field Report cards, triaging monitors (use `/plan-review-triage`), or analyzing unprocessed dogfood.
 
@@ -25,4 +26,4 @@ Per-id-shape locate/check/dismiss-eligibility detail for `attention:prompt:<chat
 
 Command SoT: [field-report-resolve.md](https://github.com/agent-kit-startup/agent-kit/blob/main/.cursor/commands/field-report-resolve.md)
 
-HITL: Task(explore) delegation for transcript/monitor/plan scans; hide-after-check confirmation when dismissing before resolution is complete.
+HITL: Task(explore) delegation for transcript/monitor/plan scans; hide-after-check confirmation when dismissing before resolution is complete. On a cadence id, the per-plan verdict Ask (`plan-verdict`: `Delivered nothing` / `Superseded` / `Keep owed`) comes before the window decision.

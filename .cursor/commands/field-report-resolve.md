@@ -51,16 +51,29 @@ Examples:
 - `/field-report-resolve attention:prompt:02201329-ab93-47d9-bcf4-0e76b8e5977d`
 - `/field-report-resolve attention:cadence:w-20260727153000`
 - `/field-report-resolve attention:report:widget-rollout attention:prompt:abc-123`
+- `/field-report-resolve attention:cadence:w-20260727153000 old-spike.plan.md`
+
+Beside an `attention:cadence:` id you may name owed plans by basename (`<name>.plan.md`). A basename only selects a plan for the per-plan verdict Ask (step 3a); it is not an attention id and never enters the dismissals store.
+
+## Ask labels
+
+| Gate | Id | Labels |
+|------|----|--------|
+| Per-plan verdict (cadence id only) | `plan-verdict` | `Delivered nothing` / `Superseded` / `Keep owed` |
+
+No Ask questions tool: numbered fallback with its `HITL_GATE: plan-verdict | ...` line ([hitl-gates](../skills/core/hitl-gates/SKILL.md)).
 
 ## What to Do
 
-1. **Validate** each `<attention-id>` against the shapes above. Skip invalid tokens with a one-line note; if none are valid, stop. Do not invent ids.
+1. **Validate** each `<attention-id>` against the shapes above. Skip invalid tokens with a one-line note; if none are valid, stop. Do not invent ids. Keep a `<name>.plan.md` token for step 3a when a cadence id is present; without one, skip it.
 
 2. **Load** `.cursor/context/field-report-dismissals.json` if it exists; otherwise start from `{ "dismissals": [] }`. Missing or unreadable file is not an error.
 
 3. **Check/update each claim** before deciding to dismiss. For each valid id that is not already in the store, locate the claim, verify its current state, and decide whether dismiss is eligible. Dismiss eligible in all three shapes means: a strong auto-clear signal already applies (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal plan lifecycle clears prompt (`attention:prompt:` only), cadence unreviewed set cleared), or the operator explicitly confirms hide-after-check; otherwise skip.
    Report demotion is not dismiss-eligible: a terminal plan lifecycle only moves an `attention:report:` row to Review debt (`isReportDemotedByPlanLifecycle`, `buildExternalReportItems` in `dashboard/lib/semantic-model.mjs`); the report needs a triage heading or a follow-up plan.
    Full per-shape locate/check detail (delegated Task(explore) template fields, worker contracts, exact eligibility rules for `attention:prompt:`, `attention:report:`, and `attention:cadence:`): [procedure.md](../skills/core/field-report-resolve/procedure.md).
+
+3a. **Per-plan verdict (cadence id only).** Before deciding the window, Ask `plan-verdict` for each owed plan that `field-report-cadence-bump.sh classify --survival` marks `partial-parked` or `superseded-or-rewritten`, and for each owed plan the operator named. Not offered by default for `live-unreviewed`. `Delivered nothing` or `Superseded` writes one row to `.cursor/context/field-report-plan-verdicts.json` and the plan leaves the owed set for good; `Keep owed` writes nothing. Row format, batch rule and undo: [procedure.md](../skills/core/field-report-resolve/procedure.md).
 
 4. **Append** eligible ids. For each id that passed the check (eligible for dismiss), add it to the store:
 
@@ -84,13 +97,15 @@ Examples:
    - Dismissed: `<id>`
    - Already present (skipped): `<id>`
    - Skipped (not eligible): `<id>` — reason
+   - Verdict recorded: `<plan>.plan.md` (`delivered-nothing` | `superseded`), or kept owed
 
 ## Hard stops
 
 1. **IDs only** in the store. No conversation content.
 2. **Copy-only / chat path:** invoke via pasted `/field-report-resolve <attention-id> [...]`. No in-panel mutation, no server-side dismiss API, no Flight Log Resolve all / Review all UI.
 3. **Never `/git-prod`** from this command. Do not commit the dismissals file (it is gitignored).
-4. Prefer strong auto-clear / resolve signals (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal plan lifecycle clears prompt, cadence unreviewed set cleared; report demotion is not one) when those signals already apply; this command is the explicit local override when auto-clear is narrower than resolve.
+4. **A verdict row needs an operator reply.** Write one only after `plan-verdict` is answered `Delivered nothing` or `Superseded`, and cite that reply in `ask`. Never from a class, a survival figure, your own judgment, or an unattended run.
+5. Prefer strong auto-clear / resolve signals (answered prompt, subject-resolved named evidence, triage heading / follow-up plan, terminal plan lifecycle clears prompt, cadence unreviewed set cleared; report demotion is not one) when those signals already apply; this command is the explicit local override when auto-clear is narrower than resolve.
 
 ## Related
 
@@ -98,5 +113,6 @@ Examples:
 - Field Report source contract: `.cursor/memory/decisions/2026-07-25_mission-control-field-report-source-contract.md`
 - Dismissals + triage persistence: `.cursor/memory/decisions/2026-07-25_mission-control-field-report-dismissals.md`
 - Activity review cadence: `.cursor/memory/decisions/2026-07-27_field-report-activity-review-cadence.md`
+- Per-plan verdict: `.cursor/memory/decisions/2026-11-16_field-report-per-plan-verdict.md`
 - External review triage (writes `## Triage note`): `/plan-review-triage`
 - Copy-only paste destinations: `.cursor/memory/decisions/2026-07-25_mission-control-copy-only-paste-destinations.md`

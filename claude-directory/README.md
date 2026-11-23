@@ -46,7 +46,7 @@ State, memory and a live view that survive new chats and new agents.
 
 ## Install
 
-This folder is the plugin as listed in the Claude plugin directory (version 6.20.0): the commands, agents and skills above, and no hooks or scripts. The commands work on a repository prepared by the agent-kit CLI (`agent-kit install`); see [install.md](https://github.com/agent-kit-startup/agent-kit/blob/main/install.md). Mission Control comes with the CLI.
+This folder is the plugin as listed in the Claude plugin directory (version 6.21.0): the commands, agents and skills above, and no hooks or scripts. The commands work on a repository prepared by the agent-kit CLI (`agent-kit install`); see [install.md](https://github.com/agent-kit-startup/agent-kit/blob/main/install.md). Mission Control comes with the CLI.
 
 The full kit (every command, the session-start context and the shell guard hooks) installs from the repository marketplace:
 

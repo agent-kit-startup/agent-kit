@@ -320,6 +320,79 @@ export function dismissedAttentionIds(parsed) {
   return (parsed?.dismissals || []).map((d) => d.id).filter(Boolean);
 }
 
+/** Local per-plan verdict store for the Field Report owed set (gitignored). */
+export const FIELD_REPORT_PLAN_VERDICTS_REL = ".cursor/context/field-report-plan-verdicts.json";
+
+/** Verdicts that take a plan out of the owed set. `Keep owed` writes no row. */
+export const FIELD_REPORT_PLAN_VERDICT_VALUES = Object.freeze(["delivered-nothing", "superseded"]);
+
+const PLAN_VERDICT_BASENAME_RE = /^[A-Za-z0-9._-]+\.plan\.md$/i;
+const MAX_PLAN_VERDICT_ASK = 160;
+const MAX_PLAN_VERDICT_NOTE = 120;
+
+/**
+ * Parse `.cursor/context/field-report-plan-verdicts.json`. Missing or malformed
+ * input yields an empty list (never throws). One row per plan basename: a later
+ * row for the same basename (case-insensitive) replaces the earlier one. A row
+ * counts only with a known verdict and a non-empty `ask` (the operator reply
+ * that produced it): a verdict without Ask provenance leaves the plan owed.
+ * Unknown fields are dropped so review prose cannot ride along.
+ * @param {unknown} raw
+ * @returns {{ verdicts: { plan: string, verdict: 'delivered-nothing'|'superseded', ask: string, at?: string, note?: string }[] }}
+ */
+export function parseFieldReportPlanVerdicts(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { verdicts: [] };
+  }
+  const list = Array.isArray(/** @type {{ verdicts?: unknown }} */ (raw).verdicts)
+    ? /** @type {{ verdicts: unknown[] }} */ (raw).verdicts
+    : [];
+  /** @type {Map<string, { plan: string, verdict: 'delivered-nothing'|'superseded', ask: string, at?: string, note?: string }>} */
+  const byPlan = new Map();
+  for (const entry of list) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const plan = typeof entry.plan === "string" ? entry.plan.trim() : "";
+    if (!PLAN_VERDICT_BASENAME_RE.test(plan)) continue;
+    const verdict = typeof entry.verdict === "string" ? entry.verdict.trim() : "";
+    if (!FIELD_REPORT_PLAN_VERDICT_VALUES.includes(verdict)) continue;
+    const ask = typeof entry.ask === "string" ? entry.ask.trim() : "";
+    if (!ask) continue;
+    const row = {
+      plan,
+      verdict: /** @type {'delivered-nothing'|'superseded'} */ (verdict),
+      ask: ask.slice(0, MAX_PLAN_VERDICT_ASK),
+    };
+    if (typeof entry.at === "string" && entry.at.trim()) {
+      row.at = entry.at.trim();
+    }
+    if (typeof entry.note === "string" && entry.note.trim()) {
+      row.note = entry.note.trim().slice(0, MAX_PLAN_VERDICT_NOTE);
+    }
+    const key = plan.toLowerCase();
+    byPlan.delete(key);
+    byPlan.set(key, row);
+  }
+  return { verdicts: [...byPlan.values()] };
+}
+
+/**
+ * Lower-cased plan basenames that carry a verdict. Accepts parsed rows or bare
+ * basenames; anything else is ignored.
+ * @param {unknown} planVerdicts
+ * @returns {Set<string>}
+ */
+function verdictPlanKeys(planVerdicts) {
+  const keys = new Set();
+  for (const entry of Array.isArray(planVerdicts) ? planVerdicts : []) {
+    const plan =
+      typeof entry === "string" ? entry : entry && typeof entry === "object" ? entry.plan : "";
+    if (typeof plan !== "string") continue;
+    const base = plan.split("/").pop().trim().toLowerCase();
+    if (PLAN_VERDICT_BASENAME_RE.test(base)) keys.add(base);
+  }
+  return keys;
+}
+
 /** Relative path of the gitignored mission timing ledger (local observation). */
 export const MISSION_TIMING_LEDGER_REL = ".cursor/context/mission-timing.json";
 
@@ -1038,6 +1111,10 @@ export function classifyOwedPlan(plan, lifecycle, opts = {}) {
  * `TERMINAL_FIELD_REPORT_LIFECYCLES` stays unchanged: it also drives prompt
  * clear and report demotion.
  * Owed targets also carry `classification` and one `evidenceLine` (classifyOwedPlan).
+ * A plan with an operator verdict row (`opts.planVerdicts`, see
+ * parseFieldReportPlanVerdicts) is never owed. Untriaged monitors are not
+ * affected: a verdict never hides a review that exists.
+ * @param {{ planVerdicts?: ({ plan: string } | string)[] }} [opts]
  * @returns {{ kind: 'report'|'owed', planFile: string, slug: string, path: string, lifecycle?: string, completedTodoIds?: string[], totalTodos?: number, classification?: string, evidenceLine?: string }[]}
  */
 export function listUnreviewedReviewTargets(
@@ -1045,10 +1122,12 @@ export function listUnreviewedReviewTargets(
   handoff,
   externalReports = [],
   archivedPlanFiles = [],
+  opts = {},
 ) {
   const targets = [];
   const seenPlans = new Set();
   const monitorSlugs = new Set();
+  const verdictPlans = verdictPlanKeys(opts?.planVerdicts);
 
   for (const report of externalReports || []) {
     if (!report || !report.file) continue;
@@ -1080,6 +1159,7 @@ export function listUnreviewedReviewTargets(
     if (!slug || monitorSlugs.has(normalizeSlug(slug))) continue;
     const stats = todoStats(plan);
     if (stats.completed === 0) continue;
+    if (verdictPlans.has(planFile.toLowerCase())) continue;
     seenPlans.add(planFile);
     targets.push({
       kind: "owed",
@@ -3269,6 +3349,7 @@ export function buildAttentionItems({
   agentPrompts = [],
   externalReports = [],
   dismissedIds = [],
+  planVerdicts = [],
   archivedPlanFiles = [],
   readinessPending = [],
   deferredCheckIds = [],
@@ -3308,6 +3389,7 @@ export function buildAttentionItems({
     handoff,
     externalReports,
     archivedPlanFiles,
+    { planVerdicts },
   );
   const cadenceItem = buildCadenceAttentionItem(cadenceLedger, unreviewed, {
     enabled: cadenceOpts.enabled,
@@ -4101,6 +4183,7 @@ export function buildMissionControlView({
   externalReports = [],
   subagentRuns = [],
   dismissedIds = [],
+  planVerdicts = [],
   archivedPlanFiles = [],
   agents = [],
   skills = [],
@@ -4184,6 +4267,7 @@ export function buildMissionControlView({
     agentPrompts,
     externalReports,
     dismissedIds,
+    planVerdicts,
     archivedPlanFiles,
     readinessPending: allowlistReadinessPending(readinessPending),
     deferredCheckIds,
