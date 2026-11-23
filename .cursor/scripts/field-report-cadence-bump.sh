@@ -14,6 +14,9 @@
 # classify prints the owed plans with one class and evidence line each and
 # writes nothing; --survival adds git blame survival of the merge SHAs named
 # in to-do evidence (on demand at triage only, never from Mission Control).
+# Plans with an operator verdict row in
+# .cursor/context/field-report-plan-verdicts.json are not owed in any action;
+# classify lists those rows under "verdicts". This script never writes a row.
 # Never /git-prod. Does not stage the ledger (gitignored).
 
 set -euo pipefail
@@ -25,7 +28,7 @@ ACTION="${1:-}"
 SURVIVAL="${2:-}"
 
 usage() {
-  sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [[ -z "$ACTION" || "$ACTION" == "-h" || "$ACTION" == "--help" ]]; then
@@ -133,6 +136,14 @@ if (smMissing.length) {
     `warning: field-report cadence skipped (${action}): ${smPath} lacks ${smMissing.join(", ")}; update the agent-kit CLI to match this script`,
   );
   process.exit(0);
+}
+
+// Operator verdict rows (per-plan exit from the owed set). An installed CLI
+// older than this script has no parser: no rows apply and every plan stays owed.
+const VERDICTS_REL = ".cursor/context/field-report-plan-verdicts.json";
+function collectPlanVerdicts() {
+  if (typeof sm.parseFieldReportPlanVerdicts !== "function") return [];
+  return sm.parseFieldReportPlanVerdicts(readJson(join(root, VERDICTS_REL))).verdicts;
 }
 
 function readJson(path) {
@@ -309,7 +320,10 @@ if (action === "classify") {
   }
   const plans = collectPlans();
   const archived = collectArchived();
-  const targets = listUnreviewedReviewTargets(plans, handoff, collectReports(), archived);
+  const planVerdicts = collectPlanVerdicts();
+  const targets = listUnreviewedReviewTargets(plans, handoff, collectReports(), archived, {
+    planVerdicts,
+  });
   const rows = [];
   for (const t of targets) {
     if (t.kind !== "owed") continue;
@@ -324,7 +338,16 @@ if (action === "classify") {
     rows.push({ planFile: t.planFile, lifecycle, ...verdict, survival });
   }
   process.stdout.write(
-    JSON.stringify({ action, survival: survivalFlag === "--survival", plans: rows }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        action,
+        survival: survivalFlag === "--survival",
+        plans: rows,
+        verdicts: planVerdicts.map((v) => ({ plan: v.plan, verdict: v.verdict, at: v.at || null })),
+      },
+      null,
+      2,
+    ) + "\n",
   );
   process.exit(0);
 }
@@ -352,6 +375,7 @@ if (action === "clear") {
     handoff,
     collectReports(),
     collectArchived(),
+    { planVerdicts: collectPlanVerdicts() },
   );
   if (action === "tick") {
     next = recordCadenceTickClose(prev, {

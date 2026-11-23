@@ -10,6 +10,8 @@
 .cursor/context/readiness.json
 # Local Field Report dismissals (attention IDs only; no transcript body)
 .cursor/context/field-report-dismissals.json
+# Local Field Report per-plan verdicts (plan basenames + Ask provenance; no review prose)
+.cursor/context/field-report-plan-verdicts.json
 # Local Current mission execution timing ledger (observation only)
 .cursor/context/mission-timing.json
 # Local Flight Log past-Gaps history (observation only)

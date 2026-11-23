@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.21.0] - 2026-11-23
+
+### Added
+
+- Field Report: a per-plan verdict for finished plans that have nothing left to review. `/field-report-resolve attention:cadence:<windowId>` now asks about each such plan before it decides anything about the window: `Delivered nothing`, `Superseded` or `Keep owed`. It asks for plans classed `partial-parked` or `superseded-or-rewritten`, and for any plan you name by basename after the cadence id. `Delivered nothing` and `Superseded` record the plan in `.cursor/context/field-report-plan-verdicts.json`, a local file to keep out of git like the dismissals file, and the plan stops counting as unreviewed in this and later cadence windows, so you no longer have to hide a whole window to silence it. A verdict is written only from your answer, never from the classification alone, and an existing untriaged review of that plan still shows. `field-report-cadence-bump.sh classify` lists the recorded verdicts; delete a row to undo it.
+
 ## [6.20.0] - 2026-11-22
 
 ### Added

@@ -458,4 +458,9 @@ export const KNOWN_SHIPPED_OVERLAY_HASHES: ReadonlySet<string> = new Set([
   "a39d60c0040e249a9cb096414f67366939121eceda5c9087ec0f7896a1e2cbc1",
   "be813d8741a05ebeea13db5576f4e2893da1a43316ad45e9361391e58be3393c", // mission-kit-comms/SKILL.md (release mirror exception, 2026-11-22)
   "daf5d4d1cb1c0920f00f1e483316ededccd29da9bcd3e92b3f0d64702e78f329",
+  "144bc96d8e357f087c10e8bbc1698fc94955e196ed959abeeda4659087a2daa9",
+  "afde6839f7d35fbfdddee85068252e1f5187b0caf3e29728b31e1ce81dea1f83",
+  "d0f95082a50d53b5b8fd33c55c538ce8104a1be5439e4bc596cbe35e22a4e5c5",
+  "27dc66786d9071f30fc5068a7b3a1ed5c2c904a26f928f311e33432ac5b6571b",
+  "b2fb21604ca3cdc4f42a48a6f29873a41ca7decad7133419c982a4a340f733b3",
 ]);
