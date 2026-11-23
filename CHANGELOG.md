@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.22.0] - 2026-11-23
+
+### Added
+
+- Model roles: the reviewer role now runs. `roles.reviewer` in `.cursor/context/config.json` (or Mission Control **Config** > Model roles) says whether reviews run and when: `scope: "plan"` reviews once when a plan finishes, as before; `scope: "tick"` reviews after each tick of `agent-kit run-plan` and stops the run when the review has findings, which land as a ticket for you to read; `scope: "off"` or `enabled: false` turns reviews off, also when `externalPlanReview.enabled` is true. The reviewer's `backend`, `model` and `advisorModel` are read before the older `externalPlanReview` keys, which keep working. `agent-kit run review-pack` and `agent-kit countdown --job review` use the reviewer backend and model when you pass no flag.
+
+### Changed
+
+- External plan review: a reviewer of the same model family as the implementer is now allowed. Only the identical model is refused: the same id, Auto against Auto, or an alias such as `opus` against any Opus id. A different model of the same family runs with one warning line, so Opus can build and Fable or Sonnet review on a single Claude subscription. `--dry-run` shows the outcome as `same-model-refuse` and `same-family-warn`.
+- External plan review: the reviewer is compared with the model that did the work. `agent-kit run-plan` passes the model its ticks ran on, and the launcher otherwise reads `roles.worker.model`. Before, the implementer counted as Auto unless you stamped it by hand, so a run with `--model sonnet` could be reviewed by Sonnet without a word.
+
 ## [6.21.0] - 2026-11-23
 
 ### Added

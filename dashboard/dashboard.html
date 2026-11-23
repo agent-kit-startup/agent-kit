@@ -6335,7 +6335,7 @@ function renderRolesFieldset(cfg) {
             <select id="config-role-reviewer-enabled" name="roleReviewerEnabled" data-focus-key="config-role-reviewer-enabled">
               ${roleSelectHtml(['on', 'off'], enabled, 'Not set (Audits section)')}
             </select>
-            <span class="config-hint">Saved for the reviewer role. Review runs still follow the Audits section until the reviewer role ships.</span>
+            <span class="config-hint">On or off here wins over the Audits switch; not set follows it. The identical model as the worker is refused; another model of the same family runs with a warning.</span>
           </div>
           <div class="config-row">
             <label for="config-role-reviewer-scope">Reviewer scope</label>
@@ -6501,7 +6501,7 @@ function renderConfigSection(d) {
           <div class="config-row">
             <label for="config-epr-reviewerModel">Reviewer model</label>
             <input type="text" id="config-epr-reviewerModel" name="eprReviewerModel" value="${escapeAttr(epr.reviewerModel || 'sonnet')}" maxlength="64" data-focus-key="config-epr-reviewerModel" />
-            <span class="config-hint">Claude default sonnet (auto permission mode). Must differ from the implementer stamp (Auto/Auto refused).</span>
+            <span class="config-hint">Claude default sonnet (auto permission mode). Must not be the identical model of the implementer stamp (Auto/Auto refused); the Model roles reviewer model is read first.</span>
           </div>
           <div class="config-row">
             <label for="config-epr-advisorModel">Advisor model</label>

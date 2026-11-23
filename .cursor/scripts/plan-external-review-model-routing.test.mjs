@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -17,7 +25,14 @@ function extractFn(name) {
 }
 
 function runBash(body) {
-  const fns = ["normalize_model_family", "models_same_family", "effective_reviewer_model"]
+  const fns = [
+    "normalize_model_id",
+    "normalize_model_family",
+    "models_same_family",
+    "model_is_family_alias",
+    "review_model_relation",
+    "effective_reviewer_model",
+  ]
     .map(extractFn)
     .join("\n");
   const bash = `
@@ -139,6 +154,226 @@ models_same_family sonnet opus && echo sonnet-opus || echo sonnet-opus-no
     out.stdout.trim(),
     ["auto-auto", "haiku-haiku", "auto-haiku-no", "sonnet-opus-no"].join("\n"),
   );
+});
+
+// ADR 2026-11-16_reviewer-same-family-rule: block only the identical model, warn on the
+// same family. The same table runs against the CLI rule in model-roles.test.ts.
+test("review_model_relation: identical refused, same family warns, different runs", () => {
+  const cases = [
+    ["auto", "auto", "identical"],
+    ["", "Auto", "identical"],
+    ["cursor-auto", "default", "identical"],
+    ["opus", "opus", "identical"],
+    ["Claude-Opus-5-5", "claude-opus-5-5", "identical"],
+    ["opus", "claude-opus-5-5", "identical"],
+    ["claude-opus-5-5", "claude-opus", "identical"],
+    ["fable", "claude-fable-5-2", "identical"],
+    ["composer", "composer-2.5-fast", "identical"],
+    ["opus[1m]", "opus", "identical"],
+    ["claude-opus-4-7[1m]", "claude-opus-4-7", "identical"],
+    ["gpt-5", "gpt-5", "identical"],
+    ["claude-opus-5-5", "claude-opus-4-8", "same-family"],
+    ["claude-opus-4-7", "claude-opus-4-7-20260101", "same-family"],
+    ["claude-fable-5-2", "claude-fable-5-1", "same-family"],
+    ["opus", "sonnet", "different"],
+    ["claude-opus-5-5", "fable", "different"],
+    ["claude-opus-5-5", "claude-fable-5-2", "different"],
+    ["auto", "sonnet", "different"],
+    ["gpt-5", "gpt-5.1", "different"],
+  ];
+  const body = cases
+    .map(([a, b]) => `echo "$(review_model_relation ${JSON.stringify(a)} ${JSON.stringify(b)})"`)
+    .join("\n");
+  const out = runBash(body);
+  assert.equal(out.status, 0, out.stderr);
+  assert.deepEqual(
+    out.stdout.trim().split("\n"),
+    cases.map((c) => c[2]),
+  );
+  // The rule is symmetric.
+  const flipped = runBash(
+    cases
+      .map(([a, b]) => `echo "$(review_model_relation ${JSON.stringify(b)} ${JSON.stringify(a)})"`)
+      .join("\n"),
+  );
+  assert.deepEqual(
+    flipped.stdout.trim().split("\n"),
+    cases.map((c) => c[2]),
+  );
+});
+
+test("normalize_model_family knows fable and folds a bracket parameter", () => {
+  const out = runBash(`
+echo "$(normalize_model_family fable)"
+echo "$(normalize_model_family claude-fable-5-2)"
+echo "$(normalize_model_family 'opus[1m]')"
+echo "$(normalize_model_family sonnet-4.5)"
+`);
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout.trim(), ["fable", "fable", "opus", "sonnet-4.5"].join("\n"));
+
+  const cursorFable = runBash(`
+REVIEWER_BACKEND=cursor
+REVIEWER_MODEL=fable
+echo "$(effective_reviewer_model)"
+`);
+  assert.equal(cursorFable.stdout.trim(), "auto");
+});
+
+// Runs a copy of the launcher inside a scratch workspace so ROOT and config are the fixture's.
+function launcherFixture(config) {
+  const root = mkdtempSync(join(tmpdir(), "audits-roles-reviewer-"));
+  mkdirSync(join(root, ".cursor", "scripts"), { recursive: true });
+  mkdirSync(join(root, ".cursor", "context", "templates"), { recursive: true });
+  mkdirSync(join(root, ".cursor", "plans"), { recursive: true });
+  copyFileSync(SCRIPT, join(root, ".cursor", "scripts", "plan-external-review.sh"));
+  writeFileSync(
+    join(root, ".cursor", "context", "templates", "plan-external-review-prompt.md"),
+    "# prompt\n",
+  );
+  writeFileSync(join(root, ".cursor", "context", "templates", "plan-monitor.md"), "# monitor\n");
+  writeFileSync(
+    join(root, ".cursor", "plans", "fixture.plan.md"),
+    "---\nname: Fixture\ntodos:\n  - id: one\n    status: completed\n---\n",
+  );
+  writeFileSync(join(root, ".cursor", "HANDOFF.md"), "# Handoff\n\n- **Plan:** fixture.plan.md\n");
+  if (config !== undefined) {
+    writeFileSync(join(root, ".cursor", "context", "config.json"), JSON.stringify(config));
+  }
+  const run = (args, env = {}) =>
+    spawnSync("bash", [join(root, ".cursor", "scripts", "plan-external-review.sh"), ...args], {
+      encoding: "utf8",
+      cwd: root,
+      env: { ...process.env, AGENT_KIT_AUDIT_IMPLEMENTER_MODEL: "", ...env },
+    });
+  return { root, run, done: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test("roles.reviewer switch: off and scope tick win over externalPlanReview.enabled", () => {
+  for (const [reviewer, tip] of [
+    [{ enabled: false }, /the reviewer role is off/],
+    [{ enabled: true, scope: "off" }, /the reviewer role is off/],
+    [{ enabled: true, scope: "tick" }, /roles\.reviewer\.scope is "tick"/],
+  ]) {
+    const fx = launcherFixture({ externalPlanReview: { enabled: true }, roles: { reviewer } });
+    try {
+      const out = fx.run(["--dry-run", "fixture.plan.md"]);
+      assert.equal(out.status, 0, out.stderr);
+      assert.match(out.stdout, tip);
+      assert.doesNotMatch(out.stdout, /prepared/);
+    } finally {
+      fx.done();
+    }
+  }
+});
+
+test("scope tick without an enabled review prints the opt-in tip, not the per-tick one", () => {
+  const fx = launcherFixture({ roles: { reviewer: { scope: "tick" } } });
+  try {
+    const out = fx.run(["--dry-run", "fixture.plan.md"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /audits \(external plan review\) are opt-in and currently disabled/);
+    assert.doesNotMatch(out.stdout, /reviews run after each headless tick/);
+  } finally {
+    fx.done();
+  }
+});
+
+test("roles.reviewer enabled true arms without externalPlanReview.enabled; no roles keeps the old tip", () => {
+  const on = launcherFixture({ roles: { reviewer: { enabled: true, scope: "plan" } } });
+  try {
+    const out = on.run(["--paste-only", "--dry-run", "fixture.plan.md"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /audits \/ external plan review: prepared/);
+  } finally {
+    on.done();
+  }
+  const legacy = launcherFixture({ externalPlanReview: { enabled: false } });
+  try {
+    const out = legacy.run(["--dry-run", "fixture.plan.md"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /audits \(external plan review\) are opt-in and currently disabled/);
+  } finally {
+    legacy.done();
+  }
+});
+
+test("reviewer and implementer models come from roles; identical refused, same family warns", () => {
+  const dry = (config, args = [], env = {}) => {
+    const fx = launcherFixture(config);
+    try {
+      return fx.run(["--force", "--paste-only", "--dry-run", ...args, "fixture.plan.md"], env);
+    } finally {
+      fx.done();
+    }
+  };
+  // Opus implements, Fable reviews, one subscription: runs, no warning.
+  const fable = dry({
+    roles: {
+      worker: { backend: "claude", model: "claude-opus-5-5" },
+      reviewer: { enabled: true, backend: "claude", model: "fable", advisorModel: "sonnet" },
+    },
+    externalPlanReview: { reviewerModel: "haiku", advisorModel: "opus" },
+  });
+  assert.equal(fable.status, 0, fable.stderr);
+  assert.match(fable.stdout, /reviewer-model: fable/);
+  assert.match(fable.stdout, /implementer-model: claude-opus-5-5/);
+  assert.match(fable.stdout, /advisor-model: sonnet/);
+  assert.match(fable.stdout, /same-model-refuse: no/);
+  assert.match(fable.stdout, /same-family-warn: no/);
+
+  // Two different ids of one family: runs with one warning line.
+  const family = dry({
+    roles: { worker: { model: "claude-opus-5-5" }, reviewer: { model: "claude-opus-4-8" } },
+  });
+  assert.match(family.stdout, /same-model-refuse: no/);
+  assert.match(family.stdout, /same-family-warn: yes/);
+  assert.equal(
+    family.stdout.match(/^warning: reviewer claude-opus-4-8 and implementer/gm)?.length,
+    1,
+  );
+
+  // Alias against an id of its family: identical, refused.
+  const alias = dry({
+    roles: { worker: { model: "claude-opus-5-5" }, reviewer: { model: "opus" } },
+  });
+  assert.match(alias.stdout, /same-model-refuse: yes/);
+  assert.match(alias.stdout, /This is not a silent self-review/);
+
+  // Legacy keys still work when roles has no reviewer model.
+  const legacy = dry({ externalPlanReview: { reviewerModel: "haiku" } });
+  assert.match(legacy.stdout, /reviewer-model: haiku/);
+  assert.match(legacy.stdout, /implementer-model: auto/);
+
+  // --implementer-model beats roles.worker.model; the env stamp is the fallback below it.
+  const flag = dry({ roles: { worker: { model: "claude-opus-5-5" } } }, [
+    "--implementer-model",
+    "gpt-5",
+  ]);
+  assert.match(flag.stdout, /implementer-model: gpt-5/);
+  const env = dry({}, [], { AGENT_KIT_AUDIT_IMPLEMENTER_MODEL: "composer-2.5-fast" });
+  assert.match(env.stdout, /implementer-model: composer-2\.5-fast/);
+});
+
+test("roles.reviewer.backend is read before externalPlanReview.backend", () => {
+  const fx = launcherFixture({
+    roles: { reviewer: { backend: "cursor-agent" } },
+    externalPlanReview: { backend: "claude" },
+  });
+  try {
+    const out = spawnSync(
+      "bash",
+      [
+        "-c",
+        `CONFIG=${JSON.stringify(join(fx.root, ".cursor/context/config.json"))}\n${extractFn("config_review_backend")}\nconfig_review_backend`,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout.trim(), "cursor");
+  } finally {
+    fx.done();
+  }
 });
 
 test("effective_reviewer_model: Claude default is sonnet; explicit haiku kept; Cursor Claude-family collapses to auto", () => {

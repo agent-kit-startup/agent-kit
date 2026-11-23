@@ -47,6 +47,12 @@ export interface ArmExternalPlanReviewResult {
 export interface ArmExternalPlanReviewOptions {
   /** One-shot bypass of config enabled (passes --force to the launcher). */
   force?: boolean;
+  /**
+   * The model the ticks ran on (flag, plan or config `roles.worker.model`),
+   * passed as `--implementer-model` so the launcher compares the reviewer
+   * against it instead of `auto` (ADR 2026-11-16_reviewer-same-family-rule).
+   */
+  implementerModel?: string;
   spawnFn?: typeof spawn;
   existsFn?: (p: string) => Promise<boolean>;
   log?: (line: string) => void;
@@ -104,6 +110,8 @@ export async function armExternalPlanReview(
 
   // Explicit --print keeps headless claude -p when config mode is autonomous.
   const args = force ? [scriptPath, "--force", "--print"] : [scriptPath, "--print"];
+  const implementerModel = options.implementerModel?.trim();
+  if (implementerModel) args.push("--implementer-model", implementerModel);
 
   return new Promise((resolve) => {
     const child = spawnFn("bash", args, {

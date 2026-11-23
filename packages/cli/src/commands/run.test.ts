@@ -298,6 +298,25 @@ describe("executeRun: model roles", () => {
     expect(r.error).toMatch(/roles\.worker\.model/);
   });
 
+  it("review-pack refuses the worker model as reviewer before anything starts", async () => {
+    const root = await rolesRoot({
+      worker: { model: "claude-opus-5-5" },
+      reviewer: { backend: "claude", model: "opus" },
+    });
+    const r = await executeRun({ ...input, slash: "review-pack", cwd: root, backend: "" });
+    expect(r.exitCode).toBe(1);
+    expect(r.error).toMatch(/identical-model review is refused/);
+    // An explicit --model that differs runs past the rule (it then needs a git repository).
+    const flag = await executeRun({
+      ...input,
+      slash: "review-pack",
+      cwd: root,
+      backend: "",
+      model: "fable",
+    });
+    expect(flag.error).toBe("the review job needs a git repository");
+  });
+
   it("other slashes ignore roles.worker", async () => {
     const root = await rolesRoot({ worker: { backend: "claude" } });
     await writeFile(

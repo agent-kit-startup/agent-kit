@@ -29,6 +29,7 @@ import {
   CLAUDE_SUBAGENT_MODEL_ENV,
   describeResolvedRoles,
   loadRolesContext,
+  resolveReviewJobRole,
   resolveSubworkerModel,
   resolveWorkerRole,
 } from "../plan-loop/model-roles.js";
@@ -153,8 +154,8 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
   }
   // Model roles (ADR 2026-11-16): run-plan and run-plan-all read
   // roles.worker when no --backend / --model is given (run-plan also reads
-  // the active plan's worker_backend / worker_model). Other slashes, the
-  // review job included, keep the flag or `auto`.
+  // the active plan's worker_backend / worker_model). The review job reads
+  // roles.reviewer the same way. Other slashes keep the flag or `auto`.
   let backendRequest = input.backend.trim() || "auto";
   let model = input.model?.trim() || undefined;
   let runRoles: RunRolesOptions | undefined;
@@ -177,7 +178,23 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
       roles: ctx.roles,
       backendSource: worker.backendSource,
       ...(worker.modelSource ? { modelSource: worker.modelSource } : {}),
+      reviewer: ctx.reviewer,
     };
+  }
+  if (slash === REVIEW_PACK_SLASH) {
+    // The reviewer role: flag > roles.reviewer > auto; the identical model is
+    // refused, a same-family model warns (ADR 2026-11-16 reviewer rule).
+    const ctx = await loadRolesContext(root, false);
+    if (!ctx.ok) return { exitCode: 1, error: ctx.error };
+    const review = resolveReviewJobRole({
+      flagBackend: input.backend,
+      flagModel: input.model,
+      roles: ctx.roles,
+    });
+    if (review.refusal) return { exitCode: 1, error: review.refusal };
+    if (review.warning) rolesWarnings.push(review.warning);
+    backendRequest = review.backend;
+    model = review.model;
   }
   // Driver mode owns stdout (NDJSON only): roles notes go to stderr there.
   const rolesNote = (line: string) =>
@@ -273,7 +290,7 @@ export async function executeRun(input: ExecuteRunInput): Promise<ExecuteRunResu
         root,
         backendId: detected.id,
         bin: detected.bin,
-        model: input.model,
+        model,
         maxPackBytes: input.maxPackBytes,
         includeReviewed: input.includeReviewed === true,
         noHitl: input.noHitl === true,
@@ -447,7 +464,7 @@ const runDispatchArgs = {
   },
   backend: {
     type: "string" as const,
-    description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto; run-plan and run-plan-all read config roles.worker first)`,
+    description: `Agent CLI (${listDetectBackendIds().join(" | ")}; default: auto; run-plan and run-plan-all read config roles.worker first, review-pack config roles.reviewer)`,
     default: "",
   },
   model: {

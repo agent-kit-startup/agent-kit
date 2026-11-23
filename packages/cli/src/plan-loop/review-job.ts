@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { ensurePathIgnored } from "../utils/git-local-exclude.js";
-import type { BackendId, BackendRunResult } from "./backends.js";
+import type { BackendId, BackendRunResult, SpawnInfo } from "./backends.js";
 import { redactSecrets } from "./backends.js";
 import { ensureDispatchLogPath, readCommandFile, runHeadlessDispatch } from "./dispatch.js";
 import {
@@ -25,6 +25,7 @@ import {
 } from "./gate-exit.js";
 import { formatHitlSummary, hitlExitCode } from "./hitl-relay.js";
 import { isBranchInBase } from "./merge-detect.js";
+import type { StreamSink } from "./stream-render.js";
 
 /**
  * The review job (ADR 2026-10-08_countdown-coming-home-generic-lane point 4):
@@ -527,6 +528,10 @@ export interface RunReviewJobInput {
   /** Parent of the empty review workspace (default: the OS temp dir). */
   tmpRoot?: string;
   log?: (line: string) => void;
+  /** Terminal side of the session stream (default: status lines); driver mode injects a silent sink. */
+  render?: StreamSink;
+  /** Fired once the review session is running (pid), so a caller can forward signals to it. */
+  onSpawn?: (info: SpawnInfo) => void;
   now?: Date;
 }
 
@@ -656,6 +661,8 @@ export async function runReviewJob(input: RunReviewJobInput): Promise<RunReviewJ
         readOnly: true,
         hitl: { policy: input.noHitl ? "off" : "prompt" },
         log: (line) => say(line),
+        ...(input.render ? { render: input.render } : {}),
+        ...(input.onSpawn ? { onSpawn: input.onSpawn } : {}),
       });
       for (const line of formatHitlSummary(result.hitl)) say(line);
       exitCode = hitlExitCode(result.exitCode, result.hitl);

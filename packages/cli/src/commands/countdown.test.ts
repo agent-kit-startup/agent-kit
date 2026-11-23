@@ -707,6 +707,51 @@ describe("executeCountdown: model roles", () => {
     await run;
   });
 
+  it("the review job reads roles.reviewer when no --backend / --model is given", async () => {
+    const root = await rolesRepo({
+      worker: { backend: "claude", model: "claude-opus-5-5" },
+      reviewer: { backend: "claude", model: "fable" },
+    });
+    const child = fakeChild();
+    const { spawnJob, calls } = spawnReturning(child);
+    const { land } = recordingLand();
+    const lines: string[] = [];
+    const run = executeCountdown({
+      ...base,
+      backend: "",
+      cwd: root,
+      job: "review",
+      spawnJob,
+      land,
+      write: (t) => lines.push(t),
+    });
+    await vi.waitFor(() => expect(calls.length).toBe(1));
+    const args = calls[0] ?? [];
+    expect(args.slice(args.indexOf("--backend"), args.indexOf("--backend") + 2)).toEqual([
+      "--backend",
+      "claude",
+    ]);
+    expect(args.slice(args.indexOf("--model"), args.indexOf("--model") + 2)).toEqual([
+      "--model",
+      "fable",
+    ]);
+    expect(lines.join("")).toContain("roles: reviewer claude (config), model fable (config)");
+    child.exit(0);
+    await run;
+  });
+
+  it("the review job refuses the worker model as reviewer (identical model)", async () => {
+    const root = await rolesRepo({
+      worker: { model: "claude-opus-5-5" },
+      reviewer: { model: "opus" },
+    });
+    const { spawnJob, calls } = spawnReturning(fakeChild());
+    const r = await executeCountdown({ ...base, backend: "", cwd: root, job: "review", spawnJob });
+    expect(r.exitCode).toBe(COUNTDOWN_EXIT.usage);
+    expect(r.error).toMatch(/identical-model review is refused/);
+    expect(calls).toEqual([]);
+  });
+
   it("a malformed roles value is a usage error, never the default backend", async () => {
     const root = await rolesRepo({ worker: { backend: "opnerouter" } });
     const { spawnJob, calls } = spawnReturning(fakeChild());
