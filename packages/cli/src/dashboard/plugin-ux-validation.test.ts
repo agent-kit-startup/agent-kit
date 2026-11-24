@@ -3937,6 +3937,52 @@ describe("plugin-ux-validation: Healthcenter (More → Health)", () => {
     expect(dashboardHtml).not.toContain(".health-message");
   });
 
+  it("explicit per-check severity wins over ok (Amend 2026-11-19), ok stays the fallback", () => {
+    const list = dashboardHtml.match(/const HEALTH_CHECK_SEVERITIES = \[[^\]]*\];/)?.[0];
+    const fn = dashboardHtml.match(
+      /function healthCheckSeverity\(check, aggregateStatus\) \{[\s\S]*?\n\}/,
+    )?.[0];
+    expect(list).toBeTruthy();
+    expect(fn).toBeTruthy();
+    const sandbox: Record<string, unknown> = {};
+    runInNewContext(`${list}\n${fn}\nthis.healthCheckSeverity = healthCheckSeverity;`, sandbox);
+    const healthCheckSeverity = sandbox.healthCheckSeverity as (
+      check: Record<string, unknown>,
+      aggregate: string,
+    ) => string;
+    expect(healthCheckSeverity({ ok: false, severity: "not-initialized" }, "not-initialized")).toBe(
+      "not-initialized",
+    );
+    expect(healthCheckSeverity({ ok: true, severity: "warning" }, "ok")).toBe("warning");
+    expect(healthCheckSeverity({ ok: false, severity: "warning" }, "degraded")).toBe("warning");
+    // Older snapshots without severity keep the ok mapping.
+    expect(healthCheckSeverity({ ok: true }, "degraded")).toBe("ok");
+    expect(healthCheckSeverity({ ok: false }, "degraded")).toBe("degraded");
+    expect(healthCheckSeverity({ ok: false }, "warning")).toBe("warning");
+    // Unknown severities fall back too (never a per-check error).
+    expect(healthCheckSeverity({ ok: false, severity: "error" }, "warning")).toBe("warning");
+  });
+
+  it("leads a fresh workspace with the /start-project first-run call to action", () => {
+    const healthBlock = dashboardHtml.match(
+      /\/\/ ===== Healthcenter \(More → Health\) =====[\s\S]*?(?=\n {2}\/\/ ===== Git =====)/,
+    )?.[0];
+    expect(healthBlock).toBeTruthy();
+    expect(healthBlock).toMatch(
+      /healthStatus === 'not-initialized'\s*\? renderEmptyStateCta\(\{[\s\S]*?headline: 'No plan yet'[\s\S]*?text: '\/start-project'[\s\S]*?destination: 'chatInput'/,
+    );
+    expect(healthBlock).toContain("'Not started'");
+    expect(dashboardHtml).toContain("'not-initialized': { tone: 'blue', label: 'not started' }");
+    expect(dashboardHtml).toMatch(
+      /\.health-item-sev\[data-sev="not-initialized"\]\s*\{[^}]*var\(--blue/,
+    );
+    // Git: a repository without commits gets its own copy-only fix.
+    const metaBlock = dashboardHtml.match(/const HEALTH_CHECK_META = \{[\s\S]*?\n\};/)?.[0];
+    expect(metaBlock).toMatch(
+      /autofixBySeverity:\s*\{\s*warning:\s*\{\s*text:\s*'git commit --allow-empty -m "chore: initial commit"'[\s\S]*?destination:\s*'terminal'/,
+    );
+  });
+
   it("renders a vitals diagnosis dashboard grouped by vital system", () => {
     const healthBlock = dashboardHtml.match(
       /\/\/ ===== Healthcenter \(More → Health\) =====[\s\S]*?(?=\n {2}\/\/ ===== Git =====)/,

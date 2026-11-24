@@ -1055,6 +1055,7 @@ body.mc-fullscreen .top-tabs-row {
 }
 .health-vital-card[data-state="pass"] .health-vital-state { color: var(--green); }
 .health-vital-card[data-state="attention"] .health-vital-state { color: var(--red); }
+.health-vital-card[data-state="not-started"] .health-vital-state { color: var(--blue); }
 .health-group {
   display: flex;
   flex-direction: column;
@@ -1116,6 +1117,7 @@ body.mc-fullscreen .top-tabs-row {
 .health-item-sev[data-sev="ok"] { color: var(--green); }
 .health-item-sev[data-sev="warning"] { color: var(--yellow); }
 .health-item-sev[data-sev="degraded"] { color: var(--orange); }
+.health-item-sev[data-sev="not-initialized"] { color: var(--blue); }
 .health-item-chevron {
   color: var(--text-muted);
   font-size: 10px;
@@ -6714,13 +6716,13 @@ const HEALTH_CHECK_META = {
   },
   agents: {
     okDetail: 'Agents are optional in L0; empty .cursor/agents/ is healthy. Cataloged agents (if any) are listed in Agents.',
-    // Intentionally unreachable: dashboard-data keeps agents.ok constant-true (L0-optional).
-    failDetail: 'Intentionally unreachable (agents ok is constant-true; L0-optional inventory).',
+    // Never degraded: warning names agent files without name + description frontmatter.
+    failDetail: 'Some agent files have no name or description frontmatter, so the IDE does not load them.',
     autofix: null,
   },
   commands: {
-    okDetail: 'Slash commands are available under .cursor/commands/.',
-    failDetail: 'No commands under .cursor/commands/.',
+    okDetail: 'Slash commands are available (workspace or Mission Kit plugin install).',
+    failDetail: 'No commands under .cursor/commands/, .claude/commands/ or a Mission Kit plugin install.',
     autofix: { text: '.cursor/commands/', subject: 'path .cursor/commands/', destination: 'filePicker', label: 'Copy path' },
   },
   memory: {
@@ -6731,8 +6733,11 @@ const HEALTH_CHECK_META = {
   git: {
     okDetail: 'Git branch signal is available.',
     failDetail: 'Git repository signal missing (no branch).',
-    // Covers not-a-repo and git-init-but-zero-commits (rev-parse HEAD fails until first commit).
+    // Not a repository (degraded). A repository without commits is a warning with its own fix.
     autofix: { text: 'git init && git commit --allow-empty -m "init"', subject: 'git init && git commit --allow-empty -m "init"', destination: 'terminal', label: 'Autofix' },
+    autofixBySeverity: {
+      warning: { text: 'git commit --allow-empty -m "chore: initial commit"', subject: 'git commit --allow-empty -m "chore: initial commit"', destination: 'terminal', label: 'Autofix' },
+    },
   },
   config: {
     okDetail: 'Workspace config is loaded.',
@@ -6749,10 +6754,16 @@ const HEALTH_VITAL_GROUPS = [
   { label: 'Workspace', checks: ['git', 'config'] },
 ];
 
+/** Per-check severities a producer may send (Amend 2026-11-19: explicit `severity` field). */
+const HEALTH_CHECK_SEVERITIES = ['ok', 'warning', 'degraded', 'not-initialized'];
+
 function healthCheckSeverity(check, aggregateStatus) {
-  // Per-check levels are ok | warning | degraded only. Aggregate snapshot/serve
-  // `error` is empty-checks (presence + empty state); producers never emit
-  // status:error with checks present, so do not invent a per-check error sev.
+  // Per-check levels are ok | warning | degraded | not-initialized. An explicit
+  // `severity` wins over `ok`; older snapshots without it keep the ok mapping.
+  // Aggregate snapshot/serve `error` is empty-checks (presence + empty state);
+  // producers never emit status:error with checks present, so do not invent a
+  // per-check error sev.
+  if (check && HEALTH_CHECK_SEVERITIES.includes(check.severity)) return check.severity;
   if (check && check.ok) return 'ok';
   if (aggregateStatus === 'degraded') return 'degraded';
   return 'warning';
@@ -6767,6 +6778,7 @@ const HEALTH_SEVERITY_CHROME = {
   ok: { tone: 'green', label: 'ok' },
   warning: { tone: 'yellow', label: 'warn' },
   degraded: { tone: 'orange', label: 'degraded' },
+  'not-initialized': { tone: 'blue', label: 'not started' },
   error: { tone: 'red', label: 'error' },
 };
 
@@ -7367,10 +7379,13 @@ function updateTransportChrome() {
     statusDot.className = 'dot dot-yellow';
     statusLabel.textContent = 'Catching up';
   } else if (sseMode === 'live') {
-    // Steady dot while healthy; pulse only when health is not ok
+    // Steady dot while healthy; pulse only when health is not ok. A fresh
+    // workspace (not-initialized) is not a fault: steady dot, label "Not started".
     statusDot.className = healthStatus === 'ok'
       ? 'dot dot-green'
-      : `dot dot-${healthTone} dot-pulse`;
+      : healthStatus === 'not-initialized'
+        ? `dot dot-${healthTone}`
+        : `dot dot-${healthTone} dot-pulse`;
     statusLabel.textContent = healthStatus === 'ok'
       ? 'Live'
       : healthChrome.label.charAt(0).toUpperCase() + healthChrome.label.slice(1);
@@ -9431,7 +9446,8 @@ function renderUnsafe() {
   const isSnapshotError = healthStatus === 'error' && checks.length === 0;
   const isOffline = !isSnapshotError && checks.length === 0;
   const presenceTone = healthSeverityChrome(healthStatus).tone;
-  const presencePulse = healthStatus !== 'ok' ? ' dot-pulse' : '';
+  const healthCalm = healthStatus === 'ok' || healthStatus === 'not-initialized';
+  const presencePulse = healthCalm ? '' : ' dot-pulse';
   const presenceLabel = isSnapshotError
     ? 'Snapshot error'
     : isOffline
@@ -9442,7 +9458,9 @@ function renderUnsafe() {
           ? 'Warning'
           : healthStatus === 'degraded'
             ? 'Degraded'
-            : 'Error';
+            : healthStatus === 'not-initialized'
+              ? 'Not started'
+              : 'Error';
   const subtitle = isSnapshotError
     ? 'Snapshot unavailable'
     : isOffline
@@ -9487,15 +9505,21 @@ function renderUnsafe() {
         autofix: null,
       };
       const sev = healthCheckSeverity(c, healthStatus);
-      const detail = c.ok ? meta.okDetail : meta.failDetail;
-      const autofix = !c.ok && meta.autofix ? meta.autofix : null;
+      const notStarted = sev === 'not-initialized';
+      const detail = (typeof c.detail === 'string' && c.detail) || (c.ok ? meta.okDetail : meta.failDetail);
+      const autofix = c.ok || notStarted
+        ? null
+        : (meta.autofixBySeverity && meta.autofixBySeverity[sev]) || meta.autofix || null;
       const fixPrompt = [`Fix this failing health check: ${c.label || id}`, detail].join('\n');
       const fixBtn = `<button type="button" class="health-autofix-btn" data-focus-key="health-fix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">Copy fix prompt</button>`;
       const autofixBtn = autofix
         ? `<button type="button" class="health-autofix-btn" data-focus-key="health-autofix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(autofix.text, autofix.subject, autofix.destination)}" title="${escapeAttr(copyActionTitle(autofix.subject, autofix.destination))}">${escapeHtml(autofix.label || 'Autofix')}</button>`
         : '';
-      const actions = c.ok
-        ? `<span class="health-detail-copy" style="margin:0">No action needed.</span>`
+      const actionNote = c.ok
+        ? 'No action needed.'
+        : notStarted ? 'Starts with your first plan: /start-project.' : '';
+      const actions = actionNote
+        ? `<span class="health-detail-copy" style="margin:0">${escapeHtml(actionNote)}</span>`
         : `${fixBtn}${autofixBtn}`;
       return `
       <div class="health-card" role="listitem" id="health-card-${escapeAttr(id)}" data-check-id="${escapeAttr(id)}" data-severity="${escapeAttr(sev)}">
@@ -9523,16 +9547,34 @@ function renderUnsafe() {
         ${grouped.map(g => {
           const total = g.items.length;
           const okCount = g.items.filter(c => c.ok).length;
-          const state = okCount === total ? 'pass' : 'attention';
+          const waiting = g.items.filter(c => healthCheckSeverity(c, healthStatus) === 'not-initialized').length;
+          const state = okCount === total ? 'pass' : okCount + waiting === total ? 'not-started' : 'attention';
+          const stateDot = state === 'pass' ? 'dot-green' : state === 'not-started' ? 'dot-blue' : 'dot-red';
+          const stateLabel = state === 'pass' ? 'Pass' : state === 'not-started' ? 'Not started' : 'Attention';
           return `
           <div class="health-vital-card" role="listitem" data-state="${state}">
             <span class="health-vital-name">${escapeHtml(g.label)}</span>
             <span class="health-vital-score">${okCount}/${total} passing</span>
-            <span class="health-vital-state"><span class="dot ${state === 'pass' ? 'dot-green' : 'dot-red'}"></span>${state === 'pass' ? 'Pass' : 'Attention'}</span>
+            <span class="health-vital-state"><span class="dot ${stateDot}"></span>${stateLabel}</span>
           </div>`;
         }).join('')}
       </div>`;
-    healthBody = `${vitalsStrip}
+    // Fresh workspace (Amend 2026-11-19): lead with the first-run call to action.
+    const firstRunCta = healthStatus === 'not-initialized'
+      ? renderEmptyStateCta({
+        headline: 'No plan yet',
+        support: 'This workspace has not started: no plan, no HANDOFF, no memory. Start a plan and Health follows it.',
+        iconKind: 'health',
+        cta: {
+          text: '/start-project',
+          subject: '/start-project',
+          destination: 'chatInput',
+          label: 'Copy /start-project',
+          focusKey: 'cta-health-start-project',
+        },
+      })
+      : '';
+    healthBody = `${firstRunCta}${vitalsStrip}
       ${grouped.map(g => `
       <section class="health-group" aria-label="${escapeAttr(g.label)}">
         <div class="health-group-title">${escapeHtml(g.label)}</div>

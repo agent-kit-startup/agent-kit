@@ -23,25 +23,27 @@ const dataSource = readFileSync(resolve(repoRoot, "dashboard/dashboard-data.mjs"
 describe("dashboard-data: handoff health", () => {
   it("treats present HANDOFF as healthy even when Plan is none/null (idle)", () => {
     // Idle HANDOFF (Plan: none) parses without .plan; requiring plan flipped transport to Warning.
-    expect(dataSource).toMatch(/id:\s*["']handoff["'][\s\S]*?ok:\s*!!SNAPSHOT\.system\.handoff\b/);
-    expect(dataSource).not.toMatch(
-      /id:\s*["']handoff["'][\s\S]*?ok:\s*!!SNAPSHOT\.system\.handoff\?\.plan/,
+    expect(dataSource).toMatch(
+      /const handoffCheck = workspaceFresh[\s\S]*?: SNAPSHOT\.system\.handoff\s*\?\s*healthCheck\("handoff", "HANDOFF\.md", "ok"/,
     );
+    expect(dataSource).not.toMatch(/SNAPSHOT\.system\.handoff\?\.plan\s*\?\s*healthCheck/);
   });
 });
 
 describe("dashboard-data: agents health L0-optional", () => {
-  it("keeps check id agents but does not hard-fail on empty inventory", () => {
-    expect(dataSource).toMatch(/id:\s*["']agents["'][\s\S]*?ok:\s*true\b/);
-    expect(dataSource).not.toMatch(
-      /id:\s*["']agents["'][\s\S]*?ok:\s*SNAPSHOT\.agents\.length\s*>\s*0/,
+  it("keeps check id agents, zero agent files is ok and the check is never degraded", () => {
+    const agentsBlock = dataSource.match(/const agentsCheck =[\s\S]*?;\n\n/)?.[0];
+    expect(agentsBlock).toBeTruthy();
+    expect(agentsBlock).toMatch(
+      /agentFiles\.length === 0\s*\?\s*healthCheck\("agents", "Agents", "ok", "None installed; workers run as general-purpose"\)/,
     );
+    expect(agentsBlock).not.toContain('"degraded"');
   });
 
-  it("maps Healthcenter agents autofix to null (ok is constant-true)", () => {
+  it("maps Healthcenter agents autofix to null (warning names files, no fix to copy)", () => {
     const agentsMeta = dashboardHtml.match(/agents:\s*\{[\s\S]*?autofix:\s*null,?\s*\n\s*\},/)?.[0];
     expect(agentsMeta).toBeTruthy();
-    expect(agentsMeta).toContain("Intentionally unreachable");
+    expect(agentsMeta).toContain("Never degraded");
     expect(agentsMeta).toContain("autofix: null");
     expect(agentsMeta).not.toMatch(/autofix:\s*\{/);
   });

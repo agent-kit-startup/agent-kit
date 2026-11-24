@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.22.1] - 2026-11-24
+
+### Fixed
+
+- Mission Control Health no longer reports a healthy first run as degraded. A fresh workspace (no plan, no HANDOFF, no memory yet) now reads "Not started" and leads with a "No plan yet" card that copies `/start-project` for the chat. Commands count a Mission Kit plugin installed in Cursor or Claude Code, not only `.cursor/commands/`, so `/run-plan` working from the plugin is shown as working. A repository without commits is a warning ("No commits on main") with its own copy-only fix, and a missing `config.json` means defaults, not a failure (only a `config.json` that does not parse is degraded). Agents get a real check: files without `name` and `description` frontmatter are named as a warning. Every check now says what it found and where. The snapshot adds `severity` and `detail` per check (`dashboardDataVersion` 1.13.0); the `ok` field keeps its meaning.
+
 ## [6.22.0] - 2026-11-23
 
 ### Added
