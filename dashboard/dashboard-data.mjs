@@ -171,7 +171,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.12.0",
+    version: "1.13.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -204,12 +204,13 @@ const SNAPSHOT = {
       processes:
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
-      health: "Aggregated health status with per-check results",
+      health:
+        "Aggregated health: status ok|warning|degraded|not-initialized (error only on the serve empty-checks path) and the fixed seven checks[] ({id, label, ok, severity: ok|warning|degraded|not-initialized, detail}); ok means severity === ok; not-initialized marks a fresh workspace (no plans, no HANDOFF, no memory entries); Commands, Config and Agents also read a Mission Kit Cursor or Claude Code plugin install (1.13.0)",
       missionControl: "Normalized now/activity/attention/plans view model (source-backed; bounded)",
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.12.0",
+  dashboardDataVersion: "1.13.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -1326,29 +1327,331 @@ try {
   SNAPSHOT.system.detachedAuditSessions = null;
 }
 
-// 10. Health checks (originally)
+// 10. Health checks (ADR 2026-07-29 mc-health-healthcenter, Amend 2026-11-19 first run).
+// Each check carries `severity` (ok | warning | degraded | not-initialized) and a
+// one-line `detail`; the boolean `ok` stays and means severity === "ok".
+const HEALTH_HOME = process.env.HOME || "";
+const HEALTH_BROADCAST = resolveBroadcastAuth(process.env).broadcast !== false;
+const HEALTH_MAX_ENTRIES = 64; // directory entries read per plugin root level
+const HEALTH_MAX_FILES = 500; // command / agent files listed per source
+
+/** Home-relative path for a check detail (`~/...`). */
+function healthHomeRel(p) {
+  if (HEALTH_HOME && (p === HEALTH_HOME || p.startsWith(`${HEALTH_HOME}/`))) {
+    return `~${p.slice(HEALTH_HOME.length)}`;
+  }
+  return p;
+}
+
+/** Bounded, fail-open directory listing (names only). */
+function healthReaddir(dir, cap = HEALTH_MAX_ENTRIES) {
+  try {
+    return readdirSync(dir).slice(0, cap);
+  } catch {
+    return [];
+  }
+}
+
+/** `*.md` files of one directory (bounded, fail-open). */
+function healthMdFiles(dir) {
+  return healthReaddir(dir, HEALTH_MAX_FILES).filter((f) => f.endsWith(".md"));
+}
+
+function healthReadJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+/** Manifest component path(s) resolved under the plugin root, else `<root>/<fallback>`. */
+function healthPluginPaths(root, manifest, key, fallback) {
+  const raw = manifest ? manifest[key] : undefined;
+  const list = (Array.isArray(raw) ? raw : [raw]).filter(
+    (v) => typeof v === "string" && v.trim() !== "",
+  );
+  const paths = (list.length ? list : [fallback])
+    .map((v) => resolve(root, v))
+    .filter((p) => p === root || p.startsWith(`${root}/`));
+  return paths.length ? paths : [join(root, fallback)];
+}
+
+/** One Mission Kit plugin install, or null when `root` is not one. */
+function healthKitPlugin(kind, root, manifestRel) {
+  const manifest = healthReadJson(join(root, manifestRel));
+  if (manifest?.name !== "agent-kit") return null;
+  return {
+    kind,
+    root,
+    version: typeof manifest.version === "string" ? manifest.version : "",
+    commandDirs: healthPluginPaths(root, manifest, "commands", "commands"),
+    agentDirs: healthPluginPaths(root, manifest, "agents", "agents"),
+  };
+}
+
+/**
+ * Mission Kit plugins installed for this user: Cursor local plugins, Cursor's
+ * plugin cache (a revision with `.cache-complete`, newest wins) and Claude Code's
+ * installed_plugins.json entries (read at their installPath). Read-only, one
+ * directory level per root, fail-open.
+ */
+function findKitPlugins() {
+  const found = [];
+  if (!HEALTH_HOME) return found;
+  const cursorPlugins = join(HEALTH_HOME, ".cursor", "plugins");
+  const cursorLocal = join(cursorPlugins, "local");
+  for (const dir of healthReaddir(cursorLocal)) {
+    const plugin = healthKitPlugin("cursor", join(cursorLocal, dir), ".cursor-plugin/plugin.json");
+    if (plugin) found.push(plugin);
+  }
+  const cursorCache = join(cursorPlugins, "cache");
+  for (const marketplace of healthReaddir(cursorCache)) {
+    for (const dir of healthReaddir(join(cursorCache, marketplace))) {
+      const base = join(cursorCache, marketplace, dir);
+      let newest = null;
+      for (const revision of healthReaddir(base)) {
+        let mtimeMs = 0;
+        try {
+          mtimeMs = statSync(join(base, revision, ".cache-complete")).mtimeMs;
+        } catch {
+          continue;
+        }
+        if (!newest || mtimeMs > newest.mtimeMs) newest = { revision, mtimeMs };
+      }
+      if (!newest) continue;
+      const plugin = healthKitPlugin(
+        "cursor",
+        join(base, newest.revision),
+        ".cursor-plugin/plugin.json",
+      );
+      if (plugin) found.push(plugin);
+    }
+  }
+  const installed = healthReadJson(
+    join(HEALTH_HOME, ".claude", "plugins", "installed_plugins.json"),
+  );
+  const entries = installed && typeof installed.plugins === "object" ? installed.plugins : null;
+  if (entries) {
+    for (const [key, value] of Object.entries(entries).slice(0, HEALTH_MAX_ENTRIES)) {
+      if (!key.startsWith("agent-kit@")) continue;
+      for (const entry of (Array.isArray(value) ? value : [value]).slice(0, 8)) {
+        const installPath = entry && typeof entry.installPath === "string" ? entry.installPath : "";
+        if (!installPath) continue;
+        const plugin = healthKitPlugin("claude", installPath, ".claude-plugin/plugin.json");
+        if (plugin) {
+          found.push(plugin);
+          break;
+        }
+      }
+    }
+  }
+  return found;
+}
+
+function healthPluginName(plugin) {
+  const host = plugin.kind === "claude" ? "Claude Code" : "Cursor";
+  return `the ${host} plugin agent-kit${plugin.version ? ` ${plugin.version}` : ""}`;
+}
+
+function healthPluginSource(plugin) {
+  return HEALTH_BROADCAST
+    ? healthPluginName(plugin)
+    : `${healthPluginName(plugin)} (${healthHomeRel(plugin.root)})`;
+}
+
+function healthCheck(id, label, severity, detail) {
+  return { id, label, ok: severity === "ok", severity, detail };
+}
+
+const kitPlugins = findKitPlugins();
+
+// Fresh workspace: no plan files, no HANDOFF, zero memory entries (index files excluded).
+const healthPlanFiles = healthReaddir(plansDir, HEALTH_MAX_FILES).filter((f) =>
+  f.endsWith(".plan.md"),
+).length;
+const healthMemoryEntries = [memoryErrorsDir, memoryDecisionsDir].reduce(
+  (n, dir) => n + healthMdFiles(dir).filter((f) => !f.startsWith("_")).length,
+  0,
+);
+const healthHandoffExists = existsSync(handoffPath);
+const workspaceFresh = healthPlanFiles === 0 && !healthHandoffExists && healthMemoryEntries === 0;
+const NOT_STARTED = "Nothing yet: this workspace has not started a plan.";
+
+// Plans / HANDOFF / Memory: not-initialized on a fresh workspace, else on their own.
+const plansCheck = workspaceFresh
+  ? healthCheck("plans", "Plans directory", "not-initialized", NOT_STARTED)
+  : SNAPSHOT.plans.length > 0
+    ? healthCheck(
+        "plans",
+        "Plans directory",
+        "ok",
+        `${SNAPSHOT.plans.length} plan${SNAPSHOT.plans.length === 1 ? "" : "s"} under .cursor/plans/`,
+      )
+    : healthCheck("plans", "Plans directory", "warning", "No plan files under .cursor/plans/");
+const handoffCheck = workspaceFresh
+  ? healthCheck("handoff", "HANDOFF.md", "not-initialized", NOT_STARTED)
+  : SNAPSHOT.system.handoff
+    ? healthCheck("handoff", "HANDOFF.md", "ok", ".cursor/HANDOFF.md is present and parseable")
+    : healthCheck(
+        "handoff",
+        "HANDOFF.md",
+        "warning",
+        healthHandoffExists ? ".cursor/HANDOFF.md does not parse" : "No .cursor/HANDOFF.md",
+      );
+const memoryCount = (SNAPSHOT.memory.errors || 0) + (SNAPSHOT.memory.decisions || 0);
+const memoryCheck = workspaceFresh
+  ? healthCheck("memory", "Memory (errors + decisions)", "not-initialized", NOT_STARTED)
+  : healthMemoryEntries > 0
+    ? healthCheck(
+        "memory",
+        "Memory (errors + decisions)",
+        "ok",
+        `${SNAPSHOT.memory.errors || 0} errors, ${SNAPSHOT.memory.decisions || 0} decisions`,
+      )
+    : healthCheck(
+        "memory",
+        "Memory (errors + decisions)",
+        "warning",
+        memoryCount > 0
+          ? "Only index files under .cursor/memory/"
+          : "No errors or decisions under .cursor/memory/",
+      );
+
+// Commands: workspace .cursor/commands, workspace .claude/commands, or a plugin install.
+const commandSources = [];
+if (SNAPSHOT.commands.length > 0) {
+  commandSources.push({ count: SNAPSHOT.commands.length, label: ".cursor/commands/" });
+}
+const claudeCommandCount = healthMdFiles(join(ROOT, ".claude", "commands")).length;
+if (claudeCommandCount > 0) {
+  commandSources.push({ count: claudeCommandCount, label: ".claude/commands/" });
+}
+for (const plugin of kitPlugins) {
+  const count = plugin.commandDirs.reduce((n, dir) => n + healthMdFiles(dir).length, 0);
+  if (count > 0) commandSources.push({ count, label: healthPluginSource(plugin) });
+}
+const commandsCheck = commandSources.length
+  ? healthCheck(
+      "commands",
+      "Commands",
+      "ok",
+      commandSources
+        .map((s) => `${s.count} command${s.count === 1 ? "" : "s"} from ${s.label}`)
+        .join("; "),
+    )
+  : healthCheck(
+      "commands",
+      "Commands",
+      "degraded",
+      "No commands in .cursor/commands/, .claude/commands/ or a Mission Kit plugin install",
+    );
+
+// Agents: optional in L0; warning names files without name + description frontmatter.
+const agentFiles = [];
+for (const rel of [".cursor/agents", ".claude/agents"]) {
+  for (const f of healthMdFiles(join(ROOT, rel))) {
+    agentFiles.push({ full: join(ROOT, rel, f), shown: `${rel}/${f}` });
+  }
+}
+for (const plugin of kitPlugins) {
+  for (const dir of plugin.agentDirs) {
+    for (const f of healthMdFiles(dir)) {
+      agentFiles.push({
+        full: join(dir, f),
+        shown: HEALTH_BROADCAST ? `${healthPluginName(plugin)}: ${f}` : healthHomeRel(join(dir, f)),
+      });
+    }
+  }
+}
+const agentsWithoutFrontmatter = agentFiles
+  .filter(({ full }) => {
+    let head = "";
+    try {
+      head = readFileSync(full, "utf-8").slice(0, 4096);
+    } catch {
+      return false;
+    }
+    const fm = head.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    return !fm || !/^name:\s*\S/m.test(fm[1]) || !/^description:\s*\S/m.test(fm[1]);
+  })
+  .map((a) => a.shown);
+const agentsCheck =
+  agentFiles.length === 0
+    ? healthCheck("agents", "Agents", "ok", "None installed; workers run as general-purpose")
+    : agentsWithoutFrontmatter.length === 0
+      ? healthCheck(
+          "agents",
+          "Agents",
+          "ok",
+          `${agentFiles.length} agent file${agentFiles.length === 1 ? "" : "s"} with name and description`,
+        )
+      : healthCheck(
+          "agents",
+          "Agents",
+          "warning",
+          `Missing name or description frontmatter (not loaded by the IDE): ${agentsWithoutFrontmatter.slice(0, 5).join(", ")}${agentsWithoutFrontmatter.length > 5 ? ` and ${agentsWithoutFrontmatter.length - 5} more` : ""}`,
+        );
+
+// Git: unborn HEAD is a warning; the extra reads run only after rev-parse failed.
+let gitCheck;
+if (SNAPSHOT.git.branch) {
+  gitCheck = healthCheck("git", "Git repository", "ok", `On ${SNAPSHOT.git.branch}`);
+} else {
+  const gitRead = (args) => {
+    try {
+      return {
+        ok: true,
+        out: execFileSync("git", args, {
+          cwd: ROOT,
+          encoding: "utf-8",
+          timeout: 5000,
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim(),
+      };
+    } catch {
+      return { ok: false, out: "" };
+    }
+  };
+  const unbornBranch = gitRead(["symbolic-ref", "--short", "HEAD"]);
+  gitCheck =
+    unbornBranch.ok && unbornBranch.out && !gitRead(["rev-parse", "--verify", "-q", "HEAD"]).ok
+      ? healthCheck("git", "Git repository", "warning", `No commits on ${unbornBranch.out}`)
+      : healthCheck("git", "Git repository", "degraded", "Not a git repository");
+}
+
+// Config: a missing config.json means defaults; only an unparseable file is degraded.
+const configCheck = !existsSync(configPath)
+  ? healthCheck(
+      "config",
+      "Config",
+      "ok",
+      kitPlugins.length
+        ? `Defaults (no config.json); ${healthPluginName(kitPlugins[0])} found`
+        : "Defaults (no config.json)",
+    )
+  : SNAPSHOT.system.config && !SNAPSHOT.system.config.error
+    ? healthCheck("config", "Config", "ok", ".cursor/context/config.json parses")
+    : healthCheck("config", "Config", "degraded", ".cursor/context/config.json does not parse");
+
 const checks = [
-  { id: "plans", label: "Plans directory", ok: existsSync(plansDir) && SNAPSHOT.plans.length > 0 },
-  // Present + parseable HANDOFF is healthy even when Plan is none/null (idle).
-  { id: "handoff", label: "HANDOFF.md", ok: !!SNAPSHOT.system.handoff },
-  // L0-optional: empty .cursor/agents/ is healthy (packs/skills may add agents later).
-  { id: "agents", label: "Agents", ok: true },
-  { id: "commands", label: "Commands", ok: SNAPSHOT.commands.length > 0 },
-  {
-    id: "memory",
-    label: "Memory (errors + decisions)",
-    ok: (SNAPSHOT.memory.errors || 0) + (SNAPSHOT.memory.decisions || 0) > 0,
-  },
-  { id: "git", label: "Git repository", ok: !!SNAPSHOT.git.branch },
-  { id: "config", label: "Config", ok: !!SNAPSHOT.system.config },
+  plansCheck,
+  handoffCheck,
+  agentsCheck,
+  commandsCheck,
+  memoryCheck,
+  gitCheck,
+  configCheck,
 ];
 
 SNAPSHOT.health.checks = checks;
-SNAPSHOT.health.status = checks.every((c) => c.ok)
-  ? "ok"
-  : checks.filter((c) => !c.ok).length <= 2
-    ? "warning"
-    : "degraded";
+SNAPSHOT.health.status = checks.some((c) => c.severity === "degraded")
+  ? "degraded"
+  : workspaceFresh
+    ? "not-initialized"
+    : checks.some((c) => c.severity !== "ok")
+      ? "warning"
+      : "ok";
 
 /**
  * Agent-prompt detection contract (fs half).

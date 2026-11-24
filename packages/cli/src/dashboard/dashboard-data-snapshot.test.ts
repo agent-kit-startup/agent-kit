@@ -621,3 +621,132 @@ describe("dashboard-data.mjs: versioned snapshot contract", SUBPROCESS_TIMEOUT, 
     for (const name of fieldNames) expect(schema.required).toContain(name);
   });
 });
+
+// ── Health first run (ADR 2026-07-29 mc-health-healthcenter, Amend 2026-11-19) ──
+type HealthCheck = { id: string; ok: boolean; severity: string; detail: string };
+type HealthSnapshot = { health: { status: string; checks: HealthCheck[] } };
+
+/** Per-test HOME so a seeded plugin never leaks into other snapshot tests. */
+function scratchHome(): string {
+  return mkdtempSync(join(tmpdir(), "ak-dashdata-health-home-"));
+}
+
+/** A Mission Kit Cursor local plugin under `home` with two commands. */
+function seedCursorPlugin(home: string) {
+  const root = join(home, ".cursor", "plugins", "local", "agent-kit");
+  mkdirSync(join(root, ".cursor-plugin"), { recursive: true });
+  mkdirSync(join(root, ".cursor", "commands"), { recursive: true });
+  writeFileSync(
+    join(root, ".cursor-plugin", "plugin.json"),
+    JSON.stringify({ name: "agent-kit", version: "6.18.0", commands: ".cursor/commands" }),
+  );
+  writeFileSync(join(root, ".cursor", "commands", "run-plan.md"), "# /run-plan\n");
+  writeFileSync(join(root, ".cursor", "commands", "start-project.md"), "# /start-project\n");
+}
+
+function healthById(snap: HealthSnapshot): Record<string, HealthCheck> {
+  return Object.fromEntries(snap.health.checks.map((c) => [c.id, c]));
+}
+
+describe("dashboard-data.mjs: Health first run (Amend 2026-11-19)", SUBPROCESS_TIMEOUT, () => {
+  it("plugin-installed fresh workspace: Commands ok, Git warning, aggregate not-initialized, nothing degraded", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-health-fresh-"));
+    initGitRepo(repo);
+    const home = scratchHome();
+    seedCursorPlugin(home);
+    const snap = runDashboardData(repo, { HOME: home }) as unknown as HealthSnapshot;
+    const by = healthById(snap);
+    expect(snap.health.checks.map((c) => c.id)).toEqual([
+      "plans",
+      "handoff",
+      "agents",
+      "commands",
+      "memory",
+      "git",
+      "config",
+    ]);
+    expect(snap.health.status).toBe("not-initialized");
+    expect(snap.health.checks.filter((c) => c.severity === "degraded")).toEqual([]);
+    for (const id of ["plans", "handoff", "memory"]) {
+      expect(by[id].severity).toBe("not-initialized");
+      expect(by[id].ok).toBe(false);
+    }
+    expect(by.commands).toMatchObject({ ok: true, severity: "ok" });
+    expect(by.commands.detail).toContain("2 commands from the Cursor plugin agent-kit 6.18.0");
+    expect(by.commands.detail).toContain("~/.cursor/plugins/local/agent-kit");
+    expect(by.commands.detail).not.toContain(home);
+    expect(by.git.severity).toBe("warning");
+    expect(by.git.detail).toMatch(/^No commits on /);
+    expect(by.config).toMatchObject({ ok: true, severity: "ok" });
+    expect(by.config.detail).toContain("Defaults (no config.json)");
+    expect(by.agents).toMatchObject({ ok: true, severity: "ok" });
+    for (const c of snap.health.checks) expect(c.ok).toBe(c.severity === "ok");
+  });
+
+  it("broadcast snapshot names the plugin source kind without paths", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-health-bcast-"));
+    initGitRepo(repo);
+    const home = scratchHome();
+    seedCursorPlugin(home);
+    const snap = runDashboardData(repo, {
+      HOME: home,
+      HOST: "0.0.0.0",
+      MISSION_CONTROL_TOKEN: "h".repeat(32),
+    }) as unknown as HealthSnapshot;
+    const commands = healthById(snap).commands;
+    expect(commands.severity).toBe("ok");
+    expect(commands.detail).toContain("the Cursor plugin agent-kit 6.18.0");
+    expect(commands.detail).not.toContain("~/");
+    expect(commands.detail).not.toContain(home);
+  });
+
+  it("empty repository with a kit install: Git warning 'no commits', not degraded", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-health-empty-"));
+    initGitRepo(repo);
+    mkdirSync(join(repo, ".cursor", "commands"), { recursive: true });
+    writeFileSync(join(repo, ".cursor", "commands", "run-plan.md"), "# /run-plan\n");
+    mkdirSync(join(repo, ".cursor", "plans"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "plans", "first.plan.md"),
+      "---\nname: First\ntodos: []\n---\n",
+    );
+    const snap = runDashboardData(repo, { HOME: scratchHome() }) as unknown as HealthSnapshot;
+    const by = healthById(snap);
+    expect(by.git.severity).toBe("warning");
+    expect(by.git.detail).toMatch(/^No commits on /);
+    expect(by.plans.severity).toBe("ok");
+    expect(by.commands.severity).toBe("ok");
+    // Not fresh (a plan exists): a missing HANDOFF reports on its own.
+    expect(by.handoff.severity).toBe("warning");
+    expect(snap.health.status).toBe("warning");
+  });
+
+  it("fresh workspace with no kit and no plugin: Commands degraded, aggregate degraded", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-health-bare-"));
+    initGitRepo(repo);
+    const snap = runDashboardData(repo, { HOME: scratchHome() }) as unknown as HealthSnapshot;
+    const by = healthById(snap);
+    expect(by.commands.severity).toBe("degraded");
+    expect(by.plans.severity).toBe("not-initialized");
+    expect(snap.health.status).toBe("degraded");
+  });
+
+  it("config: unparseable config.json is degraded; agents without frontmatter are a warning", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-health-config-"));
+    initGitRepo(repo);
+    mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+    writeFileSync(join(repo, ".cursor", "context", "config.json"), "{ not json");
+    mkdirSync(join(repo, ".cursor", "agents"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "agents", "good.md"),
+      "---\nname: good\ndescription: Does things.\n---\nBody\n",
+    );
+    writeFileSync(join(repo, ".cursor", "agents", "bare.md"), "# No frontmatter\n");
+    const snap = runDashboardData(repo, { HOME: scratchHome() }) as unknown as HealthSnapshot;
+    const by = healthById(snap);
+    expect(by.config.severity).toBe("degraded");
+    expect(by.agents.severity).toBe("warning");
+    expect(by.agents.detail).toContain(".cursor/agents/bare.md");
+    expect(by.agents.detail).not.toContain("good.md");
+  });
+});

@@ -132,3 +132,4 @@ __pycache__/
 # (`--validate`); committing it conflicted on every parallel PR. See
 # .cursor/memory/decisions/2026-10-19_knowledge-classification-untracked.md.
 docs/evidence/knowledge-classification.json
+.cursor/dogfood/
