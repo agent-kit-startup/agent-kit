@@ -21,6 +21,7 @@ import { detectStaleCli, formatRerunFlags, formatStaleCliRefusal } from "../life
 import { syncFromManifest } from "../lifecycle/sync.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
+import { formatQueueLeaseRefusal, inspectQueueLease } from "../plan-loop/queue-lease.js";
 import { logger } from "../utils/logger.js";
 import { confirmProjectRoot, isNonInteractive, RootRefusedError } from "../utils/terminal.js";
 import { withCliProgress } from "../welcome/visual-kit.js";
@@ -31,6 +32,7 @@ const UPDATE_RERUN_FLAGS = [
   "claude",
   "yes",
   "force-root",
+  "force",
   "seed-overlay",
   "cwd",
   "registry",
@@ -82,6 +84,12 @@ export const updateCommand = defineCommand({
       type: "boolean",
       description:
         "Apply even when this CLI is older than the registry it is syncing from; the manifest is then stamped with this CLI's version, not the registry's (factory/dev only)",
+      default: false,
+    },
+    force: {
+      type: "boolean",
+      description:
+        "Apply even while another live writer holds the queue lease (.cursor/context/run-plan-all.lock); an operator choice, never a default",
       default: false,
     },
     claude: {
@@ -140,6 +148,21 @@ export const updateCommand = defineCommand({
     const existing = await loadAgentKitManifest(projectRoot, { onWarning: logger.warn });
     if (!existing) {
       logger.warn("No .cursor/agent-kit.json — run agent-kit install first.");
+      return;
+    }
+
+    // Live-writer check (ADR 2026-07-26 Amend 2026-11-16): another session
+    // holding the queue lease may be reading or writing L0 right now. Same
+    // verdict as `agent-kit queue lease`; free, stale and own session proceed.
+    const lease = inspectQueueLease(projectRoot);
+    if (lease.kind === "held" && !args.force) {
+      logger.error(
+        formatQueueLeaseRefusal(lease, {
+          what: "another live session writes this workspace, so update will not rewrite L0",
+          next: "run agent-kit update again (--force applies anyway; operator choice)",
+        }),
+      );
+      process.exitCode = 1;
       return;
     }
 

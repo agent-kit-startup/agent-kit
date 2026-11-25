@@ -35,7 +35,7 @@ Prepare and validate repository readiness before `/start-project`. This command 
 
 6. Resume the first unresolved essential check before considering any non-essential action. Do not restart completed checks or repeat confirmed facts.
 
-**Fallback:** If Task dispatch is unavailable, run the doctor scan and file reads inline (same as pre-delegation behavior: run `agent-kit doctor --json`, read the returned report, `.cursor/context/readiness.json`, `.cursor/context/config.json`, and `.cursor/agent-kit.config.json` when present).
+**Fallback:** If Task dispatch is unavailable or the worker template is missing, run the doctor scan and file reads inline (same as pre-delegation behavior: run `agent-kit doctor --json`, read the returned report, `.cursor/context/readiness.json`, `.cursor/context/config.json`, and `.cursor/agent-kit.config.json` when present).
 
 ## First Useful Message
 

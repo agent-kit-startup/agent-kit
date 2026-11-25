@@ -75,6 +75,11 @@ agent-kit update --check [--json] [--respect-prefs] [--stamp]
    - The CLI enforces this: an apply whose registry is newer than the binary
      refuses with exit 1 and prints the pinned `npm i -g` remedy.
      `--yes` does **not** bypass it; `--allow-stale-cli` is factory/dev only.
+   - The CLI also refuses (exit 1, the `Queue lease held:` holder line) while
+     another live session holds the queue lease
+     (`.cursor/context/run-plan-all.lock`), since that session may be reading
+     or writing L0. Wait for it to end; `--force` applies anyway and is an
+     operator choice, never a default. `--check` is not gated.
 
 5. **Show what will update (diff):**
    - Run `npx @dadado/agent-kit-cli@latest diff --url https://github.com/agent-kit-startup/agent-kit --ref main` (or the latest tag ref)

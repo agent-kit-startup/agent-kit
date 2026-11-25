@@ -10,6 +10,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+## [6.23.0] - 2026-11-24
+
+### Changed
+
+- `agent-kit conflicts propose` no longer verifies by default. Verification runs the model's resolved file and the files the merge brought in, before anyone has reviewed them, unsandboxed, with your environment and network, so it is now opt-in: pass `--verify` for a branch whose code you trust. `--verify-cmd` without `--verify` exits 1 instead of being ignored, and a skipped verification reports `not requested (pass --verify to run it)`. Colony always passes `--verify` or `--no-verify` explicitly and its box starts unticked, so the conflict window behaves the same with any kit version.
+- Getting started explains how to keep the CLI on `PATH` with mise when node follows `latest` (the Omarchy default): an `npm i -g` global disappears on the next node patch, so the guide gives the mise tool entry that works (`allow_low_downloads` and `minimum_release_age` are both required) and the README links to it.
+
+### Fixed
+
+- `agent-kit update` no longer rewrites L0 while another live session holds the queue lease: it exits 1 with the same `Queue lease held:` holder line as `agent-kit queue lease` (`--force` applies anyway, as an operator choice). `/git-staging` and `/kit-staging` run that check before any git write and stop on a held lease, and a `/run-plan` tick stages only the files it wrote (`git add -- <paths>`, never `git add -A` or `git add .`), leaving another session's dirty paths alone. Closes the rest of a consumer report where a headless loop and an interactive session collided on one tree.
+- `agent-kit install` and `agent-kit update` now ship `.cursor/context/templates/command-worker-prompt.md`, the worker prompt that `/agent-kit-onboard`, `/backlog-add`, `/start-project` and `/run-plan-all` tell the agent to fill before delegating a scan. Consumers never received it, so every delegated scan fell back off-contract. The fallback wording now also covers a missing template, and a test fails when an L0 command, skill or rule cites a template that L0 does not ship.
+
 ## [6.22.1] - 2026-11-24
 
 ### Fixed

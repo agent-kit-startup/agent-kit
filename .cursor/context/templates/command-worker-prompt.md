@@ -7,10 +7,11 @@ description: "Reusable worker prompt template for command delegation. The main w
   Main window: fill every bracketed field before dispatching.
 
   This template is modeled after /run-plan's Worker prompt template
-  (see .cursor/commands/run-plan.md#worker-prompt-template).
+  (see .cursor/skills/core/hitl-gates/run-plan-tick-contract.md, section
+  "Worker prompt template").
 
-  When Task is unavailable, the command falls back to inline execution
-  (same as /run-plan's in-session loop fallback).
+  When Task is unavailable or this template is missing, the command falls
+  back to inline execution (same as /run-plan's in-session loop fallback).
 -->
 
 You are an Agent Kit worker. Execute ONLY the task below and stop.

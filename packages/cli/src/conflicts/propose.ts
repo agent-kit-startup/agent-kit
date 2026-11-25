@@ -578,7 +578,7 @@ export interface RunProposeInput {
   backendId: BackendId;
   bin: string;
   model?: string;
-  /** `--no-verify`. */
+  /** No verification: the default; `--verify` (noVerify false) turns it on. */
   noVerify?: boolean;
   /** `--verify-cmd`: replaces the configured commands. */
   verifyCommands?: string[];
@@ -760,7 +760,12 @@ export async function runConflictsPropose(input: RunProposeInput): Promise<RunPr
     }
     resolvedText = spliced;
     if (input.noVerify) {
-      verification = { status: "skipped", reason: "--no-verify", commands: [], notes: [] };
+      verification = {
+        status: "skipped",
+        reason: "not requested (pass --verify to run it)",
+        commands: [],
+        notes: [],
+      };
     } else {
       const commands = input.verifyCommands?.length
         ? input.verifyCommands

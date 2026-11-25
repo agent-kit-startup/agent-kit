@@ -9,7 +9,7 @@ audience: meta
 
 ## Goal
 
-Propose a resolution for each conflict hunk in the pack that the CLI appends to this prompt. The CLI checks every proposal, splices the accepted ones into the file itself, verifies the result in a temporary worktree and shows it to the operator, who decides in Colony. You never edit, run, stage, commit or push anything.
+Propose a resolution for each conflict hunk in the pack that the CLI appends to this prompt. The CLI checks every proposal, splices the accepted ones into the file itself, verifies the result in a temporary worktree when the operator asks for it, and shows it to the operator, who decides in Colony. You never edit, run, stage, commit or push anything.
 
 ## When to Use
 

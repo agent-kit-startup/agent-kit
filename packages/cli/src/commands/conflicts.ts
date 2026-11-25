@@ -59,13 +59,13 @@ const proposeCommand = defineCommand({
     verify: {
       type: "boolean",
       description:
-        "Verify the resolved file in a temporary worktree: runs stack.validationCommands and stack.testCommands from HEAD's .cursor/agent-kit.config.json (or --verify-cmd) on the model's text and the files the merge brought in, before anyone has reviewed them, unsandboxed, as you, with your environment and network; --no-verify skips",
-      default: true,
+        "Off by default. Verify the resolved file in a temporary worktree: runs stack.validationCommands and stack.testCommands from HEAD's .cursor/agent-kit.config.json (or --verify-cmd) on the model's text and the files the merge brought in, before anyone has reviewed them, unsandboxed, as you, with your environment and network. Pass it only for a branch whose code you trust",
+      default: false,
     },
     "verify-cmd": {
       type: "string",
       description:
-        "Shell command to verify with instead of the configured ones. The temporary worktree has no dependencies installed: on a Node repository put the install first, e.g. --verify-cmd 'pnpm install --frozen-lockfile --prefer-offline && pnpm test' (npm: 'npm ci --prefer-offline && npm test'); a failed verification without node_modules prints the one for your lockfile and commands",
+        "With --verify: a shell command to verify with instead of the configured ones. The temporary worktree has no dependencies installed: on a Node repository put the install first, e.g. --verify --verify-cmd 'pnpm install --frozen-lockfile --prefer-offline && pnpm test' (npm: 'npm ci --prefer-offline && npm test'); a failed verification without node_modules prints the one for your lockfile and commands",
     },
     "verify-timeout": {
       type: "string",
@@ -79,6 +79,12 @@ const proposeCommand = defineCommand({
   },
   async run({ args }) {
     const cwd = path.resolve(String(args.cwd));
+    const verifyCmd = args["verify-cmd"] ? String(args["verify-cmd"]).trim() : "";
+    if (verifyCmd && args.verify !== true) {
+      logger.error("--verify-cmd only applies with --verify (verification is off by default)");
+      process.exitCode = 1;
+      return;
+    }
     const requested = String(args.backend ?? "auto");
     let backendId: string;
     let bin: string;
@@ -116,14 +122,13 @@ const proposeCommand = defineCommand({
       }
       verifyTimeoutMs = s * 1000;
     }
-    const verifyCmd = args["verify-cmd"] ? String(args["verify-cmd"]).trim() : "";
     const out = await runConflictsPropose({
       root: cwd,
       path: String(args.path),
       backendId: backendId as (typeof PROPOSE_BACKENDS)[number],
       bin,
       model: args.model ? String(args.model) : undefined,
-      noVerify: args.verify === false,
+      noVerify: args.verify !== true,
       verifyCommands: verifyCmd ? [verifyCmd] : undefined,
       verifyTimeoutMs,
       dryRun: args["dry-run"] === true,
