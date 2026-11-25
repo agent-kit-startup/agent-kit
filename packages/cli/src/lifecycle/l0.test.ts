@@ -206,6 +206,20 @@ describe("canonical L0 inventory", () => {
     }
   });
 
+  it("ships every context template that an L0 command, skill or rule cites", async () => {
+    const targets = new Set(L0_ARTIFACTS.map((artifact) => artifact.target));
+    const missing: string[] = [];
+    for (const artifact of L0_ARTIFACTS) {
+      if (!/\.(md|mdc)$/.test(artifact.source)) continue;
+      const text = await readRepositoryFile(artifact.source);
+      for (const match of text.matchAll(/\.cursor\/context\/templates\/[\w.-]+\.(?:md|json)/g)) {
+        if (!targets.has(match[0])) missing.push(`${artifact.source} cites ${match[0]}`);
+      }
+    }
+    expect(missing, "templates cited by L0 files but absent from L0_ARTIFACTS").toEqual([]);
+    expect(targets).toContain(".cursor/context/templates/command-worker-prompt.md");
+  });
+
   it("uses the published package version across runtime manifests", async () => {
     const [rootPackage, cliPackage, manifest, plugin, claudePlugin, codexPlugin] =
       await Promise.all([

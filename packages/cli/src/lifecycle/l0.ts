@@ -235,6 +235,10 @@ export const L0_ARTIFACTS: readonly L0Artifact[] = [
     target: ".cursor/context/templates/task-brief.md",
   },
   {
+    source: ".cursor/context/templates/command-worker-prompt.md",
+    target: ".cursor/context/templates/command-worker-prompt.md",
+  },
+  {
     source: ".cursor/context/templates/handoff.md",
     target: ".cursor/context/templates/handoff.md",
   },

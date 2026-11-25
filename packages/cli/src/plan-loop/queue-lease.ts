@@ -126,7 +126,10 @@ export function decideQueueLease(
 }
 
 /** Operator text for a refusal: what holds the queue and what to do. */
-export function formatQueueLeaseRefusal(v: Extract<QueueLeaseVerdict, { kind: "held" }>): string {
+export function formatQueueLeaseRefusal(
+  v: Extract<QueueLeaseVerdict, { kind: "held" }>,
+  opts: { what?: string; next?: string } = {},
+): string {
   const l = v.lease;
   const who = [
     `dispatcher pid ${l.dispatcher.pid}`,
@@ -136,10 +139,12 @@ export function formatQueueLeaseRefusal(v: Extract<QueueLeaseVerdict, { kind: "h
     `started ${l.startedAt}`,
     `last heartbeat ${l.heartbeatAt}`,
   ].join(", ");
+  const again = opts.next ?? "start /run-plan-all again";
   const next = v.orphan
-    ? `It may still be writing this repository. Check it (ps -o pid,etime,args -p ${l.agent?.pid}), stop it, then start /run-plan-all again.`
-    : "Wait for that session to end (or stop it from the window that started it), then start /run-plan-all again.";
-  return `Queue lease held: another /run-plan-all owns this queue (${v.reason}; ${who}). ${next}`;
+    ? `It may still be writing this repository. Check it (ps -o pid,etime,args -p ${l.agent?.pid}), stop it, then ${again}.`
+    : `Wait for that session to end (or stop it from the window that started it), then ${again}.`;
+  const what = opts.what ?? "another /run-plan-all owns this queue";
+  return `Queue lease held: ${what} (${v.reason}; ${who}). ${next}`;
 }
 
 /** Linux process start time, or `null` (other platforms, gone, unreadable). */

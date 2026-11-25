@@ -1,7 +1,7 @@
 {
   "name": "agent-kit",
   "displayName": "Mission Kit",
-  "version": "6.22.1",
+  "version": "6.23.0",
   "description": "Plan, build, ship, and keep shipping. Agent Kit for Claude Code: plans, handoff, durable memory and staging-to-prod gates for long-term projects, followed from Mission Control in your browser.",
   "author": {
     "name": "agent-kit-startup"

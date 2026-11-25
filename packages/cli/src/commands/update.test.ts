@@ -1,8 +1,13 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KIT_VERSION } from "../lifecycle/version.js";
+import {
+  procStart,
+  QUEUE_LEASE_RELPATH,
+  QUEUE_LEASE_SESSION_ENV,
+} from "../plan-loop/queue-lease.js";
 import { updateCommand } from "./update.js";
 
 const mockSyncFromManifest = vi.hoisted(() =>
@@ -402,6 +407,136 @@ describe("updateCommand", () => {
         spy.mockRestore();
       }
       expect(logs.join("\n")).toContain(`v5.0.0 → v${KIT_VERSION}`);
+    }, 15_000);
+  });
+
+  describe("live-writer lease guard", () => {
+    const originalExitCode = process.exitCode;
+    beforeEach(() => {
+      mockSyncFromManifest.mockClear();
+      // The headless runner exports its own session id; a test run under it
+      // would otherwise read the fixture lease as foreign or as its own.
+      vi.stubEnv(QUEUE_LEASE_SESSION_ENV, "");
+    });
+    afterEach(() => {
+      process.exitCode = originalExitCode;
+      vi.unstubAllEnvs();
+    });
+
+    const MANIFEST = JSON.stringify({
+      schemaVersion: 1,
+      version: KIT_VERSION,
+      packs: [],
+      skills: [],
+      protected: [],
+      registry: { url: "https://github.com/agent-kit-startup/agent-kit", ref: "main" },
+      installedAt: "2026-07-30T00:00:00.000Z",
+    });
+
+    /** Consumer whose queue lease is held by this live test process, under a foreign session. */
+    async function makeLeasedConsumer(): Promise<string> {
+      const consumer = await mkdtemp(path.join(tmpdir(), "ak-update-lease-c-"));
+      await mkdir(path.join(consumer, ".cursor", "context"), { recursive: true });
+      await writeFile(path.join(consumer, ".cursor", "agent-kit.json"), MANIFEST, "utf8");
+      const now = new Date().toISOString();
+      await writeFile(
+        path.join(consumer, QUEUE_LEASE_RELPATH),
+        JSON.stringify({
+          version: 1,
+          session: "s-other-writer",
+          host: hostname(),
+          dispatcher: { pid: process.pid, start: procStart(process.pid) },
+          agent: null,
+          startedAt: now,
+          heartbeatAt: now,
+        }),
+        "utf8",
+      );
+      return consumer;
+    }
+
+    async function makeKit(): Promise<string> {
+      const kit = await mkdtemp(path.join(tmpdir(), "ak-update-lease-k-"));
+      await mkdir(path.join(kit, "registry"), { recursive: true });
+      await writeFile(path.join(kit, "registry", "registry.json"), "{}\n", "utf8");
+      await mkdir(path.join(kit, "packages", "cli"), { recursive: true });
+      await writeFile(path.join(kit, "packages", "cli", "package.json"), "{}", "utf8");
+      return kit;
+    }
+
+    const run = (consumer: string, kit: string, extra: Record<string, unknown> = {}) =>
+      (updateCommand.run as unknown as (ctx: { args: Record<string, unknown> }) => Promise<void>)({
+        args: {
+          _: [],
+          cwd: consumer,
+          check: false,
+          json: false,
+          "respect-prefs": false,
+          stamp: false,
+          "seed-overlay": false,
+          "allow-stale-cli": false,
+          yes: true,
+          "force-root": true,
+          force: false,
+          registry: kit,
+          url: undefined as unknown as string,
+          ref: undefined as unknown as string,
+          refresh: false,
+          ...extra,
+        },
+      });
+
+    it("refuses to rewrite L0 while another live writer holds the lease", async () => {
+      const consumer = await makeLeasedConsumer();
+      const kit = await makeKit();
+      const errors: string[] = [];
+      const spy = vi.spyOn(console, "error").mockImplementation((...parts: unknown[]) => {
+        errors.push(parts.map(String).join(" "));
+      });
+      try {
+        await run(consumer, kit);
+      } finally {
+        spy.mockRestore();
+      }
+      expect(process.exitCode).toBe(1);
+      expect(mockSyncFromManifest).not.toHaveBeenCalled();
+      const text = errors.join("\n");
+      expect(text).toContain("Queue lease held:");
+      expect(text).toContain(`dispatcher pid ${process.pid}`);
+      expect(text).toContain("session s-other-writer");
+      expect(text).toContain("--force");
+      expect(await readFile(path.join(consumer, ".cursor", "agent-kit.json"), "utf8")).toBe(
+        MANIFEST,
+      );
+    }, 15_000);
+
+    it("--force applies anyway", async () => {
+      const consumer = await makeLeasedConsumer();
+      const kit = await makeKit();
+      await run(consumer, kit, { force: true });
+      expect(mockSyncFromManifest).toHaveBeenCalled();
+      expect(process.exitCode).not.toBe(1);
+    }, 15_000);
+
+    it("applies when the lease belongs to the caller's own session", async () => {
+      const consumer = await makeLeasedConsumer();
+      const kit = await makeKit();
+      vi.stubEnv(QUEUE_LEASE_SESSION_ENV, "s-other-writer");
+      await run(consumer, kit);
+      expect(mockSyncFromManifest).toHaveBeenCalled();
+      expect(process.exitCode).not.toBe(1);
+    }, 15_000);
+
+    it("does not gate update --check", async () => {
+      const consumer = await makeLeasedConsumer();
+      const kit = await makeKit();
+      const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await run(consumer, kit, { check: true, json: true });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(process.exitCode).not.toBe(1);
     }, 15_000);
   });
 });

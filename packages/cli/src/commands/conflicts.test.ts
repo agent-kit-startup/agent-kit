@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { logger } from "../utils/logger.js";
 import { conflictsCommand } from "./conflicts.js";
 
 type Args = Record<string, { description?: string; default?: unknown }>;
@@ -18,9 +19,33 @@ describe("agent-kit conflicts propose --help", () => {
       "before anyone has reviewed them",
       "unsandboxed",
       "as you",
-      "--no-verify",
+      "Off by default",
     ]) {
       expect(verify).toContain(words);
+    }
+  });
+
+  it("does not verify unless --verify is passed", () => {
+    expect(proposeArgs().verify?.default).toBe(false);
+  });
+
+  it("refuses --verify-cmd without --verify instead of skipping it silently", async () => {
+    const sub = (
+      conflictsCommand.subCommands as Record<string, { run?: (ctx: unknown) => unknown }>
+    ).propose;
+    const before = process.exitCode;
+    const error = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+    try {
+      await sub?.run?.({
+        args: { path: "a.txt", cwd: ".", backend: "nope", verify: false, "verify-cmd": "true" },
+      });
+      expect(process.exitCode).toBe(1);
+      expect(error).toHaveBeenCalledWith(
+        expect.stringContaining("--verify-cmd only applies with --verify"),
+      );
+    } finally {
+      error.mockRestore();
+      process.exitCode = before;
     }
   });
 

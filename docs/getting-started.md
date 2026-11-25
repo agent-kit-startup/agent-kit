@@ -121,6 +121,15 @@ agent-kit --version
 
 Blocked on the global install by a root-owned npm prefix (`EACCES`)? Run `npx -y @dadado/agent-kit-cli@latest setup-global`: it self-heals the prefix, fixes `PATH`, and reinstalls. `install`/`init` also print this automatically when a current `agent-kit` is not on `PATH`.
 
+**mise with `node = "latest"`** (the Omarchy default, among others): every node patch is a new install directory, and `npm i -g` globals stay behind in the old one. After the next node upgrade `agent-kit` is gone or old, and nothing warns you. Declare the CLI as its own mise tool instead, in `~/.config/mise/config.toml`:
+
+```toml
+[tools]
+"npm:@dadado/agent-kit-cli" = { version = "latest", allow_low_downloads = true, minimum_release_age = "0s" }
+```
+
+Then `mise install` and `agent-kit --version`. Remove an older global first (`npm rm -g @dadado/agent-kit-cli`) so only one `agent-kit` is on `PATH`. Both options are needed: a bare `mise use -g npm:@dadado/agent-kit-cli` is refused by mise's low-download guard, and mise's default minimum release age resolves `latest` to an older release.
+
 The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-kit-cli` (or with `agent-kit` after a global install). Most slash commands (`/agent-kit-onboard`, `/start-project`, …) are IDE chat commands and need neither. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all` (or `agent-kit run run-plan-all`).
 
 | Subcommand | What it does |

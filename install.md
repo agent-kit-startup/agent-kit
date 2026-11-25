@@ -144,6 +144,7 @@ Copy **only** these artifacts (same content from SoT / registry), not the monore
 | `.cursor/context/templates/plan.md` | idem |
 | `.cursor/context/templates/context-pack.md` | idem |
 | `.cursor/context/templates/task-brief.md` | idem |
+| `.cursor/context/templates/command-worker-prompt.md` | idem |
 | `.cursor/context/templates/handoff.md` | idem |
 | `.cursor/context/templates/adr.md` | idem |
 | `.cursor/context/templates/plan-monitor.md` | idem |
