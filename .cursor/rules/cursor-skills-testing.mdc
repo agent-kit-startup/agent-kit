@@ -1,41 +1,16 @@
 ---
-description: CURSOR-SKILLS rules for tests (unit, integration, E2E). Jest, Cypress, fixtures, mocks.
+description: Kit guidance for tests (unit, integration, E2E): deterministic, named by behavior, mocks only at boundaries.
 globs: "**/*.test.*,**/*.spec.*,**/tests/**/*,**/__tests__/**/*,**/e2e/**/*,**/cypress/**/*"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - Testing
+# Tests (unit, integration, E2E)
 
-Source: [cursor-skills/testing](https://github.com/araguaci/cursor-skills/tree/main/testing)
-
-## CURSOR setup
-
-- Jest, Cypress, Testing Library, Coverage Gutters, Test Explorer, Mocha (per project).
-
-## Typical structure
-
-```
-project/
-├── src/   ├── tests/   ├── coverage/   ├── fixtures/   ├── mocks/
-└── .env
-```
-
-## Unit
-
-- Isolated, fast tests; clear assertions; mocks for external deps; descriptive names; `jest.autoRun: "off"` if preferred.
-
-## Integration
-
-- Component interaction and data flow; test DB and external services mocked or controlled; setup/teardown; `testing.autoRun: "off"` if preferred.
-
-## E2E
-
-- User journeys; Cypress or similar; page objects; test data and cleanup; `cypress.autoRun: "off"` if preferred.
-
-## Organization and data
-
-- Group by feature; names that describe the scenario; fixtures for data; consistent mocks; coverage ≥ 80% where it makes sense.
-
-## Tools
-
-- Prettier, ESLint; coverage reports; test-case and troubleshooting docs.
+- **Shape:** many fast unit tests, fewer integration tests, a handful of E2E tests for the critical journeys.
+- **One reason to fail.** Name a test by the behavior (`does X when Y`) and keep it arrange, act, assert.
+- **Deterministic.** Control the clock, randomness and network. Fix a flaky test or quarantine it with an issue; never retry it into green.
+- **Mock at the boundary** (network, time, filesystem) and prefer fakes. Never mock the unit under test.
+- **Fixtures stay small and local.** No mutable state shared between tests.
+- **A bug fix starts with a regression test** that fails first.
+- **Coverage is a signal, not a target.** Check that the branches you changed are exercised.
+- **E2E:** select by role or test id, isolate the data, run it in the staging pipeline.

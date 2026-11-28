@@ -1,42 +1,17 @@
 ---
 name: cursor-skills-node
-description: CURSOR-SKILLS rules for Node.js (Express, NestJS, Next.js). ESLint, Prettier, tests.
-version: 0.1.0
+description: Kit guidance for Node.js (Express, NestJS, Next.js): repo tooling first, strict types, validated config, thin handlers.
+version: 0.2.0
 category: language
 ---
 
-# CURSOR-SKILLS - Node.js
+# Node.js and TypeScript
 
-Source: [cursor-skills/node](https://github.com/araguaci/cursor-skills/tree/main/node)
-
-## CURSOR setup
-
-- ES6 snippets, Node Extension Pack, npm Intellisense, Prettier, ESLint, Thunder Client / REST Client.
-
-## Typical structure
-
-```
-project/
-├── src/   ├── tests/   ├── docs/   ├── node_modules/
-├── package.json   ├── package-lock.json   └── .env
-```
-
-## Packages
-
-- npm or yarn; `package-lock.json`/`yarn.lock`; separate dev deps; semver; scripts in `package.json`.
-
-## By framework
-
-- **Express**: middleware, routes, error handling; `source.fixAll.eslint`, format on save.
-- **NestJS**: modules, services, controllers, DI; TypeScript, ESLint.
-- **Next.js**: pages, App Router, API routes, SSR/SSG/ISR; Emmet for `javascriptreact`.
-
-## Code
-
-- ES6+; TypeScript when it makes sense; error handling; JSDoc; standardization (Prettier, ESLint).
-- **Tests**: Jest or Mocha; coverage ≥ 80%.
-
-## Security, DB, and APIs
-
-- Validate inputs; OWASP; hashing; HTTPS. Sequelize/TypeORM; avoid N+1; transactions.
-- REST: HTTP codes, versioning, JSON; auth, rate limit, CORS.
+- **Use the repo's tooling.** One package manager and its lockfile; the Node version pinned (`engines`, `.nvmrc` or mise). Lint and format with the repo's config.
+- **TypeScript is strict.** No `any` without a comment saying why. Follow the package's module type (ESM or CJS) and do not mix them.
+- **Async:** `async`/`await`, no floating promises, a timeout on every outbound call.
+- **Config comes from the environment,** validated once at startup; the process fails fast. No `process.env` scattered through the code.
+- **Thin handlers.** Route handlers and controllers parse and respond; logic lives in services, I/O in adapters. This holds for Express, NestJS and Next.js route handlers.
+- **Next.js:** server components by default, client components marked on purpose, secrets only on the server.
+- **Security:** validate input, never `eval`, run a dependency audit in CI.
+- **Tests:** colocated or under `tests/`; unit tests make no network calls.

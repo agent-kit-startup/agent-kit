@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { listInstalls, resolveInstallsFile } from "../installs/index.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import {
   procStart,
@@ -392,6 +393,24 @@ describe("updateCommand", () => {
 
       expect(mockSyncFromManifest).toHaveBeenCalled();
       expect(process.exitCode).not.toBe(1);
+    }, 15_000);
+
+    it("records the repo in the machine install registry only after a successful apply", async () => {
+      const consumer = await makeConsumer();
+      const key = await realpath(consumer);
+      const rowFor = async () => (await listInstalls()).find((e) => e.path === key);
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await run(applyArgs(consumer, await makeKit("999.0.0")));
+      } finally {
+        spy.mockRestore();
+      }
+      expect(await rowFor()).toBeUndefined();
+
+      await run(applyArgs(consumer, await makeKit(null)));
+      // The vitest setup points the registry at a scratch file, never the real one.
+      expect(resolveInstallsFile()).toBe(process.env.AGENT_KIT_INSTALLS_FILE);
+      expect(await rowFor()).toMatchObject({ kitVersion: KIT_VERSION, kind: "fixture" });
     }, 15_000);
 
     it("reports the version transition on success", async () => {

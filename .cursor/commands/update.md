@@ -11,14 +11,15 @@ audience: user
 
 Update the Agent Kit layer (L0 + packs + skills) from the public registry, treating this repo as a **consumer** — not the dev factory. Checks the latest released version, compares with what's installed, and applies the update respecting protected L3 paths.
 
-**Check ≠ apply.** Opt-in `updateCheck` and `agent-kit update --check` only notify. Apply always goes through this command's Ask confirm (or an explicit CLI `agent-kit update` invoke by an operator). `updateApply.auto` defaults to `false` and must never silent-write L0.
+**Check ≠ apply.** The update notice (default on; opt-out `updateCheck.enabled: false`) and `agent-kit update --check` only notify. Apply always goes through this command's Ask confirm (or an explicit CLI `agent-kit update` invoke by an operator). `updateApply.auto` defaults to `false` and must never silent-write L0.
 
 ## When to Use
 
 - When you want to check if a newer Agent Kit release is available
 - To pull the latest rules, commands, skills, and pack updates from the public repo
-- After a new `agent-kit-startup/agent-kit` release (check [releases](https://github.com/agent-kit-startup/agent-kit/releases))
-- After a sessionStart nudge (when `updateCheck.enabled` is true) that reports an update available
+- After a new release, or when the sessionStart update notice reports something behind
+
+**Several repos behind?** The operator types `agent-kit installs scan`, then `agent-kit update --all` (one plan, one confirm, one PR/MR per repo, no merge). It refuses in agent sessions; never run it here.
 
 ## Hard stops
 
@@ -142,6 +143,6 @@ Agent: Running agent-kit update... Done! 8 updated, 2 added, 1 protected.
   ```
   Or use the URL directly via `--url`.
 
-- **"npx resolution failed"**: Ensure Node.js ≥18 is available. Try `pnpm exec agent-kit update` as fallback.
+- **"npx resolution failed"**: Needs Node.js 22.12+. Try `npx -y @dadado/agent-kit-cli update` as fallback.
 
 - **"Registry URL differs from installed"**: The current manifest may point to the dev repo. The update will switch it to the public repo — that's correct for consumer mode.

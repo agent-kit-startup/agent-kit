@@ -230,6 +230,7 @@ export const KIT_OWNED_IGNORE_PATTERNS = [
   ".cursor/HANDOFF.md",
   ".cursor/dogfood/",
   ".cursor/context/readiness.json",
+  ".cursor/context/install-health.json",
   ".cursor/context/flight-log.json",
   ".cursor/context/mission-timing.json",
   ".cursor/context/outcome-ledger.json",

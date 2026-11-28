@@ -4,7 +4,7 @@ globs: "**/prompt*.md,**/prompts/**/*.md,**/modelo-guest.md"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - Prompts (Markdown)
+# Prompts (Markdown)
 
 Aligned with skill [.cursor/skills/community/prompts-markdown/SKILL.md](.cursor/skills/community/prompts-markdown/SKILL.md).
 

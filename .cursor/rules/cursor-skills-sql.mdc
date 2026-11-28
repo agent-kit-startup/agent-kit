@@ -4,7 +4,7 @@ globs: "**/*.sql"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - SQL (Postgres)
+# SQL (Postgres)
 
 Aligned with skill [.cursor/skills/community/sql-postgres/SKILL.md](.cursor/skills/community/sql-postgres/SKILL.md).
 

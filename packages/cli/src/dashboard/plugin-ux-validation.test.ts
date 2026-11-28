@@ -4497,3 +4497,68 @@ describe("plugin-ux-validation: Git e CI/CD bento section (ship lane, ADR 2026-1
     expect(gitCicdNavTone({})).toBe("gray");
   });
 });
+
+describe("Health install group (plan cli-install-update-overhaul c2)", () => {
+  const fnSource =
+    dashboardHtml.match(/function renderInstallHealthGroup\([\s\S]*?\n\}\n/)?.[0] ?? "";
+  const renderGroup = loadDashboardExtract<
+    (install: unknown, renderCard: (c: { id: string }) => string) => string
+  >(`const escapeHtml = (s) => String(s);\n${fnSource}\nreturn renderInstallHealthGroup;`);
+
+  it("renders health.install as its own group outside the seven checks, empty when absent", () => {
+    expect(fnSource).not.toBe("");
+    expect(renderGroup(null, () => "")).toBe("");
+    expect(renderGroup({ checks: [] }, () => "")).toBe("");
+    const html = renderGroup(
+      { generatedAt: "2026-11-26T10:00:00.000Z", checks: [{ id: "node-manager" }] },
+      (c) => `<card ${c.id}>`,
+    );
+    expect(html).toContain('aria-label="Install"');
+    expect(html).toContain("Install (agent-kit doctor, 2026-11-26)");
+    expect(html).toContain("<card node-manager>");
+    expect(dashboardHtml).toContain("${renderInstallHealthGroup(health.install, renderCheckCard)}");
+  });
+
+  it("a check's own fix line becomes a terminal copy before the static meta autofix", () => {
+    expect(dashboardHtml).toContain(
+      "? { text: c.fix, subject: c.fix, destination: 'terminal', label: 'Copy fix' }",
+    );
+    expect(dashboardHtml).toContain(
+      ": ownFix || (meta.autofixBySeverity && meta.autofixBySeverity[sev]) || meta.autofix || null;",
+    );
+  });
+});
+
+describe("Health update notice card (plan cli-install-update-overhaul c4)", () => {
+  const fnSource =
+    dashboardHtml.match(/function renderUpdateNoticeGroup\([\s\S]*?\n\}\n/)?.[0] ?? "";
+  const renderGroup = loadDashboardExtract<
+    (
+      notice: unknown,
+      renderCard: (c: {
+        id: string;
+        label: string;
+        severity: string;
+        fix: string | null;
+      }) => string,
+    ) => string
+  >(`${fnSource}\nreturn renderUpdateNoticeGroup;`);
+
+  it("renders one warning card from health.updateNotice, nothing when null", () => {
+    expect(fnSource).not.toBe("");
+    expect(renderGroup(null, () => "x")).toBe("");
+    const html = renderGroup(
+      { label: "9 installs behind", detail: "d", fix: "agent-kit update --all" },
+      (c) => `<card ${c.id} ${c.label} ${c.severity} ${c.fix}>`,
+    );
+    expect(html).toContain('aria-label="Updates"');
+    expect(html).toContain("<card update-notice 9 installs behind warning agent-kit update --all>");
+    expect(dashboardHtml).toContain(
+      "${renderUpdateNoticeGroup(health.updateNotice, renderCheckCard)}",
+    );
+  });
+
+  it("Config shows the update check on unless explicitly false", () => {
+    expect(dashboardHtml).toContain("const updateCheckEnabled = uc.enabled !== false;");
+  });
+});

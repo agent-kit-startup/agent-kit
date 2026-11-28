@@ -524,6 +524,20 @@ describe("readDeferredGatesFromHandoff (agent-kit queue gates)", () => {
       ),
     ).toEqual({ "a.plan.md": "merge #1 (truncated" });
   });
+
+  // run-plan-all-consolidate.sh --rewrite-queue keeps displaced rows under this bullet.
+  it("ignores deferred rows kept under Queue outcomes anteriores", () => {
+    expect(
+      readDeferredGatesFromHandoff(
+        [
+          "- **Queue outcomes:**",
+          "  - a.plan.md: completed",
+          "- **Queue outcomes anteriores:**",
+          "  old.plan.md: deferred-operator (gate: merge #1)",
+        ].join("\n"),
+      ),
+    ).toEqual({});
+  });
 });
 
 describe("in-window implement guard (transcript 606a14a5)", () => {

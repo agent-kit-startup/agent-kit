@@ -92,10 +92,11 @@ describe("managedPairs", () => {
   it("yields exactly the pairs diff and contribute enumerated before", async () => {
     const registryRoot = await fixtureRegistry();
     const legacy = await legacyPairs(registryRoot);
-    const { pairs, missingSkills } = await managedPairs(registryRoot, manifest);
+    const { pairs, missingSkills, missingPacks } = await managedPairs(registryRoot, manifest);
 
     expect(pairs.map(({ sourceRel, targetRel }) => ({ sourceRel, targetRel }))).toEqual(legacy);
     expect(missingSkills).toEqual(["ghost"]);
+    expect(missingPacks).toEqual([]);
     expect(pairs.filter((p) => p.origin === "l0")).toHaveLength(L0_ARTIFACTS.length);
     expect(pairs.filter((p) => p.origin === "pack").map((p) => p.targetRel)).toEqual([
       ".cursor/rules/demo-rule.mdc",
@@ -108,7 +109,11 @@ describe("managedPairs", () => {
     ]);
 
     const index = await loadRegistry(registryRoot);
-    expect(await managedPairs(registryRoot, manifest, index)).toEqual({ pairs, missingSkills });
+    expect(await managedPairs(registryRoot, manifest, index)).toEqual({
+      pairs,
+      missingSkills,
+      missingPacks,
+    });
   });
 
   it("keeps diff and contribute on the same pairs", async () => {

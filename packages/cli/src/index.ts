@@ -24,6 +24,7 @@ const main = defineCommand({
     "setup-global": () => import("./commands/setup-global.js").then((m) => m.setupGlobalCommand),
     status: () => import("./commands/status.js").then((m) => m.statusCommand),
     update: () => import("./commands/update.js").then((m) => m.updateCommand),
+    installs: () => import("./commands/installs.js").then((m) => m.installsCommand),
     "cursor-awareness": () =>
       import("./commands/cursor-awareness.js").then((m) => m.cursorAwarenessCommand),
     "public-inbound-radar": () =>

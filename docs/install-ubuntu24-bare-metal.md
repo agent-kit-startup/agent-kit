@@ -62,7 +62,7 @@ Use `@latest` so npx does not reuse a stale cached CLI; pin `@x.y.z` when the pr
 npx @dadado/agent-kit-cli@latest status
 ```
 
-`status` lists the installed version and the L0 tree. Then open the project in Cursor or Claude Code and run `/agent-kit-onboard`, or run `npx @dadado/agent-kit-cli@latest doctor` from the same shell. `npx` leaves no `agent-kit` on `PATH`; run `npm i -g @dadado/agent-kit-cli` once if you want the bare command.
+`status` lists the installed version and the L0 tree. Then open the project in Cursor or Claude Code and run `/agent-kit-onboard`, or run `npx @dadado/agent-kit-cli@latest doctor` from the same shell. `npx` leaves no `agent-kit` on `PATH`; run `npm i -g @dadado/agent-kit-cli` once if you want the bare command. With the NodeSource node from step 1 the global survives node upgrades; under mise, nvm or fnm use the install from [Getting started](getting-started.md#how-to-invoke-them) instead, or the next node switch drops it.
 
 ## If it fails
 

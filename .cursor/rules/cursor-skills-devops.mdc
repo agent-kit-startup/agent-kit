@@ -1,54 +1,23 @@
 ---
-description: CURSOR-SKILLS rules for DevOps (Docker, Kubernetes, CI/CD, Terraform, IaC).
+description: Kit guidance for DevOps (Docker, Kubernetes, CI/CD, Terraform): staging first, build once and promote, infrastructure as code.
 globs: "**/Dockerfile,**/docker-compose*.{yml,yaml},**/.github/**/*.yml,**/.gitlab-ci.yml,**/*.yml,**/k8s/**/*,**/*.tf,**/*.tfvars"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - DevOps
+# DevOps (containers, CI/CD, infrastructure)
 
-Source: [cursor-skills/devops](https://github.com/araguaci/cursor-skills/tree/main/devops)
+## Flow
 
-## CURSOR setup
+- Staging first: nothing reaches production without passing staging (see `cursor-skills-git-workflow`). Build the artifact once and promote that same artifact.
+- Write down the rollback path before the deploy, not during the incident.
 
-- Docker, Kubernetes, GitLens, Remote Development, YAML, Terraform.
+## Infrastructure
 
-## Typical structure
+- Infrastructure is code. No console edits; plan, review the plan, then apply.
+- Terraform: remote state with locking, small modules, `fmt` and `validate` in CI, no real values committed in `*.tfvars`.
+- Kubernetes: resource requests and limits, readiness and liveness probes, config in ConfigMap or Secret, never the `latest` tag.
 
-```
-project/
-├── docker/   ├── k8s/   ├── terraform/   ├── .github/
-└── .env
-```
+## Containers and CI
 
-## Docker
-
-- Dockerfile and docker-compose; multi-stage builds; layer cache; security (non-root user, minimal images).
-
-## Kubernetes
-
-- Pods, Services, Deployments; ConfigMaps and Secrets; resources and limits; health checks; naming conventions.
-
-## CI/CD
-
-- Pipelines (GitHub Actions, GitLab CI, etc.); stages (lint, test, build, deploy); triggers; notifications; rollback.
-- When the project adopts Git staging → production flow: use `git staging` and `git prod`; never commit directly to `main`. See rule [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
-
-## DevOps spine: Git staging → prod
-
-The two-step flow (staging → main) is the kit's operational memory. Reinforcements that keep work from leaking straight to production:
-
-1. **Staging-first always.** Work and commits happen on a working branch or on `staging`, never with checkout on `main`.
-2. **Leave `main` after `git prod`.** Promotion leaves checkout on `main`; when done, run `git checkout staging`. Staying on `main` is the most common way a commit escapes onto the production line.
-3. **Prune legacy branches.** An old pre-prod branch (`homologacao`, `develop`) already migrated to `staging` should be removed (local and remotes) so it does not confuse the flow or history.
-4. **Enforcement, not only convention.** Install the guards in `git-hooks/` (`pre-commit` and `pre-push`) that abort commit/push directly to `main`/`master`. Install notes in [git-hooks/README.md](git-hooks/README.md).
-5. **Audit the `main` line.** `git log --first-parent --no-merges main` should return only the root commit. Any other non-merge there is a commit that was born directly on `main` (flow violation).
-
-Details and prompts in [autogit/gitupdate.md](autogit/gitupdate.md); full rule in [cursor-skills-git-workflow.mdc](cursor-skills-git-workflow.mdc).
-
-## IaC (Terraform)
-
-- Modules; versioning; remote state; `terraform fmt`; document resources and variables.
-
-## Best practices
-
-- Logs, env vars, secrets out of code; infra tests when possible; deploy and troubleshooting docs.
+- Docker: pinned base image, multi-stage build, non-root user, `.dockerignore`, no secrets in layers.
+- CI: lint and unit tests first, slow suites after; cache dependencies; pin third-party actions to a commit SHA; give tokens the least scope that works.

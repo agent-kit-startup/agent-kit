@@ -322,6 +322,8 @@ describe("installCommand stale CLI guard", () => {
     // Refusing must not have written a capped manifest, and the registry lock is released.
     expect(existsSync(path.join(project, ".cursor", "agent-kit.json"))).toBe(false);
     expect(unlock).toHaveBeenCalled();
+    const { listInstalls } = await import("../installs/index.js");
+    expect((await listInstalls()).some((e) => e.path.endsWith(path.basename(project)))).toBe(false);
   }, 15_000);
 
   it("--allow-stale-cli gets past the guard", async () => {
@@ -332,5 +334,12 @@ describe("installCommand stale CLI guard", () => {
     const stderr = await runInstall(project, { "allow-stale-cli": true });
 
     expect(stderr).not.toContain("older than the registry");
+    // Success feeds the machine install registry (the vitest setup's scratch file).
+    const { realpath } = await import("node:fs/promises");
+    const { listInstalls } = await import("../installs/index.js");
+    const key = await realpath(project);
+    expect((await listInstalls()).find((e) => e.path === key)).toMatchObject({
+      kitVersion: KIT_VERSION,
+    });
   }, 15_000);
 });

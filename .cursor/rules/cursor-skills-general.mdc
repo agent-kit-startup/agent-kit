@@ -1,27 +1,16 @@
 ---
-description: CURSOR-SKILLS general rules (best practices, setup, quality). Source: cursor-skills.vercel.app
+description: Kit baseline for code and repository hygiene: small diffs, tests with the change, no secrets, repo conventions first.
 alwaysApply: true
 ---
 
-# CURSOR-SKILLS - General Rules
+# General engineering baseline
 
-Base: [CURSOR-SKILLS](https://github.com/araguaci/cursor-skills). Apply the repository's conventions in any environment.
-
-## Principles
-
-- **Setup**: use extensions, linting, and formatting suited to the environment; Git integration and debugging.
-- **Structure**: follow the environment's conventions, consistent naming, separation of concerns.
-- **Quality**: readable code, error handling, useful comments, tests.
-- **Workflow**: Git, tests, CI/CD, documentation, and code review.
-- **Documentation**: professional, inheritable standard (`docs-professional-standard`); project voice, no people, unrelated projects, or session context. Chat vs repo hygiene (`agent-output-hygiene`).
-
-## Coding Guidelines
-
-- **Think Before Coding:** do not assume; flag uncertainty; show tradeoffs; ask when a requirement is ambiguous.
-- **Simplicity First:** the minimum code that solves the problem; no unrequested features; no abstraction for a single use; ask "would a senior find this overengineered?".
-- **Surgical Changes:** touch only what is needed; do not "improve" adjacent code without being asked; keep the existing style; remove only what your change made orphaned.
-- **Goal-Driven Execution:** define success criteria before implementing; iterate until the goal is verified.
-
-## Git
-
-Flow, branch guards, and Conventional Commits: `cursor-skills-git-workflow` (SoT `autogit/gitupdate.md`).
+- **Read before writing.** Match the naming, layout, formatter and linter the repo already uses before applying a preference of your own.
+- **Smallest change that solves the task.** No drive-by refactors; a new dependency needs a reason in the PR.
+- **Tests travel with the change.** A behavior change changes a test; a bug fix starts with a failing one.
+- **No secrets in git.** Keys, tokens and `.env` files stay out of commits and logs (see `git-secrets-safety`).
+- **Errors are handled or surfaced,** never swallowed. Log context, not payloads that hold personal data.
+- **Names carry intent;** comments say why, not what.
+- **Docs follow behavior.** README, CHANGELOG and ADRs change in the same PR as the behavior they describe.
+- **Branching:** staging first, never `main` (see `cursor-skills-git-workflow`).
+- Stack rules (`cursor-skills-<stack>`) load by file glob; follow them on top of this one.

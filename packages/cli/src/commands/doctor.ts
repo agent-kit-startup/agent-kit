@@ -1,13 +1,31 @@
 import path from "node:path";
 import { defineCommand } from "citty";
+import { feedInstallsRegistry } from "../installs/index.js";
 import { assessHooksHealth, type HooksHealthReport } from "../invariants/hooks-health.js";
-import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
+import {
+  CLI_NPM_PACKAGES,
+  type CliNpmLatest,
+  fetchLatestCliNpmVersion,
+  warnIfRunningCliBehindNpm,
+} from "../lifecycle/check-updates.js";
+import { loadContextConfig } from "../lifecycle/context-config.js";
+import { cachedCliNpmLatest } from "../lifecycle/update-notice.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
+import { loadAgentKitManifest } from "../manifest/index.js";
 import {
   assessEnvironment,
   type EnvironmentReport,
   MIN_NODE_VERSION_LABEL,
+  readBinVersion,
+  resolveBinOnPath,
 } from "../readiness/env-checks.js";
+import {
+  assessInstallHealth,
+  type InstallHealthGatherOptions,
+  type InstallHealthReport,
+  npmLatestCheckAllowed,
+  writeInstallHealthSnapshot,
+} from "../readiness/install-health.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes, refreshRepositoryProfile } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
@@ -27,6 +45,12 @@ export interface DoctorResult {
   safeChanges: SafeReadinessChange[];
   hooks: HooksHealthReport;
   env: EnvironmentReport;
+  /**
+   * Machine install health: global CLI vs npm latest, per-version node
+   * manager, stale home-level install, stale registry pin. Read-only; also
+   * written to `.cursor/context/install-health.json` for Mission Control.
+   */
+  install: InstallHealthReport;
   /** Present only when `--refresh-profile` ran: whether the on-disk profile changed. */
   profileRefreshed?: boolean;
   /**
@@ -78,10 +102,85 @@ async function readDeferredEssentials(
     .map((item) => ({ checkId: item.checkId, reason: item.reason }));
 }
 
-export async function runDoctor(
-  cwd: string,
-  options: { fixSafe?: boolean; refreshProfile?: boolean; generatedAt?: string } = {},
-): Promise<DoctorResult> {
+export interface DoctorOptions {
+  fixSafe?: boolean;
+  refreshProfile?: boolean;
+  generatedAt?: string;
+  /**
+   * npm `latest` lookup for the global-CLI check. Absent = not checked (the
+   * default, so tests and library callers never touch the network); the
+   * command passes the real fetcher unless CI or `updateCheck.enabled: false`.
+   */
+  fetchNpmLatest?: () => Promise<CliNpmLatest | null>;
+  /** Test seams for the install checks (env, platform, home, fs readers). */
+  installHealth?: Partial<
+    Pick<
+      InstallHealthGatherOptions,
+      | "env"
+      | "platform"
+      | "homeDir"
+      | "nodeExecPath"
+      | "realpathImpl"
+      | "readFileImpl"
+      | "existsImpl"
+    >
+  >;
+}
+
+/** Global CLI on PATH under any of its binary names (`agent-kit`, then `missionkit`). */
+async function resolveCliBin(
+  env: EnvironmentReport,
+  procEnv: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+): Promise<{ binPath: string | null; binVersion: string | null }> {
+  // The environment pillar already resolved `agent-kit` against the real PATH.
+  if (procEnv === process.env && env.binPath) {
+    return { binPath: env.binPath, binVersion: env.binVersion };
+  }
+  for (const pkg of CLI_NPM_PACKAGES) {
+    const hit = await resolveBinOnPath(pkg.bin, procEnv, platform).catch(() => null);
+    if (hit) {
+      return { binPath: hit, binVersion: await readBinVersion(hit).catch(() => null) };
+    }
+  }
+  return { binPath: null, binVersion: null };
+}
+
+async function runInstallHealth(
+  rootDir: string,
+  env: EnvironmentReport,
+  options: DoctorOptions,
+): Promise<InstallHealthReport> {
+  const seams = options.installHealth ?? {};
+  const procEnv = seams.env ?? process.env;
+  const platform = seams.platform ?? process.platform;
+  let latest: CliNpmLatest | null = null;
+  const checked = options.fetchNpmLatest !== undefined;
+  if (options.fetchNpmLatest) {
+    latest = await options.fetchNpmLatest().catch(() => null);
+  }
+  const manifest = await loadAgentKitManifest(rootDir).catch(() => null);
+  const bin = await resolveCliBin(env, procEnv, platform);
+  return assessInstallHealth({
+    cwd: rootDir,
+    cliVersion: KIT_VERSION,
+    npm: { checked, latest },
+    binPath: bin.binPath,
+    binVersion: bin.binVersion,
+    manifest: manifest
+      ? {
+          version: manifest.version,
+          registryUrl: manifest.registry?.url ?? null,
+          registryRef: manifest.registry?.ref ?? null,
+        }
+      : null,
+    ...seams,
+    env: procEnv,
+    platform,
+  });
+}
+
+export async function runDoctor(cwd: string, options: DoctorOptions = {}): Promise<DoctorResult> {
   const rootDir = path.resolve(cwd);
   const hooks = await assessHooksHealth(rootDir);
   const workspaceParent = await detectWorkspaceParent(rootDir);
@@ -93,11 +192,14 @@ export async function runDoctor(
       generatorVersion: KIT_VERSION,
       generatedAt: options.generatedAt,
     });
+    const env = await assessEnvironment();
     return {
       report,
       safeChanges: [],
       hooks,
-      env: await assessEnvironment(),
+      env,
+      // Machine-level checks still run; nothing is written in a parent folder.
+      install: await runInstallHealth(rootDir, env, options),
       deferredEssentials: [],
       workspaceParent,
     };
@@ -105,6 +207,8 @@ export async function runDoctor(
   // Environment pillar is read-only diagnostics; --fix-safe never runs env
   // self-heal (that's the future setup-global command), it just reports.
   const env = await assessEnvironment();
+  const install = await runInstallHealth(rootDir, env, options);
+  await writeInstallHealthSnapshot(rootDir, install, options.generatedAt).catch(() => undefined);
   if (options.fixSafe) {
     const execution = await executeSafeReadinessFixes(rootDir, {
       generatorVersion: KIT_VERSION,
@@ -116,6 +220,7 @@ export async function runDoctor(
       safeChanges: execution.changes,
       hooks,
       env,
+      install,
       deferredEssentials: await readDeferredEssentials(rootDir, execution.after),
     };
   }
@@ -136,6 +241,7 @@ export async function runDoctor(
       safeChanges: [],
       hooks,
       env,
+      install,
       profileRefreshed: refresh.changed,
       deferredEssentials: await readDeferredEssentials(rootDir, report),
     };
@@ -152,8 +258,21 @@ export async function runDoctor(
     safeChanges: [],
     hooks,
     env,
+    install,
     deferredEssentials: await readDeferredEssentials(rootDir, report),
   };
+}
+
+const INSTALL_SEVERITY_LABEL = { ok: "ok", warning: "WARN", info: "info" } as const;
+
+export function printInstallHealth(install: InstallHealthReport): void {
+  console.log("install:");
+  for (const item of install.checks) {
+    console.log(`  - ${item.label}: ${INSTALL_SEVERITY_LABEL[item.severity]} (${item.detail})`);
+    if (item.fix && item.severity !== "ok") {
+      console.log(`    ${item.fixKind === "config-line" ? "add" : "fix"}: ${item.fix}`);
+    }
+  }
 }
 
 export function printDoctorSummary(result: DoctorResult, rootDir: string): void {
@@ -215,6 +334,8 @@ export function printDoctorSummary(result: DoctorResult, rootDir: string): void 
     }`,
   );
 
+  printInstallHealth(result.install);
+
   // Check for ALLOW_MAIN_PUSH environment variable
   if (process.env.ALLOW_MAIN_PUSH === "1") {
     console.log("⚠️  WARNING: ALLOW_MAIN_PUSH=1 is set in environment");
@@ -258,14 +379,27 @@ export const doctorCommand = defineCommand({
   },
   async run({ args }) {
     if (!args.json) {
-      await warnIfRunningCliBehindNpm(args.cwd, { warn: (message) => logger.warn(message) });
+      // npm latest comes from the machine notice cache (one lookup a day); no
+      // config.json stamp, so a consumer repo gains no new file.
+      await warnIfRunningCliBehindNpm(args.cwd, {
+        warn: (message) => logger.warn(message),
+        stamp: false,
+        fetchLatest: async () => (await cachedCliNpmLatest())?.version ?? null,
+      });
     }
+    const npmAllowed = npmLatestCheckAllowed(
+      process.env,
+      await loadContextConfig(path.resolve(args.cwd)).catch(() => null),
+    );
     const run = () =>
       runDoctor(args.cwd, {
         fixSafe: args["fix-safe"],
         refreshProfile: args["refresh-profile"],
+        fetchNpmLatest: npmAllowed ? () => fetchLatestCliNpmVersion() : undefined,
       });
     const result = args.json ? await run() : await withCliProgress("doctor", run);
+    // Silent and fail-open; adds a row only when this folder holds a kit manifest.
+    await feedInstallsRegistry(path.resolve(args.cwd));
     if (args.json) {
       console.log(JSON.stringify(result, null, 2));
       return;

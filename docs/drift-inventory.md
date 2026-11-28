@@ -72,7 +72,7 @@ Present in **≥10 / 13** non-SoT workspaces that have `.cursor` (structural loo
 
 Present in many workspaces but **not** L0 (belong in L1 packs or L2 skills):
 
-- Rules: `cursor-skills-n8n`, `node`, `sql`, `php`, `python`, `api`, `clickup`, `testing`, `webdesign`, `mobile`, `groovy`, `prompts`, `json`, `devops`, `integrations`
+- Rules: `cursor-skills-n8n`, `node`, `sql`, `php`, `python`, `api`, `clickup`, `testing`, `webdesign`, `mobile`, `prompts`, `json`, `devops`, `integrations`
 - Skills: `n8n-workflows`, `sql-postgres`, `json-data-config`, `prompts-markdown`, `ux-message-flows`, `clickup` (registry community; not L0)
 
 These inflate “everyone has 20 rules” without being structural.

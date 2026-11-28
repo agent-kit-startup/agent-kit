@@ -78,6 +78,8 @@ const PRESERVED_FIELDS = [
   "Queue cursor",
   "Queue status",
   "Queue outcomes",
+  // Rows displaced by run-plan-all-consolidate.sh --rewrite-queue (HITL evidence).
+  "Queue outcomes anteriores",
   "Backlog plans",
   "Parked plans",
 ];

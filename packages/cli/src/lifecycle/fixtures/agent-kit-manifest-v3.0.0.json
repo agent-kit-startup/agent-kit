@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "version": "3.0.0",
+  "profile": "default",
+  "packs": ["clean-code", "gestao-contexto", "gestao-projeto"],
+  "protected": [".cursor/HANDOFF.md", ".cursor/plans/**", ".cursor/memory/**"],
+  "registry": {
+    "url": "https://github.com/agent-kit-startup/agent-kit",
+    "ref": "main"
+  },
+  "installedAt": "2026-04-05T17:08:29.000Z"
+}

@@ -10,6 +10,10 @@ Official list of categories for skill metadata. Used in frontmatter (`category`)
 | devops      | CI/CD, deploy, infra, environment scripts |
 | quality     | Tests, accessibility, UX, code review |
 | creation    | Creation of skills, rules, agents; generators; technical design |
+| api         | API design and contracts: REST, GraphQL, gRPC, OpenAPI |
+| language    | Language and runtime conventions: Node.js, PHP, Python |
+| mobile      | Mobile apps: React Native, Expo, Flutter |
+| web         | Web front end: HTML, CSS, JavaScript frameworks, accessibility |
 
 ## Usage in frontmatter
 
@@ -23,4 +27,4 @@ category: data
 ---
 ```
 
-Value of `category` must be one of the table items (ex.: `integrations`, `data`, `docs`, `devops`, `quality`, `creation`).
+Value of `category` must be one of the table items (ex.: `integrations`, `data`, `docs`, `devops`, `quality`, `creation`, `api`, `language`, `mobile`, `web`).

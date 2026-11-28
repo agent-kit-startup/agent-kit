@@ -1,5 +1,6 @@
 import path from "node:path";
 import { readJson } from "../utils/fs.js";
+import { legacyPackIdTarget, type PackIdRewrite, UnknownPackError } from "./pack-aliases.js";
 import { REGISTRY_INDEX_REL } from "./paths.js";
 import type {
   RegistryArtifact,
@@ -34,11 +35,63 @@ export async function findSkill(rootDir: string, skillId: string): Promise<Regis
   return skill;
 }
 
+/**
+ * Look a pack up by id: an exact registry id first, then the legacy alias
+ * (`LEGACY_PACK_ID_ALIASES`). Undefined when neither ships.
+ */
+export function resolvePackSummary(
+  index: RegistryIndex,
+  packId: string,
+): RegistryPackSummary | undefined {
+  const packs = allPacks(index);
+  const exact = packs.find((item) => item.id === packId);
+  if (exact) return exact;
+  const alias = legacyPackIdTarget(packId);
+  return alias ? packs.find((item) => item.id === alias) : undefined;
+}
+
+/** Resolve a pack id (legacy aliases included); throws `UnknownPackError` when absent. */
 export async function findPack(rootDir: string, packId: string): Promise<RegistryPackSummary> {
   const index = await loadRegistry(rootDir);
-  const pack = allPacks(index).find((item) => item.id === packId);
-  if (!pack) throw new Error(`Pack '${packId}' not found in registry.`);
+  const pack = resolvePackSummary(index, packId);
+  if (!pack)
+    throw new UnknownPackError(
+      packId,
+      allPacks(index).map((item) => item.id),
+    );
   return pack;
+}
+
+export interface CanonicalPackIds {
+  /** Pack ids with legacy aliases replaced by the id the registry ships; order kept, deduplicated. */
+  packs: string[] | undefined;
+  /** One entry per legacy id that resolved to a different registry id. */
+  rewrites: PackIdRewrite[];
+  /** Ids the registry does not ship under any alias (kept in `packs`). */
+  unknown: string[];
+  /** Every pack id in the registry index. */
+  knownIds: string[];
+}
+
+/** Map manifest pack ids to the ids the registry resolves them to. */
+export async function canonicalizePackIds(
+  rootDir: string,
+  packIds: readonly string[] | undefined,
+): Promise<CanonicalPackIds> {
+  const index = await loadRegistry(rootDir);
+  const knownIds = allPacks(index).map((item) => item.id);
+  if (!packIds) return { packs: undefined, rewrites: [], unknown: [], knownIds };
+  const packs: string[] = [];
+  const rewrites: PackIdRewrite[] = [];
+  const unknown: string[] = [];
+  for (const id of packIds) {
+    const summary = resolvePackSummary(index, id);
+    if (!summary) unknown.push(id);
+    else if (summary.id !== id) rewrites.push({ from: id, to: summary.id });
+    const resolved = summary?.id ?? id;
+    if (!packs.includes(resolved)) packs.push(resolved);
+  }
+  return { packs, rewrites, unknown, knownIds };
 }
 
 export async function findArtifact(
@@ -59,7 +112,7 @@ export async function resolveAddTarget(
 ): Promise<{ type: "skill"; skill: RegistrySkill } | { type: "pack"; pack: RegistryPackSummary }> {
   const index = await loadRegistry(rootDir);
   const skill = allSkills(index).find((item) => item.id === id);
-  const pack = allPacks(index).find((item) => item.id === id);
+  const pack = resolvePackSummary(index, id);
   if (skill && pack) {
     throw new Error(
       `'${id}' is both a skill and a pack. Disambiguate: agent-kit add --skill ${id} | agent-kit add --pack ${id}`,

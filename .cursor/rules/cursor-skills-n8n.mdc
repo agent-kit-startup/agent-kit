@@ -4,7 +4,7 @@ globs: "**/n8n/**/*,**/*workflow*.json,**/workflows/**/*.json"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - n8n
+# n8n
 
 Aligned with skill [.cursor/skills/community/n8n-workflows/SKILL.md](.cursor/skills/community/n8n-workflows/SKILL.md).
 

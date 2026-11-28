@@ -556,6 +556,8 @@ export const SHELL_DENY_RULES: Array<{
   id: string;
   description: string;
   test: (command: string, opts?: ShellGuardOptions) => boolean;
+  /** What to run instead; named in every denial (ADR amend 2026-11-26). */
+  allowed: (command: string, opts?: ShellGuardOptions) => string;
 }> = [
   {
     id: "git-checkout-path",
@@ -567,18 +569,29 @@ export const SHELL_DENY_RULES: Array<{
         if (/\s--(?:\s|$)/.test(head)) return true;
         // git checkout .
         if (/\scheckout\s+\.(?:\s|$)/.test(head)) return true;
+        // git checkout --theirs|--ours <paths> overwrites the worktree copy
+        if (/\s--(?:theirs|ours)(?:\s|$)/.test(head)) return true;
         return false;
       }),
+    allowed: () =>
+      "`git switch <branch>` to change branches, `git stash` to set edits aside, `git restore --staged <path>` to unstage; resolve a conflict by editing the file",
   },
   {
     id: "git-restore",
-    description: "git restore discards working-tree edits",
-    test: (cmd) => anyHeadMatches(cmd, /^(?:[\w./-]+\/)?git\s+restore\b/),
+    description: "git restore on the worktree discards working-tree edits",
+    test: (cmd) =>
+      shellInvocationHeads(cmd).some(
+        (head) => /^(?:[\w./-]+\/)?git\s+restore\b/.test(head) && !restoreIsIndexOnly(head),
+      ),
+    allowed: () =>
+      "`git restore --staged <path>` (index only, keeps the edit) or `git stash` to set edits aside",
   },
   {
     id: "git-reset-hard",
     description: "git reset --hard destroys uncommitted work",
     test: (cmd) => anyHeadMatches(cmd, /^(?:[\w./-]+\/)?git\s+reset\b.*--hard\b/),
+    allowed: () =>
+      "`git stash` to set edits aside, `git reset --keep <ref>` (refuses to drop local edits) or `git reset --soft <ref>`",
   },
   {
     id: "git-clean-fd",
@@ -593,6 +606,8 @@ export const SHELL_DENY_RULES: Array<{
         const hasD = tokens.some((t) => shortBundle(t) && t.includes("d"));
         return hasForce && hasD;
       }),
+    allowed: () =>
+      "`git clean -nd` to list what would go, then ask the operator before deleting untracked files",
   },
   {
     id: "public-repo-direct-write",
@@ -604,6 +619,8 @@ export const SHELL_DENY_RULES: Array<{
         const head = canonicalGitHead(segment);
         return pushTargetsPublicRepo(head, opts?.remotes) || ghTargetsPublicRepo(head);
       }),
+    allowed: () =>
+      "ship through /git-staging and /git-prod; the public repo is written by `scripts/sync-public.mjs` in CI",
   },
   {
     id: "git-push-main",
@@ -623,6 +640,8 @@ export const SHELL_DENY_RULES: Array<{
         }
         return false;
       }),
+    allowed: () =>
+      "push a working branch (`git push -u origin <branch>`) and open a PR into staging (/git-staging); main moves only through /git-prod",
   },
   {
     // Claude settings allow `gh pr merge` / `glab mr merge` so the /git-staging merge
@@ -650,8 +669,48 @@ export const SHELL_DENY_RULES: Array<{
         return typeof base !== "string" || isProtectedBranch(base);
       });
     },
+    allowed: prMergeAllowedHint,
   },
 ];
+
+/**
+ * `git restore` that only resets the index: `--staged` / `-S` without
+ * `--worktree` / `-W` (short flags may be bundled, `-SW`).
+ */
+export function restoreIsIndexOnly(head: string): boolean {
+  const tokens = head.split(/\s+/);
+  const shortBundle = (t: string) => /^-[a-zA-Z]+$/.test(t);
+  const staged = tokens.some((t) => t === "--staged" || (shortBundle(t) && t.includes("S")));
+  const worktree = tokens.some((t) => t === "--worktree" || (shortBundle(t) && t.includes("W")));
+  return staged && !worktree;
+}
+
+/**
+ * The merge hint: a merge the guard could not resolve (no literal target, or
+ * gh/glab could not read the PR/MR) names the `-R` form of its forge; a
+ * resolved protected base names the staging route.
+ */
+function prMergeAllowedHint(command: string, opts?: ShellGuardOptions): string {
+  const ghForm = "`gh pr merge <n> -R owner/repo`";
+  const glabForm = "`glab mr merge <n> -R host/group/repo`";
+  const staging = "merge only into staging (/git-staging); main moves through /git-prod";
+  if (forgeApiMergeCall(command)) {
+    return `a literal ${ghForm} or ${glabForm} at the head of its own segment; ${staging}`;
+  }
+  const bases = opts?.prMergeBases ?? {};
+  const unresolved = shellSegments(command).filter((segment) => {
+    if (!PR_MERGE_CALL_RE.test(segment)) return false;
+    const target = literalPrMergeTarget(segment);
+    return target === null || typeof bases[prMergeKey(target)] !== "string";
+  });
+  if (unresolved.length === 0) return staging;
+  const forms = [
+    unresolved.some((seg) => /\bgh\s+pr\s+merge\b/.test(seg)) ? ghForm : null,
+    unresolved.some((seg) => /\bglab\s+mr\s+merge\b/.test(seg)) ? glabForm : null,
+  ].filter((f): f is string => f !== null);
+  const named = forms.length > 0 ? forms.join(" or ") : `${ghForm} or ${glabForm}`;
+  return `name the PR/MR and its repo literally, at the head of its own segment, so the base resolves: ${named} (check \`gh auth status\` / \`glab auth status\`); ${staging}`;
+}
 
 export function evaluateShellCommand(
   command: string,
@@ -664,7 +723,7 @@ export function evaluateShellCommand(
   for (const rule of SHELL_DENY_RULES) {
     // Raw command: rules split on newlines before normalizing each segment.
     if (rule.test(command, opts)) {
-      const agent_message = `Denied by ${CITE}: ${rule.description} (rule \`${rule.id}\`). Use /git-staging; never discard human hunks or push protected branches from the agent.`;
+      const agent_message = `Denied by ${CITE}: ${rule.description} (rule \`${rule.id}\`). Instead: ${rule.allowed(command, opts)}. Never discard human hunks or push protected branches from the agent.`;
       return {
         permission: "deny",
         rule: rule.id,

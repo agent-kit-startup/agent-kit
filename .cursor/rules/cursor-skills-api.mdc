@@ -1,46 +1,22 @@
 ---
-description: CURSOR-SKILLS rules for APIs (REST, GraphQL, gRPC). OpenAPI, tests, versioning.
+description: Kit guidance for APIs (REST, GraphQL, gRPC): contract first, versioning, one error envelope, contract tests.
 globs: "**/api/**/*,**/*-api*,**/swagger.*,**/openapi.*,**/*.graphql,**/*.proto"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - API
+# APIs (REST, GraphQL, gRPC)
 
-Source: [cursor-skills/api](https://github.com/araguaci/cursor-skills/tree/main/api)
+## Contract
 
-## CURSOR setup
+- The schema (OpenAPI, GraphQL SDL, `.proto`) is the source of truth. Code and docs derive from it, or CI checks them against it.
+- Version the API (path or header). Inside one version, changes are additive only; deprecate with a date and a `Sunset` header.
 
-- REST Client, Thunder Client, or Postman; JSON Tools; docs generator; Swagger Viewer.
+## Behavior
 
-## Typical structure
+- One error envelope for every failure: code, message, details, request id. Use real status codes; never a `200` with an error body.
+- Validate input at the edge. Every list endpoint paginates. Unsafe retries (charges, creates) take an idempotency key.
+- Authentication and authorization are on by default; public routes are an explicit allowlist. Rate-limit by caller.
 
-```
-project/
-├── src/   ├── tests/   ├── docs/   ├── schemas/
-├── swagger.yaml   └── .env
-```
+## Tests
 
-## Patterns
-
-- REST: correct verbs and resources; HTTP status codes; versioning; JSON.
-- **GraphQL**: queries, mutations, subscriptions; schema; introspect; validation.
-- **gRPC**: services, methods, Protocol Buffers; error handling.
-
-## Documentation
-
-- OpenAPI/Swagger; request/response examples; error codes; authentication.
-- Tools: Swagger/OpenAPI, Postman, Insomnia, ReDoc.
-
-## Security and quality
-
-- Validate inputs; auth; rate limit; CORS; HTTPS.
-- Prettier, ESLint; endpoint tests (unit + integration); coverage ≥ 80%.
-
-## REST Client config (example)
-
-```json
-{
-  "editor.formatOnSave": true,
-  "rest-client.environmentVariables": { "baseUrl": "http://localhost:3000" }
-}
-```
+- Contract tests against the schema, plus one happy path and one failure path per endpoint.

@@ -56,7 +56,7 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `cursor-plan-handoff.mdc` - Multi-phase plan execution with HANDOFF contract
 - `context-guardian.mdc` - Context window monitoring with automatic handoff
 - `cursor-skills-git-workflow.mdc` - Staging-to-production Git flow enforcement
-- `cursor-skills-general.mdc` - Base CURSOR-SKILLS principles and conventions
+- `cursor-skills-general.mdc` - Kit baseline for code and repository hygiene
 - `ux-tone.mdc` - Chat tone guidelines with persona chrome support
 - `agent-output-hygiene.mdc` - Chat vs repository content separation
 - `docs-professional-standard.mdc` - Project documentation voice and inheritance standard
@@ -69,7 +69,6 @@ Factory-only counting policy: inventories that describe the **consumer/L0** surf
 - `cursor-skills-n8n.mdc` - n8n workflow editing patterns
 - `cursor-skills-api.mdc` - REST/GraphQL API development standards
 - `cursor-skills-devops.mdc` - CI/CD and infrastructure guidance
-- `cursor-skills-groovy.mdc` - Groovy syntax and integration rules
 - `cursor-skills-integrations.mdc` - Webhooks, microservices, database patterns
 - `cursor-skills-json.mdc` - JSON validation and formatting standards
 - `cursor-skills-mobile.mdc` - React Native, Flutter, Expo development

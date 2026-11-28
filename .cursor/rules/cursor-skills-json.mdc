@@ -4,7 +4,7 @@ globs: "**/*.json"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - JSON
+# JSON
 
 Aligned with skill [.cursor/skills/community/json-data-config/SKILL.md](.cursor/skills/community/json-data-config/SKILL.md).
 

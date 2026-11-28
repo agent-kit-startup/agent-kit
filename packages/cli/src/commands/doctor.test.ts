@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { printDoctorSummary, runDoctor } from "./doctor.js";
+import { listInstalls } from "../installs/index.js";
+import { doctorCommand, printDoctorSummary, printInstallHealth, runDoctor } from "./doctor.js";
 import { statusCommand } from "./status.js";
 
 describe("doctor runtime CLI warn", () => {
@@ -140,4 +141,104 @@ describe("doctor / status in a workspace parent", () => {
     expect(parsed).toHaveProperty("readiness");
     expect(parsed).toHaveProperty("manifest");
   });
+});
+
+describe("runDoctor — install health (c2)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("runs the four checks on injected inputs, writes the MC snapshot and prints the mise line", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-install-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-home-"));
+    // Home-level install fixture: an old manifest plus hooks under ~/.cursor.
+    await mkdir(path.join(home, ".cursor"), { recursive: true });
+    await writeFile(path.join(home, ".cursor", "agent-kit.json"), '{"version":"3.0.0"}\n');
+    await writeFile(path.join(home, ".cursor", "hooks.json"), "{}\n");
+    // mise path fixture: the CLI on PATH lives in a versioned node dir.
+    const miseBin = path.join(home, ".local/share/mise/installs/node/26.8.2/bin");
+    await mkdir(miseBin, { recursive: true });
+    await writeFile(path.join(miseBin, "agent-kit"), "#!/bin/sh\n", { mode: 0o755 });
+    const fetchNpmLatest = vi.fn(async () => ({
+      packageName: "@dadado/agent-kit-cli" as const,
+      version: "99.0.0",
+    }));
+
+    const result = await runDoctor(root, {
+      fetchNpmLatest,
+      installHealth: {
+        env: { PATH: miseBin },
+        platform: "linux",
+        homeDir: home,
+        nodeExecPath: path.join(home, ".local/share/mise/installs/node/26.13.1/bin/node"),
+      },
+    });
+    expect(fetchNpmLatest).toHaveBeenCalledTimes(1);
+    const by = Object.fromEntries(result.install.checks.map((c) => [c.id, c]));
+    expect(by["node-manager"]?.severity).toBe("warning");
+    expect(by["home-install"]?.severity).toBe("warning");
+    expect(by["home-install"]?.detail).toContain("~/.cursor/agent-kit.json, ~/.cursor/hooks.json");
+    expect(result.install.status).toBe("warning");
+
+    const snapshot = JSON.parse(
+      await readFile(path.join(root, ".cursor", "context", "install-health.json"), "utf8"),
+    ) as { version: number; status: string; checks: Array<{ id: string; detail: string }> };
+    expect(snapshot.version).toBe(1);
+    expect(snapshot.status).toBe("warning");
+    expect(JSON.stringify(snapshot)).not.toContain(home);
+
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((line: string) => {
+      lines.push(line);
+    });
+    printInstallHealth(result.install);
+    expect(lines).toContain(
+      '    add: "npm:@dadado/agent-kit-cli" = { version = "latest", allow_low_downloads = true, minimum_release_age = "0s" }',
+    );
+  });
+
+  it("does not hit npm without a fetcher (default) and reports the check as not run", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-nofetch-"));
+    const home = await mkdtemp(path.join(os.tmpdir(), "agent-kit-doctor-home-"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await runDoctor(root, {
+      installHealth: { env: { PATH: "" }, platform: "linux", homeDir: home },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const globalCli = result.install.checks.find((c) => c.id === "global-cli");
+    expect(globalCli?.severity).toBe("info");
+  });
+});
+
+describe("doctorCommand install registry feed", () => {
+  it("records a folder holding a kit manifest and skips one without", async () => {
+    const previousCi = process.env.CI;
+    process.env.CI = "1"; // no npm lookup
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const installed = await mkdtemp(path.join(os.tmpdir(), "ak-doctor-feed-"));
+      await mkdir(path.join(installed, ".cursor"), { recursive: true });
+      await writeFile(
+        path.join(installed, ".cursor", "agent-kit.json"),
+        JSON.stringify({ schemaVersion: 1, version: "6.1.0" }),
+      );
+      const bare = await mkdtemp(path.join(os.tmpdir(), "ak-doctor-bare-"));
+      const run = doctorCommand.run as unknown as (ctx: {
+        args: Record<string, unknown>;
+      }) => Promise<void>;
+      for (const cwd of [installed, bare]) {
+        await run({
+          args: { _: [], cwd, json: true, "fix-safe": false, "refresh-profile": false },
+        });
+      }
+      const rows = await listInstalls();
+      const real = async (p: string) => (await import("node:fs/promises")).realpath(p);
+      const installedKey = await real(installed);
+      const bareKey = await real(bare);
+      expect(rows.find((e) => e.path === installedKey)).toMatchObject({ kitVersion: "6.1.0" });
+      expect(rows.some((e) => e.path === bareKey)).toBe(false);
+    } finally {
+      log.mockRestore();
+      if (previousCi === undefined) delete process.env.CI;
+      else process.env.CI = previousCi;
+    }
+  }, 30_000);
 });

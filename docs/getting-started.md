@@ -128,7 +128,19 @@ Blocked on the global install by a root-owned npm prefix (`EACCES`)? Run `npx -y
 "npm:@dadado/agent-kit-cli" = { version = "latest", allow_low_downloads = true, minimum_release_age = "0s" }
 ```
 
-Then `mise install` and `agent-kit --version`. Remove an older global first (`npm rm -g @dadado/agent-kit-cli`) so only one `agent-kit` is on `PATH`. Both options are needed: a bare `mise use -g npm:@dadado/agent-kit-cli` is refused by mise's low-download guard, and mise's default minimum release age resolves `latest` to an older release.
+Then `mise install` and `agent-kit --version`. Remove an older global first (`npm rm -g @dadado/agent-kit-cli`) so only one `agent-kit` is on `PATH`. Both options are needed: a bare `mise use -g npm:@dadado/agent-kit-cli` is refused by mise's low-download guard, and mise's default minimum release age resolves `latest` to an older release. This entry was checked with mise 2026.11.10 on Linux; older mise versions, macOS and Windows are untested, and an older mise that does not know `allow_low_downloads` or `minimum_release_age` may ignore them or reject the line.
+
+The same trap exists with every per-version node manager. `agent-kit doctor` names yours in its `install:` section and prints the fix for it:
+
+| Node manager | Why the CLI disappears | Fix |
+|--------------|------------------------|-----|
+| mise (`node = "latest"`) | Each node patch is a new, empty install directory | The `[tools]` entry above |
+| nvm | Globals live in `~/.nvm/versions/node/<ver>` | `nvm install <new> --reinstall-packages-from=<old>`, or install under a fixed prefix: `npm i -g --prefix ~/.local @dadado/agent-kit-cli` with `~/.local/bin` on `PATH` |
+| nvm-windows | Globals live in `%NVM_HOME%\<ver>` | `nvm use <new>` then `npm i -g @dadado/agent-kit-cli` |
+| fnm | Globals live in `fnm/node-versions/<ver>/installation` | `fnm use <new>` then `npm i -g @dadado/agent-kit-cli` |
+| Volta, Homebrew node, system node | Not affected: globals survive a node upgrade | Nothing to do |
+
+Only the mise line was run on a real machine (Linux). The nvm, nvm-windows and fnm fixes follow each manager's documented behavior and are untested on macOS and Windows.
 
 The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-kit-cli` (or with `agent-kit` after a global install). Most slash commands (`/agent-kit-onboard`, `/start-project`, …) are IDE chat commands and need neither. Typing `/run-plan-all` in zsh is a filesystem path; use `agent-kit run-plan-all` (or `agent-kit run run-plan-all`).
 
@@ -143,6 +155,8 @@ The table below lists **subcommands**. Prefix each one with `npx @dadado/agent-k
 | `update --check` | Notify-only version compare vs public tags (no L0 writes) |
 | `cursor-awareness --check` | Opt-in advisory: Cursor changelog vs native-audit inventory (no apply) |
 | `update` | Explicit apply: pull latest rules/commands; leaves your own files alone |
+| `update --all` | Operator-typed only: update every repo in the install index, one `chore/kit-X.Y.Z` branch and one PR/MR per repo, after one plan table and one confirm (`--include-worktrees` to include worktrees) |
+| `installs [list\|scan\|prune]` | The per-machine index of kit installs (`~/.config/agent-kit/installs.json`) that the update notice and `update --all` read |
 | `diff` | Show what changed between what you have and the latest |
 | `contribute` | Send an improvement you made locally back upstream |
 | `handoff` | Save your progress to `.cursor/HANDOFF.md` |
@@ -219,9 +233,10 @@ Details: [external plan review](external-plan-review.md). Routing ADR: `2026-08-
 
 ### Keeping Mission Kit current (consumers)
 
-- **Opt-in check:** set `updateCheck.enabled: true` in `.cursor/context/config.json` (Mission Control Config can toggle it). SessionStart may then nudge when a newer public release exists; interval is `updateCheck.intervalDays` (default 7).
+- **Update notice (on by default, check-only):** at most once a day the CLI asks npm for `latest` and compares it with the CLI, and compares every registered install with the CLI. When something is behind, sessionStart prints one line naming the command to run, and Mission Control Health shows one Updates card. It is silent when everything is current, off under `CI`, and off with `updateCheck.enabled: false` in `.cursor/context/config.json` or `AGENT_KIT_NO_UPDATE_CHECK=1` (`NO_UPDATE_NOTIFIER=1` works too). It never applies anything.
 - **Manual check:** `npx @dadado/agent-kit-cli@latest update --check --json`.
 - **Apply:** upgrade the CLI first if it is behind the target release (`npm i -g @dadado/agent-kit-cli@<latest>`) — `agent-kit update` stamps the manifest with the version of the CLI running it, so a stale binary re-applies the old version. Then run `/update` and confirm with Ask questions (or an explicit terminal `agent-kit update`). An apply whose registry is newer than the binary refuses with the pinned remedy. Never silent L0 overwrite; `updateApply.auto` defaults to `false`.
+- **Every repo at once:** `agent-kit installs scan` fills the install index; then, in your own terminal, `agent-kit update --all`. It refuses inside an agent session and without a TTY, stops when the CLI is not the npm `latest`, prints one plan table (current and target version, pre-prod branch and how far behind, dirty kit files, queue lease, skip reason), and asks once. Each repo then gets its pre-prod branch fast-forwarded, a fresh `chore/kit-X.Y.Z` branch with only the kit files committed, a push and one PR (`gh`) or MR (`glab -R host/group/repo`). A repo without a remote gets the branch and commit only. Worktrees, fixtures, the kit's own repo, the home install, a live writer, a diverged pre-prod branch, dirty kit files and a major jump (for example v5 to v6, which needs a single-repo `update`) are skipped with a reason. It never merges: the PRs/MRs are yours to review and merge, and a rerun skips the ones already open.
 - Not the same as public sync (factory publish) or remote-cache refresh on resolve.
 
 ### Agent Personas

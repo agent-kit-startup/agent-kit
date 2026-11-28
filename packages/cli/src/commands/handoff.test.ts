@@ -163,7 +163,7 @@ describe("handoff regenerate", () => {
   const plan = (name: string, status: string) =>
     `---\nname: ${name}\ntodos:\n  - id: t1\n    content: "Do ${name}"\n    status: ${status}\n---\n`;
 
-  it("keeps Run queue, Backlog plans and Parked plans verbatim and the HANDOFF-named plan", async () => {
+  it("keeps Run queue, prior outcomes, Backlog plans and Parked plans verbatim and the HANDOFF-named plan", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agent-kit-handoff-regen-"));
     const plansDir = path.join(root, ".cursor", "plans");
     await mkdir(plansDir, { recursive: true });
@@ -176,6 +176,8 @@ describe("handoff regenerate", () => {
       "- **Queue status:** running",
       "- **Queue outcomes:**",
       "  - mmm.plan.md: completed (shipped v1.2.3)",
+      "- **Queue outcomes anteriores:**",
+      "  old.plan.md: deferred-operator (gate: merge #1)",
       "- **Backlog plans:**",
       "  - `aaa.plan.md`",
       "  - `zzz.plan.md` (next)",

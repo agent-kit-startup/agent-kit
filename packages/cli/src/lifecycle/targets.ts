@@ -1,9 +1,16 @@
 import path from "node:path";
 import type { AgentKitManifest } from "../manifest/types.js";
 import { allSkills, loadRegistry } from "../registry/client.js";
-import { loadPackManifest, packMemberFileTargets, skillFileTargets } from "../registry/install.js";
+import {
+  loadPackManifest,
+  type PackManifest,
+  packMemberFileTargets,
+  skillFileTargets,
+} from "../registry/install.js";
+import { UnknownPackError } from "../registry/pack-aliases.js";
 import type { RegistryIndex } from "../registry/types.js";
 import { L0_ARTIFACTS } from "./l0.js";
+import { isRetiredSkillId } from "./retired.js";
 
 export type ManagedOrigin = "l0" | "pack" | "skill";
 
@@ -20,6 +27,8 @@ export interface ManagedPairs {
   pairs: ManagedPair[];
   /** Manifest skill ids absent from the registry index. */
   missingSkills: string[];
+  /** Manifest pack ids absent from the registry index (legacy aliases resolve first). */
+  missingPacks: string[];
 }
 
 const toPosix = (rel: string) => rel.split(path.sep).join("/");
@@ -37,6 +46,7 @@ export async function managedPairs(
 ): Promise<ManagedPairs> {
   const pairs: ManagedPair[] = [];
   const missingSkills: string[] = [];
+  const missingPacks: string[] = [];
   const push = (sourceRel: string, targetRel: string, origin: ManagedOrigin) => {
     pairs.push({ sourceRel: toPosix(sourceRel), targetRel: toPosix(targetRel), origin });
   };
@@ -44,7 +54,14 @@ export async function managedPairs(
   for (const a of L0_ARTIFACTS) push(a.source, a.target, "l0");
 
   for (const packId of manifest.packs ?? []) {
-    const pack = await loadPackManifest(registryRoot, packId);
+    let pack: PackManifest;
+    try {
+      pack = await loadPackManifest(registryRoot, packId);
+    } catch (err) {
+      if (!(err instanceof UnknownPackError)) throw err;
+      missingPacks.push(packId);
+      continue;
+    }
     for (const member of pack.members) {
       for (const { sourceRel, targetRel } of await packMemberFileTargets(registryRoot, member)) {
         push(sourceRel, targetRel, "pack");
@@ -55,6 +72,7 @@ export async function managedPairs(
   if ((manifest.skills ?? []).length > 0) {
     const pool = allSkills(index ?? (await loadRegistry(registryRoot)));
     for (const id of manifest.skills ?? []) {
+      if (isRetiredSkillId(id)) continue;
       const skill = pool.find((s) => s.id === id);
       if (!skill) {
         missingSkills.push(id);
@@ -70,5 +88,5 @@ export async function managedPairs(
     }
   }
 
-  return { pairs, missingSkills };
+  return { pairs, missingSkills, missingPacks };
 }

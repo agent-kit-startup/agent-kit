@@ -8,6 +8,7 @@
 
 # Generated readiness snapshot and init/scan profile (local workspace state)
 .cursor/context/readiness.json
+.cursor/context/install-health.json
 # Local Field Report dismissals (attention IDs only; no transcript body)
 .cursor/context/field-report-dismissals.json
 # Local Field Report per-plan verdicts (plan basenames + Ask provenance; no review prose)

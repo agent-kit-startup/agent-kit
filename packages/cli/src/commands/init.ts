@@ -1,5 +1,6 @@
 import { intro, outro } from "@clack/prompts";
 import { defineCommand } from "citty";
+import { feedInstallsRegistry } from "../installs/index.js";
 import { syncPathCliToRuntime } from "../lifecycle/path-cli.js";
 import { logApplyStats, SkippedSymlinkError } from "../lifecycle/report.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
@@ -75,6 +76,7 @@ export const initCommand = defineCommand({
       const result = await withCliProgress("init", () => runInitCompatibility(projectRoot));
       const pending = result.readiness.pendingActions.length;
       logger.success(`L0 and readiness prepared in ${result.projectRoot}`);
+      await feedInstallsRegistry(result.projectRoot);
       const nextStep = nextStepAfterInstall(pending);
       const env = await assessEnvironment();
       const sync = await syncPathCliToRuntime({ runtimeVersion: KIT_VERSION, env });

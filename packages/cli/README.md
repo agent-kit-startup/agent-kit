@@ -75,6 +75,7 @@ On an interactive TTY, long-running commands (`init`, `install`, `doctor`, `upda
 | `agent-kit doctor` | Diagnose repository readiness (`--json` includes an `env` pillar: bin-on-PATH, npm prefix writability, Node version, shell profile) |
 | `agent-kit setup-global` | Self-heal a root-owned npm global prefix (relocate to `~/.npm-global`, fix `PATH`, reinstall) |
 | `agent-kit update` | Re-apply L0/packs/skills from the registry |
+| `agent-kit installs` | List the kit installs recorded on this machine (`scan [--root <dir>]...` to find them, `prune` to drop gone ones) |
 | `agent-kit dashboard` | Start Mission Control for this workspace (browser panel) |
 | `agent-kit mission-control` | ASCII Mission Control TUI (`--once` for one frame) |
 | `agent-kit add <id>` | Install a skill or L1 pack |
