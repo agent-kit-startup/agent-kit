@@ -21,7 +21,7 @@ export const CLI_HELP_GROUPS: HelpGroup[] = [
   {
     id: "setup",
     title: "SETUP",
-    commands: ["init", "install", "doctor", "status", "update", "add", "scan"],
+    commands: ["init", "install", "doctor", "status", "update", "installs", "add", "scan"],
   },
   {
     id: "mission",

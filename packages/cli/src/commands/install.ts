@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineCommand } from "citty";
 import { bold, cyan, green, options as koloristOptions } from "kolorist";
 import { applyPersonalization, readRepositoryProfile } from "../generator/personalization.js";
+import { feedInstallsRegistry } from "../installs/index.js";
 import { assessClaudeCommandAdapters } from "../invariants/hooks-health.js";
 import { type ApplyStats, buildManifest, mergeStats, saveManifest } from "../lifecycle/apply.js";
 import { warnIfRunningCliBehindNpm } from "../lifecycle/check-updates.js";
@@ -20,10 +21,16 @@ import {
   StaleCliError,
 } from "../lifecycle/stale-cli.js";
 import { installL0, syncFromManifest } from "../lifecycle/sync.js";
+import { cachedCliNpmLatest } from "../lifecycle/update-notice.js";
 import { KIT_VERSION, pinnedCliSpec } from "../lifecycle/version.js";
 import { DOMAIN_PACK_IDS, loadAgentKitManifest } from "../manifest/index.js";
 import { assessEnvironment, type EnvironmentReport } from "../readiness/env-checks.js";
-import { loadRegistry } from "../registry/client.js";
+import { canonicalizePackIds, loadRegistry } from "../registry/client.js";
+import {
+  formatPackIdRewrite,
+  legacyPackIdTarget,
+  UnknownPackError,
+} from "../registry/pack-aliases.js";
 import { createReadinessReport } from "../scanner/readiness.js";
 import { executeSafeReadinessFixes } from "../scanner/safe-fixes.js";
 import { runScanner } from "../scanner/scan.js";
@@ -214,10 +221,20 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
     const stale = await detectStaleCli(registry.root, { warn: logger.warn });
     if (stale && !options.allowStaleCli) throw new StaleCliError(stale);
 
+    // Legacy pack ids resolve to the id the registry ships and are rewritten
+    // in the manifest. An unknown id passed with --pack fails before any
+    // write; one already in the manifest is skipped by sync with a warning.
+    const packIds = await canonicalizePackIds(
+      registry.root,
+      packs.length > 0 ? packs : existing?.packs,
+    );
+    const unknownFlagPack = packs.find((id) => packIds.unknown.includes(id));
+    if (unknownFlagPack) throw new UnknownPackError(unknownFlagPack, packIds.knownIds);
+
     const draft = buildManifest({
       version: KIT_VERSION,
       profile: options.profile ?? existing?.profile ?? "default",
-      packs: packs.length > 0 ? packs : existing?.packs,
+      packs: packIds.packs,
       skills: existing?.skills,
       protected: existing?.protected,
       personalization: existing?.personalization,
@@ -235,6 +252,7 @@ export async function performInstall(options: InstallOptions): Promise<InstallRe
     // this version in the manifest as if the install had landed.
     if (stats.skippedSymlink.length > 0) throw new SkippedSymlinkError(stats);
     const manifestPath = await saveManifest(projectRoot, draft);
+    for (const rewrite of packIds.rewrites) logger.info(formatPackIdRewrite(rewrite));
     const readinessExecution = await executeSafeReadinessFixes(projectRoot, {
       generatorVersion: KIT_VERSION,
     });
@@ -364,11 +382,20 @@ export const installCommand = defineCommand({
     }
     logger.info(`Installing into: ${projectRoot}`);
     logger.info(`CLI v${KIT_VERSION}`);
-    await warnIfRunningCliBehindNpm(projectRoot, { warn: (message) => logger.warn(message) });
+    // npm latest comes from the machine notice cache (one lookup a day); no
+    // config.json stamp, so a consumer repo gains no new file.
+    await warnIfRunningCliBehindNpm(projectRoot, {
+      warn: (message) => logger.warn(message),
+      stamp: false,
+      fetchLatest: async () => (await cachedCliNpmLatest())?.version ?? null,
+    });
 
     const packs = parsePackList(args.pack);
     for (const id of packs) {
-      if (!DOMAIN_PACK_IDS.includes(id as (typeof DOMAIN_PACK_IDS)[number])) {
+      if (
+        !DOMAIN_PACK_IDS.includes(id as (typeof DOMAIN_PACK_IDS)[number]) &&
+        !legacyPackIdTarget(id)
+      ) {
         logger.warn(`Pack '${id}' is not in the known L1 list; will still try registry.`);
       }
     }
@@ -396,6 +423,7 @@ export const installCommand = defineCommand({
         console.log(`\n${result.claudeSessionStartInstructions}\n`);
       }
       if (result.claudeAdapterHint) logger.info(result.claudeAdapterHint);
+      await feedInstallsRegistry(result.projectRoot);
     } catch (err) {
       if (err instanceof StaleCliError) {
         const profile = typeof args.profile === "string" && args.profile ? `${args.profile} ` : "";
@@ -406,6 +434,11 @@ export const installCommand = defineCommand({
         });
         logger.error(refusal.error);
         console.error(refusal.recovery);
+        process.exitCode = 1;
+        return;
+      }
+      if (err instanceof UnknownPackError) {
+        logger.error(err.message);
         process.exitCode = 1;
         return;
       }

@@ -80,7 +80,6 @@ These run on every agent turn in Cursor:
 | `cursor-skills-n8n.mdc` | n8n workflows, `*workflow*.json` |
 | `cursor-skills-api.mdc` | api paths, OpenAPI, GraphQL |
 | `cursor-skills-devops.mdc` | Docker, CI, k8s, Terraform |
-| `cursor-skills-groovy.mdc` | `*.groovy` |
 | `cursor-skills-integrations.mdc` | integrations, webhooks |
 | `cursor-skills-json.mdc` | `*.json` |
 | `cursor-skills-mobile.mdc` | mobile paths |
@@ -101,7 +100,7 @@ These run on every agent turn in Cursor:
 ### Rule-mode compliance
 
 - Stack/product rules (ClickUp, n8n) correctly use `alwaysApply: false` per decision `2026-07-09_structural-harness-vs-stack`.
-- Language CURSOR-SKILLS rules are stack-on-demand via globs - acceptable for dev ergonomics; not structural core.
+- Language and stack rules (`cursor-skills-*`) are stack-on-demand via globs - acceptable for dev ergonomics; not structural core.
 - CLI generator (`packages/cli/src/generator/cursor.ts`) produces a **minimal** rule set (3–4 files) for new projects; it does not copy the full 25-rule workspace. Intentional L0 subset; document parity gap in Phase B cutover.
 
 ---

@@ -5,8 +5,15 @@ import { formatSkippedSymlinks, logApplyStats } from "../lifecycle/report.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { KIT_VERSION } from "../lifecycle/version.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
-import { allPacks, allSkills, findPack, findSkill, loadRegistry } from "../registry/client.js";
+import {
+  allSkills,
+  findPack,
+  findSkill,
+  loadRegistry,
+  resolvePackSummary,
+} from "../registry/client.js";
 import { installPack, installSkill } from "../registry/install.js";
+import { UnknownPackError } from "../registry/pack-aliases.js";
 import { logger } from "../utils/logger.js";
 
 export const addCommand = defineCommand({
@@ -55,7 +62,7 @@ export const addCommand = defineCommand({
       const protectedGlobs = resolveProtectedGlobs(existing);
       const index = await loadRegistry(registry.root);
       const asSkill = allSkills(index).find((s) => s.id === args.id);
-      const asPack = allPacks(index).find((p) => p.id === args.id);
+      const asPack = resolvePackSummary(index, args.id);
 
       const base = existing
         ? { ...existing }
@@ -98,7 +105,13 @@ export const addCommand = defineCommand({
         return;
       }
       if (args.pack) {
-        const pack = await findPack(registry.root, args.id);
+        const pack = await findPack(registry.root, args.id).catch((err: unknown) => {
+          if (!(err instanceof UnknownPackError)) throw err;
+          logger.error(err.message);
+          process.exitCode = 1;
+          return null;
+        });
+        if (!pack) return;
         const stats = await installPack(registry.root, args.cwd, pack.id, { protectedGlobs });
         logApplyStats(stats);
         if (skipped(stats)) return;

@@ -7,6 +7,12 @@ import { initCommand } from "./init.js";
 const mockConfirmProjectRoot = vi.hoisted(() => vi.fn());
 const mockPerformInstall = vi.hoisted(() => vi.fn());
 const mockAssessEnvironment = vi.hoisted(() => vi.fn());
+const mockFeedInstalls = vi.hoisted(() => vi.fn(async (_root: string) => undefined));
+
+vi.mock("../installs/index.js", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../installs/index.js")>();
+  return { ...mod, feedInstallsRegistry: (root: string) => mockFeedInstalls(root) };
+});
 
 vi.mock("../utils/terminal.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../utils/terminal.js")>();
@@ -63,6 +69,7 @@ describe("initCommand project-root guard", () => {
     mockConfirmProjectRoot.mockReset();
     mockPerformInstall.mockReset();
     mockAssessEnvironment.mockReset();
+    mockFeedInstalls.mockClear();
     process.exitCode = undefined;
   });
 
@@ -78,6 +85,7 @@ describe("initCommand project-root guard", () => {
       // so a blank no-git folder got L0 written into it with no confirmation.
       expect(mockPerformInstall).not.toHaveBeenCalled();
       expect(process.exitCode).toBe(1);
+      expect(mockFeedInstalls).not.toHaveBeenCalled();
       expect(consoleErrorSpy).toHaveBeenCalled();
     } finally {
       consoleErrorSpy.mockRestore();
@@ -97,6 +105,7 @@ describe("initCommand project-root guard", () => {
     await runInit("/tmp/confirmed-project");
     expect(mockPerformInstall).toHaveBeenCalledWith({ cwd: "/tmp/confirmed-project" });
     expect(process.exitCode).toBeUndefined();
+    expect(mockFeedInstalls).toHaveBeenCalledWith("/tmp/confirmed-project");
   });
 
   it("prints the smart epilogue (not a bare `agent-kit` next step) after a successful install", async () => {

@@ -695,3 +695,106 @@ describe("pr-merge-protected-base (gh pr merge / glab mr merge)", () => {
     }
   });
 });
+
+describe("guard narrowing and allowed-form hints (ADR amend 2026-11-26)", () => {
+  const restore = ["git", "restore"].join(" ");
+
+  it("allows the index-only restore and keeps the worktree forms denied", () => {
+    for (const cmd of [
+      `${restore} --staged README.md`,
+      `${restore} -S src/a.ts src/b.ts`,
+      `${restore} --staged --source=HEAD~1 README.md`,
+      `git add -A && ${restore} --staged .env`,
+    ]) {
+      expect(evaluateShellCommand(cmd).permission, cmd).toBe("allow");
+    }
+    for (const cmd of [
+      `${restore} README.md`,
+      `${restore} .`,
+      `${restore} --staged --worktree README.md`,
+      `${restore} -SW README.md`,
+      `${restore} --worktree README.md`,
+      `${restore} --source=HEAD README.md`,
+    ]) {
+      expect(evaluateShellCommand(cmd).rule, cmd).toBe("git-restore");
+    }
+  });
+
+  it("denies git checkout --theirs / --ours with or without --", () => {
+    for (const cmd of [
+      "git checkout --theirs -- src/a.ts",
+      "git checkout --ours src/a.ts",
+      "git checkout --theirs .",
+    ]) {
+      expect(evaluateShellCommand(cmd).rule, cmd).toBe("git-checkout-path");
+    }
+    expect(evaluateShellCommand("git checkout feat/x").permission).toBe("allow");
+  });
+
+  const merge = (forge: "gh" | "glab", rest: string) =>
+    forge === "gh" ? `gh pr ${"merge"} ${rest}` : `glab mr ${"merge"} ${rest}`;
+
+  const cases: Array<{
+    rule: string;
+    cmd: string;
+    opts?: Parameters<typeof evaluateShellCommand>[1];
+    hint: string;
+  }> = [
+    { rule: "git-checkout-path", cmd: "git checkout -- src/a.ts", hint: "`git stash`" },
+    { rule: "git-restore", cmd: `${restore} src/a.ts`, hint: "`git restore --staged <path>`" },
+    { rule: "git-reset-hard", cmd: "git reset --hard HEAD", hint: "`git reset --keep <ref>`" },
+    { rule: "git-clean-fd", cmd: "git clean -fd", hint: "`git clean -nd`" },
+    {
+      rule: "public-repo-direct-write",
+      cmd: "git push https://github.com/agent-kit-startup/agent-kit.git staging",
+      hint: "`scripts/sync-public.mjs`",
+    },
+    { rule: "git-push-main", cmd: "git push origin main", hint: "`git push -u origin <branch>`" },
+    {
+      rule: "pr-merge-protected-base",
+      cmd: merge("gh", "12 --squash"),
+      opts: { prMergeBases: {} },
+      hint: "-R owner/repo`",
+    },
+  ];
+
+  it("covers every rule with a message test", () => {
+    expect(new Set(cases.map((c) => c.rule))).toEqual(new Set(SHELL_DENY_RULES.map((r) => r.id)));
+  });
+
+  for (const c of cases) {
+    it(`${c.rule}: the denial names the allowed form`, () => {
+      const r = evaluateShellCommand(c.cmd, c.opts);
+      expect(r.rule).toBe(c.rule);
+      expect(r.agent_message).toContain("Instead: ");
+      expect(r.agent_message).toContain(c.hint);
+      expect(r.agent_message).toContain("agent-kit guard shell");
+    });
+  }
+
+  it("an unresolved glab merge names the glab -R host/group/repo form only", () => {
+    const cmd = merge("glab", "7");
+    const r = evaluateShellCommand(cmd, { prMergeBases: {} });
+    expect(r.rule).toBe("pr-merge-protected-base");
+    expect(r.agent_message).toContain(`\`glab mr ${"merge"} <n> -R host/group/repo\``);
+    expect(r.agent_message).not.toContain(`\`gh pr ${"merge"} <n> -R owner/repo\``);
+  });
+
+  it("a merge looped over $n names the literal -R form", () => {
+    const cmd = `for n in 1 2; do ${merge("gh", "$n --squash")}; done`;
+    const r = evaluateShellCommand(cmd);
+    expect(r.rule).toBe("pr-merge-protected-base");
+    expect(r.agent_message).toContain(`\`gh pr ${"merge"} <n> -R owner/repo\``);
+  });
+
+  it("a resolved protected base names the staging route, not the -R form", () => {
+    const cmd = merge("gh", "12 --squash");
+    const [target] = prMergeTargets(cmd);
+    const r = evaluateShellCommand(cmd, {
+      prMergeBases: { [prMergeKey(target as NonNullable<typeof target>)]: "main" },
+    });
+    expect(r.rule).toBe("pr-merge-protected-base");
+    expect(r.agent_message).toContain("merge only into staging");
+    expect(r.agent_message).not.toContain("-R owner/repo");
+  });
+});

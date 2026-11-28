@@ -1,39 +1,13 @@
 ---
-description: CURSOR-SKILLS rules for Web (HTML, CSS, JS, React, Vue, Angular). A11y, BEM, responsive.
+description: Kit guidance for the web front end (HTML, CSS, JS frameworks): semantics, accessibility, tokens, performance.
 globs: "**/*.html,**/*.css,**/*.scss,**/*.vue,**/*.jsx,**/*.svelte"
 alwaysApply: false
 ---
 
-# CURSOR-SKILLS - Web Design
+# Web front end (HTML, CSS, JavaScript frameworks)
 
-Source: [cursor-skills/webdesign](https://github.com/araguaci/cursor-skills/tree/main/webdesign)
-
-## CURSOR setup
-
-- HTML CSS Support, ES6 snippets, Auto Rename Tag, Prettier, Live Server, Emmet.
-- React: React DevTools, ES7+ snippets. Vue: Vetur/Volar, Vue 3 Snippets. Angular: Angular Language Service, CLI.
-
-## HTML
-
-- Semantic HTML5; accessibility (ARIA, alt, heading hierarchy, keyboard); W3C; responsive.
-
-## CSS
-
-- CSS3, responsive, BEM, custom properties, controlled specificity.
-- CSS modules or styled-components; mobile-first; flexible grids; responsive images.
-
-## JavaScript / Frameworks
-
-- ES6+; TypeScript when appropriate; error handling.
-- **React**: functional components, hooks, state management.
-- **Vue**: Composition API, reactivity, conventions.
-- **Angular**: TypeScript, services, DI.
-
-## Tests and tools
-
-- Jest (unit), Cypress (E2E), Storybook, Lighthouse, Axe (a11y).
-- Build: bundling, env vars, cache, CDN for assets.
-
-## A11y and security
-
-- Semantics, ARIA, keyboard, screen readers; validate/sanitize inputs; CSP; CORS; HTTPS.
+- **Semantic HTML first.** Landmarks, headings in order, one `h1`, real buttons and links.
+- **Accessibility is a requirement:** labels on inputs, alt text, visible focus, a keyboard path through every flow, AA contrast (4.5:1 for text), respect `prefers-reduced-motion`.
+- **CSS:** design tokens as custom properties, one naming scheme per project (BEM or utilities, not both), mobile first, fluid layouts instead of fixed pixel widths. Colors come from tokens, never hard-coded.
+- **Components** are small and single-purpose, state lives close to where it is used, no business logic in templates. Follow the framework's idioms (hook rules in React, composition in Vue, signals or services in Angular).
+- **Performance:** sized images with lazy loading, `font-display` on web fonts, no layout shift, a budget checked in CI.

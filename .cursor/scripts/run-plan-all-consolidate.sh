@@ -28,6 +28,12 @@
 #   - Validate / normalize --outcomes (including multiline) BEFORE any HANDOFF mutation.
 #   - Apply Plan/Mode/queue/cursor/status/outcomes as one atomic rewrite (temp + replace).
 #   - Never use awk -v for outcomes (newlines break -v and caused partial rewrites).
+#   - History is kept: Plan, Mode, Last updated, Queue cursor and Queue status become
+#     "<new> · antes: <old value incl. its trail>" when the value changes (unchanged
+#     head = line left as is). Run queue is replaced bare.
+#   - Old Queue outcomes rows that --outcomes does not carry forward move to
+#     "- **Queue outcomes anteriores:**" (newest first), never deleted.
+#   - Dry-run and apply print the same line diff (- removed / + added) of HANDOFF.
 #
 # Smoke (dry-run, no mutations):
 #   .cursor/scripts/run-plan-all-consolidate.sh --preflight
@@ -65,7 +71,8 @@ OUTCOMES="none"
 TOUCH_ACTIVE_PLAN=0
 
 usage() {
-  sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'
+  # Print the leading comment block (line 2 up to the first non-comment line).
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
 }
 
 die() {
@@ -99,13 +106,20 @@ handoff_field() {
   sed -n "s/^- \\*\\*${label}:\\*\\*[[:space:]]*//p" "$HANDOFF" | head -n 1
 }
 
+# Current value of a field without its "· antes:" history trail.
+field_head() {
+  local value="$1"
+  printf '%s' "${value%% · antes: *}"
+}
+
 queue_in_flight() {
   [[ -f "$HANDOFF" ]] || return 1
   local mode status queue
-  mode="$(handoff_field "Mode")"
-  status="$(handoff_field "Queue status")"
+  mode="$(field_head "$(handoff_field "Mode")")"
+  status="$(field_head "$(handoff_field "Queue status")")"
+  status="${status%% *}"
   queue="$(handoff_field "Run queue")"
-  [[ "$mode" == "run-plan-all" ]] || return 1
+  [[ "$mode" == "run-plan-all" || "$mode" == "run-plan-all "* ]] || return 1
   if [[ "$status" == "running" || "$status" == "paused" || "$status" == "blocked" ]]; then
     return 0
   fi
@@ -144,8 +158,15 @@ assert_plan_live() {
 
 active_plan_basename() {
   local raw
-  raw="$(handoff_field "Plan")"
-  raw="${raw//\`/}"
+  local tick='`'
+  raw="$(field_head "$(handoff_field "Plan")")"
+  if [[ "$raw" == *"$tick"*"$tick"* ]]; then
+    # Plan name inside the first pair of backticks, e.g. `a.plan.md` (queue cursor 3).
+    raw="${raw#*"$tick"}"
+    raw="${raw%%"$tick"*}"
+  else
+    raw="${raw%% *}"
+  fi
   raw="${raw##*/}"
   printf '%s' "$raw"
 }
@@ -284,19 +305,40 @@ cmd_drop() {
 }
 
 # Upsert "- **Label:** value" inside a working copy (never mutates HANDOFF directly).
+# Values travel through ENVIRON, never awk -v (which rewrites backslash escapes).
+# trail=1 keeps history: "<new> · antes: <old value incl. its own trail>" when the
+# old head differs; an unchanged head leaves the line byte-identical.
 upsert_field_in_file() {
   local file="$1"
   local label="$2"
   local value="$3"
+  local trail="${4:-0}"
   local tmp
   tmp="$(mktemp)"
   if grep -q "^- \\*\\*${label}:\\*\\*" "$file"; then
-    awk -v lab="$label" -v val="$value" '
-      BEGIN { done=0 }
+    UPSERT_LABEL="$label" UPSERT_VALUE="$value" UPSERT_TRAIL="$trail" awk '
+      BEGIN {
+        lab = ENVIRON["UPSERT_LABEL"]
+        val = ENVIRON["UPSERT_VALUE"]
+        trail = ENVIRON["UPSERT_TRAIL"]
+        sep = " · antes: "
+        done = 0
+      }
       {
-        if (!done && $0 ~ ("^- \\*\\*" lab ":\\*\\*")) {
-          print "- **" lab ":** " val
-          done=1
+        if (!done && index($0, "- **" lab ":**") == 1) {
+          done = 1
+          old = substr($0, length("- **" lab ":**") + 1)
+          sub(/^[ \t]+/, "", old)
+          head = old
+          cut = index(old, sep)
+          if (cut > 0) head = substr(old, 1, cut - 1)
+          sub(/[ \t]+$/, "", head)
+          if (trail == "1" && head == val) { print; next }
+          if (trail == "1" && old != "" && old != "none" && old != "`none`") {
+            print "- **" lab ":** " val sep old
+          } else {
+            print "- **" lab ":** " val
+          }
           next
         }
         print
@@ -309,51 +351,85 @@ upsert_field_in_file() {
   mv "$tmp" "$file"
 }
 
-# Replace Queue outcomes block using a side file (supports multiline; never awk -v).
+# Replace the live Queue outcomes block using a side file (multiline; never awk -v).
+# Old rows that the new block does not carry forward (exact match after trim; "none"
+# placeholders ignored) move to "- **Queue outcomes anteriores:**", newest first,
+# right after the live block. Existing prior rows are kept (deduplicated).
 replace_outcomes_in_file() {
   local file="$1"
   local outcomes_file="$2"
   local tmp
   tmp="$(mktemp)"
   awk -v ofile="$outcomes_file" '
+    function trim(x) { sub(/^[ \t]+/, "", x); sub(/[ \t]+$/, "", x); return x }
+    function placeholder(x) { return (x == "" || x == "none" || x == "- none" || x == "`none`") }
+    function is_live(x) { return (x ~ /^- \*\*Queue outcomes:\*\*/) }
+    function is_prior(x) { return (x ~ /^- \*\*Queue outcomes anteriores:\*\*/) }
+    function inline_of(x) { sub(/^- \*\*[^*]+:\*\*/, "", x); return trim(x) }
+    # Same block-end rule as the original rewrite: a field, heading or blank line ends it.
+    function ends_block(x) {
+      if (x ~ /^- \*\*/ || x ~ /^#/ || x ~ /^$/) return 1
+      if (x ~ /^  / || x ~ /^[[:space:]]*-/) return 0
+      return 1
+    }
     BEGIN {
       n = 0
       while ((getline line < ofile) > 0) {
+        if (trim(line) == "") continue
         n++
         lines[n] = line
+        isnew[trim(line)] = 1
       }
       close(ofile)
-      skip = 0
-      done = 0
+      nold = 0; nprior = 0; mode = 0
     }
-    function emit_outcomes(   i) {
+    # Pass 1: collect old live rows and existing prior rows.
+    FNR == NR {
+      if (is_live($0)) { mode = 1; r = inline_of($0); if (r != "") old[++nold] = r; next }
+      if (is_prior($0)) { mode = 2; r = inline_of($0); if (r != "") prior[++nprior] = r; next }
+      if (mode != 0 && ends_block($0)) mode = 0
+      if (mode == 1) old[++nold] = trim($0)
+      else if (mode == 2) prior[++nprior] = trim($0)
+      next
+    }
+    FNR == 1 {
+      # Build the prior block: displaced rows first (newest), then existing ones.
+      np = 0
+      for (i = 1; i <= nold; i++) {
+        r = old[i]
+        if (placeholder(r) || (r in isnew) || (r in seen)) continue
+        seen[r] = 1; outp[++np] = r
+      }
+      for (i = 1; i <= nprior; i++) {
+        r = prior[i]
+        if (placeholder(r) || (r in seen)) continue
+        seen[r] = 1; outp[++np] = r
+      }
+      skip = 0; done = 0
+    }
+    function emit_blocks(   i) {
       print "- **Queue outcomes:**"
-      for (i = 1; i <= n; i++) {
-        if (lines[i] != "") print "  " lines[i]
+      for (i = 1; i <= n; i++) print "  " lines[i]
+      if (np > 0) {
+        print "- **Queue outcomes anteriores:**"
+        for (i = 1; i <= np; i++) print "  " outp[i]
       }
     }
+    # Pass 2: emit, dropping the old live and prior blocks wherever they are.
     {
-      if ($0 ~ /^- \*\*Queue outcomes:\*\*/) {
-        emit_outcomes()
-        skip = 1
-        done = 1
-        next
+      if (is_live($0)) {
+        if (!done) emit_blocks()
+        done = 1; skip = 1; next
       }
+      if (is_prior($0)) { skip = 1; next }
       if (skip == 1) {
-        if ($0 ~ /^- \*\*/ || $0 ~ /^#/ || $0 ~ /^$/) {
-          skip = 0
-        } else if ($0 ~ /^  / || $0 ~ /^[[:space:]]*-/) {
-          next
-        } else {
-          skip = 0
-        }
+        if (ends_block($0)) skip = 0
+        else next
       }
-      if (skip == 0) print
+      print
     }
-    END {
-      if (!done) emit_outcomes()
-    }
-  ' "$file" >"$tmp"
+    END { if (!done) emit_blocks() }
+  ' "$file" "$file" >"$tmp"
   mv "$tmp" "$file"
 }
 
@@ -470,13 +546,8 @@ cmd_rewrite_queue() {
     [[ -n "$item" ]] && info "    $item"
   done <<< "$outcomes_display"
 
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    rm -f "$outcomes_file"
-    info "dry-run: HANDOFF not written (pass --apply --approved to mutate)"
-    return 0
-  fi
-
-  # Build the full rewrite in a working copy, then atomically replace HANDOFF.
+  # Build the full rewrite in a working copy (dry-run and apply share it), then
+  # print the line diff and, on apply, atomically replace HANDOFF.
   local work
   work="$(mktemp)"
   if [[ -f "$HANDOFF" ]]; then
@@ -491,17 +562,53 @@ cmd_rewrite_queue() {
     } >"$work"
   fi
 
-  upsert_field_in_file "$work" "Plan" "\`${activate}\`"
-  upsert_field_in_file "$work" "Last updated" "$stamp"
-  upsert_field_in_file "$work" "Mode" "run-plan-all"
+  upsert_field_in_file "$work" "Plan" "\`${activate}\`" 1
+  upsert_field_in_file "$work" "Last updated" "$stamp" 1
+  upsert_field_in_file "$work" "Mode" "run-plan-all" 1
   upsert_field_in_file "$work" "Run queue" "$queue_bracket"
-  upsert_field_in_file "$work" "Queue cursor" "$cursor_line"
-  upsert_field_in_file "$work" "Queue status" "$STATUS"
+  upsert_field_in_file "$work" "Queue cursor" "$cursor_line" 1
+  upsert_field_in_file "$work" "Queue status" "$STATUS" 1
   replace_outcomes_in_file "$work" "$outcomes_file"
   rm -f "$outcomes_file"
 
+  print_rewrite_diff "$work"
+  local prior_rows
+  prior_rows="$(awk '
+    /^- \*\*Queue outcomes anteriores:\*\*/ { on = 1; next }
+    on && (/^- \*\*/ || /^#/ || /^$/) { on = 0 }
+    on && /^  / { c++ }
+    END { print c + 0 }
+  ' "$work")"
+  info "Queue outcomes anteriores: ${prior_rows} row(s) kept from earlier queues"
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    rm -f "$work"
+    info "dry-run: HANDOFF not written (pass --apply --approved to mutate)"
+    return 0
+  fi
+
   atomic_replace_file "$work" "$HANDOFF"
   info "HANDOFF queue fields updated (atomic)"
+}
+
+# Print every HANDOFF line the rewrite removes (-) or adds (+). Unchanged lines are
+# omitted; a "· antes:" trail shows up as the old line removed and the trailed line added.
+print_rewrite_diff() {
+  local work="$1"
+  local base="$HANDOFF"
+  [[ -f "$base" ]] || base="/dev/null"
+  local out rc=0
+  out="$(diff -U0 "$base" "$work")" || rc=$?
+  if [[ "$rc" -gt 1 ]]; then
+    die "diff failed (exit $rc) while previewing the HANDOFF rewrite"
+  fi
+  info "HANDOFF line diff (- removed, + added):"
+  if [[ "$rc" -eq 0 ]]; then
+    info "  (no changes)"
+    return 0
+  fi
+  # Skip the two file headers and the @@ hunk markers; keep content lines verbatim.
+  printf '%s\n' "$out" | tail -n +3 | grep -v '^@@' | sed 's/^/  /'
 }
 
 cmd_merge_checklist() {

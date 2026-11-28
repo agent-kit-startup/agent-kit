@@ -6,7 +6,8 @@
 
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { collectChats } from "./lib/chat-sessions.mjs";
 import { collectGateExitTickets } from "./lib/gate-exit-tickets.mjs";
 import {
@@ -171,7 +172,7 @@ function redactTerminalOutput(text) {
 
 const SNAPSHOT = {
   _schema: {
-    version: "1.13.0",
+    version: "1.15.0",
     description: "Mission Control dashboard data model",
     fields: {
       generatedAt: "ISO-8601 timestamp of snapshot generation",
@@ -205,12 +206,12 @@ const SNAPSHOT = {
         "Running process snapshots (node, serve.mjs, git operations) with elapsed time and a generated narration per process",
       skills: "Available skills discovered in .cursor/skills/",
       health:
-        "Aggregated health: status ok|warning|degraded|not-initialized (error only on the serve empty-checks path) and the fixed seven checks[] ({id, label, ok, severity: ok|warning|degraded|not-initialized, detail}); ok means severity === ok; not-initialized marks a fresh workspace (no plans, no HANDOFF, no memory entries); Commands, Config and Agents also read a Mission Kit Cursor or Claude Code plugin install (1.13.0)",
+        "Aggregated health: status ok|warning|degraded|not-initialized (error only on the serve empty-checks path) and the fixed seven checks[] ({id, label, ok, severity: ok|warning|degraded|not-initialized, detail}); ok means severity === ok; not-initialized marks a fresh workspace (no plans, no HANDOFF, no memory entries); Commands, Config and Agents also read a Mission Kit Cursor or Claude Code plugin install (1.13.0); install ({generatedAt, status ok|warning, checks[] ({id: global-cli|node-manager|home-install|registry-pin, label, ok, severity: ok|warning, detail, fix|null})}|null) is the machine install health that `agent-kit doctor` last wrote to .cursor/context/install-health.json, read-only and outside checks[] and status; null when doctor has not run; broadcast keeps no paths and no fix (1.14.0); updateNotice ({generatedAt, cliVersion, npmLatest|null, cliBehind, installsBehind, oldest {kitVersion, path|null}|null, label, severity: warning, detail, fix|null}|null) is the machine update notice the sessionStart hook last wrote beside ~/.config/agent-kit/installs.json: registered repo/home installs behind the CLI and the CLI behind npm; check-only, null when current or off (CI, AGENT_KIT_NO_UPDATE_CHECK, NO_UPDATE_NOTIFIER, updateCheck.enabled false); broadcast keeps no path and no fix (1.15.0)",
       missionControl: "Normalized now/activity/attention/plans view model (source-backed; bounded)",
     },
   },
   generatedAt: new Date().toISOString(),
-  dashboardDataVersion: "1.13.0",
+  dashboardDataVersion: "1.15.0",
   plans: [],
   system: {
     repoRoot: ROOT,
@@ -228,7 +229,7 @@ const SNAPSHOT = {
   outcomeLedger: emptyOutcomeLedgerSummary(),
   processes: [],
   skills: [],
-  health: { status: "ok", checks: [] },
+  health: { status: "ok", checks: [], install: null },
   missionControl: null,
 };
 
@@ -1645,6 +1646,126 @@ const checks = [
 ];
 
 SNAPSHOT.health.checks = checks;
+
+// Install health (c2): written by `agent-kit doctor`, read here fail-open. A
+// sibling of checks[] so the fixed seven ids and the aggregate stay unchanged.
+const INSTALL_HEALTH_IDS = new Set(["global-cli", "node-manager", "home-install", "registry-pin"]);
+function readInstallHealth() {
+  const raw = healthReadJson(join(ROOT, ".cursor", "context", "install-health.json"));
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.checks)) return null;
+  const items = raw.checks
+    .filter((c) => c && typeof c === "object" && INSTALL_HEALTH_IDS.has(c.id))
+    .map((c) => {
+      const severity = c.severity === "warning" ? "warning" : "ok";
+      const label = truncateStr(typeof c.label === "string" ? c.label : c.id, 80);
+      const rawFix = typeof c.fix === "string" && c.fix ? c.fix : null;
+      // Only a ready-to-run command becomes a terminal copy; a config line (the
+      // mise tool entry) or a template with a placeholder rides in the detail.
+      const fix = rawFix && c.fixKind === "command" ? rawFix : null;
+      const baseDetail = typeof c.detail === "string" ? c.detail : "";
+      const fullDetail =
+        rawFix && !fix
+          ? `${baseDetail} (${c.fixKind === "config-line" ? "add" : "fix"}: ${rawFix})`
+          : baseDetail;
+      return {
+        id: c.id,
+        label,
+        ok: severity === "ok",
+        severity,
+        // Paths are home-relative on disk; a broadcast snapshot carries none.
+        detail: HEALTH_BROADCAST
+          ? severity === "ok"
+            ? "No action needed"
+            : "Needs attention: run agent-kit doctor on this machine"
+          : truncateStr(fullDetail, 800),
+        fix: HEALTH_BROADCAST ? null : fix && truncateStr(fix, 300),
+      };
+    });
+  return {
+    generatedAt: typeof raw.generatedAt === "string" ? raw.generatedAt : null,
+    status: items.some((c) => c.severity === "warning") ? "warning" : "ok",
+    checks: items,
+  };
+}
+SNAPSHOT.health.install = readInstallHealth();
+
+// Update notice (c4): `agent-kit hook session-start` writes the computed notice
+// into the machine cache beside installs.json; read here fail-open, never
+// computed (no semver or install-kind logic in the dashboard). Same gates as the
+// CLI: off under CI, the env opt-out and `updateCheck.enabled: false`.
+function updateNoticeFile(env) {
+  const override =
+    typeof env.AGENT_KIT_INSTALLS_FILE === "string" ? env.AGENT_KIT_INSTALLS_FILE.trim() : "";
+  if (override) return join(dirname(resolve(override)), "update-notice.json");
+  const xdg = typeof env.XDG_CONFIG_HOME === "string" ? env.XDG_CONFIG_HOME.trim() : "";
+  const configDir = xdg && isAbsolute(xdg) ? xdg : join(homedir(), ".config");
+  return join(configDir, "agent-kit", "update-notice.json");
+}
+function envFlagOn(value) {
+  if (typeof value !== "string") return false;
+  const v = value.trim().toLowerCase();
+  return v !== "" && v !== "0" && v !== "false";
+}
+function readUpdateNotice() {
+  const env = process.env;
+  if (
+    envFlagOn(env.CI) ||
+    envFlagOn(env.AGENT_KIT_NO_UPDATE_CHECK) ||
+    envFlagOn(env.NO_UPDATE_NOTIFIER)
+  ) {
+    return null;
+  }
+  const cfg = healthReadJson(join(ROOT, ".cursor", "context", "config.json"));
+  if (cfg && typeof cfg === "object" && cfg.updateCheck && cfg.updateCheck.enabled === false)
+    return null;
+  const raw = healthReadJson(updateNoticeFile(env));
+  const n = raw && typeof raw === "object" ? raw.notice : null;
+  if (!n || typeof n !== "object" || typeof n.line !== "string" || !n.line) return null;
+  const count = Number.isInteger(n.installsBehind) && n.installsBehind > 0 ? n.installsBehind : 0;
+  const cliBehind = n.cliBehind === true;
+  if (!count && !cliBehind) return null;
+  const cliVersion = typeof n.cliVersion === "string" ? truncateStr(n.cliVersion, 32) : null;
+  const npmVersion =
+    n.npmLatest && typeof n.npmLatest.version === "string"
+      ? truncateStr(n.npmLatest.version, 32)
+      : null;
+  const oldest =
+    count && n.oldest && typeof n.oldest === "object" && typeof n.oldest.kitVersion === "string"
+      ? {
+          kitVersion: truncateStr(n.oldest.kitVersion, 32),
+          // Home-relative on disk; a broadcast snapshot carries no path.
+          path:
+            HEALTH_BROADCAST || typeof n.oldest.path !== "string"
+              ? null
+              : truncateStr(n.oldest.path, 300),
+        }
+      : null;
+  const parts = [];
+  if (cliBehind && npmVersion) parts.push(`CLI ${cliVersion} is behind npm ${npmVersion}`);
+  if (count) {
+    const where = oldest?.path ? ` at ${oldest.path}` : "";
+    parts.push(
+      `${count} ${count === 1 ? "install" : "installs"} behind CLI ${cliVersion}${oldest ? `, oldest v${oldest.kitVersion}${where}` : ""}`,
+    );
+  }
+  const cliCommand =
+    typeof n.cliCommand === "string" && n.cliCommand ? truncateStr(n.cliCommand, 200) : null;
+  // The CLI first: `update --all` stamps the CLI version, so an old CLI cannot reach npm latest.
+  const fix = cliBehind && cliCommand ? cliCommand : count ? "agent-kit update --all" : null;
+  return {
+    generatedAt: typeof n.generatedAt === "string" ? n.generatedAt : null,
+    cliVersion,
+    npmLatest: npmVersion,
+    cliBehind,
+    installsBehind: count,
+    oldest,
+    label: count ? `${count} ${count === 1 ? "install" : "installs"} behind` : "CLI behind npm",
+    severity: "warning",
+    detail: `${parts.join("; ")}. Check-only: nothing is applied.`,
+    fix: HEALTH_BROADCAST ? null : fix,
+  };
+}
+SNAPSHOT.health.updateNotice = readUpdateNotice();
 SNAPSHOT.health.status = checks.some((c) => c.severity === "degraded")
   ? "degraded"
   : workspaceFresh

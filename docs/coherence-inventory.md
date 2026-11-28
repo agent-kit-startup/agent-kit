@@ -24,7 +24,6 @@ Living inventory for internal coherence (`f6-coherence`). Classifies each artifa
 | `cursor-skills-n8n.mdc` | stack | false | ✅ globs; skill path updated |
 | `cursor-skills-api.mdc` | stack | false | ✅ keep |
 | `cursor-skills-devops.mdc` | stack | false | ✅ keep |
-| `cursor-skills-groovy.mdc` | stack | false | ✅ keep (community language) |
 | `cursor-skills-integrations.mdc` | stack | false | ✅ keep |
 | `cursor-skills-json.mdc` | stack | false | ✅ keep; pairs with `json-data-config` skill |
 | `cursor-skills-mobile.mdc` | stack | false | ✅ keep |
@@ -163,7 +162,7 @@ Install path = pack/registry member, or dogfood-only / demoted (see [domain-pack
 
 1. **`.cursor/hooks.json`** - ✅ shipped (sessionStart / preCompact); optional later: shell gate for push to main, prompt secrets check.
 2. **Registry-canonical public cutover** - see [topology-private-public.md](topology-private-public.md) for Phase B status and remaining ops work.
-3. **Stack language rules** (php/groovy/mobile/…) - keep as stack; no promotion to L0.
+3. **Stack language rules** (php/mobile/…) - keep as stack; no promotion to L0.
 4. **`skills-registry.json` / `_legacy/v2`** - obsolete paths; do not resurrect flat skill ids.
 5. **`package.json` / `.cursor-plugin/plugin.json` version sync** - version alignment checked against current `package.json`; bump on next release tag, not blocking inventory truth.
 

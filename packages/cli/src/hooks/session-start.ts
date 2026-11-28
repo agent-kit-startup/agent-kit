@@ -13,6 +13,11 @@ import {
   shouldEmitPublicInboundNudge,
   stampPublicInboundCheck,
 } from "../lifecycle/public-inbound-radar.js";
+import {
+  computeUpdateNotice,
+  UPDATE_NOTICE_SESSION_FETCH_TIMEOUT_MS,
+  type UpdateNoticeOptions,
+} from "../lifecycle/update-notice.js";
 import { MANIFEST_RELATIVE_PATH } from "../manifest/types.js";
 import { formatPlanIndexSection, writePlanIndex } from "../plan-index/plan-index.js";
 import {
@@ -227,6 +232,35 @@ export function colonyHostSection(env: NodeJS.ProcessEnv = process.env): string 
   return env.COLONY_HOST_CLI?.trim() ? COLONY_HOST_HINT : null;
 }
 
+/** Ceiling for the machine update notice (cache read + at most one bounded npm lookup a day). */
+export const UPDATE_NOTICE_SECTION_DEADLINE_MS = UPDATE_NOTICE_SESSION_FETCH_TIMEOUT_MS + 1_000;
+
+/**
+ * Machine update notice (ADR 2026-07-27 Amend 2026-11-26): one line when the CLI
+ * is behind npm or a registered install is behind the CLI; null when current,
+ * off (CI, env opt-out, `updateCheck.enabled: false`) or on any error. In-process
+ * and deadline-capped; never applies anything.
+ */
+export async function updateNoticeSection(
+  root: string,
+  options: UpdateNoticeOptions & { deadlineMs?: number } = {},
+): Promise<string | null> {
+  const { deadlineMs, ...noticeOptions } = options;
+  const summary = await withDeadline(
+    computeUpdateNotice(root, {
+      timeoutMs: UPDATE_NOTICE_SESSION_FETCH_TIMEOUT_MS,
+      ...noticeOptions,
+    }),
+    deadlineMs ?? UPDATE_NOTICE_SECTION_DEADLINE_MS,
+  );
+  return summary?.line ?? null;
+}
+
+/**
+ * Legacy per-repo nudge (manifest vs public tags, a `git ls-remote` child): still
+ * only on an explicit `updateCheck.enabled: true`, although the check itself is
+ * on by default. The default path is {@link updateNoticeSection}, in-process.
+ */
 async function loadUpdateCheckPrefs(root: string): Promise<Record<string, unknown> | null> {
   const data = await loadContextConfig(root);
   if (!data) return null;
@@ -879,6 +913,8 @@ export async function buildSessionStartAdditionalContext(
     spawnFn?: CursorAwarenessSpawn;
     deadlineMs?: number;
     liveRoster?: (root: string) => Promise<LiveRoster>;
+    /** Seams for the machine update notice (tests: env, fetch, files, now). */
+    updateNotice?: UpdateNoticeOptions;
   } = {},
 ): Promise<{ additional_context: string }> {
   const root = path.resolve(rootDir);
@@ -914,13 +950,17 @@ export async function buildSessionStartAdditionalContext(
     attempt: SectionAttempt,
   ): Promise<string | null> =>
     runSectionWithDeadline(section, root, deps.spawnFn, deadlineMs, attempt);
-  const [updateNudge, cursorNudge, inboundNudge] = await Promise.all([
+  const [updateNotice, updateNudge, cursorNudge, inboundNudge] = await Promise.all([
+    updateNoticeSection(root, deps.updateNotice).catch(() => null),
     runSection(updateCheckSection, updateAttempt),
     runSection(cursorAwarenessSection, cursorAttempt),
     runSection(publicInboundSection, inboundAttempt),
   ]);
   await stampSectionAttempts(root, updateAttempt, cursorAttempt, inboundAttempt);
-  if (updateNudge) parts.push(updateNudge);
+  // One update line: the machine notice wins over the legacy per-repo nudge
+  // (explicit `updateCheck.enabled: true` only) when both have something to say.
+  if (updateNotice) parts.push(updateNotice);
+  else if (updateNudge) parts.push(updateNudge);
   if (cursorNudge) parts.push(cursorNudge);
   if (inboundNudge) parts.push(inboundNudge);
 

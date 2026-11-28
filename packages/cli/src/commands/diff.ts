@@ -2,6 +2,8 @@ import { defineCommand } from "citty";
 import { diffAgainstRegistry, summarizeDiff } from "../lifecycle/diff.js";
 import { REGISTRY_CLI_ARGS, resolveRegistryFromCli } from "../lifecycle/resolve-cli.js";
 import { loadAgentKitManifest } from "../manifest/index.js";
+import { canonicalizePackIds } from "../registry/client.js";
+import { formatUnknownPack } from "../registry/pack-aliases.js";
 import { logger } from "../utils/logger.js";
 
 export const diffCommand = defineCommand({
@@ -39,6 +41,11 @@ export const diffCommand = defineCommand({
 
     try {
       logger.info(`Registry: ${registry.root} (${registry.source})`);
+      const packIds = await canonicalizePackIds(registry.root, manifest.packs);
+      for (const { from, to } of packIds.rewrites) {
+        logger.info(`Pack id '${from}' is a legacy id for '${to}'; agent-kit update rewrites it.`);
+      }
+      for (const id of packIds.unknown) logger.warn(formatUnknownPack(id, packIds.knownIds));
       const entries = await diffAgainstRegistry(registry.root, args.cwd, manifest);
       const summary = summarizeDiff(entries);
 

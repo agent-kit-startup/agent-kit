@@ -6409,7 +6409,8 @@ function renderConfigSection(d) {
       ? frc.tickThreshold
       : 3;
   const uc = cfg.updateCheck || {};
-  const updateCheckEnabled = !!uc.enabled;
+  // On by default (check-only); only an explicit false turns it off.
+  const updateCheckEnabled = uc.enabled !== false;
   const updateCheckInterval =
     typeof uc.intervalDays === 'number' && Number.isFinite(uc.intervalDays) ? uc.intervalDays : 7;
   const modeRows = CONFIG_PERSONA_MODES.map((mode) => {
@@ -6463,7 +6464,7 @@ function renderConfigSection(d) {
           <button type="button" class="btn-config-copy" data-focus-key="config-copy-dogfood" onclick="return copyStaticConfigSnippet('dogfood')" title="Copy-only; never writable via this tab">Copy dogfood.factoryRoot snippet</button>
         </fieldset>
         <fieldset class="config-fieldset">
-          <legend>Update check (opt-in)</legend>
+          <legend>Update check (on by default, notify only)</legend>
           <div class="config-row config-row-inline">
             <input type="checkbox" id="config-updateCheck-enabled" name="updateCheckEnabled" ${updateCheckEnabled ? 'checked' : ''} data-focus-key="config-updateCheck-enabled" />
             <label for="config-updateCheck-enabled">Advise when a newer public release is available</label>
@@ -6745,6 +6746,42 @@ const HEALTH_CHECK_META = {
     autofix: { text: 'agent-kit doctor', subject: 'agent-kit doctor', destination: 'terminal', label: 'Autofix' },
   },
 };
+
+/**
+ * Machine install health (`health.install`, written by `agent-kit doctor`):
+ * a separate group outside the fixed seven checks and the aggregate status.
+ * Absent until doctor has run on this workspace.
+ */
+/**
+ * Machine update notice (`health.updateNotice`): one card with the count of
+ * registered installs behind the CLI and the oldest one, or the CLI behind
+ * npm. Null when everything is current or the check is off.
+ */
+function renderUpdateNoticeGroup(notice, renderCard) {
+  if (!notice || typeof notice !== 'object' || !notice.label) return '';
+  return `
+      <section class="health-group" aria-label="Updates">
+        <div class="health-group-title">Updates (check-only, at most daily)</div>
+        <div class="health-grid" role="list">
+          ${renderCard({ id: 'update-notice', label: notice.label, ok: false, severity: 'warning', detail: notice.detail, fix: notice.fix })}
+        </div>
+      </section>`;
+}
+
+function renderInstallHealthGroup(install, renderCard) {
+  const items = install && Array.isArray(install.checks) ? install.checks : [];
+  if (items.length === 0) return '';
+  const title = install.generatedAt
+    ? `Install (agent-kit doctor, ${install.generatedAt.slice(0, 10)})`
+    : 'Install (agent-kit doctor)';
+  return `
+      <section class="health-group" aria-label="Install">
+        <div class="health-group-title">${escapeHtml(title)}</div>
+        <div class="health-grid" role="list">
+          ${items.map(renderCard).join('')}
+        </div>
+      </section>`;
+}
 
 /** Vitals grouping: checks grouped into vital systems for the diagnosis dashboard. */
 const HEALTH_VITAL_GROUPS = [
@@ -9507,9 +9544,13 @@ function renderUnsafe() {
       const sev = healthCheckSeverity(c, healthStatus);
       const notStarted = sev === 'not-initialized';
       const detail = (typeof c.detail === 'string' && c.detail) || (c.ok ? meta.okDetail : meta.failDetail);
+      // Install checks (health.install) carry their own terminal fix line.
+      const ownFix = typeof c.fix === 'string' && c.fix
+        ? { text: c.fix, subject: c.fix, destination: 'terminal', label: 'Copy fix' }
+        : null;
       const autofix = c.ok || notStarted
         ? null
-        : (meta.autofixBySeverity && meta.autofixBySeverity[sev]) || meta.autofix || null;
+        : ownFix || (meta.autofixBySeverity && meta.autofixBySeverity[sev]) || meta.autofix || null;
       const fixPrompt = [`Fix this failing health check: ${c.label || id}`, detail].join('\n');
       const fixBtn = `<button type="button" class="health-autofix-btn" data-focus-key="health-fix-${escapeAttr(id)}" onclick="event.stopPropagation();${copyForPasteHandler(fixPrompt, 'fix prompt', 'chatInput')}" title="${escapeAttr(copyActionTitle('fix prompt', 'chatInput'))}">Copy fix prompt</button>`;
       const autofixBtn = autofix
@@ -9581,7 +9622,7 @@ function renderUnsafe() {
         <div class="health-grid" role="list">
           ${g.items.map(renderCheckCard).join('')}
         </div>
-      </section>`).join('')}`;
+      </section>`).join('')}${renderUpdateNoticeGroup(health.updateNotice, renderCheckCard)}${renderInstallHealthGroup(health.install, renderCheckCard)}`;
   }
 
   parts.push(`

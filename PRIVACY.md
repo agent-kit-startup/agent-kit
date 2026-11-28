@@ -4,7 +4,7 @@ Mission Kit (Agent Kit on npm) collects no telemetry.
 
 ## Install, init, and hooks
 
-`agent-kit init` (`packages/cli/src/commands/init.ts`) is a wrapper over install. `agent-kit install` (`packages/cli/src/commands/install.ts`) writes local project files. Neither command posts usage events, identifiers, or prompt text.
+`agent-kit init` (`packages/cli/src/commands/init.ts`) is a wrapper over install. `agent-kit install` (`packages/cli/src/commands/install.ts`) writes local project files. Neither command posts usage events, identifiers, or prompt text. `install`, `init`, `update` and `doctor` also record the repository's local path, its `origin` remote (credentials stripped) and kit version in a machine index, `~/.config/agent-kit/installs.json`, which stays on your machine (`agent-kit installs` lists it).
 
 Hooks in `.cursor/hooks/` call the local CLI. The shell adapters do not open a network connection. Two optional checks stay off unless `.cursor/context/config.json` turns them on (`updateCheck.enabled` and `cursorUpdateCheck.enabled` both default to false in `.cursor/context/config.example.json`):
 

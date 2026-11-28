@@ -750,3 +750,235 @@ describe("dashboard-data.mjs: Health first run (Amend 2026-11-19)", SUBPROCESS_T
     expect(by.agents.detail).not.toContain("good.md");
   });
 });
+
+// ── Install health (plan cli-install-update-overhaul c2): doctor writes, Health reads ──
+type InstallSnapshot = {
+  health: {
+    status: string;
+    checks: HealthCheck[];
+    install: null | {
+      generatedAt: string | null;
+      status: string;
+      checks: Array<HealthCheck & { fix: string | null }>;
+    };
+  };
+};
+
+function seedInstallHealth(repo: string) {
+  mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+  writeFileSync(
+    join(repo, ".cursor", "context", "install-health.json"),
+    JSON.stringify({
+      version: 1,
+      generatedAt: "2026-11-26T10:00:00.000Z",
+      status: "warning",
+      checks: [
+        {
+          id: "global-cli",
+          label: "Global CLI vs npm latest",
+          severity: "info",
+          detail: "v6.22.1 at /usr/local/bin/agent-kit; npm registry did not answer, not compared",
+          fix: null,
+          fixKind: null,
+        },
+        {
+          id: "node-manager",
+          label: "Node version manager",
+          severity: "warning",
+          detail:
+            "~/.local/share/mise/installs/node/26.8.2/bin/agent-kit lives in mise node 26.8.2",
+          fix: '"npm:@dadado/agent-kit-cli" = { version = "latest", allow_low_downloads = true, minimum_release_age = "0s" }',
+          fixKind: "config-line",
+        },
+        {
+          id: "registry-pin",
+          label: "Registry pin",
+          severity: "warning",
+          detail: "registry.ref v5.4.0 in .cursor/agent-kit.json is older than v5.9.0",
+          fix: "agent-kit update --ref v5.9.0",
+          fixKind: "command",
+        },
+        { id: "unknown-id", label: "x", severity: "warning", detail: "dropped", fix: null },
+      ],
+    }),
+  );
+}
+
+describe("dashboard-data.mjs: Health install group (c2)", SUBPROCESS_TIMEOUT, () => {
+  it("absent install-health.json: install is null and the seven checks are unchanged", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-install-absent-"));
+    initGitRepo(repo);
+    const snap = runDashboardData(repo, { HOME: scratchHome() }) as unknown as InstallSnapshot;
+    expect(snap.health.install).toBeNull();
+    expect(snap.health.checks).toHaveLength(7);
+  });
+
+  it("loopback: reads doctor's file, keeps it outside checks[] and status, command fixes only", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-install-loop-"));
+    initGitRepo(repo);
+    seedInstallHealth(repo);
+    const snap = runDashboardData(repo, { HOME: scratchHome() }) as unknown as InstallSnapshot;
+    expect(snap.health.checks.map((c) => c.id)).not.toContain("node-manager");
+    const install = snap.health.install;
+    expect(install?.status).toBe("warning");
+    expect(install?.generatedAt).toBe("2026-11-26T10:00:00.000Z");
+    expect(install?.checks.map((c) => c.id)).toEqual([
+      "global-cli",
+      "node-manager",
+      "registry-pin",
+    ]);
+    const by = Object.fromEntries((install?.checks ?? []).map((c) => [c.id, c]));
+    expect(by["global-cli"]).toMatchObject({ ok: true, severity: "ok", fix: null });
+    expect(by["node-manager"]).toMatchObject({ ok: false, severity: "warning", fix: null });
+    expect(by["node-manager"].detail).toContain("~/.local/share/mise/installs/node/26.8.2");
+    // The mise tool entry is a config line, not a terminal command: it rides in the detail.
+    expect(by["node-manager"].detail).toContain(
+      '(add: "npm:@dadado/agent-kit-cli" = { version = "latest", allow_low_downloads = true, minimum_release_age = "0s" })',
+    );
+    expect(by["registry-pin"].fix).toBe("agent-kit update --ref v5.9.0");
+  });
+
+  it("broadcast: no paths and no fix leave the machine", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-install-bcast-"));
+    initGitRepo(repo);
+    seedInstallHealth(repo);
+    const snap = runDashboardData(repo, {
+      HOME: scratchHome(),
+      HOST: "0.0.0.0",
+      MISSION_CONTROL_TOKEN: "h".repeat(32),
+    }) as unknown as InstallSnapshot;
+    const raw = JSON.stringify(snap.health.install);
+    expect(raw).not.toContain("~/");
+    expect(raw).not.toContain("/usr/local/bin");
+    expect(snap.health.install?.checks.every((c) => c.fix === null)).toBe(true);
+  });
+});
+
+type UpdateNoticeSnapshot = {
+  health: {
+    checks: HealthCheck[];
+    updateNotice: null | {
+      cliVersion: string | null;
+      npmLatest: string | null;
+      cliBehind: boolean;
+      installsBehind: number;
+      oldest: { kitVersion: string; path: string | null } | null;
+      label: string;
+      severity: string;
+      detail: string;
+      fix: string | null;
+    };
+  };
+};
+
+/** Seed the machine notice cache the sessionStart hook writes; returns the env that points at it. */
+function seedUpdateNotice(notice: Record<string, unknown> | null): Record<string, string> {
+  const dir = mkdtempSync(join(tmpdir(), "ak-dashdata-notice-"));
+  writeFileSync(
+    join(dir, "update-notice.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      checkedAt: "2026-11-26T10:00:00.000Z",
+      npm: { packageName: "@dadado/agent-kit-cli", version: "6.22.0" },
+      notice,
+    }),
+  );
+  return {
+    AGENT_KIT_INSTALLS_FILE: join(dir, "installs.json"),
+    CI: "",
+    AGENT_KIT_NO_UPDATE_CHECK: "",
+    NO_UPDATE_NOTIFIER: "",
+  };
+}
+
+const BEHIND_NOTICE = {
+  generatedAt: "2026-11-26T10:00:00.000Z",
+  cliVersion: "6.19.1",
+  npmLatest: { packageName: "@dadado/agent-kit-cli", version: "6.22.0" },
+  cliBehind: true,
+  installsBehind: 9,
+  oldest: { path: "~/x", kitVersion: "3.0.0" },
+  cliCommand: "npm i -g @dadado/agent-kit-cli@latest",
+  line: "Agent Kit: CLI 6.19.1 < npm 6.22.0 (`npm i -g @dadado/agent-kit-cli@latest`); 9 installs behind, oldest v3.0.0 at ~/x (`agent-kit update --all`).",
+};
+
+describe("dashboard-data.mjs: update notice card (c4)", SUBPROCESS_TIMEOUT, () => {
+  it("loopback: one card with the count, the oldest install and the CLI command first", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-notice-loop-"));
+    initGitRepo(repo);
+    const snap = runDashboardData(repo, {
+      HOME: scratchHome(),
+      ...seedUpdateNotice(BEHIND_NOTICE),
+    }) as unknown as UpdateNoticeSnapshot;
+    expect(snap.health.checks).toHaveLength(7);
+    expect(snap.health.updateNotice).toMatchObject({
+      cliVersion: "6.19.1",
+      npmLatest: "6.22.0",
+      cliBehind: true,
+      installsBehind: 9,
+      oldest: { kitVersion: "3.0.0", path: "~/x" },
+      label: "9 installs behind",
+      severity: "warning",
+      fix: "npm i -g @dadado/agent-kit-cli@latest",
+    });
+    expect(snap.health.updateNotice?.detail).toBe(
+      "CLI 6.19.1 is behind npm 6.22.0; 9 installs behind CLI 6.19.1, oldest v3.0.0 at ~/x. Check-only: nothing is applied.",
+    );
+  });
+
+  it("installs only: the fix is update --all", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-notice-inst-"));
+    initGitRepo(repo);
+    const snap = runDashboardData(repo, {
+      HOME: scratchHome(),
+      ...seedUpdateNotice({
+        ...BEHIND_NOTICE,
+        cliBehind: false,
+        cliCommand: null,
+        installsBehind: 1,
+      }),
+    }) as unknown as UpdateNoticeSnapshot;
+    expect(snap.health.updateNotice).toMatchObject({
+      label: "1 install behind",
+      fix: "agent-kit update --all",
+    });
+  });
+
+  it("broadcast: no path and no fix leave the machine", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-notice-bcast-"));
+    initGitRepo(repo);
+    const snap = runDashboardData(repo, {
+      HOME: scratchHome(),
+      HOST: "0.0.0.0",
+      MISSION_CONTROL_TOKEN: "h".repeat(32),
+      ...seedUpdateNotice(BEHIND_NOTICE),
+    }) as unknown as UpdateNoticeSnapshot;
+    const raw = JSON.stringify(snap.health.updateNotice);
+    expect(raw).not.toContain("~/");
+    expect(snap.health.updateNotice?.oldest).toEqual({ kitVersion: "3.0.0", path: null });
+    expect(snap.health.updateNotice?.fix).toBeNull();
+  });
+
+  it("null when current, absent, under CI, with the env opt-out or updateCheck.enabled false", () => {
+    const repo = mkdtempSync(join(tmpdir(), "ak-dashdata-notice-off-"));
+    initGitRepo(repo);
+    const home = scratchHome();
+    const run = (env: Record<string, string>) =>
+      (runDashboardData(repo, { HOME: home, ...env }) as unknown as UpdateNoticeSnapshot).health
+        .updateNotice;
+    expect(run(seedUpdateNotice(null))).toBeNull();
+    const behind = seedUpdateNotice(BEHIND_NOTICE);
+    expect(
+      run({ ...behind, AGENT_KIT_INSTALLS_FILE: join(home, "nowhere", "installs.json") }),
+    ).toBeNull();
+    expect(run({ ...behind, CI: "true" })).toBeNull();
+    expect(run({ ...behind, AGENT_KIT_NO_UPDATE_CHECK: "1" })).toBeNull();
+    expect(run({ ...behind, NO_UPDATE_NOTIFIER: "1" })).toBeNull();
+    mkdirSync(join(repo, ".cursor", "context"), { recursive: true });
+    writeFileSync(
+      join(repo, ".cursor", "context", "config.json"),
+      JSON.stringify({ updateCheck: { enabled: false } }),
+    );
+    expect(run(behind)).toBeNull();
+  });
+});

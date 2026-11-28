@@ -1,17 +1,22 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CLI_BIN_NAMES,
   checkForUpdates,
   checkRunningCliVsNpmLatest,
   compareSemver,
+  fetchLatestCliNpmVersion,
   fetchLatestNpmDistTag,
   isFactoryOrDevRegistry,
+  type NpmFetch,
   normalizeSemver,
+  npmLatestUrl,
   pickLatestSemverTag,
   readUpdateApplyPrefs,
   readUpdateCheckPrefs,
+  stampLastCheckedAt,
   warnIfRunningCliBehindNpm,
 } from "./check-updates.js";
 import { KIT_VERSION } from "./version.js";
@@ -66,9 +71,9 @@ describe("pickLatestSemverTag", () => {
 });
 
 describe("readUpdateCheckPrefs / readUpdateApplyPrefs", () => {
-  it("defaults updateCheck to opt-in false", () => {
+  it("defaults updateCheck to on (check-only); only an explicit false turns it off", () => {
     expect(readUpdateCheckPrefs(null)).toEqual({
-      enabled: false,
+      enabled: true,
       intervalDays: 7,
       lastCheckedAt: null,
     });
@@ -77,6 +82,8 @@ describe("readUpdateCheckPrefs / readUpdateApplyPrefs", () => {
       intervalDays: 3,
       lastCheckedAt: null,
     });
+    expect(readUpdateCheckPrefs({ updateCheck: {} }).enabled).toBe(true);
+    expect(readUpdateCheckPrefs({ updateCheck: { enabled: false } }).enabled).toBe(false);
   });
 
   it("defaults updateApply.auto to false", () => {
@@ -221,6 +228,7 @@ describe("checkForUpdates", () => {
     });
     const result = await checkForUpdates(cwd, {
       respectPrefs: true,
+      env: {},
       latestVersion: "9.0.0",
     });
     expect(result.status).toBe("skipped-interval");
@@ -318,6 +326,30 @@ describe("checkRunningCliVsNpmLatest", () => {
     expect(fetchLatest).not.toHaveBeenCalled();
   });
 
+  it("is on by default with no config, and off under CI or the env opt-out (no fetch)", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "ak-cli-ver-"));
+    temps.push(cwd);
+    const fetchLatest = vi.fn(async () => "999.0.0");
+    const on = await checkRunningCliVsNpmLatest(cwd, { respectPrefs: true, env: {}, fetchLatest });
+    expect(on.status).toBe("behind");
+    expect(fetchLatest).toHaveBeenCalledTimes(1);
+    for (const env of [
+      { CI: "true" },
+      { AGENT_KIT_NO_UPDATE_CHECK: "1" },
+      { NO_UPDATE_NOTIFIER: "1" },
+    ]) {
+      const off = await checkRunningCliVsNpmLatest(cwd, { respectPrefs: true, env, fetchLatest });
+      expect(off.status).toBe("skipped-disabled");
+    }
+    expect(fetchLatest).toHaveBeenCalledTimes(1);
+    const notOff = await checkRunningCliVsNpmLatest(cwd, {
+      respectPrefs: true,
+      env: { CI: "false", AGENT_KIT_NO_UPDATE_CHECK: "0" },
+      fetchLatest,
+    });
+    expect(notOff.status).toBe("behind");
+  });
+
   it("skips within interval (no fetch)", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "ak-cli-ver-"));
     temps.push(cwd);
@@ -329,7 +361,11 @@ describe("checkRunningCliVsNpmLatest", () => {
       },
     });
     const fetchLatest = vi.fn(async () => "9.9.9");
-    const result = await checkRunningCliVsNpmLatest(cwd, { respectPrefs: true, fetchLatest });
+    const result = await checkRunningCliVsNpmLatest(cwd, {
+      respectPrefs: true,
+      env: {},
+      fetchLatest,
+    });
     expect(result.status).toBe("skipped-interval");
     expect(fetchLatest).not.toHaveBeenCalled();
   });
@@ -402,5 +438,62 @@ describe("checkRunningCliVsNpmLatest", () => {
       })),
     );
     await expect(fetchLatestNpmDistTag()).resolves.toBeNull();
+  });
+});
+
+describe("dual-name npm latest (@dadado/agent-kit-cli + @missionkit/cli)", () => {
+  function stubRegistry(versions: Record<string, string | null>): NpmFetch {
+    return async (url) => {
+      const hit = Object.entries(versions).find(([name]) => url === npmLatestUrl(name));
+      const version = hit?.[1] ?? null;
+      return version
+        ? { ok: true, json: async () => ({ version }) }
+        : { ok: false, json: async () => ({}) };
+    };
+  }
+
+  it("builds the scoped abbreviated URL", () => {
+    expect(npmLatestUrl("@missionkit/cli")).toBe(
+      "https://registry.npmjs.org/@missionkit%2Fcli/latest",
+    );
+    expect(CLI_BIN_NAMES).toEqual(["agent-kit", "missionkit"]);
+  });
+
+  it("uses the only name that is published (the other 404s)", async () => {
+    await expect(
+      fetchLatestCliNpmVersion(stubRegistry({ "@dadado/agent-kit-cli": "6.22.1" })),
+    ).resolves.toEqual({ packageName: "@dadado/agent-kit-cli", version: "6.22.1" });
+  });
+
+  it("picks the newer of both names", async () => {
+    await expect(
+      fetchLatestCliNpmVersion(
+        stubRegistry({ "@dadado/agent-kit-cli": "6.22.1", "@missionkit/cli": "7.0.0" }),
+      ),
+    ).resolves.toEqual({ packageName: "@missionkit/cli", version: "7.0.0" });
+  });
+
+  it("fails open to null when npm is unreachable", async () => {
+    await expect(
+      fetchLatestCliNpmVersion(async () => {
+        throw new Error("ENOTFOUND");
+      }),
+    ).resolves.toBeNull();
+  });
+});
+
+describe("stampLastCheckedAt", () => {
+  it("never writes an enabled default (an explicit true turns on the legacy nudge)", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "ak-stamp-"));
+    try {
+      await stampLastCheckedAt(cwd);
+      const written = JSON.parse(
+        await readFile(path.join(cwd, ".cursor", "context", "config.json"), "utf8"),
+      ) as { updateCheck: Record<string, unknown> };
+      expect(written.updateCheck).not.toHaveProperty("enabled");
+      expect(typeof written.updateCheck.lastCheckedAt).toBe("string");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 });

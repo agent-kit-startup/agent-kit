@@ -806,3 +806,51 @@ describe("sessionStart spawn sections: parallel + deadline", () => {
     expect(section).toContain("1.1.0");
   });
 });
+
+describe("buildSessionStartAdditionalContext: machine update notice", () => {
+  it("adds the one notice line when an install is behind, and nothing when opted out", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ak-session-notice-"));
+    await mkdir(path.join(root, ".cursor", "context"), { recursive: true });
+    const home = path.join(root, "home");
+    const installsFile = path.join(root, "cfg", "installs.json");
+    await mkdir(path.dirname(installsFile), { recursive: true });
+    await writeFile(
+      installsFile,
+      JSON.stringify({
+        schemaVersion: 1,
+        installs: [
+          {
+            path: path.join(home, "x"),
+            remote: null,
+            kitVersion: "3.0.0",
+            cliVersion: "6.0.0",
+            lastSeen: "2026-11-26T00:00:00.000Z",
+            kind: "repo",
+          },
+        ],
+      }),
+      "utf8",
+    );
+    const fetchImpl = vi.fn(async () => ({ ok: false, json: async () => ({}) }));
+    const notice = {
+      env: {},
+      homeDir: home,
+      cliVersion: "6.22.0",
+      fetchImpl,
+      installsFile,
+      file: path.join(root, "cfg", "update-notice.json"),
+      cliPath: null,
+    };
+    const line =
+      "Agent Kit: 1 install behind CLI 6.22.0, oldest v3.0.0 at ~/x (`agent-kit update --all`).";
+    const on = await buildSessionStartAdditionalContext(root, {}, { updateNotice: notice });
+    expect(on.additional_context).toContain(line);
+    expect(on.additional_context.split(line)).toHaveLength(2);
+    const off = await buildSessionStartAdditionalContext(
+      root,
+      {},
+      { updateNotice: { ...notice, env: { AGENT_KIT_NO_UPDATE_CHECK: "1" } } },
+    );
+    expect(off.additional_context).not.toContain("Agent Kit: ");
+  });
+});

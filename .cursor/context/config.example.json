@@ -39,7 +39,7 @@
     "tickThreshold": 3
   },
   "updateCheck": {
-    "enabled": false,
+    "enabled": true,
     "intervalDays": 7,
     "lastCheckedAt": null
   },

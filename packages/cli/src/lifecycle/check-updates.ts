@@ -51,11 +51,64 @@ export interface UpdateApplyPrefs {
   auto: boolean;
 }
 
+/**
+ * The check is on by default and only ever notifies (ADR 2026-07-27 Amend
+ * 2026-11-26); `updateCheck.enabled: false`, `CI` or the env opt-out turn it off.
+ */
 const DEFAULT_UPDATE_CHECK: UpdateCheckPrefs = {
-  enabled: false,
+  enabled: true,
   intervalDays: 7,
   lastCheckedAt: null,
 };
+
+/** Env opt-out for every update check (set to anything but `0`/`false`). */
+export const UPDATE_CHECK_OPT_OUT_ENV = "AGENT_KIT_NO_UPDATE_CHECK";
+/** The common update-notifier convention, honored too. */
+export const UPDATE_NOTIFIER_OPT_OUT_ENV = "NO_UPDATE_NOTIFIER";
+
+function envFlagSet(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const v = value.trim().toLowerCase();
+  return v !== "" && v !== "0" && v !== "false";
+}
+
+/** Why the update check is off for this env (and config), or null when it may run. */
+export function updateCheckOptOut(
+  env: NodeJS.ProcessEnv,
+  config: unknown,
+): "ci" | "env" | "config" | null {
+  if (envFlagSet(env.CI)) return "ci";
+  if (envFlagSet(env[UPDATE_CHECK_OPT_OUT_ENV]) || envFlagSet(env[UPDATE_NOTIFIER_OPT_OUT_ENV])) {
+    return "env";
+  }
+  if (config && typeof config === "object" && !Array.isArray(config)) {
+    const uc = (config as Record<string, unknown>).updateCheck;
+    if (uc && typeof uc === "object" && (uc as Record<string, unknown>).enabled === false) {
+      return "config";
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether an update check may reach the network: off under `CI`, with the env
+ * opt-out (`AGENT_KIT_NO_UPDATE_CHECK` or `NO_UPDATE_NOTIFIER`) and with an
+ * explicit `updateCheck.enabled: false`. An absent key does not opt out.
+ */
+export function updateCheckAllowed(env: NodeJS.ProcessEnv, config: unknown): boolean {
+  return updateCheckOptOut(env, config) === null;
+}
+
+function updateCheckOptOutMessage(reason: "ci" | "env" | "config"): string {
+  switch (reason) {
+    case "ci":
+      return "Update check is off under CI.";
+    case "env":
+      return `Update check is off (${UPDATE_CHECK_OPT_OUT_ENV} or ${UPDATE_NOTIFIER_OPT_OUT_ENV} is set).`;
+    default:
+      return "updateCheck.enabled is false in .cursor/context/config.json (the check is on by default and only notifies).";
+  }
+}
 
 const DEFAULT_UPDATE_APPLY: UpdateApplyPrefs = {
   auto: false,
@@ -137,15 +190,47 @@ export async function fetchLatestPublicVersion(
 export const NPM_CLI_LATEST_URL = "https://registry.npmjs.org/@dadado%2Fagent-kit-cli/latest";
 
 /**
- * Resolve npm `dist-tags.latest` for this CLI package. Fail-open: returns null
- * on network/parse errors. Tests inject `latestVersion` and never call this.
+ * Every npm name this CLI ships (or will ship) under, with its binary. The
+ * Mission Kit rename (plan `missionkit-rename-2026-11-22` r2) owns the package
+ * itself; checks accept both names until then.
  */
-export async function fetchLatestNpmDistTag(): Promise<string | null> {
+export const CLI_NPM_PACKAGES = [
+  { name: "@dadado/agent-kit-cli", bin: "agent-kit" },
+  { name: "@missionkit/cli", bin: "missionkit" },
+] as const;
+
+export type CliNpmPackageName = (typeof CLI_NPM_PACKAGES)[number]["name"];
+
+/** Binary names a global CLI install can expose on PATH, in lookup order. */
+export const CLI_BIN_NAMES: readonly string[] = CLI_NPM_PACKAGES.map((pkg) => pkg.bin);
+
+/** npm abbreviated `latest` document URL for a (scoped) package name. */
+export function npmLatestUrl(packageName: string): string {
+  return `https://registry.npmjs.org/${packageName.replace("/", "%2F")}/latest`;
+}
+
+/** Minimal fetch shape so tests can stub the npm registry without globals. */
+export type NpmFetch = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; signal: AbortSignal },
+) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
+
+const globalNpmFetch: NpmFetch = (url, init) => fetch(url, init);
+
+/**
+ * npm `dist-tags.latest` of one package. Fail-open: null on a 404 (the name is
+ * not published yet), network errors and unparsable bodies.
+ */
+export async function fetchLatestNpmVersion(
+  packageName: string,
+  fetchImpl: NpmFetch = globalNpmFetch,
+  timeoutMs = 8_000,
+): Promise<string | null> {
   try {
-    const res = await fetch(NPM_CLI_LATEST_URL, {
+    const res = await fetchImpl(npmLatestUrl(packageName), {
       method: "GET",
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return null;
     const body: unknown = await res.json();
@@ -155,6 +240,47 @@ export async function fetchLatestNpmDistTag(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+export interface CliNpmLatest {
+  /** The package whose `latest` is highest. */
+  packageName: CliNpmPackageName;
+  version: string;
+}
+
+/**
+ * Highest npm `latest` across every CLI package name (queried in parallel; a
+ * name that is not published answers nothing). Null when neither answers.
+ * Fail-open, never throws. Reused by the doctor install check and the update
+ * notice.
+ */
+export async function fetchLatestCliNpmVersion(
+  fetchImpl: NpmFetch = globalNpmFetch,
+  timeoutMs = 8_000,
+): Promise<CliNpmLatest | null> {
+  const results = await Promise.all(
+    CLI_NPM_PACKAGES.map(async (pkg) => ({
+      packageName: pkg.name,
+      version: await fetchLatestNpmVersion(pkg.name, fetchImpl, timeoutMs),
+    })),
+  );
+  let best: CliNpmLatest | null = null;
+  for (const result of results) {
+    if (!result.version) continue;
+    if (!best || compareSemver(result.version, best.version) > 0) {
+      best = { packageName: result.packageName, version: result.version };
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolve npm `dist-tags.latest` for `@dadado/agent-kit-cli` only (release
+ * convergence polls this exact package). Fail-open: returns null on
+ * network/parse errors. Tests inject `latestVersion` and never call this.
+ */
+export async function fetchLatestNpmDistTag(): Promise<string | null> {
+  return fetchLatestNpmVersion(CLI_NPM_PACKAGES[0].name);
 }
 
 export function readUpdateCheckPrefs(config: unknown): UpdateCheckPrefs {
@@ -171,7 +297,7 @@ export function readUpdateCheckPrefs(config: unknown): UpdateCheckPrefs {
       ? uc.intervalDays
       : DEFAULT_UPDATE_CHECK.intervalDays;
   return {
-    enabled: uc.enabled === true,
+    enabled: uc.enabled !== false,
     intervalDays,
     lastCheckedAt: typeof uc.lastCheckedAt === "string" ? uc.lastCheckedAt : null,
   };
@@ -198,8 +324,10 @@ export async function stampLastCheckedAt(cwd: string): Promise<void> {
     existing.updateCheck && typeof existing.updateCheck === "object"
       ? { ...(existing.updateCheck as Record<string, unknown>) }
       : {};
+  // No `enabled` default is written: an explicit `true` is what turns on the
+  // legacy per-repo sessionStart nudge, and a stamp must not flip it.
   existing.updateCheck = {
-    ...DEFAULT_UPDATE_CHECK,
+    intervalDays: DEFAULT_UPDATE_CHECK.intervalDays,
     ...prev,
     lastCheckedAt: new Date().toISOString(),
   };
@@ -207,8 +335,10 @@ export async function stampLastCheckedAt(cwd: string): Promise<void> {
 }
 
 export interface CheckForUpdatesOptions {
-  /** When true, honor updateCheck.enabled + intervalDays from config. */
+  /** When true, honor updateCheck.enabled + intervalDays from config, CI and the env opt-out. */
   respectPrefs?: boolean;
+  /** Env read for CI and the opt-out (default process.env). */
+  env?: NodeJS.ProcessEnv;
   /** Persist updateCheck.lastCheckedAt after a network check. */
   stamp?: boolean;
   /** Override public registry URL for tag lookup (HTTPS only). */
@@ -397,7 +527,8 @@ export async function checkForUpdates(
   if (options.respectPrefs) {
     const config = await loadContextConfig(cwd);
     const prefs = readUpdateCheckPrefs(config);
-    if (!prefs.enabled) {
+    const optOut = updateCheckOptOut(options.env ?? process.env, config);
+    if (optOut) {
       return {
         status: "skipped-disabled",
         installedVersion: manifest.version,
@@ -405,8 +536,7 @@ export async function checkForUpdates(
         registryUrl,
         registryRef,
         applyRecommended: false,
-        message:
-          "updateCheck.enabled is false (opt-in). Set true in .cursor/context/config.json to nudge.",
+        message: updateCheckOptOutMessage(optOut),
       };
     }
     if (!intervalElapsed(prefs.lastCheckedAt, prefs.intervalDays)) {
@@ -532,8 +662,10 @@ export interface RunningCliCheckResult {
 }
 
 export interface CheckRunningCliOptions {
-  /** When true (default at install/doctor), honor updateCheck.enabled + intervalDays. */
+  /** When true (default at install/doctor), honor updateCheck.enabled + intervalDays, CI and the env opt-out. */
   respectPrefs?: boolean;
+  /** Env read for CI and the opt-out (default process.env). */
+  env?: NodeJS.ProcessEnv;
   /** Persist updateCheck.lastCheckedAt after a network check. */
   stamp?: boolean;
   /** Injected npm latest (tests). Skips fetch when set. */
@@ -549,7 +681,7 @@ function runningCliBehindMessage(running: string, latest: string): string {
 /**
  * Compare this process's KIT_VERSION to npm dist-tags.latest.
  * Independent of agent-kit.json (install may have no manifest yet).
- * Never applies L0. Reuses updateCheck opt-in + interval so the default is no network.
+ * Never applies L0. Reuses the updateCheck gate (on by default, check-only) + interval.
  */
 export async function checkRunningCliVsNpmLatest(
   cwd: string,
@@ -560,13 +692,13 @@ export async function checkRunningCliVsNpmLatest(
   if (options.respectPrefs) {
     const config = await loadContextConfig(cwd);
     const prefs = readUpdateCheckPrefs(config);
-    if (!prefs.enabled) {
+    const optOut = updateCheckOptOut(options.env ?? process.env, config);
+    if (optOut) {
       return {
         status: "skipped-disabled",
         runningVersion: running,
         latestVersion: null,
-        message:
-          "updateCheck.enabled is false (opt-in). Set true in .cursor/context/config.json to nudge.",
+        message: updateCheckOptOutMessage(optOut),
       };
     }
     if (!intervalElapsed(prefs.lastCheckedAt, prefs.intervalDays)) {
@@ -586,7 +718,7 @@ export async function checkRunningCliVsNpmLatest(
     } else if (options.fetchLatest) {
       latest = await options.fetchLatest();
     } else {
-      latest = await fetchLatestNpmDistTag();
+      latest = (await fetchLatestCliNpmVersion())?.version ?? null;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -611,7 +743,7 @@ export async function checkRunningCliVsNpmLatest(
       status: "error",
       runningVersion: running,
       latestVersion: null,
-      message: "No semver on npm dist-tags.latest for @dadado/agent-kit-cli.",
+      message: `No semver on npm dist-tags.latest for ${CLI_NPM_PACKAGES.map((pkg) => pkg.name).join(" or ")}.`,
     };
   }
 
@@ -662,6 +794,7 @@ export async function warnIfRunningCliBehindNpm(
   try {
     const result = await checkRunningCliVsNpmLatest(cwd, {
       respectPrefs: options.respectPrefs ?? true,
+      env: options.env,
       stamp: options.stamp ?? true,
       latestVersion: options.latestVersion,
       fetchLatest: options.fetchLatest,

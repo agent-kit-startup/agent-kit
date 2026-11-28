@@ -78,13 +78,11 @@ export interface AssessEnvironmentOptions {
   readFileImpl?: (filePath: string) => Promise<string>;
 }
 
-const CLI_PACKAGE_JSON_REL = path.join(
-  "lib",
-  "node_modules",
-  "@dadado",
-  "agent-kit-cli",
-  "package.json",
-);
+/** Scoped npm names of this CLI (current and post-rename), as path segments. */
+const CLI_PACKAGE_SEGMENTS = [
+  ["@dadado", "agent-kit-cli"],
+  ["@missionkit", "cli"],
+] as const;
 
 /** Shim targets: quotes/spaces stay outside the match so `@scope` paths still hit. */
 const DIST_INDEX_RE = /(?:\$\{basedir\}|\$basedir)?[^'"\s;]*dist\/index\.js/g;
@@ -143,10 +141,12 @@ export async function readBinVersion(
   if (path.basename(realBin) === "index.js" && path.basename(path.dirname(realBin)) === "dist") {
     candidates.push(packageJsonFromDistIndex(realBin));
   }
-  candidates.push(
-    path.join(binDir, "..", CLI_PACKAGE_JSON_REL),
-    path.join(binDir, "..", "node_modules", "@dadado", "agent-kit-cli", "package.json"),
-  );
+  for (const [scope, name] of CLI_PACKAGE_SEGMENTS) {
+    candidates.push(
+      path.join(binDir, "..", "lib", "node_modules", scope, name, "package.json"),
+      path.join(binDir, "..", "node_modules", scope, name, "package.json"),
+    );
+  }
   try {
     // Only a small shim is worth scanning; never pull in the whole CLI bundle.
     if ((await stat(realBin)).size < SHIM_MAX_BYTES) {

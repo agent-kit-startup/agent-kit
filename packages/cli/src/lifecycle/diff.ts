@@ -76,9 +76,12 @@ export async function diffAgainstRegistry(
     );
   };
 
-  const { pairs, missingSkills } = await managedPairs(registryRoot, manifest);
+  const { pairs, missingSkills, missingPacks } = await managedPairs(registryRoot, manifest);
   for (const { sourceRel, targetRel } of pairs) {
     await pushUnique(sourceRel, targetRel);
+  }
+  for (const id of missingPacks) {
+    entries.push({ path: `pack:${id}`, status: "missing-registry" });
   }
   for (const id of missingSkills) {
     entries.push({ path: `skill:${id}`, status: "missing-registry" });

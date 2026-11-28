@@ -251,7 +251,7 @@ Every layer answers "safe to overwrite?" (above). A separate, size-oriented ques
 
 **Loads on glob** (Cursor-native, matched by file pattern, never always-on):
 
-- The 15 globs-lazy rules under `.cursor/rules/cursor-skills-*.mdc`.
+- The 14 globs-lazy rules under `.cursor/rules/cursor-skills-*.mdc`.
 
 **Budgets** (bytes, lines, and longest line only — never a token count; a token figure is a harness-internal detail the kit cannot pin or verify across hosts) are set per file class in `decisions/2026-09-20_contract-read-budget-and-laziness.md` and enforced as CI tests in `packages/cli/src/docs/size-budgets.test.ts`. In short: a consumer-L0 command stays under 150 lines / 8 KiB / 700 characters per line; its one-hop skill page under 250 lines / 10 KiB (or, for the handful of commands whose full procedure genuinely does not fit a stub-sized page, 400 lines / 48 KiB); the always-loaded classes (`alwaysApply` rule, globs-lazy rule, `.claude` command adapter) stay far smaller since every byte there is paid on every matching session. A split that only relocates bytes without cutting real duplication — as happened once (`#901`, `b142fdd`) — is a regression these tests catch; the numbers above are enforced, not aspirational.
 
